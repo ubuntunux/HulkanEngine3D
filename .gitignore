@@ -1,0 +1,18 @@
+temp/
+logs/
+.idea
+.ropeproject
+.settings
+.stack-work
+*.hi
+*.exe
+*.log
+*.pyc
+*.py~
+*.pyo
+*.swp
+*.o
+*.c
+
+# resources
+*.meta
