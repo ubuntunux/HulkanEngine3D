@@ -1,0 +1,10 @@
+flags: {}
+packages:
+- .
+extra-deps:
+- GLFW-b-1.4.8.1
+- OpenGL-3.0.2.0
+- GLUtil-0.9.2
+- bytestring-0.10.8.1
+- GLUT-2.7.0.12
+resolver: lts-9.13
