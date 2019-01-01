@@ -1,0 +1,31 @@
+resolver: lts-10.2
+
+extra-deps:
+  - extra-1.5.3
+  - monad-journal-0.7.2
+  - optparse-applicative-0.13.2.0
+  - unix-compat-0.4.3.1
+  - either-4.4.1.1
+  - haskell-src-exts-1.20.1
+  - haskell-src-exts-sc-0.1.0.6
+  - stylish-haskell-0.9.0.2
+  - hindent-5.2.5
+  - hlint-2.0.15
+  - regex-1.0.1.3
+
+packages:
+  - .
+  - location:
+      git: https://github.com/DanielG/ghc-mod
+      commit: c3530f75d5c539c91ed0b8d38e90d66cbaa66a35
+    extra-dep: true
+  - location:
+      git: https://github.com/DanielG/cabal-helper
+      commit: 4bfc6b916fcc696a5d82e7cd35713d6eabcb0533
+    extra-dep: true
+  - location:
+      git: https://github.com/achirkin/hfmt
+      commit: d03e4b950cf309f57bbeb55b4d2c9cee162e6de7
+    extra-dep: true
+
+allow-newer: true
