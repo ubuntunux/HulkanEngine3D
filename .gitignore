@@ -4,6 +4,8 @@ logs/
 .ropeproject
 .settings
 .stack-work
+*.dyn_hi
+*.dyn_o
 *.hi
 *.exe
 *.log
