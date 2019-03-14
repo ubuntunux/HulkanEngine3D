@@ -13,30 +13,44 @@ import Lib.Utils
 import Lib.Vulkan (withVulkanInstance)
 
 
+--createVulkanInstance::String -> String -> [CString] -> [String] -> IO VkInstance
+createVulkanInstance progName engineName extensions layers = do
+ return ()
+
+
 someAcion window = do
-  print window
+  glfwReqExts <- GLFW.getRequiredInstanceExtensions
+  let
+    progName = "02-GLFWWindow"
+    engineName = "My perfect Haskell engine"
+    extensions = glfwReqExts
+    layers = ["VK_LAYER_LUNARG_standard_validation"]
+  vkInstance <- createVulkanInstance progName engineName extensions layers
+  print vkInstance
   return ()
 
 main::IO()
 main = do 
-  window <- withGLFWWindow $ someAcion
+  maybeWindow <- withGLFWWindow
+  when (Nothing == maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
+  putStrLn "Initialized GLFW window."
+  let Just window = maybeWindow  
+  someAcion window
+  GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
 
-
-withGLFWWindow action = do
-  GLFW.init >>= (\result -> flip unless (throwVKMsg "Failed to initialize GLFW.") result)
+withGLFWWindow::IO (Maybe GLFW.Window)
+withGLFWWindow = do
+  GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")
   putStrLn "Initialized GLFW."
-  GLFW.getVersionString >>= (\result -> mapM_ (putStrLn . ("GLFW Version: " ++)) result)
+  version <- GLFW.getVersionString
+  mapM_ (putStrLn . ("GLFW Version: " ++)) version
   GLFW.vulkanSupported >>= flip unless (throwVKMsg "GLFW reports that vulkan is not supported!")
   GLFW.windowHint $ WindowHint'ClientAPI ClientAPI'NoAPI
   GLFW.windowHint $ WindowHint'Resizable True
-  window <- GLFW.createWindow 800 600 "Vulkan Window" Nothing Nothing    
-  case window of
-    Nothing -> throwVKMsg "Failed to initialize GLFW window."
-    Just w -> do
-      putStrLn "Initialized GLFW window."
-      finally (action w)
-        (GLFW.destroyWindow w >> putStrLn "Closed GLFW window.")
+  window <- GLFW.createWindow 800 600 "Vulkan Window" Nothing Nothing
+  return window
+        
     
 
