@@ -19,13 +19,6 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Lib.Utils
 import Lib.Vulkan
-
-glfwMainLoop :: GLFW.Window -> IO () -> IO ()
-glfwMainLoop window action = go
-  where
-    go = do
-      should <- GLFW.windowShouldClose window
-      unless should $ GLFW.pollEvents >> action >> go
       
 createVulkanInstance::String -> String -> [CString] -> [String] -> IO VkInstance
 createVulkanInstance progName engineName extensions layers = do
@@ -60,18 +53,15 @@ createVulkanInstance progName engineName extensions layers = do
 destroyVulkanInstance :: VkInstance -> IO ()
 destroyVulkanInstance vkInstance = vkDestroyInstance vkInstance VK_NULL
 
-someAcion2 vulkanInstance window = do
-  glfwMainLoop window (return ())
+glfwMainLoop :: GLFW.Window -> IO () -> IO ()
+glfwMainLoop window mainLoop = go
+  where
+    go = do
+      should <- GLFW.windowShouldClose window
+      unless should $ GLFW.pollEvents >> mainLoop >> go
 
-someAcion window = do
-  glfwReqExts <- GLFW.getRequiredInstanceExtensions
-  let
-    progName = "02-GLFWWindow"
-    engineName = "My perfect Haskell engine"
-    extensions = glfwReqExts
-    layers = ["VK_LAYER_LUNARG_standard_validation"]
-  vkInstance <- createVulkanInstance progName engineName extensions layers
-  finally (someAcion2 vkInstance window) $ destroyVulkanInstance vkInstance
+mainLoop::IO()
+mainLoop = do
   return ()
 
 main::IO()
@@ -79,8 +69,16 @@ main = do
   maybeWindow <- withGLFWWindow
   when (Nothing == maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
   putStrLn "Initialized GLFW window."
-  let Just window = maybeWindow  
-  someAcion window
+  glfwReqExts <- GLFW.getRequiredInstanceExtensions
+  let
+    Just window = maybeWindow
+    progName = "02-GLFWWindow"
+    engineName = "My perfect Haskell engine"
+    extensions = glfwReqExts
+    layers = ["VK_LAYER_LUNARG_standard_validation"]
+  vkInstance <- createVulkanInstance progName engineName extensions layers
+  glfwMainLoop window mainLoop
+  destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
