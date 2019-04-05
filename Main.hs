@@ -53,6 +53,23 @@ createVulkanInstance progName engineName extensions layers = do
 destroyVulkanInstance :: VkInstance -> IO ()
 destroyVulkanInstance vkInstance = vkDestroyInstance vkInstance VK_NULL
 
+selectPhysicalDevice vkInstance = do
+  deviceCountPtr <- alloca $ \deviceCountPtr -> do 
+    throwingVK "Failed to enumerate physical devices."
+      $ vkEnumeratePhysicalDevices vkInstance deviceCountPtr VK_NULL_HANDLE
+    return deviceCountPtr
+  deviceCount <- fromIntegral <$> peek deviceCountPtr
+  when (deviceCount <= 0) $ throwVKMsg "Zero device count!"
+  putStrLn $ "Found " ++ show deviceCount ++ " devices."
+  devices <- allocaArray deviceCount $ \devicesPtr -> do
+    throwingVK "Failed to enumerate physical devices."
+      $ vkEnumeratePhysicalDevices vkInstance deviceCountPtr devicesPtr
+    peekArray deviceCount devicesPtr
+  let 
+    selectFirstSuitable [] = throwVKMsg "No suitable devices!"
+    selectFirstSuitable (x:xs) = pure x
+  return $ selectFirstSuitable devices
+
 glfwMainLoop :: GLFW.Window -> IO () -> IO ()
 glfwMainLoop window mainLoop = go
   where
@@ -77,6 +94,7 @@ main = do
     extensions = glfwReqExts
     layers = ["VK_LAYER_LUNARG_standard_validation"]
   vkInstance <- createVulkanInstance progName engineName extensions layers
+  device <- selectPhysicalDevice vkInstance
   glfwMainLoop window mainLoop
   destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
