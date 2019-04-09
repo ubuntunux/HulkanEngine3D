@@ -18,3 +18,4 @@ logs/
 
 # resources
 *.meta
+\.vscode/
