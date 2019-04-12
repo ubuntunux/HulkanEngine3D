@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Application
-    ( withGLFWWindow
+    ( getGLFWWindow
     , glfwMainLoop ) where
 
 import Control.Monad
@@ -21,8 +21,8 @@ glfwMainLoop window mainLoop = go
       unless should $ GLFW.pollEvents >> mainLoop >> go
 
 
-withGLFWWindow::IO (Maybe GLFW.Window)
-withGLFWWindow = do
+getGLFWWindow::Int -> Int -> String -> IO (Maybe GLFW.Window)
+getGLFWWindow width height title = do
   GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")  
   putStrLn "Initialized GLFW."
   version <- GLFW.getVersionString
@@ -30,5 +30,5 @@ withGLFWWindow = do
   GLFW.vulkanSupported >>= flip unless (throwVKMsg "GLFW reports that vulkan is not supported!")
   GLFW.windowHint $ WindowHint'ClientAPI ClientAPI'NoAPI
   GLFW.windowHint $ WindowHint'Resizable True
-  window <- GLFW.createWindow 800 600 "Vulkan Window" Nothing Nothing
+  window <- GLFW.createWindow width height title Nothing Nothing
   return window

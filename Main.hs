@@ -17,7 +17,7 @@ mainLoop = do
 
 main::IO()
 main = do 
-  maybeWindow <- withGLFWWindow
+  maybeWindow <- getGLFWWindow 800 600 "Vulkan Application"
   when (Nothing == maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
   putStrLn "Initialized GLFW window."
   glfwReqExts <- GLFW.getRequiredInstanceExtensions
@@ -28,8 +28,11 @@ main = do
     extensions = glfwReqExts
     layers = ["VK_LAYER_LUNARG_standard_validation"]
   vkInstance <- createVulkanInstance progName engineName extensions layers
-  (_, device) <- selectPhysicalDevice vkInstance Nothing
-  putStrLn $ "Selected physical device: " ++ show device
+  (_, physical_device) <- selectPhysicalDevice vkInstance Nothing  
+  putStrLn $ "Selected physical device: " ++ show physical_device
+  (device, queue) <- withGraphicsDevice physical_device
+  putStrLn $ "Created device: " ++ show device
+  putStrLn $ "Created queue: " ++ show queue
   glfwMainLoop window mainLoop
   destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
