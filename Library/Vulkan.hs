@@ -7,7 +7,7 @@ module Library.Vulkan
     ( createVulkanInstance
     , destroyVulkanInstance
     , selectPhysicalDevice
-    , withGraphicsDevice
+    , getGraphicsDevice
     ) where
 
 import Control.Exception
@@ -100,8 +100,8 @@ selectGraphicsFamily (x@(_,qfp):xs)
     then x
     else selectGraphicsFamily xs
 
---withGraphicsDevice::VkPhysicalDevice -> VkDevice -> VkQueue
-withGraphicsDevice physical_device = do  
+getGraphicsDevice::VkPhysicalDevice -> IO (VkDevice, VkQueue)
+getGraphicsDevice physical_device = do  
   result@(device, queue) <- alloca $ \queuePrioritiesPtr -> do     
     let layers = ["VK_LAYER_LUNARG_standard_validation"]
     withCStringList layers $ \layerCount layerNames -> do

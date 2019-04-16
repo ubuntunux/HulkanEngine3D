@@ -30,7 +30,7 @@ main = do
   vkInstance <- createVulkanInstance progName engineName extensions layers
   (_, physical_device) <- selectPhysicalDevice vkInstance Nothing  
   putStrLn $ "Selected physical device: " ++ show physical_device
-  (device, queue) <- withGraphicsDevice physical_device
+  (device, queue) <- getGraphicsDevice physical_device
   putStrLn $ "Created device: " ++ show device
   putStrLn $ "Created queue: " ++ show queue
   glfwMainLoop window mainLoop
