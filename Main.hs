@@ -34,6 +34,7 @@ main = do
   putStrLn $ "Created device: " ++ show device
   putStrLn $ "Created queue: " ++ show queue
   glfwMainLoop window mainLoop
+  destroyDevice device
   destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."

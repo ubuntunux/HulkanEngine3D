@@ -8,6 +8,7 @@ module Library.Vulkan
     , destroyVulkanInstance
     , selectPhysicalDevice
     , getGraphicsDevice
+    , destroyDevice
     ) where
 
 import Control.Exception
@@ -146,3 +147,5 @@ getGraphicsDevice physical_device = do
       return (device, queue)
   return result
       
+destroyDevice device =
+  vkDestroyDevice device VK_NULL_HANDLE
