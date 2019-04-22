@@ -146,6 +146,6 @@ getGraphicsDevice physical_device = do
         peek queuePtr
       return (device, queue)
   return result
-      
-destroyDevice device =
-  vkDestroyDevice device VK_NULL_HANDLE
+
+destroyDevice :: VkDevice -> IO ()
+destroyDevice device = vkDestroyDevice device VK_NULL_HANDLE
