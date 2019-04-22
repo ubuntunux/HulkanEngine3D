@@ -4,9 +4,13 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Vulkan
-    ( createVulkanInstance
+    ( touchVKDatas
+    , getApplicationInfo
+    , getInstanceCreateInfo
+    , createVulkanInstance
     , destroyVulkanInstance
     , selectPhysicalDevice
+    , getQueueFamilyIndex
     , getGraphicsDevice
     , destroyDevice
     ) where
@@ -25,41 +29,40 @@ import Graphics.Vulkan.Marshal.Create
 import Lib.Utils
 import Lib.Vulkan
 
-      
-createVulkanInstance::String -> String -> [CString] -> [String] -> IO VkInstance
-createVulkanInstance progName engineName extensions layers = do
-  vkInstance <- alloca createAction
-  touchVkData iCreateInfo
+--touchVKDatas :: VulkanMarshal a => a -> IO ()
+touchVKDatas instanceCreateInfo = do
+  touchVkData instanceCreateInfo
+
+getApplicationInfo :: String -> String -> VkApplicationInfo
+getApplicationInfo progName engineName = createVk @VkApplicationInfo
+  $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
+  &* set @"pNext" VK_NULL
+  &* setStrRef @"pApplicationName" progName
+  &* set @"applicationVersion" (_VK_MAKE_VERSION 1 0 0)
+  &* setStrRef @"pEngineName" engineName
+  &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
+  &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 68)
+
+getInstanceCreateInfo :: VkApplicationInfo -> [String] -> [CString] -> VkInstanceCreateInfo
+getInstanceCreateInfo applicatonInfo layers extensions = createVk @VkInstanceCreateInfo
+  $ set @"sType" VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
+  &* set @"pNext" VK_NULL
+  &* setVkRef @"pApplicationInfo" applicatonInfo
+  &* set @"enabledLayerCount" (fromIntegral $ length layers)
+  &* setStrListRef @"ppEnabledLayerNames" layers
+  &* set @"enabledExtensionCount" (fromIntegral $ length extensions)
+  &* setListRef @"ppEnabledExtensionNames" extensions
+
+-- createVulkanInstance::String -> String -> [CString] -> [String] -> IO VkInstance
+createVulkanInstance instanceCreateInfo  = do
+  vkInstance <- alloca $ \vkInstPtr -> do
+    throwingVK "vkCreateInstance: Failed to create vkInstance."
+      $ vkCreateInstance (unsafePtr instanceCreateInfo) VK_NULL vkInstPtr    
+    peek vkInstPtr  
   return vkInstance
-  
-  where
-    createAction vkInstPtr = do
-      throwingVK "vkCreateInstance: Failed to create vkInstance."
-        $ vkCreateInstance (unsafePtr iCreateInfo) VK_NULL vkInstPtr    
-      peek vkInstPtr
-
-    appInfo = createVk @VkApplicationInfo
-      $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
-      &* set @"pNext" VK_NULL
-      &* setStrRef @"pApplicationName" progName
-      &* set @"applicationVersion" (_VK_MAKE_VERSION 1 0 0)
-      &* setStrRef @"pEngineName" engineName
-      &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
-      &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 68)
-      
-    iCreateInfo = createVk @VkInstanceCreateInfo
-      $ set @"sType" VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
-      &* set @"pNext" VK_NULL
-      &* setVkRef @"pApplicationInfo" appInfo
-      &* set @"enabledLayerCount" (fromIntegral $ length layers)
-      &* setStrListRef @"ppEnabledLayerNames" layers
-      &* set @"enabledExtensionCount" (fromIntegral $ length extensions)
-      &* setListRef @"ppEnabledExtensionNames" extensions
-
 
 destroyVulkanInstance :: VkInstance -> IO ()
 destroyVulkanInstance vkInstance = vkDestroyInstance vkInstance VK_NULL
-
 
 selectPhysicalDevice::VkInstance 
   -> Maybe VkSurfaceKHR 
@@ -89,63 +92,61 @@ getQueueFamilies pdev = alloca $ \qFamCountPtr -> do
     vkGetPhysicalDeviceQueueFamilyProperties pdev qFamCountPtr familiesPtr
     zip [0..] <$> peekArray aFamCount familiesPtr
 
-
 -- | Throw an error otherwise
-selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)]
-                     -> (Word32, VkQueueFamilyProperties)
-selectGraphicsFamily []
-  = throw $ VulkanException Nothing "selectGraphicsFamily: not found!"
-selectGraphicsFamily (x@(_,qfp):xs)
-  = if  getField @"queueCount" qfp > 0
-     && getField @"queueFlags" qfp .&. VK_QUEUE_GRAPHICS_BIT /= zeroBits
-    then x
+selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
+selectGraphicsFamily [] =
+  throw $ VulkanException Nothing "selectGraphicsFamily: not found!"
+selectGraphicsFamily (x@(queueFamilyIndex, queueFamilyProperty):xs) =
+  if queueCount > 0 && (queueFlags .&. VK_QUEUE_GRAPHICS_BIT) /= zeroBits
+    then (queueFamilyIndex, queueFamilyProperty)
     else selectGraphicsFamily xs
+  where
+    queueCount = getField @"queueCount" queueFamilyProperty
+    queueFlags = getField @"queueFlags" queueFamilyProperty
 
-getGraphicsDevice::VkPhysicalDevice -> IO (VkDevice, VkQueue)
-getGraphicsDevice physical_device = do  
-  result@(device, queue) <- alloca $ \queuePrioritiesPtr -> do     
-    let layers = ["VK_LAYER_LUNARG_standard_validation"]
-    withCStringList layers $ \layerCount layerNames -> do
+-- find an appropriate queue family
+getQueueFamilyIndex :: VkPhysicalDevice -> IO (Word32, VkQueueFamilyProperties)
+getQueueFamilyIndex physical_device = selectGraphicsFamily <$> getQueueFamilies physical_device
 
-      -- find an appropriate queue family
-      (gFamIdx, _gFam) <- selectGraphicsFamily <$> getQueueFamilies physical_device
-
-      qcInfo <- newVkData @VkDeviceQueueCreateInfo
-                          $ \qcInfoPtr -> do
+getGraphicsDevice::VkPhysicalDevice -> Word32 -> IO (VkDevice, VkQueue)
+getGraphicsDevice physical_device queueFamilyIndex = do  
+  pdevFeatures <- newVkData @VkPhysicalDeviceFeatures clearStorable
+  
+  qcInfo <- alloca $ \queuePrioritiesPtr -> do
+    newVkData @VkDeviceQueueCreateInfo $ \qcInfoPtr -> do
         writeField @"sType" qcInfoPtr VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
         writeField @"pNext" qcInfoPtr VK_NULL_HANDLE
         writeField @"flags" qcInfoPtr 0
-        writeField @"queueFamilyIndex" qcInfoPtr gFamIdx
+        writeField @"queueFamilyIndex" qcInfoPtr queueFamilyIndex
         writeField @"queueCount" qcInfoPtr 1
         poke queuePrioritiesPtr 1.0
         writeField @"pQueuePriorities" qcInfoPtr queuePrioritiesPtr
-      pdevFeatures <- newVkData @VkPhysicalDeviceFeatures clearStorable
 
-      devCreateInfo <- newVkData @VkDeviceCreateInfo
-                              $ \devCreateInfoPtr -> do
-        writeField @"sType" devCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
-        writeField @"pNext" devCreateInfoPtr VK_NULL_HANDLE
-        writeField @"flags" devCreateInfoPtr 0
-        writeField @"pQueueCreateInfos" devCreateInfoPtr (unsafePtr qcInfo)
-        writeField @"queueCreateInfoCount" devCreateInfoPtr 1
-        writeField @"enabledLayerCount" devCreateInfoPtr (fromIntegral layerCount)
-        writeField @"ppEnabledLayerNames" devCreateInfoPtr layerNames
-        writeField @"enabledExtensionCount" devCreateInfoPtr 0
-        writeField @"ppEnabledExtensionNames" devCreateInfoPtr VK_NULL_HANDLE
-        writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr pdevFeatures)
+  let layers = ["VK_LAYER_LUNARG_standard_validation"]
+  devCreateInfo <- withCStringList layers $ \layerCount layerNames -> do
+    newVkData @VkDeviceCreateInfo $ \devCreateInfoPtr -> do
+      writeField @"sType" devCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+      writeField @"pNext" devCreateInfoPtr VK_NULL_HANDLE
+      writeField @"flags" devCreateInfoPtr 0
+      writeField @"pQueueCreateInfos" devCreateInfoPtr (unsafePtr qcInfo)
+      writeField @"queueCreateInfoCount" devCreateInfoPtr 1
+      writeField @"enabledLayerCount" devCreateInfoPtr (fromIntegral layerCount)
+      writeField @"ppEnabledLayerNames" devCreateInfoPtr layerNames
+      writeField @"enabledExtensionCount" devCreateInfoPtr 0
+      writeField @"ppEnabledExtensionNames" devCreateInfoPtr VK_NULL_HANDLE
+      writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr pdevFeatures)
 
-      -- try to create a device
-      device <- alloca $ \devicePtr -> do
-        throwingVK "vkCreateDevice: failed to create vkDevice"
-          $ vkCreateDevice physical_device (unsafePtr devCreateInfo) VK_NULL_HANDLE devicePtr
-        peek devicePtr
+  -- try to create a device
+  device <- alloca $ \devicePtr -> do
+    throwingVK "vkCreateDevice: failed to create vkDevice"
+      $ vkCreateDevice physical_device (unsafePtr devCreateInfo) VK_NULL_HANDLE devicePtr
+    peek devicePtr
 
-      -- get the first and the only requested queue
-      queue <- alloca $ \queuePtr -> do
-        vkGetDeviceQueue device gFamIdx 0 queuePtr
-        peek queuePtr
-      return (device, queue)
-  return result
+  -- get the first and the only requested queue
+  queue <- alloca $ \queuePtr -> do
+    vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
+    peek queuePtr
+  return (device, queue)
 
 destroyDevice :: VkDevice -> IO ()
 destroyDevice device = vkDestroyDevice device VK_NULL_HANDLE
