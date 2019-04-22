@@ -4,15 +4,18 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Vulkan
-    ( touchVKDatas
-    , getApplicationInfo
+    ( getApplicationInfo
     , getInstanceCreateInfo
     , createVulkanInstance
     , destroyVulkanInstance
     , selectPhysicalDevice
     , getQueueFamilyIndex
-    , getGraphicsDevice
+    , getPhysicalDeviceFeatures
+    , getQueueCreateInfo
+    , getDeviceCreateInfo
+    , createGraphicsDevice
     , destroyDevice
+    , touchVKDatas
     ) where
 
 import Control.Exception
@@ -29,19 +32,16 @@ import Graphics.Vulkan.Marshal.Create
 import Lib.Utils
 import Lib.Vulkan
 
---touchVKDatas :: VulkanMarshal a => a -> IO ()
-touchVKDatas instanceCreateInfo = do
-  touchVkData instanceCreateInfo
 
 getApplicationInfo :: String -> String -> VkApplicationInfo
 getApplicationInfo progName engineName = createVk @VkApplicationInfo
-  $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
-  &* set @"pNext" VK_NULL
-  &* setStrRef @"pApplicationName" progName
-  &* set @"applicationVersion" (_VK_MAKE_VERSION 1 0 0)
-  &* setStrRef @"pEngineName" engineName
-  &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
-  &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 68)
+    $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
+    &* set @"pNext" VK_NULL
+    &* setStrRef @"pApplicationName" progName
+    &* set @"applicationVersion" (_VK_MAKE_VERSION 1 0 0)
+    &* setStrRef @"pEngineName" engineName
+    &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
+    &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 68)
 
 getInstanceCreateInfo :: VkApplicationInfo -> [String] -> [CString] -> VkInstanceCreateInfo
 getInstanceCreateInfo applicatonInfo layers extensions = createVk @VkInstanceCreateInfo
@@ -92,10 +92,8 @@ getQueueFamilies pdev = alloca $ \qFamCountPtr -> do
     vkGetPhysicalDeviceQueueFamilyProperties pdev qFamCountPtr familiesPtr
     zip [0..] <$> peekArray aFamCount familiesPtr
 
--- | Throw an error otherwise
 selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
-selectGraphicsFamily [] =
-  throw $ VulkanException Nothing "selectGraphicsFamily: not found!"
+selectGraphicsFamily [] = throw $ VulkanException Nothing "selectGraphicsFamily: not found!"
 selectGraphicsFamily (x@(queueFamilyIndex, queueFamilyProperty):xs) =
   if queueCount > 0 && (queueFlags .&. VK_QUEUE_GRAPHICS_BIT) /= zeroBits
     then (queueFamilyIndex, queueFamilyProperty)
@@ -104,49 +102,65 @@ selectGraphicsFamily (x@(queueFamilyIndex, queueFamilyProperty):xs) =
     queueCount = getField @"queueCount" queueFamilyProperty
     queueFlags = getField @"queueFlags" queueFamilyProperty
 
--- find an appropriate queue family
 getQueueFamilyIndex :: VkPhysicalDevice -> IO (Word32, VkQueueFamilyProperties)
 getQueueFamilyIndex physical_device = selectGraphicsFamily <$> getQueueFamilies physical_device
 
-getGraphicsDevice::VkPhysicalDevice -> Word32 -> IO (VkDevice, VkQueue)
-getGraphicsDevice physical_device queueFamilyIndex = do  
-  pdevFeatures <- newVkData @VkPhysicalDeviceFeatures clearStorable
-  
-  qcInfo <- alloca $ \queuePrioritiesPtr -> do
-    newVkData @VkDeviceQueueCreateInfo $ \qcInfoPtr -> do
-        writeField @"sType" qcInfoPtr VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
-        writeField @"pNext" qcInfoPtr VK_NULL_HANDLE
-        writeField @"flags" qcInfoPtr 0
-        writeField @"queueFamilyIndex" qcInfoPtr queueFamilyIndex
-        writeField @"queueCount" qcInfoPtr 1
-        poke queuePrioritiesPtr 1.0
-        writeField @"pQueuePriorities" qcInfoPtr queuePrioritiesPtr
+getPhysicalDeviceFeatures :: IO VkPhysicalDeviceFeatures
+getPhysicalDeviceFeatures = newVkData @VkPhysicalDeviceFeatures clearStorable
 
-  let layers = ["VK_LAYER_LUNARG_standard_validation"]
-  devCreateInfo <- withCStringList layers $ \layerCount layerNames -> do
+getQueueCreateInfo :: Word32 -> IO VkDeviceQueueCreateInfo
+getQueueCreateInfo queueFamilyIndex = do
+  queueCreateInfo <- alloca $ \queuePrioritiesPtr -> do
+    newVkData @VkDeviceQueueCreateInfo $ \queueCreateInfoPtr -> do
+        writeField @"sType" queueCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+        writeField @"pNext" queueCreateInfoPtr VK_NULL_HANDLE
+        writeField @"flags" queueCreateInfoPtr 0
+        writeField @"queueFamilyIndex" queueCreateInfoPtr queueFamilyIndex
+        writeField @"queueCount" queueCreateInfoPtr 1
+        poke queuePrioritiesPtr 1.0
+        writeField @"pQueuePriorities" queueCreateInfoPtr queuePrioritiesPtr
+  return queueCreateInfo
+
+getDeviceCreateInfo :: 
+  VkDeviceQueueCreateInfo
+  -> VkPhysicalDeviceFeatures
+  -> [String]
+  -> IO VkDeviceCreateInfo
+getDeviceCreateInfo queueCreateInfo physicalDeviceFeatures layers = do
+  deviceCreateInfo <- withCStringList layers $ \layerCount layerNames -> do
     newVkData @VkDeviceCreateInfo $ \devCreateInfoPtr -> do
       writeField @"sType" devCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
       writeField @"pNext" devCreateInfoPtr VK_NULL_HANDLE
       writeField @"flags" devCreateInfoPtr 0
-      writeField @"pQueueCreateInfos" devCreateInfoPtr (unsafePtr qcInfo)
+      writeField @"pQueueCreateInfos" devCreateInfoPtr (unsafePtr queueCreateInfo)
       writeField @"queueCreateInfoCount" devCreateInfoPtr 1
       writeField @"enabledLayerCount" devCreateInfoPtr (fromIntegral layerCount)
       writeField @"ppEnabledLayerNames" devCreateInfoPtr layerNames
       writeField @"enabledExtensionCount" devCreateInfoPtr 0
       writeField @"ppEnabledExtensionNames" devCreateInfoPtr VK_NULL_HANDLE
-      writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr pdevFeatures)
+      writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
+  return deviceCreateInfo
 
-  -- try to create a device
+createGraphicsDevice :: VkDeviceCreateInfo -> VkPhysicalDevice -> Word32 -> IO (VkDevice, VkQueue)
+createGraphicsDevice deviceCreateInfo physical_device queueFamilyIndex = do
   device <- alloca $ \devicePtr -> do
     throwingVK "vkCreateDevice: failed to create vkDevice"
-      $ vkCreateDevice physical_device (unsafePtr devCreateInfo) VK_NULL_HANDLE devicePtr
-    peek devicePtr
-
-  -- get the first and the only requested queue
+      $ vkCreateDevice physical_device (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
+    peek devicePtr    
   queue <- alloca $ \queuePtr -> do
     vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
     peek queuePtr
+  putStrLn $ "Created device: " ++ show device
+  putStrLn $ "Created queue: " ++ show queue
   return (device, queue)
 
 destroyDevice :: VkDevice -> IO ()
 destroyDevice device = vkDestroyDevice device VK_NULL_HANDLE
+
+touchVKDatas :: (VulkanMarshal a3, VulkanMarshal a2, VulkanMarshal a1, VulkanMarshal a) 
+  => a3 -> a2 -> a1 -> a -> IO ()
+touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures queueCreateInfo = do
+  touchVkData instanceCreateInfo 
+  touchVkData deviceCreateInfo 
+  touchVkData physicalDeviceFeatures 
+  touchVkData queueCreateInfo

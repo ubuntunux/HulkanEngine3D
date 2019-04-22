@@ -32,13 +32,14 @@ main = do
   (_, physical_device) <- selectPhysicalDevice vkInstance Nothing  
   putStrLn $ "Selected physical device: " ++ show physical_device
   (queueFamilyIndex, queueFamilyProperties) <- getQueueFamilyIndex physical_device
-  (device, queue) <- getGraphicsDevice physical_device queueFamilyIndex
-  putStrLn $ "Created device: " ++ show device
-  putStrLn $ "Created queue: " ++ show queue
+  physicalDeviceFeatures <- getPhysicalDeviceFeatures
+  queueCreateInfo <- getQueueCreateInfo queueFamilyIndex
+  deviceCreateInfo <- getDeviceCreateInfo queueCreateInfo physicalDeviceFeatures layers
+  (device, queue) <- createGraphicsDevice deviceCreateInfo physical_device queueFamilyIndex  
   glfwMainLoop window mainLoop
   destroyDevice device
   destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
-  touchVKDatas instanceCreateInfo
+  touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures queueCreateInfo
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
