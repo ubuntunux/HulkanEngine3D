@@ -54,7 +54,7 @@ createSurface vkInstance window = do
   vkSurface <- alloca $ \vkSurfacePtr -> do
     throwingVK "glfwCreateWindowSurface: failed to create window surface"
       $ GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE vkSurfacePtr
-    peek vkSurfacePtr
+    peek vkSurfacePtr  
   return vkSurface
 
 destroySurface :: VkInstance -> VkSurfaceKHR -> IO ()

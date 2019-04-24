@@ -29,7 +29,8 @@ main = do
     applicationInfo = getApplicationInfo progName engineName
     instanceCreateInfo = getInstanceCreateInfo applicationInfo layers extensions
   vkInstance <- createVulkanInstance instanceCreateInfo  
-  vkSurface <- createSurface vkInstance window  
+  vkSurface <- createSurface vkInstance window
+  putStrLn $ "Createad surface: " ++ show vkSurface
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
   putStrLn $ "Selected physical device: " ++ show physicalDevice
   (queueFamilyIndex, queueFamilyProperties) <- getQueueFamilyIndex physicalDevice
