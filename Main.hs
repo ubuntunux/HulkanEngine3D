@@ -17,10 +17,10 @@ mainLoop = do
 
 main::IO()
 main = do 
-  maybeWindow <- getGLFWWindow 800 600 "Vulkan Application"
+  maybeWindow <- createGLFWWindow 800 600 "Vulkan Application"
   when (Nothing == maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
   putStrLn "Initialized GLFW window."
-  extensions <- GLFW.getRequiredInstanceExtensions
+  extensions <- GLFW.getRequiredInstanceExtensions  
   let
     Just window = maybeWindow
     progName = "02-GLFWWindow"
@@ -29,6 +29,7 @@ main = do
     applicationInfo = getApplicationInfo progName engineName
     instanceCreateInfo = getInstanceCreateInfo applicationInfo layers extensions
   vkInstance <- createVulkanInstance instanceCreateInfo  
+  surface <- createSurface vkInstance window  
   (_, physical_device) <- selectPhysicalDevice vkInstance Nothing  
   putStrLn $ "Selected physical device: " ++ show physical_device
   (queueFamilyIndex, queueFamilyProperties) <- getQueueFamilyIndex physical_device
@@ -38,6 +39,7 @@ main = do
   (device, queue) <- createGraphicsDevice deviceCreateInfo physical_device queueFamilyIndex  
   glfwMainLoop window mainLoop
   destroyDevice device
+  destroySurface vkInstance surface
   destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
   touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures queueCreateInfo
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."

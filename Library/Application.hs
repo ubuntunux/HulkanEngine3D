@@ -4,11 +4,27 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Application
-    ( getGLFWWindow
-    , glfwMainLoop ) where
+    ( glfwMainLoop
+    , createGLFWWindow
+    , createSurface 
+    , destroySurface
+    ) where
 
+
+import Control.Exception
 import Control.Monad
+--import Data.Bits
+import Foreign.Marshal.Alloc
+--import Foreign.Marshal.Array
+import Foreign.Storable
+import Graphics.Vulkan
+--import Graphics.Vulkan.Core_1_0
+import Graphics.Vulkan.Ext.VK_KHR_surface
+--import Graphics.Vulkan.Ext.VK_KHR_swapchain
+--import Graphics.Vulkan.Marshal.Create
 import Lib.Utils
+import Lib.Vulkan
+
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import qualified Graphics.UI.GLFW as GLFW
 
@@ -21,8 +37,8 @@ glfwMainLoop window mainLoop = go
       unless should $ GLFW.pollEvents >> mainLoop >> go
 
 
-getGLFWWindow::Int -> Int -> String -> IO (Maybe GLFW.Window)
-getGLFWWindow width height title = do
+createGLFWWindow::Int -> Int -> String -> IO (Maybe GLFW.Window)
+createGLFWWindow width height title = do
   GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")  
   putStrLn "Initialized GLFW."
   version <- GLFW.getVersionString
@@ -32,3 +48,16 @@ getGLFWWindow width height title = do
   GLFW.windowHint $ WindowHint'Resizable True
   window <- GLFW.createWindow width height title Nothing Nothing
   return window
+
+createSurface :: Storable b => Ptr vkInstance -> GLFW.Window -> IO b
+createSurface vkInstance window = do
+  surface <- alloca $ \surfacePtr -> do
+    throwingVK "glfwCreateWindowSurface: failed to create window surface"
+      $ GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE surfacePtr
+    peek surfacePtr
+  return surface
+
+destroySurface :: VkInstance -> VkSurfaceKHR -> IO ()
+destroySurface vkInstance surface = do
+  destroySurfaceFunc <- vkGetInstanceProc @VkDestroySurfaceKHR vkInstance
+  destroySurfaceFunc vkInstance surface VK_NULL_HANDLE

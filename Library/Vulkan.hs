@@ -33,6 +33,15 @@ import Lib.Utils
 import Lib.Vulkan
 
 
+touchVKDatas :: 
+  (VulkanMarshal a3, VulkanMarshal a2, VulkanMarshal a1, VulkanMarshal a) 
+  => a3 -> a2 -> a1 -> a -> IO ()
+touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures queueCreateInfo = do
+  touchVkData instanceCreateInfo 
+  touchVkData deviceCreateInfo 
+  touchVkData physicalDeviceFeatures 
+  touchVkData queueCreateInfo
+
 getApplicationInfo :: String -> String -> VkApplicationInfo
 getApplicationInfo progName engineName = createVk @VkApplicationInfo
     $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
@@ -53,7 +62,7 @@ getInstanceCreateInfo applicatonInfo layers extensions = createVk @VkInstanceCre
   &* set @"enabledExtensionCount" (fromIntegral $ length extensions)
   &* setListRef @"ppEnabledExtensionNames" extensions
 
--- createVulkanInstance::String -> String -> [CString] -> [String] -> IO VkInstance
+createVulkanInstance :: VkInstanceCreateInfo -> IO VkInstance
 createVulkanInstance instanceCreateInfo  = do
   vkInstance <- alloca $ \vkInstPtr -> do
     throwingVK "vkCreateInstance: Failed to create vkInstance."
@@ -157,10 +166,3 @@ createGraphicsDevice deviceCreateInfo physical_device queueFamilyIndex = do
 destroyDevice :: VkDevice -> IO ()
 destroyDevice device = vkDestroyDevice device VK_NULL_HANDLE
 
-touchVKDatas :: (VulkanMarshal a3, VulkanMarshal a2, VulkanMarshal a1, VulkanMarshal a) 
-  => a3 -> a2 -> a1 -> a -> IO ()
-touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures queueCreateInfo = do
-  touchVkData instanceCreateInfo 
-  touchVkData deviceCreateInfo 
-  touchVkData physicalDeviceFeatures 
-  touchVkData queueCreateInfo
