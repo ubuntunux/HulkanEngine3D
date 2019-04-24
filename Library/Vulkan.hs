@@ -85,10 +85,10 @@ selectPhysicalDevice vkInstance mVkSurf = do
   selectFirstSuitable devices
   where
     selectFirstSuitable [] = throwVKMsg "No suitable devices!"
-    selectFirstSuitable (x:xs) = do
-      (mscsd, indeed) <- isDeviceSuitable mVkSurf x
-      if indeed then pure (mscsd, x)
-                else selectFirstSuitable xs
+    selectFirstSuitable (device:devices) = do
+      (maybeSwapChainSupportDetails, result) <- isDeviceSuitable mVkSurf device
+      if result then pure (maybeSwapChainSupportDetails, device)
+                else selectFirstSuitable devices
 
 getQueueFamilies :: VkPhysicalDevice -> IO [(Word32, VkQueueFamilyProperties)]
 getQueueFamilies pdev = alloca $ \qFamCountPtr -> do
@@ -112,7 +112,7 @@ selectGraphicsFamily (x@(queueFamilyIndex, queueFamilyProperty):xs) =
     queueFlags = getField @"queueFlags" queueFamilyProperty
 
 getQueueFamilyIndex :: VkPhysicalDevice -> IO (Word32, VkQueueFamilyProperties)
-getQueueFamilyIndex physical_device = selectGraphicsFamily <$> getQueueFamilies physical_device
+getQueueFamilyIndex physicalDevice = selectGraphicsFamily <$> getQueueFamilies physicalDevice
 
 getPhysicalDeviceFeatures :: IO VkPhysicalDeviceFeatures
 getPhysicalDeviceFeatures = newVkData @VkPhysicalDeviceFeatures clearStorable
@@ -151,10 +151,10 @@ getDeviceCreateInfo queueCreateInfo physicalDeviceFeatures layers = do
   return deviceCreateInfo
 
 createGraphicsDevice :: VkDeviceCreateInfo -> VkPhysicalDevice -> Word32 -> IO (VkDevice, VkQueue)
-createGraphicsDevice deviceCreateInfo physical_device queueFamilyIndex = do
+createGraphicsDevice deviceCreateInfo physicalDevice queueFamilyIndex = do
   device <- alloca $ \devicePtr -> do
     throwingVK "vkCreateDevice: failed to create vkDevice"
-      $ vkCreateDevice physical_device (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
+      $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
     peek devicePtr    
   queue <- alloca $ \queuePtr -> do
     vkGetDeviceQueue device queueFamilyIndex 0 queuePtr

@@ -51,13 +51,13 @@ createGLFWWindow width height title = do
 
 createSurface :: Storable b => Ptr vkInstance -> GLFW.Window -> IO b
 createSurface vkInstance window = do
-  surface <- alloca $ \surfacePtr -> do
+  vkSurface <- alloca $ \vkSurfacePtr -> do
     throwingVK "glfwCreateWindowSurface: failed to create window surface"
-      $ GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE surfacePtr
-    peek surfacePtr
-  return surface
+      $ GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE vkSurfacePtr
+    peek vkSurfacePtr
+  return vkSurface
 
 destroySurface :: VkInstance -> VkSurfaceKHR -> IO ()
-destroySurface vkInstance surface = do
+destroySurface vkInstance vkSurface = do
   destroySurfaceFunc <- vkGetInstanceProc @VkDestroySurfaceKHR vkInstance
-  destroySurfaceFunc vkInstance surface VK_NULL_HANDLE
+  destroySurfaceFunc vkInstance vkSurface VK_NULL_HANDLE
