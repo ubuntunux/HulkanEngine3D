@@ -30,7 +30,7 @@ main = do
     instanceCreateInfo = getInstanceCreateInfo applicationInfo layers extensions
   vkInstance <- createVulkanInstance instanceCreateInfo  
   vkSurface <- createSurface vkInstance window  
-  (Just SwapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance Nothing  
+  (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
   putStrLn $ "Selected physical device: " ++ show physicalDevice
   (queueFamilyIndex, queueFamilyProperties) <- getQueueFamilyIndex physicalDevice
   physicalDeviceFeatures <- getPhysicalDeviceFeatures
