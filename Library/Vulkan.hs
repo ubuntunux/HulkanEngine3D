@@ -26,8 +26,8 @@ import Foreign.Marshal.Array
 import Foreign.Storable
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
---import Graphics.Vulkan.Ext.VK_KHR_surface
---import Graphics.Vulkan.Ext.VK_KHR_swapchain
+import Graphics.Vulkan.Ext.VK_KHR_surface
+import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
 import Lib.Utils
 import Lib.Vulkan
@@ -105,11 +105,29 @@ selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueF
 selectGraphicsFamily [] = throw $ VulkanException Nothing "selectGraphicsFamily: not found!"
 selectGraphicsFamily (x@(queueFamilyIndex, queueFamilyProperty):xs) =
   if queueCount > 0 && (queueFlags .&. VK_QUEUE_GRAPHICS_BIT) /= zeroBits
-    then (queueFamilyIndex, queueFamilyProperty)
+    then x
     else selectGraphicsFamily xs
   where
     queueCount = getField @"queueCount" queueFamilyProperty
     queueFlags = getField @"queueFlags" queueFamilyProperty
+
+    
+selectPresentationFamily :: VkPhysicalDevice
+     -> VkSurfaceKHR
+     -> [(Word32, VkQueueFamilyProperties)]
+     -> IO (Word32, VkQueueFamilyProperties)
+selectPresentationFamily _ _ [] = throw $ VulkanException Nothing "selectPresentFamily: not Found"
+selectPresentationFamily device surface (x@(queueFamilyIndex, queueFamilyProperty):xs)
+    | getField @"queueCount" queueFamilyProperty <= 0 = return $ selectGraphicsFamily xs
+    | otherwise = do
+      supported <- alloca $ \supportedPtr -> do
+        throwingVK "vkGetPhysicalDeviceSurfaceSupportKHR: failed to check for presentation support."
+          $ vkGetPhysicalDeviceSurfaceSupportKHR device queueFamilyIndex surface supportedPtr
+        peek supportedPtr
+      if VK_TRUE == supported
+      then pure x
+      else selectPresentationFamily device surface xs
+
 
 getQueueFamilyIndex :: VkPhysicalDevice -> IO (Word32, VkQueueFamilyProperties)
 getQueueFamilyIndex physicalDevice = selectGraphicsFamily <$> getQueueFamilies physicalDevice
