@@ -21,9 +21,12 @@ module Library.Vulkan
 import Control.Exception
 import Control.Monad
 import Data.Bits
+import Data.List ((\\))
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
+import Foreign.C.String
+import Foreign.Ptr
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_surface
@@ -42,6 +45,36 @@ touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures queueCre
   touchVkData physicalDeviceFeatures 
   touchVkData queueCreateInfo
 
+getInstanceExtensionSupport extensions = do
+  reqExts <- mapM peekCString extensions
+  availExtsC <- asListVK
+    $ \x ->
+      throwingVK "vkEnumerateInstanceExtensionProperties error"
+    . vkEnumerateInstanceExtensionProperties VK_NULL_HANDLE x
+  availExts <- mapM ( peekCString
+                    . castPtr
+                    . ( `plusPtr`
+                          fieldOffset @"extensionName" @VkExtensionProperties
+                      )
+                    . unsafePtr) availExtsC
+  putStrLn $ "Available instance extensions : " ++ (show availExts)
+  return availExts
+
+getDeviceExtensionSupport pdev extensions = do
+  reqExts <- mapM peekCString extensions
+  availExtsC <- asListVK
+    $ \x ->
+      throwingVK "vkEnumerateDeviceExtensionProperties error"
+    . vkEnumerateDeviceExtensionProperties pdev VK_NULL_HANDLE x
+  availExts <- mapM ( peekCString
+                    . castPtr
+                    . ( `plusPtr`
+                          fieldOffset @"extensionName" @VkExtensionProperties
+                      )
+                    . unsafePtr) availExtsC
+  putStrLn $ "Available device extensions : " ++ (show availExts)
+  return availExts
+
 getApplicationInfo :: String -> String -> VkApplicationInfo
 getApplicationInfo progName engineName = createVk @VkApplicationInfo
     $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
@@ -50,12 +83,13 @@ getApplicationInfo progName engineName = createVk @VkApplicationInfo
     &* set @"applicationVersion" (_VK_MAKE_VERSION 1 0 0)
     &* setStrRef @"pEngineName" engineName
     &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
-    &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 68)
+    &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 0)
 
 getInstanceCreateInfo :: VkApplicationInfo -> [String] -> [CString] -> VkInstanceCreateInfo
 getInstanceCreateInfo applicatonInfo layers extensions = createVk @VkInstanceCreateInfo
   $ set @"sType" VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
   &* set @"pNext" VK_NULL
+  &* set @"flags" 0
   &* setVkRef @"pApplicationInfo" applicatonInfo
   &* set @"enabledLayerCount" (fromIntegral $ length layers)
   &* setStrListRef @"ppEnabledLayerNames" layers
@@ -148,8 +182,7 @@ getQueueCreateInfo queueFamilyIndex = do
         writeField @"pQueuePriorities" queueCreateInfoPtr queuePrioritiesPtr
   return queueCreateInfo
 
-getDeviceCreateInfo :: 
-  VkDeviceQueueCreateInfo
+getDeviceCreateInfo :: VkDeviceQueueCreateInfo
   -> VkPhysicalDeviceFeatures
   -> [String]
   -> IO VkDeviceCreateInfo
