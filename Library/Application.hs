@@ -6,7 +6,7 @@
 module Library.Application
     ( glfwMainLoop
     , createGLFWWindow
-    , createSurface 
+    , createVkSurface 
     , destroySurface
     ) where
 
@@ -49,12 +49,12 @@ createGLFWWindow width height title = do
   window <- GLFW.createWindow width height title Nothing Nothing
   return window
 
-createSurface :: Storable b => Ptr vkInstance -> GLFW.Window -> IO b
-createSurface vkInstance window = do
+createVkSurface :: Storable b => Ptr vkInstance -> GLFW.Window -> IO b
+createVkSurface vkInstance window = do
   vkSurface <- alloca $ \vkSurfacePtr -> do
     throwingVK "glfwCreateWindowSurface: failed to create window surface"
       $ GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE vkSurfacePtr
-    peek vkSurfacePtr  
+    peek vkSurfacePtr
   return vkSurface
 
 destroySurface :: VkInstance -> VkSurfaceKHR -> IO ()

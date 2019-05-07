@@ -4,7 +4,10 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Vulkan
-    ( getApplicationInfo
+    ( getInstanceExtensionSupport
+    , getDeviceExtensionSupport
+    , checkExtensionSupport
+    , getApplicationInfo
     , getInstanceCreateInfo
     , createVulkanInstance
     , destroyVulkanInstance
@@ -33,7 +36,7 @@ import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
 import Lib.Utils
-import Lib.Vulkan
+import Lib.Vulkan hiding (isDeviceSuitable)
 
 
 touchVKDatas :: 
@@ -45,35 +48,44 @@ touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures queueCre
   touchVkData physicalDeviceFeatures 
   touchVkData queueCreateInfo
 
-getInstanceExtensionSupport extensions = do
-  reqExts <- mapM peekCString extensions
-  availExtsC <- asListVK
-    $ \x ->
-      throwingVK "vkEnumerateInstanceExtensionProperties error"
-    . vkEnumerateInstanceExtensionProperties VK_NULL_HANDLE x
-  availExts <- mapM ( peekCString
-                    . castPtr
-                    . ( `plusPtr`
-                          fieldOffset @"extensionName" @VkExtensionProperties
-                      )
-                    . unsafePtr) availExtsC
-  putStrLn $ "Available instance extensions : " ++ (show availExts)
-  return availExts
+getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)
+getExtensionNames extensionType availableExtensionArrayPtr = do
+  availableExtensionNames <- mapM getExtensionName availableExtensionArrayPtr
+  --putStrLn $ "Available " ++ extensionType ++ " extensions : " ++ (show (length availableExtensionNames))
+  --mapM (\extensionName -> putStrLn $ "\t" ++ extensionName) availableExtensionNames
+  return availableExtensionNames
+  where 
+    getExtensionName extensionPtr = 
+      let extensionNamePtr = plusPtr (unsafePtr extensionPtr) (fieldOffset @"extensionName" @VkExtensionProperties)
+      in peekCString $ castPtr extensionNamePtr
 
-getDeviceExtensionSupport pdev extensions = do
-  reqExts <- mapM peekCString extensions
-  availExtsC <- asListVK
-    $ \x ->
-      throwingVK "vkEnumerateDeviceExtensionProperties error"
-    . vkEnumerateDeviceExtensionProperties pdev VK_NULL_HANDLE x
-  availExts <- mapM ( peekCString
-                    . castPtr
-                    . ( `plusPtr`
-                          fieldOffset @"extensionName" @VkExtensionProperties
-                      )
-                    . unsafePtr) availExtsC
-  putStrLn $ "Available device extensions : " ++ (show availExts)
-  return availExts
+getInstanceExtensionSupport :: IO [String]
+getInstanceExtensionSupport = do
+  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> 
+    throwingVK "vkEnumerateInstanceExtensionProperties error"
+      $ vkEnumerateInstanceExtensionProperties VK_NULL_HANDLE counterPtr valueArrayPtr
+  getExtensionNames "Instance" availableExtensionArrayPtr
+
+getDeviceExtensionSupport :: VkPhysicalDevice -> IO [String]
+getDeviceExtensionSupport physicalDevice = do
+  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> 
+    throwingVK "vkEnumerateInstanceExtensionProperties error"
+      $ vkEnumerateDeviceExtensionProperties physicalDevice VK_NULL_HANDLE counterPtr valueArrayPtr
+  getExtensionNames "Device" availableExtensionArrayPtr
+
+checkExtensionSupport :: [String] -> [CString] -> IO Bool
+checkExtensionSupport availableDeviceExtensions requireExtensions = do
+  requireExtensionNames <- mapM peekCString requireExtensions  
+  putStrLn $ "RequireExtension: " ++ show (length requireExtensionNames)
+  isAvailable requireExtensionNames
+  return . null $ requireExtensionNames \\ availableDeviceExtensions
+  where 
+    isAvailable [] = return ()
+    isAvailable (x:xs) = do
+      if elem x availableDeviceExtensions
+        then putStrLn ("\t" ++ x ++ " (OK)")
+        else putStrLn ("\t" ++ x ++ " (Failed)")
+      isAvailable xs      
 
 getApplicationInfo :: String -> String -> VkApplicationInfo
 getApplicationInfo progName engineName = createVk @VkApplicationInfo
@@ -107,10 +119,26 @@ createVulkanInstance instanceCreateInfo  = do
 destroyVulkanInstance :: VkInstance -> IO ()
 destroyVulkanInstance vkInstance = vkDestroyInstance vkInstance VK_NULL
 
-selectPhysicalDevice::VkInstance 
+isDeviceSuitable :: Maybe VkSurfaceKHR
+                 -> VkPhysicalDevice
+                 -> IO (Maybe SwapChainSupportDetails, Bool)
+isDeviceSuitable maybeVkSurface physicalDevice = do
+  deviceExtensionNames <- getDeviceExtensionSupport physicalDevice
+  hasExtension <- checkExtensionSupport deviceExtensionNames [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
+  (maybeSwapChainSupportDetails, result) <- case maybeVkSurface of
+    Nothing -> pure (Nothing, True)
+    Just vkSurface
+      | not hasExtension -> pure (Nothing, False)
+      | otherwise -> do
+        swapChainSupportDetails@SwapChainSupportDetails {..} <- querySwapChainSupport physicalDevice vkSurface
+        return (Just swapChainSupportDetails, 
+          not (null formats) && not (null presentModes))
+  pure (maybeSwapChainSupportDetails, hasExtension && result)
+
+selectPhysicalDevice :: VkInstance 
   -> Maybe VkSurfaceKHR 
   -> IO (Maybe SwapChainSupportDetails, VkPhysicalDevice)
-selectPhysicalDevice vkInstance mVkSurf = do
+selectPhysicalDevice vkInstance maybeVkSurface = do
   devices <- asListVK $ \counterPtr valueArrayPtr ->
     throwingVK "pickPhysicalDevice: Failed to enumerate physical devices." 
       $ vkEnumeratePhysicalDevices vkInstance counterPtr valueArrayPtr
@@ -119,21 +147,13 @@ selectPhysicalDevice vkInstance mVkSurf = do
   selectFirstSuitable devices
   where
     selectFirstSuitable [] = throwVKMsg "No suitable devices!"
-    selectFirstSuitable (device:devices) = do
-      (maybeSwapChainSupportDetails, result) <- isDeviceSuitable mVkSurf device
-      if result then pure (maybeSwapChainSupportDetails, device)
-                else selectFirstSuitable devices
-
-getQueueFamilies :: VkPhysicalDevice -> IO [(Word32, VkQueueFamilyProperties)]
-getQueueFamilies pdev = alloca $ \qFamCountPtr -> do
-  vkGetPhysicalDeviceQueueFamilyProperties pdev qFamCountPtr VK_NULL_HANDLE
-  aFamCount <- fromIntegral <$> peek qFamCountPtr
-  when (aFamCount <= 0) $ throwVKMsg "Zero queue family count!"
-  putStrLn $ "Found " ++ show aFamCount ++ " queue families."
-
-  allocaArray aFamCount $ \familiesPtr -> do
-    vkGetPhysicalDeviceQueueFamilyProperties pdev qFamCountPtr familiesPtr
-    zip [0..] <$> peekArray aFamCount familiesPtr
+    selectFirstSuitable (physicalDevice:physicalDeviceArray) = do
+      (maybeSwapChainSupportDetails, result) <- isDeviceSuitable maybeVkSurface physicalDevice
+      if result then do
+          putStrLn $ "Selected physical device: " ++ show physicalDevice
+          pure (maybeSwapChainSupportDetails, physicalDevice)
+        else
+          selectFirstSuitable physicalDeviceArray
 
 selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
 selectGraphicsFamily [] = throw $ VulkanException Nothing "selectGraphicsFamily: not found!"
@@ -144,7 +164,6 @@ selectGraphicsFamily (x@(queueFamilyIndex, queueFamilyProperty):xs) =
   where
     queueCount = getField @"queueCount" queueFamilyProperty
     queueFlags = getField @"queueFlags" queueFamilyProperty
-
     
 selectPresentationFamily :: VkPhysicalDevice
      -> VkSurfaceKHR
@@ -162,7 +181,16 @@ selectPresentationFamily device surface (x@(queueFamilyIndex, queueFamilyPropert
       then pure x
       else selectPresentationFamily device surface xs
 
-
+getQueueFamilies :: VkPhysicalDevice -> IO [(Word32, VkQueueFamilyProperties)]
+getQueueFamilies pdev = alloca $ \qFamCountPtr -> do
+  vkGetPhysicalDeviceQueueFamilyProperties pdev qFamCountPtr VK_NULL_HANDLE
+  aFamCount <- fromIntegral <$> peek qFamCountPtr
+  when (aFamCount <= 0) $ throwVKMsg "Zero queue family count!"
+  putStrLn $ "Found " ++ show aFamCount ++ " queue families."
+  allocaArray aFamCount $ \familiesPtr -> do
+    vkGetPhysicalDeviceQueueFamilyProperties pdev qFamCountPtr familiesPtr
+    zip [0..] <$> peekArray aFamCount familiesPtr
+    
 getQueueFamilyIndex :: VkPhysicalDevice -> IO (Word32, VkQueueFamilyProperties)
 getQueueFamilyIndex physicalDevice = selectGraphicsFamily <$> getQueueFamilies physicalDevice
 

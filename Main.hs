@@ -10,7 +10,8 @@ import Lib.Utils
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Vulkan
 import Library.Application
-
+import Foreign.C.String
+import Foreign.Ptr
 mainLoop::IO()
 mainLoop = do
   return ()
@@ -20,19 +21,20 @@ main = do
   maybeWindow <- createGLFWWindow 800 600 "Vulkan Application"
   when (Nothing == maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
   putStrLn "Initialized GLFW window."
-  extensions <- GLFW.getRequiredInstanceExtensions  
+  requireExtensions <- GLFW.getRequiredInstanceExtensions
+  instanceExtensionNames <- getInstanceExtensionSupport
+  checkExtensionSupport instanceExtensionNames requireExtensions  
   let
     Just window = maybeWindow
     progName = "02-GLFWWindow"
     engineName = "My perfect Haskell engine"
     layers = ["VK_LAYER_LUNARG_standard_validation"]
     applicationInfo = getApplicationInfo progName engineName
-    instanceCreateInfo = getInstanceCreateInfo applicationInfo layers extensions
+    instanceCreateInfo = getInstanceCreateInfo applicationInfo layers requireExtensions
   vkInstance <- createVulkanInstance instanceCreateInfo  
-  vkSurface <- createSurface vkInstance window
+  vkSurface <- createVkSurface vkInstance window
   putStrLn $ "Createad surface: " ++ show vkSurface
-  (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
-  putStrLn $ "Selected physical device: " ++ show physicalDevice
+  (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   (queueFamilyIndex, queueFamilyProperties) <- getQueueFamilyIndex physicalDevice
   physicalDeviceFeatures <- getPhysicalDeviceFeatures
   queueCreateInfo <- getQueueCreateInfo queueFamilyIndex
