@@ -253,8 +253,8 @@ createGraphicsDevice deviceCreateInfo physicalDevice queueFamilyIndex = do
   putStrLn $ "Created Device: " ++ show device
   putStrLn $ "Created Graphics Queue: " ++ show queue
   -- TODO !!!!
-  putStrLn $ "TODO : Created Transfer Queue."
-  putStrLn $ "TODO : Created Compute Queue."
+  putStrLn $ "TODO!!! : Created Transfer Queue."
+  putStrLn $ "TODO!!! : Created Compute Queue."
   return (device, queue)
 
 destroyDevice :: VkDevice -> IO ()
