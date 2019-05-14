@@ -39,6 +39,7 @@ main = do
   let (graphicsQueueFamilyIndex, graphicsQueueFamilyProperties) = selectGraphicsFamily queueFaimilies
   let (transferQueueFamilyIndex, transferQueueFamilyProperties) = selectTransferFamily queueFaimilies
   let (computeQueueFamilyIndex, computeQueueFamilyProperties) = selectComputeFamily queueFaimilies
+  (presentationFamilyIndex, presentationFamilyProperties) <- selectPresentationFamily physicalDevice vkSurface queueFaimilies
   physicalDeviceFeatures <- getPhysicalDeviceFeatures
   queueCreateInfo <- getQueueCreateInfo graphicsQueueFamilyIndex
   deviceCreateInfo <- getDeviceCreateInfo queueCreateInfo physicalDeviceFeatures layers

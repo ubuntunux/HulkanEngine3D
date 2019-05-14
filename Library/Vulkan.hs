@@ -16,6 +16,7 @@ module Library.Vulkan
     , selectGraphicsFamily
     , selectTransferFamily
     , selectComputeFamily
+    , selectPresentationFamily
     , getPhysicalDeviceFeatures
     , getQueueCreateInfo
     , getDeviceCreateInfo
@@ -176,7 +177,6 @@ selectTransferFamily queueFaimilies = selectFamily VK_QUEUE_TRANSFER_BIT queueFa
 
 selectComputeFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
 selectComputeFamily queueFaimilies = selectFamily VK_QUEUE_COMPUTE_BIT queueFaimilies
-    
 
 selectPresentationFamily :: VkPhysicalDevice
      -> VkSurfaceKHR
@@ -253,6 +253,7 @@ createGraphicsDevice deviceCreateInfo physicalDevice queueFamilyIndex = do
   putStrLn $ "Created Device: " ++ show device
   putStrLn $ "Created Graphics Queue: " ++ show queue
   -- TODO !!!!
+  putStrLn $ "Presentaion.hs => withGraphicsDevice 부분 참고해서 완성할것!!"
   putStrLn $ "TODO!!! : Created Transfer Queue."
   putStrLn $ "TODO!!! : Created Compute Queue."
   return (device, queue)
