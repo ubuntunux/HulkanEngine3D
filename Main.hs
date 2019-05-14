@@ -34,12 +34,15 @@ main = do
   vkInstance <- createVulkanInstance instanceCreateInfo  
   vkSurface <- createVkSurface vkInstance window
   putStrLn $ "Createad surface: " ++ show vkSurface
-  (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
-  (queueFamilyIndex, queueFamilyProperties) <- getQueueFamilyIndex physicalDevice
+  (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
+  queueFaimilies <- getQueueFamilies physicalDevice  
+  let (graphicsQueueFamilyIndex, graphicsQueueFamilyProperties) = selectGraphicsFamily queueFaimilies
+  let (transferQueueFamilyIndex, transferQueueFamilyProperties) = selectTransferFamily queueFaimilies
+  let (computeQueueFamilyIndex, computeQueueFamilyProperties) = selectComputeFamily queueFaimilies
   physicalDeviceFeatures <- getPhysicalDeviceFeatures
-  queueCreateInfo <- getQueueCreateInfo queueFamilyIndex
+  queueCreateInfo <- getQueueCreateInfo graphicsQueueFamilyIndex
   deviceCreateInfo <- getDeviceCreateInfo queueCreateInfo physicalDeviceFeatures layers
-  (device, queue) <- createGraphicsDevice deviceCreateInfo physicalDevice queueFamilyIndex  
+  (device, graphicsQueue) <- createGraphicsDevice deviceCreateInfo physicalDevice graphicsQueueFamilyIndex  
   glfwMainLoop window mainLoop
   destroyDevice device
   destroySurface vkInstance vkSurface

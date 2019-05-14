@@ -12,7 +12,10 @@ module Library.Vulkan
     , createVulkanInstance
     , destroyVulkanInstance
     , selectPhysicalDevice
-    , getQueueFamilyIndex
+    , getQueueFamilies
+    , selectGraphicsFamily
+    , selectTransferFamily
+    , selectComputeFamily
     , getPhysicalDeviceFeatures
     , getQueueCreateInfo
     , getDeviceCreateInfo
@@ -155,16 +158,26 @@ selectPhysicalDevice vkInstance maybeVkSurface = do
         else
           selectFirstSuitable physicalDeviceArray
 
-selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
-selectGraphicsFamily [] = throw $ VulkanException Nothing "selectGraphicsFamily: not found!"
-selectGraphicsFamily (x@(queueFamilyIndex, queueFamilyProperty):xs) =
-  if queueCount > 0 && (queueFlags .&. VK_QUEUE_GRAPHICS_BIT) /= zeroBits
+selectFamily :: VkQueueBitmask FlagMask -> [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
+selectFamily requireQueueFlags [] = throw $ VulkanException Nothing "selectFamily: not found!"
+selectFamily requireQueueFlags (x@(queueFamilyIndex, queueFamilyProperty):xs) =
+  if queueCount > 0 && (queueFlags .&. requireQueueFlags) /= zeroBits
     then x
-    else selectGraphicsFamily xs
+    else selectFamily requireQueueFlags xs
   where
     queueCount = getField @"queueCount" queueFamilyProperty
     queueFlags = getField @"queueFlags" queueFamilyProperty
+
+selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
+selectGraphicsFamily queueFaimilies = selectFamily VK_QUEUE_GRAPHICS_BIT queueFaimilies
+
+selectTransferFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
+selectTransferFamily queueFaimilies = selectFamily VK_QUEUE_TRANSFER_BIT queueFaimilies
+
+selectComputeFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
+selectComputeFamily queueFaimilies = selectFamily VK_QUEUE_COMPUTE_BIT queueFaimilies
     
+
 selectPresentationFamily :: VkPhysicalDevice
      -> VkSurfaceKHR
      -> [(Word32, VkQueueFamilyProperties)]
@@ -182,17 +195,16 @@ selectPresentationFamily device surface (x@(queueFamilyIndex, queueFamilyPropert
       else selectPresentationFamily device surface xs
 
 getQueueFamilies :: VkPhysicalDevice -> IO [(Word32, VkQueueFamilyProperties)]
-getQueueFamilies pdev = alloca $ \qFamCountPtr -> do
-  vkGetPhysicalDeviceQueueFamilyProperties pdev qFamCountPtr VK_NULL_HANDLE
-  aFamCount <- fromIntegral <$> peek qFamCountPtr
-  when (aFamCount <= 0) $ throwVKMsg "Zero queue family count!"
-  putStrLn $ "Found " ++ show aFamCount ++ " queue families."
-  allocaArray aFamCount $ \familiesPtr -> do
-    vkGetPhysicalDeviceQueueFamilyProperties pdev qFamCountPtr familiesPtr
-    zip [0..] <$> peekArray aFamCount familiesPtr
-    
-getQueueFamilyIndex :: VkPhysicalDevice -> IO (Word32, VkQueueFamilyProperties)
-getQueueFamilyIndex physicalDevice = selectGraphicsFamily <$> getQueueFamilies physicalDevice
+getQueueFamilies physicalDevice = alloca $ \queueFamilyCountPtr -> do
+  vkGetPhysicalDeviceQueueFamilyProperties physicalDevice queueFamilyCountPtr VK_NULL_HANDLE
+  familyCount <- fromIntegral <$> peek queueFamilyCountPtr
+  when (familyCount <= 0) $ throwVKMsg "Zero queue family count!"
+  putStrLn $ "Found " ++ show familyCount ++ " queue families."
+  queueFaimilies <- allocaArray familyCount $ \familiesPtr -> do
+    vkGetPhysicalDeviceQueueFamilyProperties physicalDevice queueFamilyCountPtr familiesPtr
+    zip [0..] <$> peekArray familyCount familiesPtr
+  mapM (\(x,y) -> putStrLn $ "\t[" ++ (show x) ++ "] " ++ (show y) ) queueFaimilies
+  return queueFaimilies
 
 getPhysicalDeviceFeatures :: IO VkPhysicalDeviceFeatures
 getPhysicalDeviceFeatures = newVkData @VkPhysicalDeviceFeatures clearStorable
@@ -238,8 +250,11 @@ createGraphicsDevice deviceCreateInfo physicalDevice queueFamilyIndex = do
   queue <- alloca $ \queuePtr -> do
     vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
     peek queuePtr
-  putStrLn $ "Created device: " ++ show device
-  putStrLn $ "Created queue: " ++ show queue
+  putStrLn $ "Created Device: " ++ show device
+  putStrLn $ "Created Graphics Queue: " ++ show queue
+  -- TODO !!!!
+  putStrLn $ "TODO : Created Transfer Queue."
+  putStrLn $ "TODO : Created Compute Queue."
   return (device, queue)
 
 destroyDevice :: VkDevice -> IO ()
