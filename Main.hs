@@ -6,12 +6,17 @@
 module Main (main) where
 
 import Control.Monad
+import qualified Data.Map as Map
+import Foreign.Marshal.Alloc
+import Foreign.Marshal.Array
+import Foreign.Storable
+import Foreign.C.String
+import Foreign.Ptr
 import Lib.Utils
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Vulkan
 import Library.Application
-import Foreign.C.String
-import Foreign.Ptr
+
 mainLoop::IO()
 mainLoop = do
   return ()
@@ -36,19 +41,24 @@ main = do
   putStrLn $ "Createad surface: " ++ show vkSurface
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
   physicalDeviceFeatures <- getPhysicalDeviceFeatures
+  queueFamilyMap <- getQueueFamilyMap physicalDevice vkSurface
+  queuePrioritiesPtr <- getQueuePrioritiesPtr 1.0
+  
+  -- 임시 -- 없애자
   queueFaimilies <- getQueueFamilies physicalDevice
   (graphicsQueueFamilyIndex, graphicsQueueFamilyProperties) <- selectGraphicsFamily queueFaimilies
-  (transferQueueFamilyIndex, transferQueueFamilyProperties) <- selectTransferFamily queueFaimilies
-  (computeQueueFamilyIndex, computeQueueFamilyProperties) <- selectComputeFamily queueFaimilies
-  (presentationFamilyIndex, presentationFamilyProperties) <- selectPresentationFamily physicalDevice vkSurface queueFaimilies
-  queueCreateInfo <- getQueueCreateInfo graphicsQueueFamilyIndex
-  deviceCreateInfo <- getDeviceCreateInfo queueCreateInfo physicalDeviceFeatures layers
+  -- 임시 -- 없애자
+
+  queueCreateInfoMap <- getQueueCreateInfo queueFamilyMap queuePrioritiesPtr
+  queueCreateInfoArrayPtr <- newArray $ Map.elems queueCreateInfoMap
+  deviceCreateInfo <- getDeviceCreateInfo queueCreateInfoArrayPtr physicalDeviceFeatures layers
   (device, graphicsQueue) <- createGraphicsDevice deviceCreateInfo physicalDevice graphicsQueueFamilyIndex  
   glfwMainLoop window mainLoop
   destroyDevice device
   destroySurface vkInstance vkSurface
   destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
-  touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures queueCreateInfo
+  touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures
+  free queueCreateInfoArrayPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
