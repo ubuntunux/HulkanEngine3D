@@ -159,24 +159,27 @@ selectPhysicalDevice vkInstance maybeVkSurface = do
         else
           selectFirstSuitable physicalDeviceArray
 
-selectFamily :: VkQueueBitmask FlagMask -> [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
-selectFamily requireQueueFlags [] = throw $ VulkanException Nothing "selectFamily: not found!"
-selectFamily requireQueueFlags (x@(queueFamilyIndex, queueFamilyProperty):xs) =
+selectQueueFamily :: VkQueueBitmask FlagMask -> [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
+selectQueueFamily requireQueueFlags [] = throw $ VulkanException Nothing "selectQueueFamily: not found!"
+selectQueueFamily requireQueueFlags (queueFamily@(queueFamilyIndex, queueFamilyProperty):xs) =
   if queueCount > 0 && (queueFlags .&. requireQueueFlags) /= zeroBits
-    then x
-    else selectFamily requireQueueFlags xs
+    then queueFamily
+    else selectQueueFamily requireQueueFlags xs
   where
     queueCount = getField @"queueCount" queueFamilyProperty
     queueFlags = getField @"queueFlags" queueFamilyProperty
 
-selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
-selectGraphicsFamily queueFaimilies = selectFamily VK_QUEUE_GRAPHICS_BIT queueFaimilies
+selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)] -> IO (Word32, VkQueueFamilyProperties)
+selectGraphicsFamily queueFaimilies = do
+  return $ selectQueueFamily VK_QUEUE_GRAPHICS_BIT queueFaimilies
 
-selectTransferFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
-selectTransferFamily queueFaimilies = selectFamily VK_QUEUE_TRANSFER_BIT queueFaimilies
+selectTransferFamily :: [(Word32, VkQueueFamilyProperties)] -> IO (Word32, VkQueueFamilyProperties)
+selectTransferFamily queueFaimilies = do
+  return $ selectQueueFamily VK_QUEUE_TRANSFER_BIT queueFaimilies
 
-selectComputeFamily :: [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
-selectComputeFamily queueFaimilies = selectFamily VK_QUEUE_COMPUTE_BIT queueFaimilies
+selectComputeFamily :: [(Word32, VkQueueFamilyProperties)] -> IO (Word32, VkQueueFamilyProperties)
+selectComputeFamily queueFaimilies = do
+  return $ selectQueueFamily VK_QUEUE_COMPUTE_BIT queueFaimilies
 
 selectPresentationFamily :: VkPhysicalDevice
      -> VkSurfaceKHR
@@ -184,7 +187,7 @@ selectPresentationFamily :: VkPhysicalDevice
      -> IO (Word32, VkQueueFamilyProperties)
 selectPresentationFamily _ _ [] = throw $ VulkanException Nothing "selectPresentFamily: not Found"
 selectPresentationFamily device surface (x@(queueFamilyIndex, queueFamilyProperty):xs)
-    | getField @"queueCount" queueFamilyProperty <= 0 = return $ selectGraphicsFamily xs
+    | (getField @"queueCount" queueFamilyProperty) <= 0 = selectGraphicsFamily xs
     | otherwise = do
       supported <- alloca $ \supportedPtr -> do
         throwingVK "vkGetPhysicalDeviceSurfaceSupportKHR: failed to check for presentation support."

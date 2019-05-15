@@ -35,12 +35,12 @@ main = do
   vkSurface <- createVkSurface vkInstance window
   putStrLn $ "Createad surface: " ++ show vkSurface
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
-  queueFaimilies <- getQueueFamilies physicalDevice  
-  let (graphicsQueueFamilyIndex, graphicsQueueFamilyProperties) = selectGraphicsFamily queueFaimilies
-  let (transferQueueFamilyIndex, transferQueueFamilyProperties) = selectTransferFamily queueFaimilies
-  let (computeQueueFamilyIndex, computeQueueFamilyProperties) = selectComputeFamily queueFaimilies
-  (presentationFamilyIndex, presentationFamilyProperties) <- selectPresentationFamily physicalDevice vkSurface queueFaimilies
   physicalDeviceFeatures <- getPhysicalDeviceFeatures
+  queueFaimilies <- getQueueFamilies physicalDevice
+  (graphicsQueueFamilyIndex, graphicsQueueFamilyProperties) <- selectGraphicsFamily queueFaimilies
+  (transferQueueFamilyIndex, transferQueueFamilyProperties) <- selectTransferFamily queueFaimilies
+  (computeQueueFamilyIndex, computeQueueFamilyProperties) <- selectComputeFamily queueFaimilies
+  (presentationFamilyIndex, presentationFamilyProperties) <- selectPresentationFamily physicalDevice vkSurface queueFaimilies
   queueCreateInfo <- getQueueCreateInfo graphicsQueueFamilyIndex
   deviceCreateInfo <- getDeviceCreateInfo queueCreateInfo physicalDeviceFeatures layers
   (device, graphicsQueue) <- createGraphicsDevice deviceCreateInfo physicalDevice graphicsQueueFamilyIndex  
