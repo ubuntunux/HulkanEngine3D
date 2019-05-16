@@ -13,12 +13,6 @@ module Library.Vulkan
     , destroyVulkanInstance
     , selectPhysicalDevice    
     , getPhysicalDeviceFeatures
-    
-    -- 임시 --
-    , getQueueFamilies
-    , selectGraphicsFamily    
-    -- 임시 --
-
     , getQueueFamilyMap
     , getQueuePrioritiesPtr
     , getQueueCreateInfo
@@ -163,35 +157,35 @@ selectPhysicalDevice vkInstance maybeVkSurface = do
         else
           selectFirstSuitable physicalDeviceArray
 
-selectQueueFamily :: VkQueueBitmask FlagMask -> [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
-selectQueueFamily requireQueueFlags [] = throw $ VulkanException Nothing "selectQueueFamily: not found!"
-selectQueueFamily requireQueueFlags (queueFamily@(queueFamilyIndex, queueFamilyProperty):xs) =
-  if queueCount > 0 && (queueFlags .&. requireQueueFlags) /= zeroBits
+selectQueueFamily :: [Word32] -> VkQueueBitmask FlagMask -> [(Word32, VkQueueFamilyProperties)] -> (Word32, VkQueueFamilyProperties)
+selectQueueFamily ignoreList requireQueueFlags [] = throw $ VulkanException Nothing "selectQueueFamily: not found!"
+selectQueueFamily ignoreList requireQueueFlags (queueFamily@(queueFamilyIndex, queueFamilyProperty):xs) =
+  if not (elem queueFamilyIndex ignoreList) && queueCount > 0 && (queueFlags .&. requireQueueFlags) /= zeroBits
     then queueFamily
-    else selectQueueFamily requireQueueFlags xs
+    else selectQueueFamily ignoreList requireQueueFlags xs
   where
     queueCount = getField @"queueCount" queueFamilyProperty
     queueFlags = getField @"queueFlags" queueFamilyProperty
 
-selectGraphicsFamily :: [(Word32, VkQueueFamilyProperties)] -> IO (Word32, VkQueueFamilyProperties)
-selectGraphicsFamily queueFaimilies = do
-  return $ selectQueueFamily VK_QUEUE_GRAPHICS_BIT queueFaimilies
+selectGraphicsFamily :: [Word32] -> [(Word32, VkQueueFamilyProperties)] -> IO (Word32, VkQueueFamilyProperties)
+selectGraphicsFamily ignoreList queueFaimilies = do
+  return $ selectQueueFamily ignoreList VK_QUEUE_GRAPHICS_BIT queueFaimilies
 
-selectTransferFamily :: [(Word32, VkQueueFamilyProperties)] -> IO (Word32, VkQueueFamilyProperties)
-selectTransferFamily queueFaimilies = do
-  return $ selectQueueFamily VK_QUEUE_TRANSFER_BIT queueFaimilies
+selectTransferFamily :: [Word32] -> [(Word32, VkQueueFamilyProperties)] -> IO (Word32, VkQueueFamilyProperties)
+selectTransferFamily ignoreList queueFaimilies = do
+  return $ selectQueueFamily ignoreList VK_QUEUE_TRANSFER_BIT queueFaimilies
 
-selectComputeFamily :: [(Word32, VkQueueFamilyProperties)] -> IO (Word32, VkQueueFamilyProperties)
-selectComputeFamily queueFaimilies = do
-  return $ selectQueueFamily VK_QUEUE_COMPUTE_BIT queueFaimilies
+selectComputeFamily :: [Word32] -> [(Word32, VkQueueFamilyProperties)] -> IO (Word32, VkQueueFamilyProperties)
+selectComputeFamily ignoreList queueFaimilies = do
+  return $ selectQueueFamily ignoreList VK_QUEUE_COMPUTE_BIT queueFaimilies
 
 selectPresentationFamily :: VkPhysicalDevice
-     -> VkSurfaceKHR
-     -> [(Word32, VkQueueFamilyProperties)]
-     -> IO (Word32, VkQueueFamilyProperties)
+    -> VkSurfaceKHR
+    -> [(Word32, VkQueueFamilyProperties)]
+    -> IO (Word32, VkQueueFamilyProperties)
 selectPresentationFamily _ _ [] = throw $ VulkanException Nothing "selectPresentFamily: not Found"
 selectPresentationFamily device surface (x@(queueFamilyIndex, queueFamilyProperty):xs)
-    | (getField @"queueCount" queueFamilyProperty) <= 0 = selectGraphicsFamily xs
+    | (getField @"queueCount" queueFamilyProperty) <= 0 = selectGraphicsFamily [] xs
     | otherwise = do
       supported <- alloca $ \supportedPtr -> do
         throwingVK "vkGetPhysicalDeviceSurfaceSupportKHR: failed to check for presentation support."
@@ -216,10 +210,10 @@ getQueueFamilies physicalDevice = alloca $ \queueFamilyCountPtr -> do
 getQueueFamilyMap :: VkPhysicalDevice -> VkSurfaceKHR -> IO (Map.Map Word32 VkQueueFamilyProperties)
 getQueueFamilyMap physicalDevice vkSurface = do 
   queueFaimilies <- getQueueFamilies physicalDevice
-  graphicsQueue@(index, properties) <- selectGraphicsFamily queueFaimilies
-  transferFamily@(index, properties) <- selectTransferFamily queueFaimilies
-  computeFamily@(index, properties) <- selectComputeFamily queueFaimilies
-  presentationFamily@(index, properties) <- selectPresentationFamily physicalDevice vkSurface queueFaimilies
+  graphicsQueue@(index0, properties0) <- selectGraphicsFamily [] queueFaimilies
+  transferFamily@(index1, properties1) <- selectTransferFamily [index0] queueFaimilies
+  computeFamily@(index2, properties2) <- selectComputeFamily [index0, index1] queueFaimilies
+  presentationFamily@(index3, properties3) <- selectPresentationFamily physicalDevice vkSurface queueFaimilies
   return $ Map.fromList [graphicsQueue, transferFamily, computeFamily, presentationFamily]
 
 getQueuePrioritiesPtr :: Float -> IO (Ptr Float)
