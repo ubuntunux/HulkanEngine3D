@@ -43,18 +43,14 @@ main = do
   physicalDeviceFeatures <- getPhysicalDeviceFeatures
   queueFamilyMap <- getQueueFamilyMap physicalDevice vkSurface
   queuePrioritiesPtr <- getQueuePrioritiesPtr 1.0
-  
-  -- 임시 -- 없애자
-  queueFaimilies <- getQueueFamilies physicalDevice
-  (graphicsQueueFamilyIndex, graphicsQueueFamilyProperties) <- selectGraphicsFamily queueFaimilies
-  -- 임시 -- 없애자
-
   queueCreateInfoMap <- getQueueCreateInfo queueFamilyMap queuePrioritiesPtr
+  let queueCreateInfoCount = fromIntegral . length . Map.elems $ queueCreateInfoMap
   queueCreateInfoArrayPtr <- newArray $ Map.elems queueCreateInfoMap
-  deviceCreateInfo <- getDeviceCreateInfo queueCreateInfoArrayPtr physicalDeviceFeatures layers
-  (device, graphicsQueue) <- createGraphicsDevice deviceCreateInfo physicalDevice graphicsQueueFamilyIndex  
+  deviceCreateInfo <- getDeviceCreateInfo queueCreateInfoArrayPtr queueCreateInfoCount physicalDeviceFeatures layers
+  logicalDevice <- createDevice deviceCreateInfo physicalDevice 
+  --queueMap <- createQueues logicalDevice queueCreateInfoMap
   glfwMainLoop window mainLoop
-  destroyDevice device
+  destroyDevice logicalDevice
   destroySurface vkInstance vkSurface
   destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
   touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures
