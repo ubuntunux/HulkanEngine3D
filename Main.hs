@@ -40,20 +40,27 @@ main = do
   vkSurface <- createVkSurface vkInstance window
   putStrLn $ "Createad surface: " ++ show vkSurface
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
-  physicalDeviceFeatures <- getPhysicalDeviceFeatures
-  queueFamilyMap <- getQueueFamilyMap physicalDevice vkSurface
+  physicalDeviceFeatures <- getPhysicalDeviceFeatures  
+  (queueFamilyIndices, queueFamilyPropertiese) <- getQueueFamilyInfos physicalDevice vkSurface
   queuePrioritiesPtr <- getQueuePrioritiesPtr 1.0
-  queueCreateInfoMap <- getQueueCreateInfo queueFamilyMap queuePrioritiesPtr
-  let queueCreateInfoCount = fromIntegral . length . Map.elems $ queueCreateInfoMap
-  queueCreateInfoArrayPtr <- newArray $ Map.elems queueCreateInfoMap
-  deviceCreateInfo <- getDeviceCreateInfo queueCreateInfoArrayPtr queueCreateInfoCount physicalDeviceFeatures layers
+  queueCreateInfoList <- getQueueCreateInfos queueFamilyIndices queuePrioritiesPtr  
+  queueCreateInfoArrayPtr <- newArray queueCreateInfoList
+  requireDeviceExtensionsPtr <- newArray requireDeviceExtensions
+  deviceCreateInfo <- getDeviceCreateInfo 
+    queueCreateInfoArrayPtr 
+    (length queueCreateInfoList)
+    physicalDeviceFeatures
+    layers
+    (length requireDeviceExtensions)
+    requireDeviceExtensionsPtr
   logicalDevice <- createDevice deviceCreateInfo physicalDevice 
-  --queueMap <- createQueues logicalDevice queueCreateInfoMap
+  queueList <- createQueues logicalDevice queueFamilyIndices
   glfwMainLoop window mainLoop
   destroyDevice logicalDevice
   destroySurface vkInstance vkSurface
   destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
-  touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures
+  touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures  
+  free requireDeviceExtensionsPtr
   free queueCreateInfoArrayPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."

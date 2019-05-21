@@ -11,11 +11,12 @@ module Library.Vulkan
     , getInstanceCreateInfo
     , createVulkanInstance
     , destroyVulkanInstance
+    , requireDeviceExtensions
     , selectPhysicalDevice    
     , getPhysicalDeviceFeatures
-    , getQueueFamilyMap
+    , getQueueFamilyInfos
     , getQueuePrioritiesPtr
-    , getQueueCreateInfo
+    , getQueueCreateInfos
     , getDeviceCreateInfo
     , createQueues
     , createDevice
@@ -76,8 +77,8 @@ getDeviceExtensionSupport physicalDevice = do
 
 checkExtensionSupport :: [String] -> [CString] -> IO Bool
 checkExtensionSupport availableDeviceExtensions requireExtensions = do
-  requireExtensionNames <- mapM peekCString requireExtensions  
-  putStrLn $ "RequireExtension: " ++ show (length requireExtensionNames)
+  requireExtensionNames <- mapM peekCString requireExtensions    
+  putStrLn $ "Require Extensions: " ++ show (length requireExtensionNames) ++ " / " ++ show (length availableDeviceExtensions) ++ " availables."
   isAvailable requireExtensionNames
   return . null $ requireExtensionNames \\ availableDeviceExtensions
   where 
@@ -120,10 +121,13 @@ createVulkanInstance instanceCreateInfo  = do
 destroyVulkanInstance :: VkInstance -> IO ()
 destroyVulkanInstance vkInstance = vkDestroyInstance vkInstance VK_NULL
 
+requireDeviceExtensions :: [CString]
+requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
+
 isDeviceSuitable :: Maybe VkSurfaceKHR -> VkPhysicalDevice -> IO (Maybe SwapChainSupportDetails, Bool)
 isDeviceSuitable maybeVkSurface physicalDevice = do
   deviceExtensionNames <- getDeviceExtensionSupport physicalDevice
-  hasExtension <- checkExtensionSupport deviceExtensionNames [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
+  hasExtension <- checkExtensionSupport deviceExtensionNames requireDeviceExtensions
   (maybeSwapChainSupportDetails, result) <- case maybeVkSurface of
     Nothing -> pure (Nothing, True)
     Just vkSurface
@@ -207,14 +211,14 @@ getQueueFamilies physicalDevice = alloca $ \queueFamilyCountPtr -> do
   mapM (\(x,y) -> putStrLn $ "\t[" ++ (show x) ++ "] " ++ (show y) ) queueFaimilies
   return queueFaimilies
 
-getQueueFamilyMap :: VkPhysicalDevice -> VkSurfaceKHR -> IO (Map.Map Word32 VkQueueFamilyProperties)
-getQueueFamilyMap physicalDevice vkSurface = do 
+getQueueFamilyInfos :: VkPhysicalDevice -> VkSurfaceKHR -> IO ([Word32], [VkQueueFamilyProperties])
+getQueueFamilyInfos physicalDevice vkSurface = do 
   queueFaimilies <- getQueueFamilies physicalDevice
   graphicsQueue@(index0, properties0) <- selectGraphicsFamily [] queueFaimilies
   transferFamily@(index1, properties1) <- selectTransferFamily [index0] queueFaimilies
   computeFamily@(index2, properties2) <- selectComputeFamily [index0, index1] queueFaimilies
   presentationFamily@(index3, properties3) <- selectPresentationFamily physicalDevice vkSurface queueFaimilies
-  return $ Map.fromList [graphicsQueue, transferFamily, computeFamily, presentationFamily]
+  return ([index0, index1, index2], [properties0, properties1, properties2])
 
 getQueuePrioritiesPtr :: Float -> IO (Ptr Float)
 getQueuePrioritiesPtr value = 
@@ -222,9 +226,9 @@ getQueuePrioritiesPtr value =
     poke ptr value
     return ptr
 
-getQueueCreateInfo :: Map.Map Word32 a -> Ptr Float -> IO (Map.Map Word32 VkDeviceQueueCreateInfo)
-getQueueCreateInfo queueFamilyMap queuePrioritiesPtr = do
-  queueCreateInfoList <- forM (Map.keys queueFamilyMap) $ \queueFamilyIndex ->
+getQueueCreateInfos :: [Word32] -> Ptr Float -> IO [VkDeviceQueueCreateInfo]
+getQueueCreateInfos queueFamilyIndices queuePrioritiesPtr = do
+  queueCreateInfoList <- forM queueFamilyIndices $ \queueFamilyIndex ->
     newVkData @VkDeviceQueueCreateInfo $ \queueCreateInfoPtr -> do
         writeField @"sType" queueCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
         writeField @"pNext" queueCreateInfoPtr VK_NULL_HANDLE
@@ -232,39 +236,46 @@ getQueueCreateInfo queueFamilyMap queuePrioritiesPtr = do
         writeField @"queueFamilyIndex" queueCreateInfoPtr queueFamilyIndex
         writeField @"queueCount" queueCreateInfoPtr 1
         writeField @"pQueuePriorities" queueCreateInfoPtr queuePrioritiesPtr
-  return $ Map.fromList $ zip (Map.keys queueFamilyMap) queueCreateInfoList
+  return queueCreateInfoList
 
-getDeviceCreateInfo :: Ptr VkDeviceQueueCreateInfo
-  -> Word32
+getDeviceCreateInfo :: 
+  Ptr VkDeviceQueueCreateInfo
+  -> Int
   -> VkPhysicalDeviceFeatures
   -> [String]
+  -> Int
+  -> Ptr CString
   -> IO VkDeviceCreateInfo
-getDeviceCreateInfo queueCreateInfoArrayPtr queueCreateInfoCount physicalDeviceFeatures layers = do
+getDeviceCreateInfo 
+  queueCreateInfoArrayPtr 
+  queueCreateInfoCount 
+  physicalDeviceFeatures 
+  layers
+  requireDeviceExtensionCount
+  requireDeviceExtensionsPtr = do
   deviceCreateInfo <- withCStringList layers $ \layerCount layerNames -> do
     newVkData @VkDeviceCreateInfo $ \devCreateInfoPtr -> do
       writeField @"sType" devCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
       writeField @"pNext" devCreateInfoPtr VK_NULL_HANDLE
       writeField @"flags" devCreateInfoPtr 0
       writeField @"pQueueCreateInfos" devCreateInfoPtr queueCreateInfoArrayPtr
-      writeField @"queueCreateInfoCount" devCreateInfoPtr queueCreateInfoCount
+      writeField @"queueCreateInfoCount" devCreateInfoPtr (fromIntegral queueCreateInfoCount)
       writeField @"enabledLayerCount" devCreateInfoPtr (fromIntegral layerCount)
       writeField @"ppEnabledLayerNames" devCreateInfoPtr layerNames
-      writeField @"enabledExtensionCount" devCreateInfoPtr 0
-      writeField @"ppEnabledExtensionNames" devCreateInfoPtr VK_NULL_HANDLE
+      writeField @"enabledExtensionCount" devCreateInfoPtr (fromIntegral requireDeviceExtensionCount)
+      writeField @"ppEnabledExtensionNames" devCreateInfoPtr requireDeviceExtensionsPtr
       writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
   return deviceCreateInfo
 
-createQueues = 1
-{-
-createQueues :: VkDevice -> Word32 -> IO (Map.Map Word32 VkQueue)
-createQueues device queueCreateInfoMap = do
-  queueList <- forM (Map.keys queueCreateInfoMap) $ \queueFamilyIndex -> do
+--createQueues :: VkDevice -> Word32 -> IO (Map.Map Word32 VkQueue)
+createQueues device queueFamilyIndices = do
+  queueList <- forM queueFamilyIndices $ \queueFamilyIndex -> do
     queue <- alloca $ \queuePtr -> do
       vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
       peek queuePtr
-  putStrLn $ "Created Graphics Queue: " ++ show (length )
-  return queue
--}
+    return (queueFamilyIndex, queue)
+  putStrLn $ "Created Queues: " ++ show (length queueList)
+  return queueList
 
 createDevice :: VkDeviceCreateInfo -> VkPhysicalDevice -> IO VkDevice
 createDevice deviceCreateInfo physicalDevice = do
