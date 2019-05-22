@@ -6,6 +6,9 @@
 module Library.Vulkan
     ( vulkanLayers
     , requireDeviceExtensions
+    , DevQueues (..)
+    , SwapChainImgInfo (..)
+    , SwapChainSupportDetails (..)
     , getInstanceExtensionSupport
     , getDeviceExtensionSupport
     , checkExtensionSupport
@@ -30,6 +33,8 @@ import Control.Exception
 import Control.Monad
 import Data.Bits
 import Data.List ((\\))
+import Data.Maybe (fromMaybe)
+import Data.Semigroup
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -50,10 +55,25 @@ vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]
 requireDeviceExtensions :: [CString]
 requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
 
+data DevQueues = DevQueues
+  { graphicsQueue  :: VkQueue
+  , presentQueue   :: VkQueue
+  , qFamIndices    :: Ptr Word32
+  , graphicsFamIdx :: Word32
+  , presentFamIdx  :: Word32
+  } deriving (Eq, Show)
+
 data SwapChainSupportDetails = SwapChainSupportDetails
   { capabilities :: VkSurfaceCapabilitiesKHR
   , formats      :: [VkSurfaceFormatKHR]
   , presentModes :: [VkPresentModeKHR]
+  } deriving (Eq, Show)
+
+data SwapChainImgInfo = SwapChainImgInfo
+  { swapchain   :: VkSwapchainKHR
+  , swImgs      :: [VkImage]
+  , swImgFormat :: VkFormat
+  , swExtent    :: VkExtent2D
   } deriving (Eq, Show)
 
   
@@ -206,11 +226,10 @@ selectQueueFamily requireQueueFlag ((queueFamilyIndex, queueFamilyProperty):xs) 
     queueCount = getField @"queueCount" queueFamilyProperty
     queueFlags = getField @"queueFlags" queueFamilyProperty
 
-selectPresentationFamily :: 
-    VkPhysicalDevice
-    -> VkSurfaceKHR
-    -> [(Word32, VkQueueFamilyProperties)]
-    -> IO [Word32]
+selectPresentationFamily :: VkPhysicalDevice
+  -> VkSurfaceKHR
+  -> [(Word32, VkQueueFamilyProperties)]
+  -> IO [Word32]
 selectPresentationFamily _ _ [] = return []
 selectPresentationFamily device surface ((queueFamilyIndex, queueFamilyProperty):xs) = do
   supported <- alloca $ \supportedPtr -> do
@@ -319,4 +338,140 @@ createDevice deviceCreateInfo physicalDevice = do
 
 destroyDevice :: VkDevice -> IO ()
 destroyDevice device = vkDestroyDevice device VK_NULL_HANDLE
+
+chooseSwapSurfaceFormat :: SwapChainSupportDetails -> IO VkSurfaceFormatKHR
+chooseSwapSurfaceFormat swapChainSupportDetails = getArgVal
+  . getMin
+  . fromMaybe (throw $ VulkanException Nothing "No available surface formats!")
+  . getOption
+  . foldMap (Option . Just) <$> mapM formatCost (formats swapChainSupportDetails)
+  where
+    getArgVal (Arg _ b) = b
+    formatCost :: VkSurfaceFormatKHR -> IO (ArgMin Int VkSurfaceFormatKHR)
+    formatCost surfaceFormat = 
+      case (getField @"format" surfaceFormat, getField @"colorSpace" surfaceFormat) of
+        (VK_FORMAT_UNDEFINED, _) -> do
+          surfaceFormat <- newVkData $ \surfaceFormatPtr -> do
+            writeField @"format" surfaceFormatPtr VK_FORMAT_B8G8R8A8_UNORM
+            writeField @"colorSpace" surfaceFormatPtr VK_COLOR_SPACE_SRGB_NONLINEAR_KHR            
+          pure $ Min $ Arg 0 surfaceFormat
+        (VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) ->
+          pure . Min $ Arg 1 surfaceFormat
+        (_, _) ->
+          pure . Min $ Arg 2 surfaceFormat
+
+chooseSwapPresentMode :: SwapChainSupportDetails -> IO VkPresentModeKHR
+chooseSwapPresentMode swapChainSupportDetails = do
+  return $ getArgVal
+    . getMin
+    . fromMaybe (Min $ Arg 0 VK_PRESENT_MODE_FIFO_KHR)
+    . getOption
+    $ foldMap (Option . Just . presentModeCost) (presentModes swapChainSupportDetails)
+  where
+    getArgVal (Arg _ b) = b
+    presentModeCost :: VkPresentModeKHR -> ArgMin Int VkPresentModeKHR
+    presentModeCost VK_PRESENT_MODE_MAILBOX_KHR = Min $ Arg 0 VK_PRESENT_MODE_MAILBOX_KHR
+    presentModeCost VK_PRESENT_MODE_IMMEDIATE_KHR = Min $ Arg 1 VK_PRESENT_MODE_IMMEDIATE_KHR
+    presentModeCost VK_PRESENT_MODE_FIFO_KHR = Min $ Arg 2 VK_PRESENT_MODE_FIFO_KHR
+    presentModeCost presentMode = Min $ Arg 3 presentMode
+
+chooseSwapExtent :: SwapChainSupportDetails -> IO VkExtent2D
+chooseSwapExtent SwapChainSupportDetails {..}
+    = newVkData @VkExtent2D $ \extentPtr -> do
+    writeField @"width" extentPtr $ max (width $ getField @"minImageExtent" capabilities)
+                             $ min (width $ getField @"maxImageExtent" capabilities)
+                                   (width $ getField @"currentExtent"  capabilities)
+    writeField @"height" extentPtr $ max (height $ getField @"minImageExtent" capabilities)
+                              $ min (height $ getField @"maxImageExtent" capabilities)
+                                    (height $ getField @"currentExtent"  capabilities)
+  where
+    width = getField @"width"
+    height = getField @"height"
+
+withSwapChain :: VkDevice
+              -> SwapChainSupportDetails
+              -> DevQueues
+              -> VkSurfaceKHR
+              -> (SwapChainImgInfo -> IO a)
+              -> IO a
+withSwapChain dev swapChainSupportDetails queues surf action = do
+  surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
+  presentMode <- chooseSwapPresentMode swapChainSupportDetails
+  sExtent <- chooseSwapExtent swapChainSupportDetails
+
+  -- try tripple buffering
+  let maxIC = getField @"maxImageCount" $ capabilities swapChainSupportDetails
+      minIC = getField @"minImageCount" $ capabilities swapChainSupportDetails
+      imageCount = if maxIC <= 0
+                   then max minIC 3
+                   else min maxIC $ max minIC 3
+
+  -- write VkSwapchainCreateInfoKHR
+  swCreateInfo <- newVkData @VkSwapchainCreateInfoKHR $ \swCreateInfoPtr -> do
+    writeField @"sType"
+      swCreateInfoPtr VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
+    writeField @"pNext"
+      swCreateInfoPtr VK_NULL_HANDLE
+    writeField @"flags"
+      swCreateInfoPtr 0
+    writeField @"surface"
+      swCreateInfoPtr surf
+    writeField @"minImageCount"
+      swCreateInfoPtr imageCount
+    writeField @"imageFormat"
+      swCreateInfoPtr (getField @"format" surfaceFormat)
+    writeField @"imageColorSpace"
+      swCreateInfoPtr (getField @"colorSpace" surfaceFormat)
+    writeField @"imageExtent"
+      swCreateInfoPtr sExtent
+    writeField @"imageArrayLayers"
+      swCreateInfoPtr 1
+    writeField @"imageUsage"
+      swCreateInfoPtr VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+    if graphicsQueue queues /= presentQueue queues
+    then do
+      writeField @"imageSharingMode"
+        swCreateInfoPtr VK_SHARING_MODE_CONCURRENT
+      writeField @"queueFamilyIndexCount"
+        swCreateInfoPtr 2
+      writeField @"pQueueFamilyIndices"
+        swCreateInfoPtr (qFamIndices queues)
+    else do
+      writeField @"imageSharingMode"
+        swCreateInfoPtr VK_SHARING_MODE_EXCLUSIVE
+      writeField @"queueFamilyIndexCount"
+        swCreateInfoPtr 0
+      writeField @"pQueueFamilyIndices"
+        swCreateInfoPtr VK_NULL_HANDLE
+    writeField @"preTransform"
+      swCreateInfoPtr (getField @"currentTransform" $ capabilities swapChainSupportDetails)
+    writeField @"compositeAlpha"
+      swCreateInfoPtr VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+    writeField @"presentMode"
+      swCreateInfoPtr presentMode
+    writeField @"clipped"
+      swCreateInfoPtr VK_TRUE
+    writeField @"oldSwapchain"
+      swCreateInfoPtr VK_NULL_HANDLE
+
+  swapChain <- alloca $ \swPtr -> do
+    throwingVK "vkCreateSwapchainKHR failed!"
+      $ vkCreateSwapchainKHR dev (unsafePtr swCreateInfo) VK_NULL_HANDLE swPtr
+    peek swPtr
+
+  swImgs <- asListVK
+    $ \x ->
+      throwingVK "vkGetSwapchainImagesKHR error"
+    . vkGetSwapchainImagesKHR dev swapChain x
+
+  let swInfo = SwapChainImgInfo
+        { swapchain   = swapChain
+        , swImgs      = swImgs
+        , swImgFormat = getField @"format" surfaceFormat
+        , swExtent    = sExtent
+        }
+
+  finally (action swInfo) $ do
+    vkDestroySwapchainKHR dev swapChain VK_NULL_HANDLE
+    touchVkData swCreateInfo
 
