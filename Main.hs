@@ -13,9 +13,11 @@ import Foreign.Storable
 import Foreign.C.String
 import Foreign.Ptr
 import Lib.Utils
+import Graphics.Vulkan
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Vulkan
 import Library.Application
+
 
 mainLoop::IO()
 mainLoop = do
@@ -32,13 +34,11 @@ main = do
   let
     Just window = maybeWindow
     progName = "02-GLFWWindow"
-    engineName = "My perfect Haskell engine"
-    layers = ["VK_LAYER_LUNARG_standard_validation"]
+    engineName = "My perfect Haskell engine"    
     applicationInfo = getApplicationInfo progName engineName
-    instanceCreateInfo = getInstanceCreateInfo applicationInfo layers requireExtensions
+    instanceCreateInfo = getInstanceCreateInfo applicationInfo vulkanLayers requireExtensions
   vkInstance <- createVulkanInstance instanceCreateInfo  
   vkSurface <- createVkSurface vkInstance window
-  putStrLn $ "Createad surface: " ++ show vkSurface
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
   physicalDeviceFeatures <- getPhysicalDeviceFeatures  
   (queueFamilyIndices, queueFamilyPropertiese) <- getQueueFamilyInfos physicalDevice vkSurface
@@ -50,16 +50,18 @@ main = do
     queueCreateInfoArrayPtr 
     (length queueCreateInfoList)
     physicalDeviceFeatures
-    layers
+    vulkanLayers
     (length requireDeviceExtensions)
     requireDeviceExtensionsPtr
   logicalDevice <- createDevice deviceCreateInfo physicalDevice 
   queueList <- createQueues logicalDevice queueFamilyIndices
   glfwMainLoop window mainLoop
   destroyDevice logicalDevice
-  destroySurface vkInstance vkSurface
-  destroyVulkanInstance vkInstance >> putStrLn "Destroy VulkanInstance."
-  touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures  
+  destroyVkSurface vkInstance vkSurface
+  destroyVulkanInstance vkInstance
+  touchVkData instanceCreateInfo 
+  touchVkData deviceCreateInfo 
+  touchVkData physicalDeviceFeatures 
   free requireDeviceExtensionsPtr
   free queueCreateInfoArrayPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."

@@ -4,14 +4,17 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Vulkan
-    ( getInstanceExtensionSupport
+    ( vulkanLayers
+    , requireDeviceExtensions
+    , getInstanceExtensionSupport
     , getDeviceExtensionSupport
     , checkExtensionSupport
     , getApplicationInfo
     , getInstanceCreateInfo
     , createVulkanInstance
     , destroyVulkanInstance
-    , requireDeviceExtensions
+    , createVkSurface
+    , destroyVkSurface
     , selectPhysicalDevice    
     , getPhysicalDeviceFeatures
     , getQueueFamilyInfos
@@ -21,7 +24,6 @@ module Library.Vulkan
     , createQueues
     , createDevice
     , destroyDevice
-    , touchVKDatas
     ) where
 
 import Control.Exception
@@ -39,17 +41,22 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
+import qualified Graphics.UI.GLFW as GLFW
 import Lib.Utils
-import Lib.Vulkan hiding (isDeviceSuitable)
 
+vulkanLayers :: [String]
+vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]
 
-touchVKDatas :: (VulkanMarshal a2, VulkanMarshal a1, VulkanMarshal a) 
-  => a2 -> a1 -> a -> IO ()
-touchVKDatas instanceCreateInfo deviceCreateInfo physicalDeviceFeatures = do
-  touchVkData instanceCreateInfo 
-  touchVkData deviceCreateInfo 
-  touchVkData physicalDeviceFeatures 
+requireDeviceExtensions :: [CString]
+requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
 
+data SwapChainSupportDetails = SwapChainSupportDetails
+  { capabilities :: VkSurfaceCapabilitiesKHR
+  , formats      :: [VkSurfaceFormatKHR]
+  , presentModes :: [VkPresentModeKHR]
+  } deriving (Eq, Show)
+
+  
 getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)
 getExtensionNames extensionType availableExtensionArrayPtr = do
   availableExtensionNames <- mapM getExtensionName availableExtensionArrayPtr
@@ -119,10 +126,36 @@ createVulkanInstance instanceCreateInfo  = do
   return vkInstance
 
 destroyVulkanInstance :: VkInstance -> IO ()
-destroyVulkanInstance vkInstance = vkDestroyInstance vkInstance VK_NULL
+destroyVulkanInstance vkInstance = do  
+  vkDestroyInstance vkInstance VK_NULL
+  putStrLn "Destroy VulkanInstance"
 
-requireDeviceExtensions :: [CString]
-requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
+createVkSurface :: Ptr vkInstance -> GLFW.Window -> IO VkSurfaceKHR
+createVkSurface vkInstance window = do
+  vkSurface <- alloca $ \vkSurfacePtr -> do
+    throwingVK "glfwCreateWindowSurface: failed to create window surface"
+      $ GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE vkSurfacePtr
+    putStrLn $ "Createad surface: " ++ show vkSurfacePtr
+    peek vkSurfacePtr    
+  return vkSurface
+
+destroyVkSurface :: VkInstance -> VkSurfaceKHR -> IO ()
+destroyVkSurface vkInstance vkSurface = do
+  destroySurfaceFunc <- vkGetInstanceProc @VkDestroySurfaceKHR vkInstance
+  destroySurfaceFunc vkInstance vkSurface VK_NULL_HANDLE
+
+querySwapChainSupport :: VkPhysicalDevice -> VkSurfaceKHR -> IO SwapChainSupportDetails
+querySwapChainSupport physicalDevice vkSurface = do
+  capabilities <- newVkData
+    $ throwingVK "vkGetPhysicalDeviceSurfaceCapabilitiesKHR error"
+    . vkGetPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice vkSurface
+  formats <- asListVK $ \counterPtr valuePtr ->
+    throwingVK "vkGetPhysicalDeviceSurfaceFormatsKHR error"
+      $ vkGetPhysicalDeviceSurfaceFormatsKHR physicalDevice vkSurface counterPtr valuePtr
+  presentModes <- asListVK $ \counterPtr valuePtr ->
+    throwingVK "vkGetPhysicalDeviceSurfacePresentModesKHR error"
+      $ vkGetPhysicalDeviceSurfacePresentModesKHR physicalDevice vkSurface counterPtr valuePtr
+  return SwapChainSupportDetails {..}
 
 isDeviceSuitable :: Maybe VkSurfaceKHR -> VkPhysicalDevice -> IO (Maybe SwapChainSupportDetails, Bool)
 isDeviceSuitable maybeVkSurface physicalDevice = do
@@ -134,8 +167,7 @@ isDeviceSuitable maybeVkSurface physicalDevice = do
       | not hasExtension -> pure (Nothing, False)
       | otherwise -> do
         swapChainSupportDetails@SwapChainSupportDetails {..} <- querySwapChainSupport physicalDevice vkSurface
-        return (Just swapChainSupportDetails, 
-          not (null formats) && not (null presentModes))
+        return (Just swapChainSupportDetails, not (null formats) && not (null presentModes))
   pure (maybeSwapChainSupportDetails, hasExtension && result)
 
 getPhysicalDeviceFeatures :: IO VkPhysicalDeviceFeatures
@@ -216,8 +248,7 @@ getQueueFamilyInfos physicalDevice vkSurface = do
   putStrLn $ "Computer Queue Indices : " ++ show computeFamilyIndices
   putStrLn $ "Presentation Queue Indices : " ++ show presentationFamilyIndices
   let
-    queueFamilyIndices = [index | (index, _) <- queueFaimilies]
-    queueFamilyProperties = [property | (_, property) <- queueFaimilies]
+    (queueFamilyIndices, queueFamilyProperties) = foldr (\(x,y) (xs,ys) -> (x:xs,y:ys)) ([], []) queueFaimilies
   return (queueFamilyIndices, queueFamilyProperties)
 
 getQueuePrioritiesPtr :: Float -> IO (Ptr Float)
@@ -267,7 +298,7 @@ getDeviceCreateInfo
       writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
   return deviceCreateInfo
 
---createQueues :: VkDevice -> Word32 -> IO (Map.Map Word32 VkQueue)
+createQueues :: VkDevice -> [Word32] -> IO [(Word32, VkQueue)]
 createQueues device queueFamilyIndices = do
   queueList <- forM queueFamilyIndices $ \queueFamilyIndex -> do
     queue <- alloca $ \queuePtr -> do

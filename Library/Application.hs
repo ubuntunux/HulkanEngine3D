@@ -6,22 +6,15 @@
 module Library.Application
     ( glfwMainLoop
     , createGLFWWindow
-    , createVkSurface 
-    , destroySurface
     ) where
 
 
 import Control.Exception
 import Control.Monad
---import Data.Bits
 import Foreign.Marshal.Alloc
---import Foreign.Marshal.Array
 import Foreign.Storable
 import Graphics.Vulkan
---import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_surface
---import Graphics.Vulkan.Ext.VK_KHR_swapchain
---import Graphics.Vulkan.Marshal.Create
 import Lib.Utils
 import Lib.Vulkan
 
@@ -48,16 +41,3 @@ createGLFWWindow width height title = do
   GLFW.windowHint $ WindowHint'Resizable True
   window <- GLFW.createWindow width height title Nothing Nothing
   return window
-
-createVkSurface :: Storable b => Ptr vkInstance -> GLFW.Window -> IO b
-createVkSurface vkInstance window = do
-  vkSurface <- alloca $ \vkSurfacePtr -> do
-    throwingVK "glfwCreateWindowSurface: failed to create window surface"
-      $ GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE vkSurfacePtr
-    peek vkSurfacePtr
-  return vkSurface
-
-destroySurface :: VkInstance -> VkSurfaceKHR -> IO ()
-destroySurface vkInstance vkSurface = do
-  destroySurfaceFunc <- vkGetInstanceProc @VkDestroySurfaceKHR vkInstance
-  destroySurfaceFunc vkInstance vkSurface VK_NULL_HANDLE
