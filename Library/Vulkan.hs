@@ -376,15 +376,16 @@ chooseSwapPresentMode swapChainSupportDetails = do
     presentModeCost presentMode = Min $ Arg 3 presentMode
 
 chooseSwapExtent :: SwapChainSupportDetails -> IO VkExtent2D
-chooseSwapExtent SwapChainSupportDetails {..}
-    = newVkData @VkExtent2D $ \extentPtr -> do
-    writeField @"width" extentPtr $ max (width $ getField @"minImageExtent" capabilities)
-                             $ min (width $ getField @"maxImageExtent" capabilities)
-                                   (width $ getField @"currentExtent"  capabilities)
-    writeField @"height" extentPtr $ max (height $ getField @"minImageExtent" capabilities)
-                              $ min (height $ getField @"maxImageExtent" capabilities)
-                                    (height $ getField @"currentExtent"  capabilities)
+chooseSwapExtent swapChainSupportDetails = 
+  newVkData @VkExtent2D $ \extentPtr -> do
+    writeField @"width" extentPtr $ max (width $ getField @"minImageExtent" capabilities')
+                             $ min (width $ getField @"maxImageExtent" capabilities')
+                                   (width $ getField @"currentExtent"  capabilities')
+    writeField @"height" extentPtr $ max (height $ getField @"minImageExtent" capabilities')
+                              $ min (height $ getField @"maxImageExtent" capabilities')
+                                    (height $ getField @"currentExtent"  capabilities')
   where
+    capabilities' = capabilities swapChainSupportDetails
     width = getField @"width"
     height = getField @"height"
 
