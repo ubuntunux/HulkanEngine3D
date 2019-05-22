@@ -376,14 +376,15 @@ chooseSwapPresentMode swapChainSupportDetails = do
     presentModeCost presentMode = Min $ Arg 3 presentMode
 
 chooseSwapExtent :: SwapChainSupportDetails -> IO VkExtent2D
-chooseSwapExtent swapChainSupportDetails = 
-  newVkData @VkExtent2D $ \extentPtr -> do
+chooseSwapExtent swapChainSupportDetails = do
+  imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
     writeField @"width" extentPtr $ max (width $ getField @"minImageExtent" capabilities')
                              $ min (width $ getField @"maxImageExtent" capabilities')
                                    (width $ getField @"currentExtent"  capabilities')
     writeField @"height" extentPtr $ max (height $ getField @"minImageExtent" capabilities')
                               $ min (height $ getField @"maxImageExtent" capabilities')
                                     (height $ getField @"currentExtent"  capabilities')
+  return imageExtent
   where
     capabilities' = capabilities swapChainSupportDetails
     width = getField @"width"
@@ -398,7 +399,7 @@ withSwapChain :: VkDevice
 withSwapChain dev swapChainSupportDetails queues surf action = do
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
-  sExtent <- chooseSwapExtent swapChainSupportDetails
+  imageExtent <- chooseSwapExtent swapChainSupportDetails
 
   -- try tripple buffering
   let maxIC = getField @"maxImageCount" $ capabilities swapChainSupportDetails
@@ -424,7 +425,7 @@ withSwapChain dev swapChainSupportDetails queues surf action = do
     writeField @"imageColorSpace"
       swCreateInfoPtr (getField @"colorSpace" surfaceFormat)
     writeField @"imageExtent"
-      swCreateInfoPtr sExtent
+      swCreateInfoPtr imageExtent
     writeField @"imageArrayLayers"
       swCreateInfoPtr 1
     writeField @"imageUsage"
@@ -469,7 +470,7 @@ withSwapChain dev swapChainSupportDetails queues surf action = do
         { swapchain   = swapChain
         , swImgs      = swImgs
         , swImgFormat = getField @"format" surfaceFormat
-        , swExtent    = sExtent
+        , swExtent    = imageExtent
         }
 
   finally (action swInfo) $ do
