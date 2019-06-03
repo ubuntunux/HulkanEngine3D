@@ -6,7 +6,7 @@
 module Library.Vulkan
     ( vulkanLayers
     , requireDeviceExtensions
-    , DevQueues (..)
+    , QueueFamilyDatas (..)
     , SwapChainImgInfo (..)
     , SwapChainSupportDetails (..)
     , getInstanceExtensionSupport
@@ -27,6 +27,7 @@ module Library.Vulkan
     , createQueues
     , createDevice
     , destroyDevice
+    , withSwapChain
     ) where
 
 import Control.Exception
@@ -55,12 +56,12 @@ vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]
 requireDeviceExtensions :: [CString]
 requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
 
-data DevQueues = DevQueues
+data QueueFamilyDatas = QueueFamilyDatas
   { graphicsQueue  :: VkQueue
   , presentQueue   :: VkQueue
-  , qFamIndices    :: Ptr Word32
-  , graphicsFamIdx :: Word32
-  , presentFamIdx  :: Word32
+  , queueFamilyIndicesPtr    :: Ptr Word32
+  , graphicsFamilyIndex :: Word32
+  , presentFamilyIndex  :: Word32
   } deriving (Eq, Show)
 
 data SwapChainSupportDetails = SwapChainSupportDetails
@@ -266,8 +267,7 @@ getQueueFamilyInfos physicalDevice vkSurface = do
   putStrLn $ "Transfer Queue Indices : " ++ show transferFamilyIndices
   putStrLn $ "Computer Queue Indices : " ++ show computeFamilyIndices
   putStrLn $ "Presentation Queue Indices : " ++ show presentationFamilyIndices
-  let
-    (queueFamilyIndices, queueFamilyProperties) = foldr (\(x,y) (xs,ys) -> (x:xs,y:ys)) ([], []) queueFaimilies
+  let (queueFamilyIndices, queueFamilyProperties) = foldr (\(x,y) (xs,ys) -> (x:xs,y:ys)) ([], []) queueFaimilies
   return (queueFamilyIndices, queueFamilyProperties)
 
 getQueuePrioritiesPtr :: Float -> IO (Ptr Float)
@@ -317,24 +317,24 @@ getDeviceCreateInfo
       writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
   return deviceCreateInfo
 
-createQueues :: VkDevice -> [Word32] -> IO [(Word32, VkQueue)]
+createQueues :: VkDevice -> [Word32] -> IO [VkQueue]
 createQueues device queueFamilyIndices = do
-  queueList <- forM queueFamilyIndices $ \queueFamilyIndex -> do
+  queues <- forM queueFamilyIndices $ \queueFamilyIndex -> do
     queue <- alloca $ \queuePtr -> do
       vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
       peek queuePtr
-    return (queueFamilyIndex, queue)
-  putStrLn $ "Created Queues: " ++ show (length queueList)
-  return queueList
+    return queue
+  putStrLn $ "Created Queues: " ++ show (length queues)
+  return queues
 
 createDevice :: VkDeviceCreateInfo -> VkPhysicalDevice -> IO VkDevice
 createDevice deviceCreateInfo physicalDevice = do
-  device <- alloca $ \devicePtr -> do
+  vkDevice <- alloca $ \vkDevicePtr -> do
     throwingVK "vkCreateDevice: failed to create vkDevice"
-      $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
-    peek devicePtr
-  putStrLn $ "Created Device: " ++ show device
-  return device
+      $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE vkDevicePtr
+    peek vkDevicePtr
+  putStrLn $ "Created Device: " ++ show vkDevice
+  return vkDevice
 
 destroyDevice :: VkDevice -> IO ()
 destroyDevice device = vkDestroyDevice device VK_NULL_HANDLE
@@ -392,11 +392,11 @@ chooseSwapExtent swapChainSupportDetails = do
 
 withSwapChain :: VkDevice
               -> SwapChainSupportDetails
-              -> DevQueues
+              -> QueueFamilyDatas
               -> VkSurfaceKHR
               -> (SwapChainImgInfo -> IO a)
               -> IO a
-withSwapChain dev swapChainSupportDetails queues surf action = do
+withSwapChain dev swapChainSupportDetails queueFamilyDatas surf action = do  
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
   imageExtent <- chooseSwapExtent swapChainSupportDetails
@@ -430,14 +430,14 @@ withSwapChain dev swapChainSupportDetails queues surf action = do
       swCreateInfoPtr 1
     writeField @"imageUsage"
       swCreateInfoPtr VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-    if graphicsQueue queues /= presentQueue queues
+    if graphicsQueue queueFamilyDatas /= presentQueue queueFamilyDatas
     then do
       writeField @"imageSharingMode"
         swCreateInfoPtr VK_SHARING_MODE_CONCURRENT
       writeField @"queueFamilyIndexCount"
         swCreateInfoPtr 2
       writeField @"pQueueFamilyIndices"
-        swCreateInfoPtr (qFamIndices queues)
+        swCreateInfoPtr (queueFamilyIndicesPtr queueFamilyDatas)
     else do
       writeField @"imageSharingMode"
         swCreateInfoPtr VK_SHARING_MODE_EXCLUSIVE

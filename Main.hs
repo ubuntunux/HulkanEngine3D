@@ -39,9 +39,10 @@ main = do
     instanceCreateInfo = getInstanceCreateInfo applicationInfo vulkanLayers requireExtensions
   vkInstance <- createVulkanInstance instanceCreateInfo  
   vkSurface <- createVkSurface vkInstance window
-  (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
+  (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   physicalDeviceFeatures <- getPhysicalDeviceFeatures  
   (queueFamilyIndices, queueFamilyPropertiese) <- getQueueFamilyInfos physicalDevice vkSurface
+  queueFamilyIndicesPtr <- newArray queueFamilyIndices
   queuePrioritiesPtr <- getQueuePrioritiesPtr 1.0
   queueCreateInfoList <- getQueueCreateInfos queueFamilyIndices queuePrioritiesPtr  
   queueCreateInfoArrayPtr <- newArray queueCreateInfoList
@@ -53,10 +54,18 @@ main = do
     vulkanLayers
     (length requireDeviceExtensions)
     requireDeviceExtensionsPtr
-  logicalDevice <- createDevice deviceCreateInfo physicalDevice 
-  queueList <- createQueues logicalDevice queueFamilyIndices
+  vkDevice <- createDevice deviceCreateInfo physicalDevice 
+  queues <- createQueues vkDevice queueFamilyIndices
+  let queueFamilyDatas = QueueFamilyDatas
+        { graphicsQueue = queues !! 0
+        , presentQueue = queues !! 0
+        , queueFamilyIndicesPtr = queueFamilyIndicesPtr
+        , graphicsFamilyIndex = queueFamilyIndices !! 0
+        , presentFamilyIndex = queueFamilyIndices !! 0
+        }
+  withSwapChain vkDevice swapChainSupportDetails queueFamilyDatas vkSurface (print) 
   glfwMainLoop window mainLoop
-  destroyDevice logicalDevice
+  destroyDevice vkDevice
   destroyVkSurface vkInstance vkSurface
   destroyVulkanInstance vkInstance
   touchVkData instanceCreateInfo 
@@ -64,6 +73,7 @@ main = do
   touchVkData physicalDeviceFeatures 
   free requireDeviceExtensionsPtr
   free queueCreateInfoArrayPtr
+  free queueFamilyIndicesPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
