@@ -396,7 +396,7 @@ withSwapChain :: VkDevice
               -> VkSurfaceKHR
               -> (SwapChainImgInfo -> IO a)
               -> IO a
-withSwapChain dev swapChainSupportDetails queueFamilyDatas surf action = do  
+withSwapChain vkDevice swapChainSupportDetails queueFamilyDatas vkSurface action = do  
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
   imageExtent <- chooseSwapExtent swapChainSupportDetails
@@ -417,7 +417,7 @@ withSwapChain dev swapChainSupportDetails queueFamilyDatas surf action = do
     writeField @"flags"
       swCreateInfoPtr 0
     writeField @"surface"
-      swCreateInfoPtr surf
+      swCreateInfoPtr vkSurface
     writeField @"minImageCount"
       swCreateInfoPtr imageCount
     writeField @"imageFormat"
@@ -458,13 +458,13 @@ withSwapChain dev swapChainSupportDetails queueFamilyDatas surf action = do
 
   swapChain <- alloca $ \swPtr -> do
     throwingVK "vkCreateSwapchainKHR failed!"
-      $ vkCreateSwapchainKHR dev (unsafePtr swCreateInfo) VK_NULL_HANDLE swPtr
+      $ vkCreateSwapchainKHR vkDevice (unsafePtr swCreateInfo) VK_NULL_HANDLE swPtr
     peek swPtr
 
   swImgs <- asListVK
     $ \x ->
       throwingVK "vkGetSwapchainImagesKHR error"
-    . vkGetSwapchainImagesKHR dev swapChain x
+    . vkGetSwapchainImagesKHR vkDevice swapChain x
 
   let swInfo = SwapChainImgInfo
         { swapchain   = swapChain
@@ -474,6 +474,6 @@ withSwapChain dev swapChainSupportDetails queueFamilyDatas surf action = do
         }
 
   finally (action swInfo) $ do
-    vkDestroySwapchainKHR dev swapChain VK_NULL_HANDLE
+    vkDestroySwapchainKHR vkDevice swapChain VK_NULL_HANDLE
     touchVkData swCreateInfo
 
