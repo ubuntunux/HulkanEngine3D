@@ -41,8 +41,7 @@ main = do
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   physicalDeviceFeatures <- getPhysicalDeviceFeatures  
-  (queueFamilyIndices, queueFamilyPropertiese) <- getQueueFamilyInfos physicalDevice vkSurface
-  queueFamilyIndicesPtr <- newArray queueFamilyIndices
+  (queueFamilyIndices, queueFamilyPropertiese) <- getQueueFamilyInfos physicalDevice vkSurface  
   queuePrioritiesPtr <- getQueuePrioritiesPtr 1.0
   queueCreateInfoList <- getQueueCreateInfos queueFamilyIndices queuePrioritiesPtr  
   queueCreateInfoArrayPtr <- newArray queueCreateInfoList
@@ -56,9 +55,11 @@ main = do
     requireDeviceExtensionsPtr
   vkDevice <- createDevice deviceCreateInfo physicalDevice 
   queues <- createQueues vkDevice queueFamilyIndices
+  queueFamilyIndicesPtr <- newArray [queueFamilyIndices !! 0, queueFamilyIndices !! 0]
   let queueFamilyDatas = QueueFamilyDatas
         { graphicsQueue = queues !! 0
         , presentQueue = queues !! 0
+        , queueFamilyCount = fromIntegral $ length queueFamilyIndices
         , queueFamilyIndicesPtr = queueFamilyIndicesPtr
         , graphicsFamilyIndex = queueFamilyIndices !! 0
         , presentFamilyIndex = queueFamilyIndices !! 0
