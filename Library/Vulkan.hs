@@ -6,6 +6,7 @@
 module Library.Vulkan
     ( vulkanLayers
     , requireDeviceExtensions
+    , QueueFamilyIndices (..)
     , QueueFamilyDatas (..)
     , SwapChainImgInfo (..)
     , SwapChainSupportDetails (..)
@@ -20,7 +21,7 @@ module Library.Vulkan
     , destroyVkSurface
     , selectPhysicalDevice    
     , getPhysicalDeviceFeatures
-    , getQueueFamilyInfos
+    , getQueueFamilyIndices
     , getQueuePrioritiesPtr
     , getQueueCreateInfos
     , getDeviceCreateInfo
@@ -55,6 +56,17 @@ vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]
 
 requireDeviceExtensions :: [CString]
 requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
+
+invalidQueueIndex :: Word32
+invalidQueueIndex = -1
+
+data QueueFamilyIndices = QueueFamilyIndices
+  { graphicsQueueIndex :: Word32
+  , presentQueueIndex :: Word32
+  , computeQueueIndex :: Word32
+  , transferQueueIndex :: Word32
+  , sparseBindingQueueIndex :: Word32
+  } deriving (Eq, Show)
 
 data QueueFamilyDatas = QueueFamilyDatas
   { graphicsQueue :: VkQueue
@@ -257,30 +269,31 @@ getQueueFamilies physicalDevice = alloca $ \queueFamilyCountPtr -> do
   mapM (\(x,y) -> putStrLn $ "\t[" ++ (show x) ++ "] " ++ (show y) ) queueFaimilies
   return queueFaimilies
 
-getQueueFamilyInfos :: VkPhysicalDevice -> VkSurfaceKHR -> IO ([Word32], [VkQueueFamilyProperties])
-getQueueFamilyInfos physicalDevice vkSurface = do 
+getQueueFamilyIndices :: VkPhysicalDevice -> VkSurfaceKHR -> IO QueueFamilyIndices
+getQueueFamilyIndices physicalDevice vkSurface = do 
   queueFaimilies <- getQueueFamilies physicalDevice  
+  presentationFamilyIndices <- selectPresentationFamily physicalDevice vkSurface queueFaimilies  
   graphicsQueueIndices <- selectQueueFamily VK_QUEUE_GRAPHICS_BIT queueFaimilies
   computeFamilyIndices <- selectQueueFamily VK_QUEUE_COMPUTE_BIT queueFaimilies
   transferFamilyIndices <- selectQueueFamily VK_QUEUE_TRANSFER_BIT queueFaimilies
-  sparseBindingFamilyIndices <- selectQueueFamily VK_QUEUE_SPARSE_BINDING_BIT queueFaimilies
-  presentationFamilyIndices <- selectPresentationFamily physicalDevice vkSurface queueFaimilies  
+  sparseBindingFamilyIndices <- selectQueueFamily VK_QUEUE_SPARSE_BINDING_BIT queueFaimilies  
   let
-    graphicsQueueIndex = graphicsQueueIndices !! 0
-    computeFamilyIndex = getFamilyIndex computeFamilyIndices graphicsQueueIndex
-    transferFamilyIndex = getFamilyIndex transferFamilyIndices graphicsQueueIndex
-    sparseBindingFamilyIndex = getFamilyIndex sparseBindingFamilyIndices graphicsQueueIndex
-    presentationFamilyIndex = getFamilyIndex presentationFamilyIndices graphicsQueueIndex
-    graphicsQueueProperty = snd $ queueFaimilies !! (fromIntegral graphicsQueueIndex)
-    presentationQueueProperty = snd $ queueFaimilies !! (fromIntegral presentationFamilyIndex)
-    (queueFamilyIndices, queueFamilyProperties) = foldr (\(x,y) (xs,ys) -> (x:xs,y:ys)) ([], []) queueFaimilies
-  putStrLn $ "Graphics Queue Index : " ++ show graphicsQueueIndex
-  putStrLn $ "Computer Queue Index : " ++ show computeFamilyIndex
-  putStrLn $ "Transfer Queue Index : " ++ show transferFamilyIndex
-  putStrLn $ "Sparse Binding Queue Index : " ++ show sparseBindingFamilyIndex
-  putStrLn $ "Presentation Queue Index : " ++ show presentationFamilyIndex
-  return (queueFamilyIndices, queueFamilyProperties)
+    defaultIndex = graphicsQueueIndices !! 0
+    queueFamilyIndices = QueueFamilyIndices
+      { graphicsQueueIndex = defaultIndex
+      , presentQueueIndex = getFamilyIndex presentationFamilyIndices defaultIndex
+      , computeQueueIndex = getFamilyIndex computeFamilyIndices defaultIndex
+      , transferQueueIndex = getFamilyIndex transferFamilyIndices defaultIndex
+      , sparseBindingQueueIndex = getFamilyIndex sparseBindingFamilyIndices defaultIndex
+      }    
+  putStrLn $ "Graphics Queue Index : " ++ show (graphicsQueueIndex queueFamilyIndices)
+  putStrLn $ "Presentation Queue Index : " ++ show (presentQueueIndex queueFamilyIndices)
+  putStrLn $ "Computer Queue Index : " ++ show (computeQueueIndex queueFamilyIndices)
+  putStrLn $ "Transfer Queue Index : " ++ show (transferQueueIndex queueFamilyIndices)
+  putStrLn $ "Sparse Binding Queue Index : " ++ show (sparseBindingQueueIndex queueFamilyIndices)  
+  return queueFamilyIndices
   where
+    getFamilyIndex [] _ = invalidQueueIndex
     getFamilyIndex indices defaultIndex = 
       let result = [x | x <- indices, x /= defaultIndex]
       in
@@ -335,15 +348,15 @@ getDeviceCreateInfo
       writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
   return deviceCreateInfo
 
-createQueues :: VkDevice -> [Word32] -> IO [VkQueue]
+createQueues :: VkDevice -> [Word32] -> IO (Map.Map Word32 VkQueue)
 createQueues device queueFamilyIndices = do
-  queues <- forM queueFamilyIndices $ \queueFamilyIndex -> do
+  queueList <- forM queueFamilyIndices $ \queueFamilyIndex -> do
     queue <- alloca $ \queuePtr -> do
       vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
       peek queuePtr
-    return queue
-  putStrLn $ "Created Queues: " ++ show (length queues)
-  return queues
+    return (queueFamilyIndex, queue)
+  putStrLn $ "Created Queues: " ++ show (length queueList)
+  return $ Map.fromList queueList
 
 createDevice :: VkDeviceCreateInfo -> VkPhysicalDevice -> IO VkDevice
 createDevice deviceCreateInfo physicalDevice = do

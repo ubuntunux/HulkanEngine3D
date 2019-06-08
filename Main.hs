@@ -6,6 +6,7 @@
 module Main (main) where
 
 import Control.Monad
+import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -41,9 +42,10 @@ main = do
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   physicalDeviceFeatures <- getPhysicalDeviceFeatures  
-  (queueFamilyIndices, queueFamilyPropertiese) <- getQueueFamilyInfos physicalDevice vkSurface  
+  queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface
+  let createQueueFamilyMap = Map.fromList $ [(index, index) | index <- [graphicsQueueIndex queueFamilyIndices, presentQueueIndex queueFamilyIndices]]
   queuePrioritiesPtr <- getQueuePrioritiesPtr 1.0
-  queueCreateInfoList <- getQueueCreateInfos queueFamilyIndices queuePrioritiesPtr  
+  queueCreateInfoList <- getQueueCreateInfos (Map.elems createQueueFamilyMap) queuePrioritiesPtr  
   queueCreateInfoArrayPtr <- newArray queueCreateInfoList
   requireDeviceExtensionsPtr <- newArray requireDeviceExtensions
   deviceCreateInfo <- getDeviceCreateInfo 
@@ -54,15 +56,17 @@ main = do
     (length requireDeviceExtensions)
     requireDeviceExtensionsPtr
   vkDevice <- createDevice deviceCreateInfo physicalDevice 
-  queues <- createQueues vkDevice queueFamilyIndices
-  queueFamilyIndicesPtr <- newArray [queueFamilyIndices !! 0, queueFamilyIndices !! 0]
-  let queueFamilyDatas = QueueFamilyDatas
-        { graphicsQueue = queues !! 0
-        , presentQueue = queues !! 0
-        , queueFamilyCount = fromIntegral $ length queueFamilyIndices
-        , queueFamilyIndicesPtr = queueFamilyIndicesPtr
-        , graphicsFamilyIndex = queueFamilyIndices !! 0
-        , presentFamilyIndex = queueFamilyIndices !! 0
+  queueMap <- createQueues vkDevice (Map.elems createQueueFamilyMap)
+  createQueueFamilyListPtr <- newArray (Map.elems createQueueFamilyMap)
+  let 
+    defaultQueue = (Map.elems queueMap) !! 0
+    queueFamilyDatas = QueueFamilyDatas
+        { graphicsQueue = fromMaybe defaultQueue $ Map.lookup (graphicsQueueIndex queueFamilyIndices) queueMap
+        , presentQueue = fromMaybe defaultQueue $ Map.lookup (presentQueueIndex queueFamilyIndices) queueMap
+        , queueFamilyCount = 2
+        , queueFamilyIndicesPtr = createQueueFamilyListPtr
+        , graphicsFamilyIndex = graphicsQueueIndex
+        , presentFamilyIndex = presentQueueIndex
         }
   withSwapChain vkDevice swapChainSupportDetails queueFamilyDatas vkSurface (print) 
   glfwMainLoop window mainLoop
@@ -74,7 +78,7 @@ main = do
   touchVkData physicalDeviceFeatures 
   free requireDeviceExtensionsPtr
   free queueCreateInfoArrayPtr
-  free queueFamilyIndicesPtr
+  free createQueueFamilyListPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
