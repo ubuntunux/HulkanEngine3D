@@ -8,7 +8,7 @@ module Library.Vulkan
     , requireDeviceExtensions
     , QueueFamilyIndices (..)
     , QueueFamilyDatas (..)
-    , SwapChainImgInfo (..)
+    , SwapChainImageInfo (..)
     , SwapChainSupportDetails (..)
     , getInstanceExtensionSupport
     , getDeviceExtensionSupport
@@ -28,7 +28,9 @@ module Library.Vulkan
     , createQueues
     , createDevice
     , destroyDevice
-    , withSwapChain
+    , getSwapChainCreateInfo
+    , createSwapChain
+    , destroySwapChain
     ) where
 
 import Control.Exception
@@ -83,8 +85,8 @@ data SwapChainSupportDetails = SwapChainSupportDetails
   , presentModes :: [VkPresentModeKHR]
   } deriving (Eq, Show)
 
-data SwapChainImgInfo = SwapChainImgInfo
-  { swapchain :: VkSwapchainKHR
+data SwapChainImageInfo = SwapChainImageInfo
+  { swapChain :: VkSwapchainKHR
   , swapChainImages :: [VkImage]
   , swapChainImageFormat :: VkFormat
   , swapChainExtent :: VkExtent2D
@@ -177,6 +179,7 @@ destroyVkSurface :: VkInstance -> VkSurfaceKHR -> IO ()
 destroyVkSurface vkInstance vkSurface = do
   destroySurfaceFunc <- vkGetInstanceProc @VkDestroySurfaceKHR vkInstance
   destroySurfaceFunc vkInstance vkSurface VK_NULL_HANDLE
+  putStrLn "Destroy VkSurfaceKHR"
 
 querySwapChainSupport :: VkPhysicalDevice -> VkSurfaceKHR -> IO SwapChainSupportDetails
 querySwapChainSupport physicalDevice vkSurface = do
@@ -368,7 +371,9 @@ createDevice deviceCreateInfo physicalDevice = do
   return vkDevice
 
 destroyDevice :: VkDevice -> IO ()
-destroyDevice device = vkDestroyDevice device VK_NULL_HANDLE
+destroyDevice device = do
+  vkDestroyDevice device VK_NULL_HANDLE
+  putStrLn "Destroy VkDevice"
 
 chooseSwapSurfaceFormat :: SwapChainSupportDetails -> IO VkSurfaceFormatKHR
 chooseSwapSurfaceFormat swapChainSupportDetails = do
@@ -414,13 +419,8 @@ chooseSwapExtent swapChainSupportDetails = do
     width = getField @"width"
     height = getField @"height"
 
-withSwapChain :: VkDevice
-              -> SwapChainSupportDetails
-              -> QueueFamilyDatas
-              -> VkSurfaceKHR
-              -> (SwapChainImgInfo -> IO a)
-              -> IO a
-withSwapChain vkDevice swapChainSupportDetails queueFamilyDatas vkSurface action = do
+getSwapChainCreateInfo :: Library.Vulkan.SwapChainSupportDetails -> QueueFamilyDatas -> VkSurfaceKHR -> IO VkSwapchainCreateInfoKHR
+getSwapChainCreateInfo swapChainSupportDetails queueFamilyDatas vkSurface = do
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
   imageExtent <- chooseSwapExtent swapChainSupportDetails
@@ -458,24 +458,29 @@ withSwapChain vkDevice swapChainSupportDetails queueFamilyDatas vkSurface action
     writeField @"presentMode" swapChainCreateInfoPtr presentMode
     writeField @"clipped" swapChainCreateInfoPtr VK_TRUE
     writeField @"oldSwapchain" swapChainCreateInfoPtr VK_NULL_HANDLE
-  putStrLn $ "imageSharingMode : " ++ (show $ getField @"imageSharingMode" swapChainCreateInfo)
+  putStrLn "Create SwapChain"
+  putStrLn $ "\timageFormat : " ++ (show $ getField @"imageFormat" swapChainCreateInfo)
+  putStrLn $ "\timageColorSpace : " ++ (show $ getField @"imageColorSpace" swapChainCreateInfo)
+  putStrLn $ "\timageExtent : " ++ (show $ getField @"imageExtent" swapChainCreateInfo)
+  putStrLn $ "\timageSharingMode : " ++ (show $ getField @"imageSharingMode" swapChainCreateInfo)
+  return swapChainCreateInfo
 
+createSwapChain :: VkDevice -> VkSwapchainCreateInfoKHR -> IO SwapChainImageInfo
+createSwapChain vkDevice swapChainCreateInfo = do
   swapChain <- alloca $ \swapChainPtr -> do
     throwingVK "vkCreateSwapchainKHR failed!"
       $ vkCreateSwapchainKHR vkDevice (unsafePtr swapChainCreateInfo) VK_NULL_HANDLE swapChainPtr
     peek swapChainPtr
-
   swapChainImages <- asListVK $ \counterPtr valueArrayPtr ->
     throwingVK "vkGetSwapchainImagesKHR error"
-      $ vkGetSwapchainImagesKHR vkDevice swapChain counterPtr valueArrayPtr    
+      $ vkGetSwapchainImagesKHR vkDevice swapChain counterPtr valueArrayPtr
+  return SwapChainImageInfo
+    { swapChain = swapChain
+    , swapChainImages = swapChainImages
+    , swapChainImageFormat = (getField @"imageFormat" swapChainCreateInfo)
+    , swapChainExtent = (getField @"imageExtent" swapChainCreateInfo) }
 
-  let swapChainInfo = SwapChainImgInfo
-        { swapchain = swapChain
-        , swapChainImages = swapChainImages
-        , swapChainImageFormat = getField @"format" surfaceFormat
-        , swapChainExtent = imageExtent }
-
-  finally (action swapChainInfo) $ do
-    vkDestroySwapchainKHR vkDevice swapChain VK_NULL_HANDLE
-    touchVkData swapChainCreateInfo
-
+destroySwapChain :: VkDevice -> VkSwapchainKHR -> IO ()
+destroySwapChain vkDevice swapChain = do
+  putStrLn "Destroy SwapChain"
+  vkDestroySwapchainKHR vkDevice swapChain VK_NULL_HANDLE  

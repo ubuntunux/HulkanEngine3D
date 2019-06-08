@@ -71,11 +71,15 @@ main = do
         , graphicsFamilyIndex = graphicsQueueIndex'
         , presentFamilyIndex = presentQueueIndex'
         }
-  withSwapChain vkDevice swapChainSupportDetails queueFamilyDatas vkSurface (print) 
+  swapChainCreateInfo <- getSwapChainCreateInfo swapChainSupportDetails queueFamilyDatas vkSurface
+  swapChainImageInfo <- createSwapChain vkDevice swapChainCreateInfo
+  --print swapChainCreateInfo
   glfwMainLoop window mainLoop
+  destroySwapChain vkDevice (swapChain swapChainImageInfo)
   destroyDevice vkDevice
   destroyVkSurface vkInstance vkSurface
   destroyVulkanInstance vkInstance
+  touchVkData swapChainCreateInfo
   touchVkData instanceCreateInfo 
   touchVkData deviceCreateInfo 
   touchVkData physicalDeviceFeatures 
