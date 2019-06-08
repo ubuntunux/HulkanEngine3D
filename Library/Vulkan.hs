@@ -261,27 +261,34 @@ getQueueFamilyInfos :: VkPhysicalDevice -> VkSurfaceKHR -> IO ([Word32], [VkQueu
 getQueueFamilyInfos physicalDevice vkSurface = do 
   queueFaimilies <- getQueueFamilies physicalDevice  
   graphicsQueueIndices <- selectQueueFamily VK_QUEUE_GRAPHICS_BIT queueFaimilies
-  transferFamilyIndices <- selectQueueFamily VK_QUEUE_TRANSFER_BIT queueFaimilies
   computeFamilyIndices <- selectQueueFamily VK_QUEUE_COMPUTE_BIT queueFaimilies
+  transferFamilyIndices <- selectQueueFamily VK_QUEUE_TRANSFER_BIT queueFaimilies
+  sparseBindingFamilyIndices <- selectQueueFamily VK_QUEUE_SPARSE_BINDING_BIT queueFaimilies
   presentationFamilyIndices <- selectPresentationFamily physicalDevice vkSurface queueFaimilies  
   let
     graphicsQueueIndex = graphicsQueueIndices !! 0
-    transferFamilyIndex = getFamilyIndex transferFamilyIndices graphicsQueueIndex
     computeFamilyIndex = getFamilyIndex computeFamilyIndices graphicsQueueIndex
+    transferFamilyIndex = getFamilyIndex transferFamilyIndices graphicsQueueIndex
+    sparseBindingFamilyIndex = getFamilyIndex sparseBindingFamilyIndices graphicsQueueIndex
     presentationFamilyIndex = presentationFamilyIndices !! 0
     graphicsQueueProperty = snd $ queueFaimilies !! (fromIntegral graphicsQueueIndex)
     presentationQueueProperty = snd $ queueFaimilies !! (fromIntegral presentationFamilyIndex)
     (queueFamilyIndices, queueFamilyProperties) = foldr (\(x,y) (xs,ys) -> (x:xs,y:ys)) ([], []) queueFaimilies
+  print presentationFamilyIndex
   putStrLn $ "Graphics Queue Index : " ++ show graphicsQueueIndex
-  putStrLn $ "Transfer Queue Index : " ++ show transferFamilyIndex
   putStrLn $ "Computer Queue Index : " ++ show computeFamilyIndex
+  putStrLn $ "Transfer Queue Index : " ++ show transferFamilyIndex
+  putStrLn $ "Sparse Binding Queue Index : " ++ show sparseBindingFamilyIndex
   putStrLn $ "Presentation Queue Index : " ++ show presentationFamilyIndex
   return (queueFamilyIndices, queueFamilyProperties)
-  --return ([graphicsQueueIndex, presentationFamilyIndex], [graphicsQueueProperty, presentationQueueProperty])  
   where
-    getFamilyIndex [] defaultIndex = defaultIndex
-    getFamilyIndex indices defaultIndex = [x | x <- indices, x /= defaultIndex] !! 0
-
+    getFamilyIndex indices defaultIndex = 
+      let result = [x | x <- indices, x /= defaultIndex]
+      in
+        if 0 < (length result)
+        then result !! 0
+        else defaultIndex
+        
 getQueuePrioritiesPtr :: Float -> IO (Ptr Float)
 getQueuePrioritiesPtr value = 
   alloca $ \ptr -> do
