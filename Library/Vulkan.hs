@@ -465,9 +465,9 @@ withSwapChain vkDevice swapChainSupportDetails queueFamilyDatas vkSurface action
       $ vkCreateSwapchainKHR vkDevice (unsafePtr swapChainCreateInfo) VK_NULL_HANDLE swapChainPtr
     peek swapChainPtr
 
-  swapChainImages <- asListVK $ \x ->
+  swapChainImages <- asListVK $ \counterPtr valueArrayPtr ->
     throwingVK "vkGetSwapchainImagesKHR error"
-      . vkGetSwapchainImagesKHR vkDevice swapChain x
+      $ vkGetSwapchainImagesKHR vkDevice swapChain counterPtr valueArrayPtr    
 
   let swapChainInfo = SwapChainImgInfo
         { swapchain = swapChain
