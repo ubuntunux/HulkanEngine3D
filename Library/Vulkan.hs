@@ -270,11 +270,10 @@ getQueueFamilyInfos physicalDevice vkSurface = do
     computeFamilyIndex = getFamilyIndex computeFamilyIndices graphicsQueueIndex
     transferFamilyIndex = getFamilyIndex transferFamilyIndices graphicsQueueIndex
     sparseBindingFamilyIndex = getFamilyIndex sparseBindingFamilyIndices graphicsQueueIndex
-    presentationFamilyIndex = presentationFamilyIndices !! 0
+    presentationFamilyIndex = getFamilyIndex presentationFamilyIndices graphicsQueueIndex
     graphicsQueueProperty = snd $ queueFaimilies !! (fromIntegral graphicsQueueIndex)
     presentationQueueProperty = snd $ queueFaimilies !! (fromIntegral presentationFamilyIndex)
     (queueFamilyIndices, queueFamilyProperties) = foldr (\(x,y) (xs,ys) -> (x:xs,y:ys)) ([], []) queueFaimilies
-  print presentationFamilyIndex
   putStrLn $ "Graphics Queue Index : " ++ show graphicsQueueIndex
   putStrLn $ "Computer Queue Index : " ++ show computeFamilyIndex
   putStrLn $ "Transfer Queue Index : " ++ show transferFamilyIndex
