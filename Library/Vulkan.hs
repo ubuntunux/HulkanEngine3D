@@ -84,10 +84,10 @@ data SwapChainSupportDetails = SwapChainSupportDetails
   } deriving (Eq, Show)
 
 data SwapChainImgInfo = SwapChainImgInfo
-  { swapchain   :: VkSwapchainKHR
-  , swImgs      :: [VkImage]
-  , swImgFormat :: VkFormat
-  , swExtent    :: VkExtent2D
+  { swapchain :: VkSwapchainKHR
+  , swapChainImages :: [VkImage]
+  , swapChainImageFormat :: VkFormat
+  , swapChainExtent :: VkExtent2D
   } deriving (Eq, Show)
 
   
@@ -385,10 +385,9 @@ chooseSwapSurfaceFormat swapChainSupportDetails = do
     findAvailableFormat :: [VkSurfaceFormatKHR] -> IO VkSurfaceFormatKHR
     findAvailableFormat [] = return $ formats' !! 0
     findAvailableFormat (x:xs) = do
-      if VK_FORMAT_B8G8R8A8_UNORM == getFormat x && VK_COLOR_SPACE_SRGB_NONLINEAR_KHR == getColorSpace x then 
-        return x
-      else
-        findAvailableFormat xs
+      if VK_FORMAT_B8G8R8A8_UNORM == getFormat x && VK_COLOR_SPACE_SRGB_NONLINEAR_KHR == getColorSpace x
+      then return x
+      else findAvailableFormat xs
 
 chooseSwapPresentMode :: SwapChainSupportDetails -> IO VkPresentModeKHR
 chooseSwapPresentMode swapChainSupportDetails = do
@@ -427,55 +426,56 @@ withSwapChain vkDevice swapChainSupportDetails queueFamilyDatas vkSurface action
   imageExtent <- chooseSwapExtent swapChainSupportDetails
 
   -- try tripple buffering
-  let maxIC = getField @"maxImageCount" $ capabilities swapChainSupportDetails
-      minIC = getField @"minImageCount" $ capabilities swapChainSupportDetails
-      imageCount = if maxIC <= 0
-                   then max minIC 3
-                   else min maxIC $ max minIC 3
+  let maxImageCount = getField @"maxImageCount" $ capabilities swapChainSupportDetails
+      minImageCount = getField @"minImageCount" $ capabilities swapChainSupportDetails
+      imageCount = if maxImageCount <= 0
+                   then max minImageCount 3
+                   else min maxImageCount $ max minImageCount 3
 
   -- write VkSwapchainCreateInfoKHR
-  swCreateInfo <- newVkData @VkSwapchainCreateInfoKHR $ \swCreateInfoPtr -> do
-    writeField @"sType" swCreateInfoPtr VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
-    writeField @"pNext" swCreateInfoPtr VK_NULL_HANDLE
-    writeField @"flags" swCreateInfoPtr 0
-    writeField @"surface" swCreateInfoPtr vkSurface
-    writeField @"minImageCount" swCreateInfoPtr imageCount
-    writeField @"imageFormat" swCreateInfoPtr (getField @"format" surfaceFormat)
-    writeField @"imageColorSpace" swCreateInfoPtr (getField @"colorSpace" surfaceFormat)
-    writeField @"imageExtent" swCreateInfoPtr imageExtent
-    writeField @"imageArrayLayers" swCreateInfoPtr 1
-    writeField @"imageUsage" swCreateInfoPtr VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+  swapChainCreateInfo <- newVkData @VkSwapchainCreateInfoKHR $ \swapChainCreateInfoPtr -> do
+    writeField @"sType" swapChainCreateInfoPtr VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
+    writeField @"pNext" swapChainCreateInfoPtr VK_NULL_HANDLE
+    writeField @"flags" swapChainCreateInfoPtr 0
+    writeField @"surface" swapChainCreateInfoPtr vkSurface
+    writeField @"minImageCount" swapChainCreateInfoPtr imageCount
+    writeField @"imageFormat" swapChainCreateInfoPtr (getField @"format" surfaceFormat)
+    writeField @"imageColorSpace" swapChainCreateInfoPtr (getField @"colorSpace" surfaceFormat)
+    writeField @"imageExtent" swapChainCreateInfoPtr imageExtent
+    writeField @"imageArrayLayers" swapChainCreateInfoPtr 1
+    writeField @"imageUsage" swapChainCreateInfoPtr VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
     if graphicsQueue queueFamilyDatas /= presentQueue queueFamilyDatas
     then do
-      writeField @"imageSharingMode" swCreateInfoPtr VK_SHARING_MODE_CONCURRENT
-      writeField @"queueFamilyIndexCount" swCreateInfoPtr (queueFamilyCount queueFamilyDatas)
-      writeField @"pQueueFamilyIndices" swCreateInfoPtr (queueFamilyIndicesPtr queueFamilyDatas)
+      writeField @"imageSharingMode" swapChainCreateInfoPtr VK_SHARING_MODE_CONCURRENT
+      writeField @"queueFamilyIndexCount" swapChainCreateInfoPtr (queueFamilyCount queueFamilyDatas)
+      writeField @"pQueueFamilyIndices" swapChainCreateInfoPtr (queueFamilyIndicesPtr queueFamilyDatas)      
     else do
-      writeField @"imageSharingMode" swCreateInfoPtr VK_SHARING_MODE_EXCLUSIVE
-      writeField @"queueFamilyIndexCount" swCreateInfoPtr 0
-      writeField @"pQueueFamilyIndices" swCreateInfoPtr VK_NULL_HANDLE
-    writeField @"preTransform" swCreateInfoPtr (getField @"currentTransform" $ capabilities swapChainSupportDetails)
-    writeField @"compositeAlpha" swCreateInfoPtr VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
-    writeField @"presentMode" swCreateInfoPtr presentMode
-    writeField @"clipped" swCreateInfoPtr VK_TRUE
-    writeField @"oldSwapchain" swCreateInfoPtr VK_NULL_HANDLE
+      writeField @"imageSharingMode" swapChainCreateInfoPtr VK_SHARING_MODE_EXCLUSIVE
+      writeField @"queueFamilyIndexCount" swapChainCreateInfoPtr 0
+      writeField @"pQueueFamilyIndices" swapChainCreateInfoPtr VK_NULL_HANDLE      
+    writeField @"preTransform" swapChainCreateInfoPtr (getField @"currentTransform" $ capabilities swapChainSupportDetails)
+    writeField @"compositeAlpha" swapChainCreateInfoPtr VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+    writeField @"presentMode" swapChainCreateInfoPtr presentMode
+    writeField @"clipped" swapChainCreateInfoPtr VK_TRUE
+    writeField @"oldSwapchain" swapChainCreateInfoPtr VK_NULL_HANDLE
+  putStrLn $ "imageSharingMode : " ++ (show $ getField @"imageSharingMode" swapChainCreateInfo)
 
-  swapChain <- alloca $ \swPtr -> do
+  swapChain <- alloca $ \swapChainPtr -> do
     throwingVK "vkCreateSwapchainKHR failed!"
-      $ vkCreateSwapchainKHR vkDevice (unsafePtr swCreateInfo) VK_NULL_HANDLE swPtr
-    peek swPtr
+      $ vkCreateSwapchainKHR vkDevice (unsafePtr swapChainCreateInfo) VK_NULL_HANDLE swapChainPtr
+    peek swapChainPtr
 
-  swImgs <- asListVK $ \x ->
+  swapChainImages <- asListVK $ \x ->
     throwingVK "vkGetSwapchainImagesKHR error"
       . vkGetSwapchainImagesKHR vkDevice swapChain x
 
-  let swInfo = SwapChainImgInfo
-        { swapchain   = swapChain
-        , swImgs      = swImgs
-        , swImgFormat = getField @"format" surfaceFormat
-        , swExtent    = imageExtent }
+  let swapChainInfo = SwapChainImgInfo
+        { swapchain = swapChain
+        , swapChainImages = swapChainImages
+        , swapChainImageFormat = getField @"format" surfaceFormat
+        , swapChainExtent = imageExtent }
 
-  finally (action swInfo) $ do
+  finally (action swapChainInfo) $ do
     vkDestroySwapchainKHR vkDevice swapChain VK_NULL_HANDLE
-    touchVkData swCreateInfo
+    touchVkData swapChainCreateInfo
 

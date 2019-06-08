@@ -43,7 +43,10 @@ main = do
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   physicalDeviceFeatures <- getPhysicalDeviceFeatures  
   queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface
-  let createQueueFamilyMap = Map.fromList $ [(index, index) | index <- [graphicsQueueIndex queueFamilyIndices, presentQueueIndex queueFamilyIndices]]
+  let 
+    graphicsQueueIndex' = graphicsQueueIndex queueFamilyIndices
+    presentQueueIndex' = presentQueueIndex queueFamilyIndices
+    createQueueFamilyMap = Map.fromList $ [(index, index) | index <- [graphicsQueueIndex', presentQueueIndex']]
   queuePrioritiesPtr <- getQueuePrioritiesPtr 1.0
   queueCreateInfoList <- getQueueCreateInfos (Map.elems createQueueFamilyMap) queuePrioritiesPtr  
   queueCreateInfoArrayPtr <- newArray queueCreateInfoList
@@ -61,12 +64,12 @@ main = do
   let 
     defaultQueue = (Map.elems queueMap) !! 0
     queueFamilyDatas = QueueFamilyDatas
-        { graphicsQueue = fromMaybe defaultQueue $ Map.lookup (graphicsQueueIndex queueFamilyIndices) queueMap
-        , presentQueue = fromMaybe defaultQueue $ Map.lookup (presentQueueIndex queueFamilyIndices) queueMap
+        { graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex' queueMap
+        , presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex' queueMap
         , queueFamilyCount = 2
         , queueFamilyIndicesPtr = createQueueFamilyListPtr
-        , graphicsFamilyIndex = graphicsQueueIndex
-        , presentFamilyIndex = presentQueueIndex
+        , graphicsFamilyIndex = graphicsQueueIndex'
+        , presentFamilyIndex = presentQueueIndex'
         }
   withSwapChain vkDevice swapChainSupportDetails queueFamilyDatas vkSurface (print) 
   glfwMainLoop window mainLoop
