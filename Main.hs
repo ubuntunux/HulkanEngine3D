@@ -35,10 +35,8 @@ main = do
   let
     Just window = maybeWindow
     progName = "02-GLFWWindow"
-    engineName = "My perfect Haskell engine"    
-    applicationInfo = getApplicationInfo progName engineName
-    instanceCreateInfo = getInstanceCreateInfo applicationInfo vulkanLayers requireExtensions
-  vkInstance <- createVulkanInstance instanceCreateInfo  
+    engineName = "My perfect Haskell engine"
+  (instanceCreateInfo, vkInstance) <- createVulkanInstance progName engineName vulkanLayers requireExtensions
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   physicalDeviceFeatures <- getPhysicalDeviceFeatures  
@@ -71,12 +69,10 @@ main = do
         , graphicsFamilyIndex = graphicsQueueIndex'
         , presentFamilyIndex = presentQueueIndex' }
     imageCount = 3 -- tripple buffering
-  swapChainCreateInfo <- getSwapChainCreateInfo swapChainSupportDetails imageCount queueFamilyDatas vkSurface
-  swapChainImageDatas <- createSwapChain vkDevice swapChainCreateInfo
-  swapChainImageViewCreateInfos <- getSwapChainImageViewCreateInfos swapChainImageDatas
-  imageViews <- createSwapChainImageViews vkDevice swapChainImageViewCreateInfos
+  (swapChainCreateInfo, swapChainImageDatas) <- createSwapChain vkDevice swapChainSupportDetails imageCount queueFamilyDatas vkSurface
+  (swapChainImageViewCreateInfos, swapChainImageViews) <- createSwapChainImageViews vkDevice swapChainImageDatas
   glfwMainLoop window mainLoop
-  destroySwapChainImageViews vkDevice swapChainImageViewCreateInfos imageViews
+  destroySwapChainImageViews vkDevice swapChainImageViewCreateInfos swapChainImageViews
   destroySwapChain vkDevice swapChainCreateInfo (swapChain swapChainImageDatas)
   destroyDevice vkDevice deviceCreateInfo physicalDeviceFeatures
   destroyVkSurface vkInstance vkSurface
