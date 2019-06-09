@@ -69,24 +69,21 @@ main = do
         , queueFamilyCount = 2
         , queueFamilyIndicesPtr = createQueueFamilyListPtr
         , graphicsFamilyIndex = graphicsQueueIndex'
-        , presentFamilyIndex = presentQueueIndex'
-        }
+        , presentFamilyIndex = presentQueueIndex' }
     imageCount = 3 -- tripple buffering
   swapChainCreateInfo <- getSwapChainCreateInfo swapChainSupportDetails imageCount queueFamilyDatas vkSurface
-  swapChainImageInfo <- createSwapChain vkDevice swapChainCreateInfo
-  --print swapChainCreateInfo
+  swapChainImageDatas <- createSwapChain vkDevice swapChainCreateInfo
+  swapChainImageViewCreateInfos <- getSwapChainImageViewCreateInfos swapChainImageDatas
+  imageViews <- createSwapChainImageViews vkDevice swapChainImageViewCreateInfos
   glfwMainLoop window mainLoop
-  destroySwapChain vkDevice (swapChain swapChainImageInfo)
-  destroyDevice vkDevice
+  destroySwapChainImageViews vkDevice swapChainImageViewCreateInfos imageViews
+  destroySwapChain vkDevice swapChainCreateInfo (swapChain swapChainImageDatas)
+  destroyDevice vkDevice deviceCreateInfo physicalDeviceFeatures
   destroyVkSurface vkInstance vkSurface
-  destroyVulkanInstance vkInstance
-  touchVkData swapChainCreateInfo
-  touchVkData instanceCreateInfo 
-  touchVkData deviceCreateInfo 
-  touchVkData physicalDeviceFeatures 
+  destroyVulkanInstance instanceCreateInfo vkInstance
   free requireDeviceExtensionsPtr
   free queueCreateInfoArrayPtr
-  free createQueueFamilyListPtr
+  free createQueueFamilyListPtr  
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
