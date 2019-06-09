@@ -419,8 +419,8 @@ chooseSwapExtent swapChainSupportDetails = do
     width = getField @"width"
     height = getField @"height"
 
-getSwapChainCreateInfo :: Library.Vulkan.SwapChainSupportDetails -> QueueFamilyDatas -> VkSurfaceKHR -> IO VkSwapchainCreateInfoKHR
-getSwapChainCreateInfo swapChainSupportDetails queueFamilyDatas vkSurface = do
+getSwapChainCreateInfo :: Library.Vulkan.SwapChainSupportDetails -> Word32 -> QueueFamilyDatas -> VkSurfaceKHR -> IO VkSwapchainCreateInfoKHR
+getSwapChainCreateInfo swapChainSupportDetails imageCount queueFamilyDatas vkSurface = do
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
   imageExtent <- chooseSwapExtent swapChainSupportDetails
@@ -428,9 +428,9 @@ getSwapChainCreateInfo swapChainSupportDetails queueFamilyDatas vkSurface = do
   -- try tripple buffering
   let maxImageCount = getField @"maxImageCount" $ capabilities swapChainSupportDetails
       minImageCount = getField @"minImageCount" $ capabilities swapChainSupportDetails
-      imageCount = if maxImageCount <= 0
-                   then max minImageCount 3
-                   else min maxImageCount $ max minImageCount 3
+      imageCount' = if maxImageCount <= 0
+                   then max minImageCount imageCount
+                   else min maxImageCount $ max minImageCount imageCount
 
   -- write VkSwapchainCreateInfoKHR
   swapChainCreateInfo <- newVkData @VkSwapchainCreateInfoKHR $ \swapChainCreateInfoPtr -> do
@@ -438,7 +438,7 @@ getSwapChainCreateInfo swapChainSupportDetails queueFamilyDatas vkSurface = do
     writeField @"pNext" swapChainCreateInfoPtr VK_NULL_HANDLE
     writeField @"flags" swapChainCreateInfoPtr 0
     writeField @"surface" swapChainCreateInfoPtr vkSurface
-    writeField @"minImageCount" swapChainCreateInfoPtr imageCount
+    writeField @"minImageCount" swapChainCreateInfoPtr (fromIntegral imageCount')
     writeField @"imageFormat" swapChainCreateInfoPtr (getField @"format" surfaceFormat)
     writeField @"imageColorSpace" swapChainCreateInfoPtr (getField @"colorSpace" surfaceFormat)
     writeField @"imageExtent" swapChainCreateInfoPtr imageExtent
@@ -459,6 +459,7 @@ getSwapChainCreateInfo swapChainSupportDetails queueFamilyDatas vkSurface = do
     writeField @"clipped" swapChainCreateInfoPtr VK_TRUE
     writeField @"oldSwapchain" swapChainCreateInfoPtr VK_NULL_HANDLE
   putStrLn "Create SwapChain"
+  putStrLn $ "\timageCount : " ++ (show imageCount')
   putStrLn $ "\timageFormat : " ++ (show $ getField @"imageFormat" swapChainCreateInfo)
   putStrLn $ "\timageColorSpace : " ++ (show $ getField @"imageColorSpace" swapChainCreateInfo)
   putStrLn $ "\timageExtent : " ++ (show $ getField @"imageExtent" swapChainCreateInfo)

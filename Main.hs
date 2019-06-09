@@ -71,7 +71,8 @@ main = do
         , graphicsFamilyIndex = graphicsQueueIndex'
         , presentFamilyIndex = presentQueueIndex'
         }
-  swapChainCreateInfo <- getSwapChainCreateInfo swapChainSupportDetails queueFamilyDatas vkSurface
+    imageCount = 3 -- tripple buffering
+  swapChainCreateInfo <- getSwapChainCreateInfo swapChainSupportDetails imageCount queueFamilyDatas vkSurface
   swapChainImageInfo <- createSwapChain vkDevice swapChainCreateInfo
   --print swapChainCreateInfo
   glfwMainLoop window mainLoop
