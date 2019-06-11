@@ -13,11 +13,12 @@ import Foreign.Marshal.Array
 import Foreign.Storable
 import Foreign.C.String
 import Foreign.Ptr
-import Lib.Utils
 import Graphics.Vulkan
 import qualified Graphics.UI.GLFW as GLFW
-import Library.Vulkan
+import Lib.Utils
 import Library.Application
+import Library.Shader
+import Library.Vulkan
 
 
 mainLoop::IO()
@@ -36,7 +37,7 @@ main = do
     Just window = maybeWindow
     progName = "02-GLFWWindow"
     engineName = "My perfect Haskell engine"
-  (instanceCreateInfo, vkInstance) <- createVulkanInstance progName engineName vulkanLayers requireExtensions
+  vkInstance <- createVulkanInstance progName engineName vulkanLayers requireExtensions
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   physicalDeviceFeatures <- getPhysicalDeviceFeatures  
@@ -69,14 +70,14 @@ main = do
         , graphicsFamilyIndex = graphicsQueueIndex'
         , presentFamilyIndex = presentQueueIndex' }
     imageCount = 3 -- tripple buffering
-  (swapChainCreateInfo, swapChainImageDatas) <- createSwapChain vkDevice swapChainSupportDetails imageCount queueFamilyDatas vkSurface
-  (swapChainImageViewCreateInfos, swapChainImageViews) <- createSwapChainImageViews vkDevice swapChainImageDatas
+  swapChainData <- createSwapChain vkDevice swapChainSupportDetails imageCount queueFamilyDatas vkSurface
+  swapChainImageViews <- createSwapChainImageViews vkDevice swapChainData
   glfwMainLoop window mainLoop
-  destroySwapChainImageViews vkDevice swapChainImageViewCreateInfos swapChainImageViews
-  destroySwapChain vkDevice swapChainCreateInfo (swapChain swapChainImageDatas)
+  destroySwapChainImageViews vkDevice swapChainImageViews
+  destroySwapChain vkDevice (swapChain swapChainData)
   destroyDevice vkDevice deviceCreateInfo physicalDeviceFeatures
   destroyVkSurface vkInstance vkSurface
-  destroyVulkanInstance instanceCreateInfo vkInstance
+  destroyVulkanInstance vkInstance
   free requireDeviceExtensionsPtr
   free queueCreateInfoArrayPtr
   free createQueueFamilyListPtr  

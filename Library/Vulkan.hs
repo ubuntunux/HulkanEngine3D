@@ -8,7 +8,7 @@ module Library.Vulkan
     , requireDeviceExtensions
     , QueueFamilyIndices (..)
     , QueueFamilyDatas (..)
-    , SwapChainDatas (..)
+    , SwapChainData (..)
     , SwapChainSupportDetails (..)
     , getInstanceExtensionSupport
     , getDeviceExtensionSupport
@@ -84,7 +84,7 @@ data SwapChainSupportDetails = SwapChainSupportDetails
   , presentModes :: [VkPresentModeKHR]
   } deriving (Eq, Show)
 
-data SwapChainDatas = SwapChainDatas
+data SwapChainData = SwapChainData
   { swapChain :: VkSwapchainKHR
   , swapChainImages :: [VkImage]
   , swapChainImageFormat :: VkFormat
@@ -131,14 +131,9 @@ checkExtensionSupport availableDeviceExtensions requireExtensions = do
         else putStrLn ("\t" ++ x ++ " (Failed)")
       isAvailable xs
 
-createVulkanInstance :: String -> String -> [String] -> [CString] -> IO (VkInstanceCreateInfo, VkInstance)
+createVulkanInstance :: String -> String -> [String] -> [CString] -> IO VkInstance
 createVulkanInstance progName engineName layers extensions = do
-  vkInstance <- alloca $ \vkInstPtr -> do
-    throwingVK "vkCreateInstance: Failed to create vkInstance."
-      $ vkCreateInstance (unsafePtr instanceCreateInfo) VK_NULL vkInstPtr    
-    peek vkInstPtr  
-  return (instanceCreateInfo, vkInstance)
-  where
+  let 
     applicationInfo :: VkApplicationInfo
     applicationInfo = createVk @VkApplicationInfo
       $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
@@ -148,6 +143,7 @@ createVulkanInstance progName engineName layers extensions = do
       &* setStrRef @"pEngineName" engineName
       &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
       &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 0)
+    instanceCreateInfo :: VkInstanceCreateInfo
     instanceCreateInfo = createVk @VkInstanceCreateInfo
       $ set @"sType" VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
       &* set @"pNext" VK_NULL
@@ -156,13 +152,18 @@ createVulkanInstance progName engineName layers extensions = do
       &* set @"enabledLayerCount" (fromIntegral $ length layers)
       &* setStrListRef @"ppEnabledLayerNames" layers
       &* set @"enabledExtensionCount" (fromIntegral $ length extensions)
-      &* setListRef @"ppEnabledExtensionNames" extensions    
+      &* setListRef @"ppEnabledExtensionNames" extensions
+  vkInstance <- alloca $ \vkInstPtr -> do
+    throwingVK "vkCreateInstance: Failed to create vkInstance."
+      $ vkCreateInstance (unsafePtr instanceCreateInfo) VK_NULL vkInstPtr    
+    peek vkInstPtr  
+  touchVkData instanceCreateInfo
+  return vkInstance
 
-destroyVulkanInstance :: VkInstanceCreateInfo -> VkInstance -> IO ()
-destroyVulkanInstance instanceCreateInfo vkInstance = do  
+destroyVulkanInstance :: VkInstance -> IO ()
+destroyVulkanInstance vkInstance = do  
   putStrLn "Destroy VulkanInstance"
-  vkDestroyInstance vkInstance VK_NULL
-  touchVkData instanceCreateInfo   
+  vkDestroyInstance vkInstance VK_NULL  
 
 createVkSurface :: Ptr vkInstance -> GLFW.Window -> IO VkSurfaceKHR
 createVkSurface vkInstance window = do
@@ -424,7 +425,7 @@ createSwapChain :: VkDevice
                 -> Word32 
                 -> QueueFamilyDatas 
                 -> VkSurfaceKHR 
-                -> IO (VkSwapchainCreateInfoKHR, SwapChainDatas)
+                -> IO SwapChainData
 createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSurface = do
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
@@ -477,50 +478,52 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSur
   swapChainImages <- asListVK $ \counterPtr valueArrayPtr ->
     throwingVK "vkGetSwapchainImagesKHR error"
       $ vkGetSwapchainImagesKHR device swapChain counterPtr valueArrayPtr
-  let swapChainDatas = SwapChainDatas { swapChain = swapChain
-                                      , swapChainImages = swapChainImages
-                                      , swapChainImageFormat = (getField @"imageFormat" swapChainCreateInfo)
-                                      , swapChainExtent = (getField @"imageExtent" swapChainCreateInfo) }
-  return (swapChainCreateInfo, swapChainDatas)
+  let swapChainData = SwapChainData { swapChain = swapChain
+                                    , swapChainImages = swapChainImages
+                                    , swapChainImageFormat = (getField @"imageFormat" swapChainCreateInfo)
+                                    , swapChainExtent = (getField @"imageExtent" swapChainCreateInfo) }
+  touchVkData swapChainCreateInfo
+  return swapChainData
 
-destroySwapChain :: VkDevice -> VkSwapchainCreateInfoKHR -> VkSwapchainKHR -> IO ()
-destroySwapChain vkDevice swapChainCreateInfo swapChain = do
+destroySwapChain :: VkDevice -> VkSwapchainKHR -> IO ()
+destroySwapChain vkDevice swapChain = do
   putStrLn "Destroy SwapChain"
   vkDestroySwapchainKHR vkDevice swapChain VK_NULL_HANDLE
-  touchVkData swapChainCreateInfo
 
-createSwapChainImageViews :: VkDevice -> SwapChainDatas -> IO ([VkImageViewCreateInfo], [VkImageView])
-createSwapChainImageViews device swapChainDatas = do
-    components <- newVkData $ \componentsPtr -> do
-      writeField @"r" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-      writeField @"g" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-      writeField @"b" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-      writeField @"a" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-    subresourceRange <- newVkData $ \subresourceRangePtr -> do
-      writeField @"aspectMask" subresourceRangePtr VK_IMAGE_ASPECT_COLOR_BIT
-      writeField @"baseMipLevel" subresourceRangePtr 0
-      writeField @"levelCount" subresourceRangePtr 1
-      writeField @"baseArrayLayer" subresourceRangePtr 0
-      writeField @"layerCount" subresourceRangePtr 1
-    imageViewCreateInfos <- mapM (getImageViewCreateInfo components subresourceRange) (swapChainImages swapChainDatas)
-    imageViews <- forM imageViewCreateInfos $ \imageViewCreateInfo ->
-      alloca $ \imageViewPtr -> do
-        throwingVK "vkCreateImageView error"
-          $ vkCreateImageView device (unsafePtr imageViewCreateInfo) VK_NULL_HANDLE imageViewPtr
-        peek imageViewPtr
-    return (imageViewCreateInfos, imageViews)
-  where
-    getImageViewCreateInfo components subresourceRange image = newVkData @VkImageViewCreateInfo $ \viewPtr -> do
+createSwapChainImageViews :: VkDevice -> SwapChainData -> IO [VkImageView]
+createSwapChainImageViews device swapChainData = do
+  components <- (newVkData $ \componentsPtr -> do
+    writeField @"r" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
+    writeField @"g" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
+    writeField @"b" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
+    writeField @"a" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY)::IO VkComponentMapping
+  subresourceRange <- (newVkData $ \subresourceRangePtr -> do
+    writeField @"aspectMask" subresourceRangePtr VK_IMAGE_ASPECT_COLOR_BIT
+    writeField @"baseMipLevel" subresourceRangePtr 0
+    writeField @"levelCount" subresourceRangePtr 1
+    writeField @"baseArrayLayer" subresourceRangePtr 0
+    writeField @"layerCount" subresourceRangePtr 1)::IO VkImageSubresourceRange
+  let 
+    getImageViewCreateInfo :: VkImage -> IO VkImageViewCreateInfo
+    getImageViewCreateInfo image = newVkData @VkImageViewCreateInfo $ \viewPtr -> do
       writeField @"sType" viewPtr VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
       writeField @"pNext" viewPtr VK_NULL_HANDLE
       writeField @"flags" viewPtr 0
       writeField @"image" viewPtr image
       writeField @"viewType" viewPtr VK_IMAGE_VIEW_TYPE_2D
-      writeField @"format" viewPtr (swapChainImageFormat swapChainDatas)
+      writeField @"format" viewPtr (swapChainImageFormat swapChainData)
       writeField @"components" viewPtr components
-      writeField @"subresourceRange" viewPtr subresourceRange
-
-destroySwapChainImageViews :: VkDevice -> [VkImageViewCreateInfo] -> [VkImageView] -> IO ()
-destroySwapChainImageViews device imageViewCreateInfos imageViews = do
-  mapM_ (flip (vkDestroyImageView device) VK_NULL_HANDLE) imageViews
+      writeField @"subresourceRange" viewPtr subresourceRange  
+  imageViewCreateInfos <- mapM getImageViewCreateInfo (swapChainImages swapChainData)
+  imageViews <- forM imageViewCreateInfos $ \imageViewCreateInfo ->
+    alloca $ \imageViewPtr -> do
+      throwingVK "vkCreateImageView error"
+        $ vkCreateImageView device (unsafePtr imageViewCreateInfo) VK_NULL_HANDLE imageViewPtr
+      peek imageViewPtr
   mapM_ touchVkData imageViewCreateInfos
+  return imageViews
+
+destroySwapChainImageViews :: VkDevice -> [VkImageView] -> IO ()
+destroySwapChainImageViews device imageViews = do
+  mapM_ (\imageView -> vkDestroyImageView device imageView VK_NULL_HANDLE) imageViews
+  
