@@ -37,11 +37,12 @@ main = do
     Just window = maybeWindow
     progName = "02-GLFWWindow"
     engineName = "My perfect Haskell engine"
+    isConcurrentMode = False
   vkInstance <- createVulkanInstance progName engineName vulkanLayers requireExtensions
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   physicalDeviceFeatures <- getPhysicalDeviceFeatures  
-  queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface
+  queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
   let 
     graphicsQueueIndex' = graphicsQueueIndex queueFamilyIndices
     presentQueueIndex' = presentQueueIndex queueFamilyIndices

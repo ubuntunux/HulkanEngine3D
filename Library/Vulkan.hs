@@ -271,8 +271,8 @@ getQueueFamilies physicalDevice = alloca $ \queueFamilyCountPtr -> do
   mapM (\(x,y) -> putStrLn $ "\t[" ++ (show x) ++ "] " ++ (show y) ) queueFaimilies
   return queueFaimilies
 
-getQueueFamilyIndices :: VkPhysicalDevice -> VkSurfaceKHR -> IO QueueFamilyIndices
-getQueueFamilyIndices physicalDevice vkSurface = do 
+getQueueFamilyIndices :: VkPhysicalDevice -> VkSurfaceKHR -> Bool -> IO QueueFamilyIndices
+getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode = do 
   queueFaimilies <- getQueueFamilies physicalDevice  
   presentationFamilyIndices <- selectPresentationFamily physicalDevice vkSurface queueFaimilies  
   graphicsQueueIndices <- selectQueueFamily VK_QUEUE_GRAPHICS_BIT queueFaimilies
@@ -283,7 +283,7 @@ getQueueFamilyIndices physicalDevice vkSurface = do
     defaultIndex = graphicsQueueIndices !! 0
     queueFamilyIndices = QueueFamilyIndices
       { graphicsQueueIndex = defaultIndex
-      , presentQueueIndex = if (elem defaultIndex presentationFamilyIndices) then defaultIndex else (getFamilyIndex presentationFamilyIndices defaultIndex)
+      , presentQueueIndex = getFamilyIndex presentationFamilyIndices defaultIndex
       , computeQueueIndex = getFamilyIndex computeFamilyIndices defaultIndex
       , transferQueueIndex = getFamilyIndex transferFamilyIndices defaultIndex
       , sparseBindingQueueIndex = getFamilyIndex sparseBindingFamilyIndices defaultIndex
@@ -299,8 +299,8 @@ getQueueFamilyIndices physicalDevice vkSurface = do
     getFamilyIndex indices defaultIndex = 
       let result = [x | x <- indices, x /= defaultIndex]
       in
-        if 0 < (length result)
-        then result !! 0
+        if isConcurrentMode && (elem defaultIndex indices) then defaultIndex
+        else if 0 < (length result) then result !! 0
         else defaultIndex
         
 getQueuePrioritiesPtr :: Float -> IO (Ptr Float)
