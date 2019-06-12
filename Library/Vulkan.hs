@@ -283,16 +283,16 @@ getQueueFamilyIndices physicalDevice vkSurface = do
     defaultIndex = graphicsQueueIndices !! 0
     queueFamilyIndices = QueueFamilyIndices
       { graphicsQueueIndex = defaultIndex
-      , presentQueueIndex = getFamilyIndex presentationFamilyIndices defaultIndex
+      , presentQueueIndex = if (elem defaultIndex presentationFamilyIndices) then defaultIndex else (getFamilyIndex presentationFamilyIndices defaultIndex)
       , computeQueueIndex = getFamilyIndex computeFamilyIndices defaultIndex
       , transferQueueIndex = getFamilyIndex transferFamilyIndices defaultIndex
       , sparseBindingQueueIndex = getFamilyIndex sparseBindingFamilyIndices defaultIndex
       }    
   putStrLn $ "Graphics Queue Index : " ++ show (graphicsQueueIndex queueFamilyIndices)
-  putStrLn $ "Presentation Queue Index : " ++ show (presentQueueIndex queueFamilyIndices)
-  putStrLn $ "Computer Queue Index : " ++ show (computeQueueIndex queueFamilyIndices)
-  putStrLn $ "Transfer Queue Index : " ++ show (transferQueueIndex queueFamilyIndices)
-  putStrLn $ "Sparse Binding Queue Index : " ++ show (sparseBindingQueueIndex queueFamilyIndices)  
+  putStrLn $ "Presentation Queue Index : " ++ show (presentQueueIndex queueFamilyIndices) ++ " / " ++ show presentationFamilyIndices
+  putStrLn $ "Computer Queue Index : " ++ show (computeQueueIndex queueFamilyIndices) ++ " / " ++ show computeFamilyIndices
+  putStrLn $ "Transfer Queue Index : " ++ show (transferQueueIndex queueFamilyIndices) ++ " / " ++ show transferFamilyIndices
+  putStrLn $ "Sparse Binding Queue Index : " ++ show (sparseBindingQueueIndex queueFamilyIndices)  ++ " / " ++ show sparseBindingFamilyIndices
   return queueFamilyIndices
   where
     getFamilyIndex [] _ = invalidQueueIndex
