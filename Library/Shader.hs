@@ -377,6 +377,6 @@ compileGLSL2 filePath = do
           k -> fsize + 4 - k
     allocaArray contentSize $ \contentsPtr -> do
       hasRead <- hGetBuf h contentsPtr contentSize
-      (++ replicate (contentSize - hasRead) 0) <$> 
+      (++ replicate (contentSize - hasRead) 0) <$> peekArray hasRead contentsPtr
       peekArray contentSize contentsPtr -}
   return ()
