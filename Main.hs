@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE Strict           #-}
+{-# LANGUAGE TemplateHaskell  #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Main (main) where
@@ -14,6 +15,7 @@ import Foreign.Storable
 import Foreign.C.String
 import Foreign.Ptr
 import Graphics.Vulkan
+import Graphics.Vulkan.Core_1_0
 import qualified Graphics.UI.GLFW as GLFW
 import Lib.Utils
 import Library.Application
@@ -73,7 +75,13 @@ main = do
     imageCount = 3 -- tripple buffering
   swapChainData <- createSwapChain vkDevice swapChainSupportDetails imageCount queueFamilyDatas vkSurface
   swapChainImageViews <- createSwapChainImageViews vkDevice swapChainData
+  shaderCreateInfo <- createShaderStageCreateInfo vkDevice $(compileGLSL "shaders/triangle.vert") VK_SHADER_STAGE_VERTEX_BIT
+  
+  -- Main Loop
   glfwMainLoop window mainLoop
+
+  -- Terminate
+  destroyShaderStageCreateInfo vkDevice shaderCreateInfo
   destroySwapChainImageViews vkDevice swapChainImageViews
   destroySwapChain vkDevice (swapChain swapChainData)
   destroyDevice vkDevice deviceCreateInfo physicalDeviceFeatures
