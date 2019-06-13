@@ -43,7 +43,17 @@ import Library.Vulkan
 
 createShaderStageCreateInfo :: VkDevice -> (CSize, Ptr Word32) -> VkShaderStageFlagBits -> IO VkPipelineShaderStageCreateInfo
 createShaderStageCreateInfo device (codeSize, codePtr) stageBit = do
-  compileGLSL2 "shaders/triangle.vert"
+  (codeSize2, codePtr2) <- compileGLSL2 "shaders/triangle.vert"
+  
+  let 
+    shaderModuleCreateInfo :: VkShaderModuleCreateInfo
+    shaderModuleCreateInfo = createVk @VkShaderModuleCreateInfo
+      $  set @"sType" VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
+      &* set @"pNext" VK_NULL
+      &* set @"codeSize" codeSize
+      &* set @"pCode" codePtr
+      &* set @"flags" 0
+  
   shaderModule <- alloca $ \shaderModulePtr -> do
     throwingVK "vkCreateShaderModule failed!"
       $ vkCreateShaderModule device (unsafePtr shaderModuleCreateInfo) VK_NULL shaderModulePtr
@@ -55,14 +65,6 @@ createShaderStageCreateInfo device (codeSize, codePtr) stageBit = do
     &* set @"stage" stageBit
     &* set @"module" shaderModule
     &* setStrRef @"pName" "main"
-  where
-    shaderModuleCreateInfo :: VkShaderModuleCreateInfo
-    shaderModuleCreateInfo = createVk @VkShaderModuleCreateInfo
-      $  set @"sType" VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
-      &* set @"pNext" VK_NULL
-      &* set @"codeSize" codeSize
-      &* set @"pCode" codePtr
-      &* set @"flags" 0
 
 destroyShaderStageCreateInfo :: VkDevice -> VkPipelineShaderStageCreateInfo -> IO ()
 destroyShaderStageCreateInfo device shaderStageCreateInfo = do
@@ -342,7 +344,7 @@ compileGLSL filePath = do
 
 
 
-compileGLSL2 :: FilePath -> IO ()
+compileGLSL2 :: FilePath -> IO (Int, [Word32])
 compileGLSL2 filePath = do
   validatorExe <- fromMaybe
         ( error $ unlines
@@ -370,13 +372,12 @@ compileGLSL2 filePath = do
       putStrLn stde
       error $ "glslangValidator exited with code " ++ show i ++ "."
 
-  {- contents <- withBinaryFile spirvCodeFile ReadMode $ \h -> do
+  withBinaryFile spirvCodeFile ReadMode $ \h -> do
     fsize <- hFileSize h
     let contentSize = fromIntegral $ case rem fsize 4 of
           0 -> fsize
           k -> fsize + 4 - k
-    allocaArray contentSize $ \contentsPtr -> do
+    contents <- allocaArray contentSize $ \contentsPtr -> do
       hasRead <- hGetBuf h contentsPtr contentSize
       (++ replicate (contentSize - hasRead) 0) <$> peekArray hasRead contentsPtr
-      peekArray contentSize contentsPtr -}
-  return ()
+    return (contentSize, contents)
