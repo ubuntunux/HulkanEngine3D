@@ -75,13 +75,22 @@ main = do
     imageCount = 3 -- tripple buffering
   swapChainData <- createSwapChain vkDevice swapChainSupportDetails imageCount queueFamilyDatas vkSurface
   swapChainImageViews <- createSwapChainImageViews vkDevice swapChainData
-  shaderCreateInfo <- createShaderStageCreateInfo vkDevice "shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
-  
+  vertexShaderCreateInfo <- createShaderStageCreateInfo vkDevice "shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
+  fragmentShaderCreateInfo <- createShaderStageCreateInfo vkDevice "shaders/triangle.frag" VK_SHADER_STAGE_FRAGMENT_BIT
+  renderPass <- createRenderPass vkDevice swapChainData
+  pipelineLayout <- createPipelineLayout vkDevice  
+  graphicsPipeline <- createGraphicsPipeline vkDevice swapChainData [vertexShaderCreateInfo, fragmentShaderCreateInfo] renderPass pipelineLayout
+
   -- Main Loop
   glfwMainLoop window mainLoop
 
   -- Terminate
-  destroyShaderStageCreateInfo vkDevice shaderCreateInfo
+  putStrLn "\n[ Terminate ]"
+  destroyGraphicsPipeline vkDevice graphicsPipeline
+  destroyPipelineLayout vkDevice pipelineLayout
+  destroyRenderPass vkDevice renderPass
+  destroyShaderStageCreateInfo vkDevice vertexShaderCreateInfo
+  destroyShaderStageCreateInfo vkDevice fragmentShaderCreateInfo
   destroySwapChainImageViews vkDevice swapChainImageViews
   destroySwapChain vkDevice (swapChain swapChainData)
   destroyDevice vkDevice deviceCreateInfo physicalDeviceFeatures

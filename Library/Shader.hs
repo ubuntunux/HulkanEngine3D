@@ -100,7 +100,8 @@ getShaderCreateInfo stageBit shaderModule = createVk @VkPipelineShaderStageCreat
   &* setStrRef @"pName" "main"
 
 createShaderStageCreateInfo :: VkDevice -> String -> VkShaderStageFlagBits -> IO VkPipelineShaderStageCreateInfo
-createShaderStageCreateInfo device shaderFilePath stageBit = do   
+createShaderStageCreateInfo device shaderFilePath stageBit = do
+  putStrLn $ show stageBit ++ ": " ++ shaderFilePath
   (codeSize, codePtr) <- compileGLSL shaderFilePath
   shaderModuleCreateInfo <- getShaderModuleCreateInfo codeSize codePtr
   shaderModule <- alloca $ \shaderModulePtr -> do
@@ -115,28 +116,6 @@ destroyShaderStageCreateInfo :: VkDevice -> VkPipelineShaderStageCreateInfo -> I
 destroyShaderStageCreateInfo device shaderStageCreateInfo = do
   vkDestroyShaderModule device (getField @"module" shaderStageCreateInfo) VK_NULL
   touchVkData shaderStageCreateInfo
-
-createPipelineLayout :: VkDevice -> IO VkPipelineLayout
-createPipelineLayout device = do
-  pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
-    throwingVK "vkCreatePipelineLayout failed!"
-      $ vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
-    peek pipelineLayoutPtr
-  touchVkData pipelineCreateInfo
-  return pipelineLayout
-  where
-    pipelineCreateInfo = createVk @VkPipelineLayoutCreateInfo
-      $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
-      &* set @"pNext" VK_NULL
-      &* set @"flags" 0
-      &* set @"setLayoutCount" 0      
-      &* set @"pSetLayouts" VK_NULL
-      &* set @"pushConstantRangeCount" 0      
-      &* set @"pPushConstantRanges" VK_NULL
-
-destroyPipelineLayout :: VkDevice -> VkPipelineLayout -> IO ()
-destroyPipelineLayout device pipelineLayout = vkDestroyPipelineLayout device pipelineLayout VK_NULL
-
 
 createRenderPass :: VkDevice -> SwapChainData -> IO VkRenderPass
 createRenderPass device swapChainData =
@@ -191,20 +170,49 @@ createRenderPass device swapChainData =
         $ vkCreateRenderPass device (unsafePtr renderPassCreateInfo) VK_NULL renderPassPtr
       peek renderPassPtr
     touchVkData renderPassCreateInfo
+    putStrLn $ "Create RenderPass: " ++ show (swapChainImageFormat swapChainData)
     return renderPass
 
 destroyRenderPass :: VkDevice -> VkRenderPass -> IO ()
-destroyRenderPass device renderPass = vkDestroyRenderPass device renderPass VK_NULL
+destroyRenderPass device renderPass = do
+  putStrLn "Destroy RenderPass"
+  vkDestroyRenderPass device renderPass VK_NULL
+
+
+createPipelineLayout :: VkDevice -> IO VkPipelineLayout
+createPipelineLayout device = do
+  putStrLn "Create PipelineLayout"
+  pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
+    throwingVK "vkCreatePipelineLayout failed!"
+      $ vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
+    peek pipelineLayoutPtr
+  touchVkData pipelineCreateInfo
+  return pipelineLayout
+  where
+    pipelineCreateInfo :: VkPipelineLayoutCreateInfo
+    pipelineCreateInfo = createVk @VkPipelineLayoutCreateInfo
+      $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
+      &* set @"pNext" VK_NULL
+      &* set @"flags" 0
+      &* set @"setLayoutCount" 0      
+      &* set @"pSetLayouts" VK_NULL
+      &* set @"pushConstantRangeCount" 0      
+      &* set @"pPushConstantRanges" VK_NULL
+
+destroyPipelineLayout :: VkDevice -> VkPipelineLayout -> IO ()
+destroyPipelineLayout device pipelineLayout = do
+  putStrLn "Destroy PipelineLayout"
+  vkDestroyPipelineLayout device pipelineLayout VK_NULL
 
 
 createGraphicsPipeline :: VkDevice
                        -> SwapChainData
-                       -> (Word32, Ptr VkPipelineShaderStageCreateInfo)
+                       -> [VkPipelineShaderStageCreateInfo]
                        -> VkRenderPass
                        -> VkPipelineLayout
                        -> IO VkPipeline
-createGraphicsPipeline device swapChainData (shaderStageCount, shaderStageInfosPtr) renderPass pipelineLayout =
-  let    
+createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipelineLayout =  
+  let
     vertexInputInfo :: VkPipelineVertexInputStateCreateInfo
     vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
@@ -300,12 +308,12 @@ createGraphicsPipeline device swapChainData (shaderStageCount, shaderStageInfosP
       &* setAt @"blendConstants" @2 0.0
       &* setAt @"blendConstants" @3 0.0
 
-    graphicsPipelineCreateInfo :: VkGraphicsPipelineCreateInfo
-    graphicsPipelineCreateInfo = createVk @VkGraphicsPipelineCreateInfo
+    getGraphicsPipelineCreateInfo :: Int -> Ptr VkPipelineShaderStageCreateInfo -> VkGraphicsPipelineCreateInfo
+    getGraphicsPipelineCreateInfo shaderStageCount shaderStageInfosPtr = createVk @VkGraphicsPipelineCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
       &* set @"pNext" VK_NULL
       &* set @"flags" 0
-      &* set @"stageCount" (fromIntegral shaderStageCount)
+      &* set @"stageCount" (fromIntegral $ length shaderStageInfos)
       &* set @"pStages" shaderStageInfosPtr
       &* setVkRef @"pVertexInputState" vertexInputInfo
       &* setVkRef @"pInputAssemblyState" inputAssembly
@@ -322,13 +330,19 @@ createGraphicsPipeline device swapChainData (shaderStageCount, shaderStageInfosP
       &* set @"basePipelineHandle" VK_NULL_HANDLE
       &* set @"basePipelineIndex" (-1)
   in do
-    createGraphicsPipelinesFunc <- vkGetDeviceProc @VkCreateGraphicsPipelines device
+    putStrLn $ "Create GraphicsPipeline: " ++ show (swapChainExtent swapChainData)
+    shaderStageInfosPtr <- newArray shaderStageInfos
+    let graphicsPipelineCreateInfo = getGraphicsPipelineCreateInfo (length shaderStageInfos) shaderStageInfosPtr
+    createGraphicsPipelinesFunc <- vkGetDeviceProc @VkCreateGraphicsPipelines device    
     graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do
       throwingVK "vkCreateGraphicsPipelines failed!"
         $ createGraphicsPipelinesFunc device VK_NULL_HANDLE 1 (unsafePtr graphicsPipelineCreateInfo) VK_NULL graphicsPipelinePtr
       peek graphicsPipelinePtr
     touchVkData graphicsPipelineCreateInfo
+    free shaderStageInfosPtr
     return graphicsPipeline
 
 destroyGraphicsPipeline :: VkDevice -> VkPipeline -> IO ()
-destroyGraphicsPipeline device graphicsPipeline = vkDestroyPipeline device graphicsPipeline VK_NULL
+destroyGraphicsPipeline device graphicsPipeline = do
+  putStrLn $ "Destroy GraphicsPipeline"
+  vkDestroyPipeline device graphicsPipeline VK_NULL
