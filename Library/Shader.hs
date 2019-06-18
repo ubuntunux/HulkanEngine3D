@@ -83,29 +83,33 @@ compileGLSL filePath = do
       pokeArray contentsPtr (contents ++ (replicate (contentSize - hasRead) 0))
     return (contentSize, contentsPtr)
 
+getShaderModuleCreateInfo :: Int -> Ptr Word32 -> IO VkShaderModuleCreateInfo
+getShaderModuleCreateInfo codeSize codePtr = return $ createVk @VkShaderModuleCreateInfo
+  $  set @"sType" VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
+  &* set @"pNext" VK_NULL
+  &* set @"codeSize" (fromIntegral codeSize)
+  &* set @"pCode" codePtr
+  &* set @"flags" 0
+
+getShaderCreateInfo :: VkShaderStageFlagBits -> VkShaderModule -> VkPipelineShaderStageCreateInfo
+getShaderCreateInfo stageBit shaderModule = createVk @VkPipelineShaderStageCreateInfo
+  $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
+  &* set @"pNext" VK_NULL
+  &* set @"stage" stageBit
+  &* set @"module" shaderModule
+  &* setStrRef @"pName" "main"
+
 createShaderStageCreateInfo :: VkDevice -> String -> VkShaderStageFlagBits -> IO VkPipelineShaderStageCreateInfo
 createShaderStageCreateInfo device shaderFilePath stageBit = do   
   (codeSize, codePtr) <- compileGLSL shaderFilePath
-  let 
-    shaderModuleCreateInfo :: VkShaderModuleCreateInfo
-    shaderModuleCreateInfo = createVk @VkShaderModuleCreateInfo
-      $  set @"sType" VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
-      &* set @"pNext" VK_NULL
-      &* set @"codeSize" (fromIntegral codeSize)
-      &* set @"pCode" codePtr
-      &* set @"flags" 0
+  shaderModuleCreateInfo <- getShaderModuleCreateInfo codeSize codePtr
   shaderModule <- alloca $ \shaderModulePtr -> do
     throwingVK "vkCreateShaderModule failed!"
       $ vkCreateShaderModule device (unsafePtr shaderModuleCreateInfo) VK_NULL shaderModulePtr
     peek shaderModulePtr
   touchVkData shaderModuleCreateInfo
   free codePtr
-  return $ createVk @VkPipelineShaderStageCreateInfo
-    $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
-    &* set @"pNext" VK_NULL
-    &* set @"stage" stageBit
-    &* set @"module" shaderModule
-    &* setStrRef @"pName" "main"
+  return $ getShaderCreateInfo stageBit shaderModule
 
 destroyShaderStageCreateInfo :: VkDevice -> VkPipelineShaderStageCreateInfo -> IO ()
 destroyShaderStageCreateInfo device shaderStageCreateInfo = do
