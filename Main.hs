@@ -75,7 +75,7 @@ main = do
     imageCount = 3 -- tripple buffering
   swapChainData <- createSwapChain vkDevice swapChainSupportDetails imageCount queueFamilyDatas vkSurface
   swapChainImageViews <- createSwapChainImageViews vkDevice swapChainData
-  shaderCreateInfo <- createShaderStageCreateInfo vkDevice $(compileGLSL "shaders/triangle.vert") VK_SHADER_STAGE_VERTEX_BIT
+  shaderCreateInfo <- createShaderStageCreateInfo vkDevice "shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
   
   -- Main Loop
   glfwMainLoop window mainLoop

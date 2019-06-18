@@ -26,7 +26,8 @@ import Data.Maybe (fromMaybe)
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
-import GHC.Ptr (Ptr (..))
+import Foreign.Ptr (wordPtrToPtr)
+import GHC.Ptr (Ptr (..), castPtr)
 import Language.Haskell.TH
 import System.Directory
 import System.Exit
@@ -41,24 +42,64 @@ import Graphics.Vulkan.Marshal.Create
 import Lib.Utils
 import Library.Vulkan
 
-createShaderStageCreateInfo :: VkDevice -> (CSize, Ptr Word32) -> VkShaderStageFlagBits -> IO VkPipelineShaderStageCreateInfo
-createShaderStageCreateInfo device (codeSize, codePtr) stageBit = do
-  (codeSize2, codePtr2) <- compileGLSL2 "shaders/triangle.vert"
-  
+
+compileGLSL :: FilePath -> IO (Int, Ptr Word32)
+compileGLSL filePath = do
+  validatorExe <- fromMaybe
+        ( error $ unlines
+          [ "Cannot find glslangValidator executable."
+          , "Check if it is available in your $PATH."
+          , "Read more about it at https://www.khronos.org/opengles/sdk/tools/Reference-Compiler/"]
+        ) <$> findExecutable "glslangValidator"
+  tmpDir <- getTemporaryDirectory
+  curDir <- getCurrentDirectory
+  createDirectoryIfMissing True tmpDir
+  let spirvCodeFile = tmpDir </> "haskell-spirv2.tmp"
+      shaderFile = curDir </> filePath
+      shaderDir = takeDirectory shaderFile
+      shaderFName = takeFileName shaderFile
+  doesFileExist shaderFile >>= flip unless (error $ "compileGLSL: " ++ shaderFile ++ " does not exist.")
+  doesFileExist spirvCodeFile >>= flip when (removeFile spirvCodeFile)
+
+  (exitCode, stdo, stde) <- readCreateProcessWithExitCode
+      ((shell $ validatorExe ++ " -V -o " ++ spirvCodeFile ++ " " ++ shaderFName) { cwd = Just shaderDir }) ""
+
+  case exitCode of
+    ExitSuccess -> pure ()
+    ExitFailure i -> do
+      putStrLn stdo
+      putStrLn stde
+      error $ "glslangValidator exited with code " ++ show i ++ "."
+
+  withBinaryFile spirvCodeFile ReadMode $ \h -> do
+    fsize <- hFileSize h
+    let contentSize = fromIntegral $ case rem fsize 4 of
+          0 -> fsize
+          k -> fsize + 4 - k
+    contentsPtr <- mallocArray contentSize
+    hasRead <- hGetBuf h contentsPtr contentSize
+    unless (contentSize /= hasRead) $ do
+      contents <- peekArray hasRead contentsPtr
+      pokeArray contentsPtr (contents ++ (replicate (contentSize - hasRead) 0))
+    return (contentSize, contentsPtr)
+
+createShaderStageCreateInfo :: VkDevice -> String -> VkShaderStageFlagBits -> IO VkPipelineShaderStageCreateInfo
+createShaderStageCreateInfo device shaderFilePath stageBit = do   
+  (codeSize, codePtr) <- compileGLSL shaderFilePath
   let 
     shaderModuleCreateInfo :: VkShaderModuleCreateInfo
     shaderModuleCreateInfo = createVk @VkShaderModuleCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"codeSize" codeSize
+      &* set @"codeSize" (fromIntegral codeSize)
       &* set @"pCode" codePtr
       &* set @"flags" 0
-  
   shaderModule <- alloca $ \shaderModulePtr -> do
     throwingVK "vkCreateShaderModule failed!"
       $ vkCreateShaderModule device (unsafePtr shaderModuleCreateInfo) VK_NULL shaderModulePtr
     peek shaderModulePtr
   touchVkData shaderModuleCreateInfo
+  free codePtr
   return $ createVk @VkPipelineShaderStageCreateInfo
     $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
     &* set @"pNext" VK_NULL
@@ -287,97 +328,3 @@ createGraphicsPipeline device swapChainData (shaderStageCount, shaderStageInfosP
 
 destroyGraphicsPipeline :: VkDevice -> VkPipeline -> IO ()
 destroyGraphicsPipeline device graphicsPipeline = vkDestroyPipeline device graphicsPipeline VK_NULL
-
-
-reportGlslMsgs :: String -> Q ()
-reportGlslMsgs s = case parseValidatorMsgs s of
-  (warns, errs) -> do
-    mapM_ reportWarning warns
-    mapM_ reportError errs
-
-parseValidatorMsgs :: String -> ([String], [String])
-parseValidatorMsgs = go . map strip . lines
-  where
-    strip = dropWhileEnd isSpace . dropWhile isSpace
-    go [] = ([],[])
-    go (x:xs) | "WARNING:" `isPrefixOf` x = first  (strip (drop 8 x):) $ go xs
-              | "ERROR:"   `isPrefixOf` x = second (strip (drop 6 x):) $ go xs
-              | otherwise = go xs
-
-compileGLSL :: FilePath -> ExpQ
-compileGLSL filePath = do
-  (spirvFile, (exitCode, stdo, stde)) <- runIO $ do
-    validatorExe <- fromMaybe
-        ( error $ unlines
-          [ "Cannot find glslangValidator executable."
-          , "Check if it is available in your $PATH."
-          , "Read more about it at https://www.khronos.org/opengles/sdk/tools/Reference-Compiler/"]
-        ) <$> findExecutable "glslangValidator"
-    tmpDir <- getTemporaryDirectory
-    curDir <- getCurrentDirectory
-    createDirectoryIfMissing True tmpDir
-    let spirvCodeFile = tmpDir </> "haskell-spirv.tmp"
-        shaderFile = curDir </> filePath
-        shaderDir = takeDirectory shaderFile
-        shaderFName = takeFileName shaderFile
-    doesFileExist shaderFile >>= flip unless (error $ "compileGLSL: " ++ shaderFile ++ " does not exist.")
-    doesFileExist spirvCodeFile >>= flip when (removeFile spirvCodeFile)
-
-    (, ) spirvCodeFile <$> readCreateProcessWithExitCode
-      (shell $ validatorExe ++ " -V -o " ++ spirvCodeFile ++ " " ++ shaderFName) { cwd = Just shaderDir } ""
-
-  runQ . reportGlslMsgs $ unlines [stdo, stde]
-
-  case exitCode of
-    ExitSuccess -> pure ()
-    ExitFailure i -> error $ "glslangValidator exited with code " ++ show i ++ "."
-
-  contents <- runIO . withBinaryFile spirvFile ReadMode $ \h -> do
-    fsize <- hFileSize h
-    let contentSize = fromIntegral $ case rem fsize 4 of
-          0 -> fsize
-          k -> fsize + 4 - k
-    allocaArray contentSize $ \ptr -> do
-      hasRead <- hGetBuf h ptr contentSize
-      (++ replicate (contentSize - hasRead) 0) <$> peekArray hasRead ptr
-  return $ TupE [ LitE . IntegerL . fromIntegral $ length contents, AppE (ConE 'Ptr) (LitE $ StringPrimL contents) ]
-
-
-
-compileGLSL2 :: FilePath -> IO (Int, [Word32])
-compileGLSL2 filePath = do
-  validatorExe <- fromMaybe
-        ( error $ unlines
-          [ "Cannot find glslangValidator executable."
-          , "Check if it is available in your $PATH."
-          , "Read more about it at https://www.khronos.org/opengles/sdk/tools/Reference-Compiler/"]
-        ) <$> findExecutable "glslangValidator"
-  tmpDir <- getTemporaryDirectory
-  curDir <- getCurrentDirectory
-  createDirectoryIfMissing True tmpDir
-  let spirvCodeFile = tmpDir </> "haskell-spirv.tmp"
-      shaderFile = curDir </> filePath
-      shaderDir = takeDirectory shaderFile
-      shaderFName = takeFileName shaderFile
-  doesFileExist shaderFile >>= flip unless (error $ "compileGLSL: " ++ shaderFile ++ " does not exist.")
-  doesFileExist spirvCodeFile >>= flip when (removeFile spirvCodeFile)
-
-  (exitCode, stdo, stde) <- readCreateProcessWithExitCode
-      ((shell $ validatorExe ++ " -V -o " ++ spirvCodeFile ++ " " ++ shaderFName) { cwd = Just shaderDir }) ""
-
-  case exitCode of
-    ExitSuccess -> pure ()
-    ExitFailure i -> do
-      putStrLn stdo
-      putStrLn stde
-      error $ "glslangValidator exited with code " ++ show i ++ "."
-
-  withBinaryFile spirvCodeFile ReadMode $ \h -> do
-    fsize <- hFileSize h
-    let contentSize = fromIntegral $ case rem fsize 4 of
-          0 -> fsize
-          k -> fsize + 4 - k
-    contents <- allocaArray contentSize $ \contentsPtr -> do
-      hasRead <- hGetBuf h contentsPtr contentSize
-      (++ replicate (contentSize - hasRead) 0) <$> peekArray hasRead contentsPtr
-    return (contentSize, contents)
