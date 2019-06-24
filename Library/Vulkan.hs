@@ -7,9 +7,10 @@ module Library.Vulkan
   ( vulkanLayers
   , requireDeviceExtensions
   , QueueFamilyIndices (..)
-  , QueueFamilyDatas (..)
-  , SwapChainData (..)
+  , QueueFamilyDatas (..)  
   , SwapChainSupportDetails (..)
+  , SwapChainData (..)
+  , RenderData (..)
   , getInstanceExtensionSupport
   , getDeviceExtensionSupport
   , checkExtensionSupport
@@ -36,6 +37,12 @@ module Library.Vulkan
   , destroyRenderPass
   , createGraphicsPipeline
   , destroyGraphicsPipeline
+  , createFramebuffers
+  , destroyFramebuffers
+  , createCommandPool
+  , destroyCommandPool
+  , createCommandBuffers
+  , destroyCommandBuffers
   ) where
 
 import Control.Exception
@@ -96,6 +103,16 @@ data SwapChainData = SwapChainData
   , swapChainImageFormat :: VkFormat
   , swapChainExtent :: VkExtent2D
   } deriving (Eq, Show)
+
+data RenderData = RenderData
+  { renderFinished :: VkSemaphore
+  , imageAvailable :: VkSemaphore
+  , device :: VkDevice
+  , swapChainData :: SwapChainData
+  , queueFamilyDatas :: QueueFamilyDatas
+  , imageIndexPtr :: Ptr Word32
+  , commandBuffers :: [VkCommandBuffer]
+  }
 
   
 getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)
@@ -368,12 +385,12 @@ createQueues device queueFamilyIndices = do
 
 createDevice :: VkDeviceCreateInfo -> VkPhysicalDevice -> IO VkDevice
 createDevice deviceCreateInfo physicalDevice = do
-  vkDevice <- alloca $ \vkDevicePtr -> do
+  device <- alloca $ \devicePtr -> do
     throwingVK "vkCreateDevice: failed to create vkDevice"
-      $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE vkDevicePtr
-    peek vkDevicePtr
-  putStrLn $ "Created Device: " ++ show vkDevice
-  return vkDevice
+      $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
+    peek devicePtr
+  putStrLn $ "Created Device: " ++ show device
+  return device
 
 destroyDevice :: VkDevice -> VkDeviceCreateInfo -> VkPhysicalDeviceFeatures -> IO ()
 destroyDevice device deviceCreateInfo physicalDeviceFeatures = do
@@ -492,9 +509,9 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSur
   return swapChainData
 
 destroySwapChain :: VkDevice -> VkSwapchainKHR -> IO ()
-destroySwapChain vkDevice swapChain = do
+destroySwapChain device swapChain = do
   putStrLn "Destroy SwapChain"
-  vkDestroySwapchainKHR vkDevice swapChain VK_NULL_HANDLE
+  vkDestroySwapchainKHR device swapChain VK_NULL_HANDLE
 
 createSwapChainImageViews :: VkDevice -> SwapChainData -> IO [VkImageView]
 createSwapChainImageViews device swapChainData = do
@@ -763,3 +780,190 @@ destroyGraphicsPipeline :: VkDevice -> VkPipeline -> IO ()
 destroyGraphicsPipeline device graphicsPipeline = do
   putStrLn $ "Destroy GraphicsPipeline"
   vkDestroyPipeline device graphicsPipeline VK_NULL
+
+
+createFramebuffers :: VkDevice -> VkRenderPass -> SwapChainData -> [VkImageView] -> IO [VkFramebuffer]
+createFramebuffers device renderPass swapChainData swapChainImageViews = do
+  putStrLn $ "Create Framebuffers: " ++ show (length swapChainImageViews)
+  framebuffers <- mapM createFrameBuffer swapChainImageViews  
+  return framebuffers
+  where
+    createFrameBuffer :: VkImageView -> IO VkFramebuffer
+    createFrameBuffer swapChainImageView =
+      let frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"flags" 0
+            &* set @"renderPass" renderPass
+            &* set @"attachmentCount" 1
+            &* setListRef @"pAttachments" [swapChainImageView]
+            &* set @"width" (getField @"width" (swapChainExtent swapChainData))
+            &* set @"height" (getField @"height" (swapChainExtent swapChainData))
+            &* set @"layers" 1
+      in do
+        frameBuffer <- alloca $ \framebufferPtr -> do
+          throwingVK "vkCreateFramebuffer failed!"
+            $ vkCreateFramebuffer device (unsafePtr frameBufferCreateInfo) VK_NULL framebufferPtr
+          peek framebufferPtr
+        touchVkData frameBufferCreateInfo
+        return frameBuffer
+
+destroyFramebuffers :: VkDevice -> [VkFramebuffer] -> IO ()
+destroyFramebuffers device frameBuffers = do
+  putStrLn $ "Destroy Framebuffers"
+  forM_ frameBuffers $ \frameBuffer ->
+    vkDestroyFramebuffer device frameBuffer VK_NULL_HANDLE
+
+
+createCommandPool :: VkDevice -> QueueFamilyDatas -> IO VkCommandPool
+createCommandPool device queueFamilyDatas = do
+  putStrLn $ "Create Command Pool: graphicsFamilyIndex(" ++ show (graphicsFamilyIndex queueFamilyDatas) ++ ")"
+  let commandPoolCreateInfo = createVk @VkCommandPoolCreateInfo
+        $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
+        &* set @"pNext" VK_NULL
+        &* set @"flags" 0
+        &* set @"queueFamilyIndex" (graphicsFamilyIndex queueFamilyDatas)
+  commandPool <- alloca $ \commandPoolPtr -> do
+    withPtr commandPoolCreateInfo $ \createInfoPtr -> do
+      throwingVK "vkCreateCommandPool failed!"
+        $ vkCreateCommandPool device createInfoPtr VK_NULL commandPoolPtr
+    peek commandPoolPtr
+  return commandPool
+
+destroyCommandPool :: VkDevice -> VkCommandPool -> IO ()
+destroyCommandPool device commandPool = do
+  putStrLn $ "Destroy Command Pool"
+  vkDestroyCommandPool device commandPool VK_NULL
+
+
+createCommandBuffers :: VkDevice
+                     -> VkPipeline
+                     -> VkCommandPool
+                     -> VkRenderPass
+                     -> SwapChainData
+                     -> [VkFramebuffer]
+                     -> IO ([VkCommandBuffer], Ptr VkCommandBuffer)
+createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} frameBuffers = do
+  let buffersCount = length frameBuffers
+  (commandBuffers, commandBuffersPtr) <- allocaArray buffersCount $ \commandBuffersPtr -> do    
+    let allocationInfo = createVk @VkCommandBufferAllocateInfo
+          $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
+          &* set @"pNext" VK_NULL
+          &* set @"commandPool" commandPool
+          &* set @"level" VK_COMMAND_BUFFER_LEVEL_PRIMARY
+          &* set @"commandBufferCount" (fromIntegral buffersCount)
+    withPtr allocationInfo $ \allocationInfoPtr ->
+      throwingVK "vkAllocateCommandBuffers failed!"
+        $ vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr
+    commandBuffers <- peekArray buffersCount commandBuffersPtr
+    putStrLn $ "Create Command Buffer: "  ++ show buffersCount
+    return (commandBuffers, commandBuffersPtr)
+
+  -- record command buffers
+  forM_ (zip frameBuffers commandBuffers) $ \(frameBuffer, commandBuffer) -> do    
+    let
+      commandBufferBeginInfo :: VkCommandBufferBeginInfo
+      commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
+          $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+          &* set @"pNext" VK_NULL
+          &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT      
+      renderPassBeginInfo :: VkRenderPassBeginInfo
+      renderPassBeginInfo = createVk @VkRenderPassBeginInfo
+          $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
+          &* set @"pNext" VK_NULL
+          &* set @"renderPass" renderPass
+          &* set @"framebuffer" frameBuffer
+          &* setVk @"renderArea" ( 
+            setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
+            &* set @"extent" swapChainExtent )
+          &* set @"clearValueCount" 1
+          &* setVkRef @"pClearValues"
+              ( createVk $ setVk @"color"
+                $  setAt @"float32" @0 0
+                &* setAt @"float32" @1 0
+                &* setAt @"float32" @2 0.2
+                &* setAt @"float32" @3 1 )
+    -- begin commands
+    putStrLn $ "\tvkBeginCommandBuffer: " ++ show commandBuffer
+    withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
+      throwingVK "vkBeginCommandBuffer failed!"
+        $ vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
+    withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
+      vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
+    -- basic drawing commands
+    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
+    vkCmdDraw commandBuffer 3 1 0 0
+    -- finishing up
+    vkCmdEndRenderPass commandBuffer
+    throwingVK "vkEndCommandBuffer failed!" 
+      $ vkEndCommandBuffer commandBuffer
+  return (commandBuffers, commandBuffersPtr)
+
+destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuffer -> IO ()
+destroyCommandBuffers device commandPool buffersCount commandBuffersPtr =
+  vkFreeCommandBuffers device commandPool buffersCount commandBuffersPtr
+
+-- withSemaphore :: VkDevice
+--               -> (VkSemaphore -> IO a)
+--               -> IO a
+-- withSemaphore dev action = do
+
+--   semaphore <- alloca $ \sPtr -> do
+--     withPtr
+--       ( createVk
+--         $  set @"sType" VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+--         &* set @"pNext" VK_NULL
+--         &* set @"flags" 0
+--       ) $ \ciPtr -> throwingVK "vkCreateSemaphore failed!"
+--                       $ vkCreateSemaphore dev ciPtr VK_NULL sPtr
+--     peek sPtr
+
+--   finally (action semaphore) $
+--     vkDestroySemaphore dev semaphore VK_NULL
+
+-- drawFrame :: RenderData -> IO ()
+-- drawFrame RenderData {..} =
+--     withArray commandBuffers
+--       $ \commandBuffersPtr -> do
+
+--     -- Acquiring an image from the swap chain
+--     throwingVK "vkAcquireNextImageKHR failed!"
+--       $ vkAcquireNextImageKHR
+--           device swapchain maxBound
+--           imageAvailable VK_NULL_HANDLE imgIndexPtr
+--     bufPtr <- (\i -> commandBuffersPtr `plusPtr`
+--                         (fromIntegral i * sizeOf (undefined :: VkCommandBuffer))
+--               ) <$> peek imgIndexPtr
+
+--     -- Submitting the command buffer
+--     withPtr (mkSubmitInfo bufPtr) $ \siPtr ->
+--       throwingVK "vkQueueSubmit failed!"
+--         $ vkQueueSubmit graphicsQueue 1 siPtr VK_NULL
+
+
+--     -- RENDERRR!!!
+--     withPtr presentInfo $
+--       throwingVK "vkQueuePresentKHR failed!" . vkQueuePresentKHR presentQueue
+--   where
+--     SwapChainImgInfo {..} = swapChainInfo
+--     DevQueues {..} = deviceQueues
+--     -- Submitting the command buffer
+--     mkSubmitInfo bufPtr = createVk @VkSubmitInfo
+--       $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
+--       &* set @"pNext" VK_NULL
+--       &* set @"waitSemaphoreCount" 1
+--       &* setListRef @"pWaitSemaphores"   [imageAvailable]
+--       &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+--       &* set @"commandBufferCount" 1
+--       &* set @"pCommandBuffers" bufPtr
+--       &* set @"signalSemaphoreCount" 1
+--       &* setListRef @"pSignalSemaphores" [renderFinished]
+--     -- Presentation
+--     presentInfo = createVk @VkPresentInfoKHR
+--       $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
+--       &* set @"pNext" VK_NULL
+--       &* set @"pImageIndices" imgIndexPtr
+--       &* set        @"waitSemaphoreCount" 1
+--       &* setListRef @"pWaitSemaphores" [renderFinished]
+--       &* set        @"swapchainCount" 1
+--       &* setListRef @"pSwapchains"    [swapchain]

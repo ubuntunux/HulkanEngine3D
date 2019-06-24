@@ -39,7 +39,7 @@ main = do
     Just window = maybeWindow
     progName = "02-GLFWWindow"
     engineName = "My perfect Haskell engine"
-    isConcurrentMode = False
+    isConcurrentMode = True
   vkInstance <- createVulkanInstance progName engineName vulkanLayers requireExtensions
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
@@ -60,8 +60,8 @@ main = do
     vulkanLayers
     (length requireDeviceExtensions)
     requireDeviceExtensionsPtr
-  vkDevice <- createDevice deviceCreateInfo physicalDevice 
-  queueMap <- createQueues vkDevice (Map.elems createQueueFamilyMap)
+  device <- createDevice deviceCreateInfo physicalDevice 
+  queueMap <- createQueues device (Map.elems createQueueFamilyMap)
   createQueueFamilyListPtr <- newArray (Map.elems createQueueFamilyMap)
   let 
     defaultQueue = (Map.elems queueMap) !! 0
@@ -73,27 +73,33 @@ main = do
         , graphicsFamilyIndex = graphicsQueueIndex'
         , presentFamilyIndex = presentQueueIndex' }
     imageCount = 3 -- tripple buffering
-  swapChainData <- createSwapChain vkDevice swapChainSupportDetails imageCount queueFamilyDatas vkSurface
-  swapChainImageViews <- createSwapChainImageViews vkDevice swapChainData
-  vertexShaderCreateInfo <- createShaderStageCreateInfo vkDevice "shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
-  fragmentShaderCreateInfo <- createShaderStageCreateInfo vkDevice "shaders/triangle.frag" VK_SHADER_STAGE_FRAGMENT_BIT
-  renderPass <- createRenderPass vkDevice swapChainData
-  pipelineLayout <- createPipelineLayout vkDevice  
-  graphicsPipeline <- createGraphicsPipeline vkDevice swapChainData [vertexShaderCreateInfo, fragmentShaderCreateInfo] renderPass pipelineLayout
+  swapChainData <- createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSurface
+  swapChainImageViews <- createSwapChainImageViews device swapChainData
+  vertexShaderCreateInfo <- createShaderStageCreateInfo device "shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
+  fragmentShaderCreateInfo <- createShaderStageCreateInfo device "shaders/triangle.frag" VK_SHADER_STAGE_FRAGMENT_BIT
+  renderPass <- createRenderPass device swapChainData
+  pipelineLayout <- createPipelineLayout device  
+  graphicsPipeline <- createGraphicsPipeline device swapChainData [vertexShaderCreateInfo, fragmentShaderCreateInfo] renderPass pipelineLayout
+  frameBuffers <- createFramebuffers device renderPass swapChainData swapChainImageViews
+  commandPool <- createCommandPool device queueFamilyDatas
+  (commandBuffers, commandBuffersPtr) <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
 
   -- Main Loop
   glfwMainLoop window mainLoop
 
   -- Terminate
   putStrLn "\n[ Terminate ]"
-  destroyGraphicsPipeline vkDevice graphicsPipeline
-  destroyPipelineLayout vkDevice pipelineLayout
-  destroyRenderPass vkDevice renderPass
-  destroyShaderStageCreateInfo vkDevice vertexShaderCreateInfo
-  destroyShaderStageCreateInfo vkDevice fragmentShaderCreateInfo
-  destroySwapChainImageViews vkDevice swapChainImageViews
-  destroySwapChain vkDevice (swapChain swapChainData)
-  destroyDevice vkDevice deviceCreateInfo physicalDeviceFeatures
+  destroyCommandBuffers device commandPool (fromIntegral $ length commandBuffers) commandBuffersPtr
+  destroyCommandPool device commandPool
+  destroyFramebuffers device frameBuffers
+  destroyGraphicsPipeline device graphicsPipeline
+  destroyPipelineLayout device pipelineLayout
+  destroyRenderPass device renderPass
+  destroyShaderStageCreateInfo device vertexShaderCreateInfo
+  destroyShaderStageCreateInfo device fragmentShaderCreateInfo
+  destroySwapChainImageViews device swapChainImageViews
+  destroySwapChain device (swapChain swapChainData)
+  destroyDevice device deviceCreateInfo physicalDeviceFeatures
   destroyVkSurface vkInstance vkSurface
   destroyVulkanInstance vkInstance
   free requireDeviceExtensionsPtr
