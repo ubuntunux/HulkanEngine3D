@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE Strict           #-}
+{-# LANGUAGE TemplateHaskell  #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Vulkan
@@ -43,6 +44,8 @@ module Library.Vulkan
   , destroyCommandPool
   , createCommandBuffers
   , destroyCommandBuffers
+  , createSemaphore
+  , destroySemaphore
   ) where
 
 import Control.Exception
@@ -903,67 +906,69 @@ destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuf
 destroyCommandBuffers device commandPool buffersCount commandBuffersPtr =
   vkFreeCommandBuffers device commandPool buffersCount commandBuffersPtr
 
--- withSemaphore :: VkDevice
---               -> (VkSemaphore -> IO a)
---               -> IO a
--- withSemaphore dev action = do
 
---   semaphore <- alloca $ \sPtr -> do
---     withPtr
---       ( createVk
---         $  set @"sType" VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
---         &* set @"pNext" VK_NULL
---         &* set @"flags" 0
---       ) $ \ciPtr -> throwingVK "vkCreateSemaphore failed!"
---                       $ vkCreateSemaphore dev ciPtr VK_NULL sPtr
---     peek sPtr
+createSemaphore :: VkDevice -> IO VkSemaphore
+createSemaphore device = do  
+  semaphore <- alloca $ \semaphorePtr -> do
+    let semaphoreCreateInfo = createVk @VkSemaphoreCreateInfo
+          $  set @"sType" VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+          &* set @"pNext" VK_NULL
+          &* set @"flags" 0
+    withPtr semaphoreCreateInfo $ \semaphoreCreateInfoPtr ->
+      throwingVK "vkCreateSemaphore failed!"
+        $ vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL semaphorePtr
+    peek semaphorePtr
+  putStrLn $ "Create Semaphore: " ++ show semaphore
+  return semaphore
 
---   finally (action semaphore) $
---     vkDestroySemaphore dev semaphore VK_NULL
-
--- drawFrame :: RenderData -> IO ()
--- drawFrame RenderData {..} =
---     withArray commandBuffers
---       $ \commandBuffersPtr -> do
-
---     -- Acquiring an image from the swap chain
---     throwingVK "vkAcquireNextImageKHR failed!"
---       $ vkAcquireNextImageKHR
---           device swapchain maxBound
---           imageAvailable VK_NULL_HANDLE imgIndexPtr
---     bufPtr <- (\i -> commandBuffersPtr `plusPtr`
---                         (fromIntegral i * sizeOf (undefined :: VkCommandBuffer))
---               ) <$> peek imgIndexPtr
-
---     -- Submitting the command buffer
---     withPtr (mkSubmitInfo bufPtr) $ \siPtr ->
---       throwingVK "vkQueueSubmit failed!"
---         $ vkQueueSubmit graphicsQueue 1 siPtr VK_NULL
+destroySemaphore :: VkDevice -> VkSemaphore -> IO ()
+destroySemaphore device semaphore = do
+  putStrLn $ "Destroy Semaphore: " ++ show semaphore
+  vkDestroySemaphore device semaphore VK_NULL
 
 
---     -- RENDERRR!!!
---     withPtr presentInfo $
---       throwingVK "vkQueuePresentKHR failed!" . vkQueuePresentKHR presentQueue
---   where
---     SwapChainImgInfo {..} = swapChainInfo
---     DevQueues {..} = deviceQueues
---     -- Submitting the command buffer
---     mkSubmitInfo bufPtr = createVk @VkSubmitInfo
---       $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
---       &* set @"pNext" VK_NULL
---       &* set @"waitSemaphoreCount" 1
---       &* setListRef @"pWaitSemaphores"   [imageAvailable]
---       &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
---       &* set @"commandBufferCount" 1
---       &* set @"pCommandBuffers" bufPtr
---       &* set @"signalSemaphoreCount" 1
---       &* setListRef @"pSignalSemaphores" [renderFinished]
---     -- Presentation
---     presentInfo = createVk @VkPresentInfoKHR
---       $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
---       &* set @"pNext" VK_NULL
---       &* set @"pImageIndices" imgIndexPtr
---       &* set        @"waitSemaphoreCount" 1
---       &* setListRef @"pWaitSemaphores" [renderFinished]
---       &* set        @"swapchainCount" 1
---       &* setListRef @"pSwapchains"    [swapchain]
+drawFrame :: RenderData -> IO ()
+drawFrame RenderData {..} =
+    withArray commandBuffers
+      $ \commandBuffersPtr -> do
+
+    -- Acquiring an image from the swap chain
+    throwingVK "vkAcquireNextImageKHR failed!"
+      $ vkAcquireNextImageKHR
+          device swapChain maxBound
+          imageAvailable VK_NULL_HANDLE imageIndexPtr
+    bufPtr <- (\i -> commandBuffersPtr `plusPtr`
+                        (fromIntegral i * sizeOf (undefined :: VkCommandBuffer))
+              ) <$> peek imageIndexPtr
+
+    -- Submitting the command buffer
+    withPtr (mkSubmitInfo bufPtr) $ \siPtr ->
+      throwingVK "vkQueueSubmit failed!"
+        $ vkQueueSubmit graphicsQueue 1 siPtr VK_NULL
+
+    -- RENDERRR!!!
+    withPtr presentInfo $
+      throwingVK "vkQueuePresentKHR failed!" . vkQueuePresentKHR presentQueue
+  where
+    SwapChainData {..} = swapChainData
+    QueueFamilyDatas {..} = queueFamilyDatas
+    -- Submitting the command buffer
+    mkSubmitInfo bufPtr = createVk @VkSubmitInfo
+      $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
+      &* set @"pNext" VK_NULL
+      &* set @"waitSemaphoreCount" 1
+      &* setListRef @"pWaitSemaphores"   [imageAvailable]
+      &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+      &* set @"commandBufferCount" 1
+      &* set @"pCommandBuffers" bufPtr
+      &* set @"signalSemaphoreCount" 1
+      &* setListRef @"pSignalSemaphores" [renderFinished]
+    -- Presentation
+    presentInfo = createVk @VkPresentInfoKHR
+      $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
+      &* set @"pNext" VK_NULL
+      &* set @"pImageIndices" imageIndexPtr
+      &* set        @"waitSemaphoreCount" 1
+      &* setListRef @"pWaitSemaphores" [renderFinished]
+      &* set        @"swapchainCount" 1
+      &* setListRef @"pSwapchains"    [swapChain]

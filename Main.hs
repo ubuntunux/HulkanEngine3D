@@ -83,12 +83,16 @@ main = do
   frameBuffers <- createFramebuffers device renderPass swapChainData swapChainImageViews
   commandPool <- createCommandPool device queueFamilyDatas
   (commandBuffers, commandBuffersPtr) <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
+  renderFinished <- createSemaphore device
+  imageAvailable <- createSemaphore device
 
   -- Main Loop
   glfwMainLoop window mainLoop
 
   -- Terminate
   putStrLn "\n[ Terminate ]"
+  destroySemaphore device imageAvailable
+  destroySemaphore device renderFinished
   destroyCommandBuffers device commandPool (fromIntegral $ length commandBuffers) commandBuffersPtr
   destroyCommandPool device commandPool
   destroyFramebuffers device frameBuffers
