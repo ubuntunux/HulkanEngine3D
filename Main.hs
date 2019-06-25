@@ -23,10 +23,6 @@ import Library.Shader
 import Library.Vulkan
 
 
-mainLoop::IO()
-mainLoop = do
-  return ()
-
 main::IO()
 main = do 
   maybeWindow <- createGLFWWindow 800 600 "Vulkan Application"
@@ -86,8 +82,24 @@ main = do
   renderFinished <- createSemaphore device
   imageAvailable <- createSemaphore device
 
+  renderData <- alloca $ \imageIndexPtr -> do
+    return RenderData
+          { renderFinished = renderFinished
+          , imageAvailable = renderFinished
+          , device = device
+          , swapChainData = swapChainData
+          , queueFamilyDatas = queueFamilyDatas
+          , imageIndexPtr = imageIndexPtr
+          , commandBuffers = commandBuffers }
+
   -- Main Loop
-  glfwMainLoop window mainLoop
+  glfwMainLoop window $ do
+    return () -- do some app logic
+    throwingVK "vkQueueWaitIdle failed!"
+      $ vkQueueWaitIdle (presentQueue queueFamilyDatas)
+    drawFrame renderData
+  throwingVK "vkDeviceWaitIdle failed!"
+    $ vkDeviceWaitIdle device
 
   -- Terminate
   putStrLn "\n[ Terminate ]"

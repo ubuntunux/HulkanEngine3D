@@ -46,6 +46,7 @@ module Library.Vulkan
   , destroyCommandBuffers
   , createSemaphore
   , destroySemaphore
+  , drawFrame
   ) where
 
 import Control.Exception
@@ -115,7 +116,7 @@ data RenderData = RenderData
   , queueFamilyDatas :: QueueFamilyDatas
   , imageIndexPtr :: Ptr Word32
   , commandBuffers :: [VkCommandBuffer]
-  }
+  } deriving (Eq, Show)
 
   
 getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)
@@ -928,27 +929,26 @@ destroySemaphore device semaphore = do
 
 
 drawFrame :: RenderData -> IO ()
-drawFrame RenderData {..} =
-    withArray commandBuffers
-      $ \commandBuffersPtr -> do
+drawFrame RenderData {..} =    
+  withArray commandBuffers
+    $ \commandBuffersPtr -> do
+      -- Acquiring an image from the swap chain
+      throwingVK "vkAcquireNextImageKHR failed!"
+        $ vkAcquireNextImageKHR
+            device swapChain maxBound
+            imageAvailable VK_NULL_HANDLE imageIndexPtr
+      bufPtr <- (\i -> commandBuffersPtr `plusPtr`
+                          (fromIntegral i * sizeOf (undefined :: VkCommandBuffer))
+                ) <$> peek imageIndexPtr
 
-    -- Acquiring an image from the swap chain
-    throwingVK "vkAcquireNextImageKHR failed!"
-      $ vkAcquireNextImageKHR
-          device swapChain maxBound
-          imageAvailable VK_NULL_HANDLE imageIndexPtr
-    bufPtr <- (\i -> commandBuffersPtr `plusPtr`
-                        (fromIntegral i * sizeOf (undefined :: VkCommandBuffer))
-              ) <$> peek imageIndexPtr
+      -- Submitting the command buffer
+      withPtr (mkSubmitInfo bufPtr) $ \siPtr ->
+        throwingVK "vkQueueSubmit failed!"
+          $ vkQueueSubmit graphicsQueue 1 siPtr VK_NULL
 
-    -- Submitting the command buffer
-    withPtr (mkSubmitInfo bufPtr) $ \siPtr ->
-      throwingVK "vkQueueSubmit failed!"
-        $ vkQueueSubmit graphicsQueue 1 siPtr VK_NULL
-
-    -- RENDERRR!!!
-    withPtr presentInfo $
-      throwingVK "vkQueuePresentKHR failed!" . vkQueuePresentKHR presentQueue
+      -- RENDERRR!!!
+      withPtr presentInfo $
+        throwingVK "vkQueuePresentKHR failed!" . vkQueuePresentKHR presentQueue
   where
     SwapChainData {..} = swapChainData
     QueueFamilyDatas {..} = queueFamilyDatas
