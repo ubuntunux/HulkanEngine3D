@@ -109,8 +109,8 @@ data SwapChainData = SwapChainData
   } deriving (Eq, Show)
 
 data RenderData = RenderData
-  { renderFinished :: VkSemaphore
-  , imageAvailable :: VkSemaphore
+  { imageAvailableSemaphore :: VkSemaphore
+  , renderFinishedSemaphore :: VkSemaphore
   , device :: VkDevice
   , swapChainData :: SwapChainData
   , queueFamilyDatas :: QueueFamilyDatas
@@ -929,46 +929,44 @@ destroySemaphore device semaphore = do
 
 
 drawFrame :: RenderData -> IO ()
-drawFrame RenderData {..} =    
-  withArray commandBuffers
-    $ \commandBuffersPtr -> do
-      -- Acquiring an image from the swap chain
-      throwingVK "vkAcquireNextImageKHR failed!"
-        $ vkAcquireNextImageKHR
-            device swapChain maxBound
-            imageAvailable VK_NULL_HANDLE imageIndexPtr
-      bufPtr <- (\i -> commandBuffersPtr `plusPtr`
-                          (fromIntegral i * sizeOf (undefined :: VkCommandBuffer))
-                ) <$> peek imageIndexPtr
+drawFrame RenderData {..} =
+  withArray commandBuffers $ \commandBuffersPtr -> do
+    throwingVK "vkAcquireNextImageKHR failed!"
+      $ vkAcquireNextImageKHR device swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
 
-      -- Submitting the command buffer
-      withPtr (mkSubmitInfo bufPtr) $ \siPtr ->
-        throwingVK "vkQueueSubmit failed!"
-          $ vkQueueSubmit graphicsQueue 1 siPtr VK_NULL
+    commandBufferPtr <- (\imageIndex -> plusPtr commandBuffersPtr (fromIntegral imageIndex * sizeOf (undefined :: VkCommandBuffer))) 
+        <$> peek imageIndexPtr
 
-      -- RENDERRR!!!
-      withPtr presentInfo $
-        throwingVK "vkQueuePresentKHR failed!" . vkQueuePresentKHR presentQueue
+    withPtr (submitInfo commandBufferPtr) $ \submitInfoPtr ->
+      throwingVK "vkQueueSubmit failed!"
+        $ vkQueueSubmit graphicsQueue 1 submitInfoPtr VK_NULL
+
+    withPtr presentInfo $ \presentInfoPtr ->
+      throwingVK "vkQueuePresentKHR failed!"
+        $ vkQueuePresentKHR presentQueue presentInfoPtr
+
+    throwingVK "vkQueueWaitIdle failed!"
+      $ vkQueueWaitIdle presentQueue
   where
     SwapChainData {..} = swapChainData
     QueueFamilyDatas {..} = queueFamilyDatas
-    -- Submitting the command buffer
-    mkSubmitInfo bufPtr = createVk @VkSubmitInfo
+    submitInfo :: Ptr VkCommandBuffer -> VkSubmitInfo
+    submitInfo commandBufferPtr = createVk @VkSubmitInfo
       $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
       &* set @"pNext" VK_NULL
       &* set @"waitSemaphoreCount" 1
-      &* setListRef @"pWaitSemaphores"   [imageAvailable]
+      &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
       &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
       &* set @"commandBufferCount" 1
-      &* set @"pCommandBuffers" bufPtr
+      &* set @"pCommandBuffers" commandBufferPtr
       &* set @"signalSemaphoreCount" 1
-      &* setListRef @"pSignalSemaphores" [renderFinished]
-    -- Presentation
+      &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
+    presentInfo :: VkPresentInfoKHR
     presentInfo = createVk @VkPresentInfoKHR
       $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
       &* set @"pNext" VK_NULL
       &* set @"pImageIndices" imageIndexPtr
-      &* set        @"waitSemaphoreCount" 1
-      &* setListRef @"pWaitSemaphores" [renderFinished]
-      &* set        @"swapchainCount" 1
-      &* setListRef @"pSwapchains"    [swapChain]
+      &* set @"waitSemaphoreCount" 1
+      &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
+      &* set @"swapchainCount" 1
+      &* setListRef @"pSwapchains" [swapChain]

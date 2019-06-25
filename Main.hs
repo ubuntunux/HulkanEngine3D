@@ -79,13 +79,13 @@ main = do
   frameBuffers <- createFramebuffers device renderPass swapChainData swapChainImageViews
   commandPool <- createCommandPool device queueFamilyDatas
   (commandBuffers, commandBuffersPtr) <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
-  renderFinished <- createSemaphore device
-  imageAvailable <- createSemaphore device
+  imageAvailableSemaphore <- createSemaphore device
+  renderFinishedSemaphore <- createSemaphore device  
 
   renderData <- alloca $ \imageIndexPtr -> do
     return RenderData
-          { renderFinished = renderFinished
-          , imageAvailable = renderFinished
+          { imageAvailableSemaphore = imageAvailableSemaphore
+          , renderFinishedSemaphore = renderFinishedSemaphore
           , device = device
           , swapChainData = swapChainData
           , queueFamilyDatas = queueFamilyDatas
@@ -93,18 +93,16 @@ main = do
           , commandBuffers = commandBuffers }
 
   -- Main Loop
-  glfwMainLoop window $ do
-    return () -- do some app logic
-    throwingVK "vkQueueWaitIdle failed!"
-      $ vkQueueWaitIdle (presentQueue queueFamilyDatas)
+  glfwMainLoop window $ do    
     drawFrame renderData
+    
   throwingVK "vkDeviceWaitIdle failed!"
     $ vkDeviceWaitIdle device
 
   -- Terminate
   putStrLn "\n[ Terminate ]"
-  destroySemaphore device imageAvailable
-  destroySemaphore device renderFinished
+  destroySemaphore device renderFinishedSemaphore
+  destroySemaphore device imageAvailableSemaphore  
   destroyCommandBuffers device commandPool (fromIntegral $ length commandBuffers) commandBuffersPtr
   destroyCommandPool device commandPool
   destroyFramebuffers device frameBuffers
