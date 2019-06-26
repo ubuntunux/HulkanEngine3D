@@ -82,7 +82,7 @@ getShaderModuleCreateInfo codeSize codePtr = return $ createVk @VkShaderModuleCr
   &* set @"pNext" VK_NULL
   &* set @"codeSize" (fromIntegral codeSize)
   &* set @"pCode" codePtr
-  &* set @"flags" 0
+  &* set @"flags" VK_ZERO_FLAGS
 
 getShaderCreateInfo :: VkShaderStageFlagBits -> VkShaderModule -> VkPipelineShaderStageCreateInfo
 getShaderCreateInfo stageBit shaderModule = createVk @VkPipelineShaderStageCreateInfo

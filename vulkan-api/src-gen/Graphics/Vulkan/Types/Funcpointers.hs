@@ -33,7 +33,7 @@ import           Graphics.Vulkan.Types.Enum.Debug                               
                                                                                   VkDebugUtilsMessageTypeFlagsEXT)
 import           Graphics.Vulkan.Types.Enum.InternalAllocationType               (VkInternalAllocationType (..))
 import           Graphics.Vulkan.Types.Enum.SystemAllocationScope                (VkSystemAllocationScope (..))
-import           Graphics.Vulkan.Types.Struct.DebugUtilsMessengerCallbackDataEXT (VkDebugUtilsMessengerCallbackDataEXT (..))
+import           Graphics.Vulkan.Types.Struct.DebugUtilsMessengerCallbackDataEXT (VkDebugUtilsMessengerCallbackDataEXT)
 
 type HS_vkAllocationFunction =
      Ptr Void ->

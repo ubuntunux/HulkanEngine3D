@@ -174,7 +174,7 @@ createVulkanInstance progName engineName layers extensions = do
     instanceCreateInfo = createVk @VkInstanceCreateInfo
       $ set @"sType" VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"flags" 0
+      &* set @"flags" VK_ZERO_FLAGS
       &* setVkRef @"pApplicationInfo" applicationInfo
       &* set @"enabledLayerCount" (fromIntegral $ length layers)
       &* setStrListRef @"ppEnabledLayerNames" layers
@@ -342,7 +342,7 @@ getQueueCreateInfos queueFamilyIndices queuePrioritiesPtr = do
     newVkData @VkDeviceQueueCreateInfo $ \queueCreateInfoPtr -> do
         writeField @"sType" queueCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
         writeField @"pNext" queueCreateInfoPtr VK_NULL_HANDLE
-        writeField @"flags" queueCreateInfoPtr 0
+        writeField @"flags" queueCreateInfoPtr VK_ZERO_FLAGS
         writeField @"queueFamilyIndex" queueCreateInfoPtr queueFamilyIndex
         writeField @"queueCount" queueCreateInfoPtr 1
         writeField @"pQueuePriorities" queueCreateInfoPtr queuePrioritiesPtr
@@ -367,7 +367,7 @@ getDeviceCreateInfo
     newVkData @VkDeviceCreateInfo $ \devCreateInfoPtr -> do
       writeField @"sType" devCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
       writeField @"pNext" devCreateInfoPtr VK_NULL_HANDLE
-      writeField @"flags" devCreateInfoPtr 0
+      writeField @"flags" devCreateInfoPtr VK_ZERO_FLAGS
       writeField @"pQueueCreateInfos" devCreateInfoPtr queueCreateInfoArrayPtr
       writeField @"queueCreateInfoCount" devCreateInfoPtr (fromIntegral queueCreateInfoCount)
       writeField @"enabledLayerCount" devCreateInfoPtr (fromIntegral layerCount)
@@ -469,7 +469,7 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSur
   swapChainCreateInfo <- newVkData @VkSwapchainCreateInfoKHR $ \swapChainCreateInfoPtr -> do
     writeField @"sType" swapChainCreateInfoPtr VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
     writeField @"pNext" swapChainCreateInfoPtr VK_NULL_HANDLE
-    writeField @"flags" swapChainCreateInfoPtr 0
+    writeField @"flags" swapChainCreateInfoPtr VK_ZERO_FLAGS
     writeField @"surface" swapChainCreateInfoPtr vkSurface
     writeField @"minImageCount" swapChainCreateInfoPtr (fromIntegral imageCount')
     writeField @"imageFormat" swapChainCreateInfoPtr (getField @"format" surfaceFormat)
@@ -535,7 +535,7 @@ createSwapChainImageViews device swapChainData = do
     getImageViewCreateInfo image = newVkData @VkImageViewCreateInfo $ \viewPtr -> do
       writeField @"sType" viewPtr VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
       writeField @"pNext" viewPtr VK_NULL_HANDLE
-      writeField @"flags" viewPtr 0
+      writeField @"flags" viewPtr VK_ZERO_FLAGS
       writeField @"image" viewPtr image
       writeField @"viewType" viewPtr VK_IMAGE_VIEW_TYPE_2D
       writeField @"format" viewPtr (swapChainImageFormat swapChainData)
@@ -560,7 +560,7 @@ createRenderPass device swapChainData =
   let
     colorAttachment :: VkAttachmentDescription
     colorAttachment = createVk @VkAttachmentDescription
-      $  set @"flags" 0
+      $  set @"flags" VK_ZERO_FLAGS
       &* set @"format" (swapChainImageFormat swapChainData)
       &* set @"samples" VK_SAMPLE_COUNT_1_BIT
       &* set @"loadOp" VK_ATTACHMENT_LOAD_OP_CLEAR
@@ -588,7 +588,7 @@ createRenderPass device swapChainData =
       $  set @"srcSubpass" VK_SUBPASS_EXTERNAL
       &* set @"dstSubpass" 0
       &* set @"srcStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-      &* set @"srcAccessMask" 0
+      &* set @"srcAccessMask" VK_ZERO_FLAGS
       &* set @"dstStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
       &* set @"dstAccessMask" (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT .|. VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
 
@@ -631,7 +631,7 @@ createPipelineLayout device = do
     pipelineCreateInfo = createVk @VkPipelineLayoutCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"flags" 0
+      &* set @"flags" VK_ZERO_FLAGS
       &* set @"setLayoutCount" 0      
       &* set @"pSetLayouts" VK_NULL
       &* set @"pushConstantRangeCount" 0      
@@ -655,7 +655,7 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
     vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"flags" 0
+      &* set @"flags" VK_ZERO_FLAGS
       &* set @"vertexBindingDescriptionCount" 0
       &* set @"pVertexBindingDescriptions" VK_NULL
       &* set @"vertexAttributeDescriptionCount" 0
@@ -665,7 +665,7 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
     inputAssembly = createVk @VkPipelineInputAssemblyStateCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"flags" 0
+      &* set @"flags" VK_ZERO_FLAGS
       &* set @"topology" VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
       &* set @"primitiveRestartEnable" VK_FALSE
 
@@ -687,7 +687,7 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
     viewPortState = createVk @VkPipelineViewportStateCreateInfo
       $ set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"flags" 0
+      &* set @"flags" VK_ZERO_FLAGS
       &* set @"viewportCount" 1
       &* setVkRef @"pViewports" viewPort
       &* set @"scissorCount" 1
@@ -697,7 +697,7 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
     rasterizer = createVk @VkPipelineRasterizationStateCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"flags" 0
+      &* set @"flags" VK_ZERO_FLAGS
       &* set @"depthClampEnable" VK_FALSE
       &* set @"rasterizerDiscardEnable" VK_FALSE
       &* set @"polygonMode" VK_POLYGON_MODE_FILL
@@ -713,7 +713,7 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
     multisampling = createVk @VkPipelineMultisampleStateCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"flags" 0
+      &* set @"flags" VK_ZERO_FLAGS
       &* set @"sampleShadingEnable" VK_FALSE
       &* set @"rasterizationSamples" VK_SAMPLE_COUNT_1_BIT
       &* set @"minSampleShading" 1.0
@@ -736,7 +736,7 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
     colorBlending = createVk @VkPipelineColorBlendStateCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"flags" 0
+      &* set @"flags" VK_ZERO_FLAGS
       &* set @"logicOpEnable" VK_FALSE
       &* set @"logicOp" VK_LOGIC_OP_COPY
       &* set @"attachmentCount" 1
@@ -750,7 +750,7 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
     getGraphicsPipelineCreateInfo shaderStageCount shaderStageInfosPtr = createVk @VkGraphicsPipelineCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
       &* set @"pNext" VK_NULL
-      &* set @"flags" 0
+      &* set @"flags" VK_ZERO_FLAGS
       &* set @"stageCount" (fromIntegral $ length shaderStageInfos)
       &* set @"pStages" shaderStageInfosPtr
       &* setVkRef @"pVertexInputState" vertexInputInfo
@@ -797,7 +797,7 @@ createFramebuffers device renderPass swapChainData swapChainImageViews = do
       let frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
             &* set @"pNext" VK_NULL
-            &* set @"flags" 0
+            &* set @"flags" VK_ZERO_FLAGS
             &* set @"renderPass" renderPass
             &* set @"attachmentCount" 1
             &* setListRef @"pAttachments" [swapChainImageView]
@@ -825,7 +825,7 @@ createCommandPool device queueFamilyDatas = do
   let commandPoolCreateInfo = createVk @VkCommandPoolCreateInfo
         $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
         &* set @"pNext" VK_NULL
-        &* set @"flags" 0
+        &* set @"flags" VK_ZERO_FLAGS
         &* set @"queueFamilyIndex" (graphicsFamilyIndex queueFamilyDatas)
   commandPool <- alloca $ \commandPoolPtr -> do
     withPtr commandPoolCreateInfo $ \createInfoPtr -> do
@@ -914,7 +914,7 @@ createSemaphore device = do
     let semaphoreCreateInfo = createVk @VkSemaphoreCreateInfo
           $  set @"sType" VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
           &* set @"pNext" VK_NULL
-          &* set @"flags" 0
+          &* set @"flags" VK_ZERO_FLAGS
     withPtr semaphoreCreateInfo $ \semaphoreCreateInfoPtr ->
       throwingVK "vkCreateSemaphore failed!"
         $ vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL semaphorePtr

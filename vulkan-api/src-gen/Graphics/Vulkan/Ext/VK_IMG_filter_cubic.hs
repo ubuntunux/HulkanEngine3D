@@ -27,8 +27,7 @@ module Graphics.Vulkan.Ext.VK_IMG_filter_cubic
 import           GHC.Ptr                           (Ptr (..))
 import           Graphics.Vulkan.Marshal
 import           Graphics.Vulkan.Types.Enum.Filter (VkFilter (..))
-import           Graphics.Vulkan.Types.Enum.Format (VkFormatFeatureBitmask (..),
-                                                    VkFormatFeatureFlagBits)
+import           Graphics.Vulkan.Types.Enum.Format (VkFormatFeatureBitmask (..))
 
 pattern VK_IMG_FILTER_CUBIC_SPEC_VERSION :: (Num a, Eq a) => a
 
@@ -40,8 +39,9 @@ pattern VK_IMG_FILTER_CUBIC_EXTENSION_NAME :: CString
 
 pattern VK_IMG_FILTER_CUBIC_EXTENSION_NAME <-
         (is_VK_IMG_FILTER_CUBIC_EXTENSION_NAME -> True)
-  where VK_IMG_FILTER_CUBIC_EXTENSION_NAME
-          = _VK_IMG_FILTER_CUBIC_EXTENSION_NAME
+  where
+    VK_IMG_FILTER_CUBIC_EXTENSION_NAME
+      = _VK_IMG_FILTER_CUBIC_EXTENSION_NAME
 
 {-# INLINE _VK_IMG_FILTER_CUBIC_EXTENSION_NAME #-}
 
@@ -65,7 +65,7 @@ pattern VK_FILTER_CUBIC_IMG = VkFilter 1000015000
 --
 --   bitpos = @13@
 pattern VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_CUBIC_BIT_IMG ::
-        VkFormatFeatureFlagBits
+        VkFormatFeatureBitmask a
 
 pattern VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_CUBIC_BIT_IMG =
-        VkFormatFeatureFlagBits 8192
+        VkFormatFeatureBitmask 8192

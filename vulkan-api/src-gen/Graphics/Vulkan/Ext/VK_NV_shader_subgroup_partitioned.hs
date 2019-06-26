@@ -25,8 +25,7 @@ module Graphics.Vulkan.Ext.VK_NV_shader_subgroup_partitioned
        where
 import           GHC.Ptr                                         (Ptr (..))
 import           Graphics.Vulkan.Marshal
-import           Graphics.Vulkan.Types.Enum.SubgroupFeatureFlags (VkSubgroupFeatureBitmask (..),
-                                                                  VkSubgroupFeatureFlagBits)
+import           Graphics.Vulkan.Types.Enum.SubgroupFeatureFlags (VkSubgroupFeatureBitmask (..))
 
 pattern VK_NV_SHADER_SUBGROUP_PARTITIONED_SPEC_VERSION ::
         (Num a, Eq a) => a
@@ -39,8 +38,9 @@ pattern VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME :: CString
 
 pattern VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME <-
         (is_VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME -> True)
-  where VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME
-          = _VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME
+  where
+    VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME
+      = _VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME
 
 {-# INLINE _VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME #-}
 
@@ -61,7 +61,7 @@ type VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME =
 
 -- | bitpos = @8@
 pattern VK_SUBGROUP_FEATURE_PARTITIONED_BIT_NV ::
-        VkSubgroupFeatureFlagBits
+        VkSubgroupFeatureBitmask a
 
 pattern VK_SUBGROUP_FEATURE_PARTITIONED_BIT_NV =
-        VkSubgroupFeatureFlagBits 256
+        VkSubgroupFeatureBitmask 256

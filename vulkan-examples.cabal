@@ -18,12 +18,18 @@ executable main
   other-modules:       Lib.Vulkan
                        Lib.Utils
                        Lib.GLFW
-                       Library.Vulkan
                        Library.Application
+                       Library.Shader
+                       Library.Vulkan
   ghc-options:         -Wall
   build-depends:       base >= 4.9 && < 5
                      , vulkan-api >= 1.1.3
                      , GLFW-b >= 3.2.1
+                     , containers
+                     , template-haskell
+                     , directory
+                     , process
+                     , filepath
   default-language:    Haskell2010
 
 executable ve-01-CreateInstance
