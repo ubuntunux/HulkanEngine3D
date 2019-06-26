@@ -13,8 +13,11 @@ Tested using `stack` on:
 Generate haskell vulkan sources using vk.xml file.
 To update the api bindings, run `genvulkan` using stack with this project folder:
 ```bash
+git clone https://github.com/ubuntunux/LambdaEngine3D
 cd genvulkan
 stack build
 stack exec genvulkan
+cd ..
+stack runhaskell Main.hs
 ```
 
