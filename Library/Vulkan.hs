@@ -67,7 +67,6 @@ import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
 import qualified Graphics.UI.GLFW as GLFW
-import Lib.Utils
 
 vulkanLayers :: [String]
 vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]

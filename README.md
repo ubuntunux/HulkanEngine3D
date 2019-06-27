@@ -1,9 +1,10 @@
-# LambdaEngine3D
+# Hulkan Engine 3D ( Haskell + Vulkan )
 
-### fork from vulkan-api
-  * [https://github.com/achirkin/vulkan](https://github.com/achirkin/vulkan/)
+### requiermenst
+  * vulkan-api
+    * [https://github.com/achirkin/vulkan](https://github.com/achirkin/vulkan/)
     
-### Test
+### How to test
 Tested using `stack` on:
 
   * Windows 10 x64 with [LunarG Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
@@ -13,7 +14,7 @@ Tested using `stack` on:
 Generate haskell vulkan sources using vk.xml file.
 To update the api bindings, run `genvulkan` using stack with this project folder:
 ```bash
-git clone https://github.com/ubuntunux/LambdaEngine3D
+git clone https://github.com/ubuntunux/HulkanEngine3D
 cd LambdaEngine3D
 cd genvulkan
 stack build
