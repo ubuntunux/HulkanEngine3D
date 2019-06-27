@@ -1,25 +1,21 @@
 # Hulkan Engine 3D ( Haskell + Vulkan )
-
-### requiermenst
-  * vulkan-api
-    * [https://github.com/achirkin/vulkan](https://github.com/achirkin/vulkan/)
+  * Hulkan is an open source Haskell 3D engine using the vulkan api.  
     
-### How to test
-Tested using `stack` on:
-
+### Requierments
   * Windows 10 x64 with [LunarG Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
   * Mac OS High Sierra 10.13.4 with [MoltenVK](https://github.com/KhronosGroup/MoltenVK)
   * Ubuntu 17.10 x64 with [LunarG Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
+  * Haskell bindings for vulkan api
+    * [https://github.com/achirkin/vulkan](https://github.com/achirkin/vulkan/)
   
-Generate haskell vulkan sources using vk.xml file.
-To update the api bindings, run `genvulkan` using stack with this project folder:
+### Installation
 ```bash
-git clone https://github.com/ubuntunux/HulkanEngine3D
-cd LambdaEngine3D
-cd genvulkan
+git clone https://github.com/ubuntunux/HulkanEngine3D --recursive
+cd HulkanEngine3D/vulkan/genvulkan
 stack build
 stack exec genvulkan
-cd ..
-stack runhaskell Main.hs
+cd ../..
+stack build
+stack exec main
 ```
 
