@@ -294,7 +294,7 @@ getQueueFamilies physicalDevice = alloca $ \queueFamilyCountPtr -> do
   queueFaimilies <- allocaArray familyCount $ \familiesPtr -> do
     vkGetPhysicalDeviceQueueFamilyProperties physicalDevice queueFamilyCountPtr familiesPtr
     zip [0..] <$> peekArray familyCount familiesPtr
-  t <- mapM (\(x,y) -> putStrLn $ "\t[" ++ (show x) ++ "] " ++ (show y) ) queueFaimilies
+  mapM_ (\(x,y) -> putStrLn $ "\t[" ++ (show x) ++ "] " ++ (show y) ) queueFaimilies
   return queueFaimilies
 
 getQueueFamilyIndices :: VkPhysicalDevice -> VkSurfaceKHR -> Bool -> IO QueueFamilyIndices
