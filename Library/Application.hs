@@ -15,8 +15,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Graphics.Vulkan
 import Graphics.Vulkan.Ext.VK_KHR_surface
-import Lib.Utils
-import Lib.Vulkan
+import Library.Utils
 
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import qualified Graphics.UI.GLFW as GLFW

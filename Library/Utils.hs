@@ -1,5 +1,5 @@
 {-# LANGUAGE Strict #-}
-module Lib.Utils
+module Library.Utils
     ( VulkanException (..), handleAllErrors, throwingVK, throwVKMsg
     , withCStringList
     , asListVK

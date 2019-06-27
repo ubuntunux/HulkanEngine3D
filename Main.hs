@@ -11,13 +11,9 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
-import Foreign.Storable
-import Foreign.C.String
-import Foreign.Ptr
-import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import qualified Graphics.UI.GLFW as GLFW
-import Lib.Utils
+import Library.Utils
 import Library.Application
 import Library.Shader
 import Library.Vulkan
@@ -30,7 +26,8 @@ main = do
   putStrLn "Initialized GLFW window."
   requireExtensions <- GLFW.getRequiredInstanceExtensions
   instanceExtensionNames <- getInstanceExtensionSupport
-  checkExtensionSupport instanceExtensionNames requireExtensions  
+  result <- checkExtensionSupport instanceExtensionNames requireExtensions
+  unless result (throwVKMsg "Failed to initialize GLFW window.")
   let
     Just window = maybeWindow
     progName = "02-GLFWWindow"
@@ -71,8 +68,8 @@ main = do
     imageCount = 3 -- tripple buffering
   swapChainData <- createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSurface
   swapChainImageViews <- createSwapChainImageViews device swapChainData
-  vertexShaderCreateInfo <- createShaderStageCreateInfo device "shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
-  fragmentShaderCreateInfo <- createShaderStageCreateInfo device "shaders/triangle.frag" VK_SHADER_STAGE_FRAGMENT_BIT
+  vertexShaderCreateInfo <- createShaderStageCreateInfo device "Resource/Shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
+  fragmentShaderCreateInfo <- createShaderStageCreateInfo device "Resource/Shaders/triangle.frag" VK_SHADER_STAGE_FRAGMENT_BIT
   renderPass <- createRenderPass device swapChainData
   pipelineLayout <- createPipelineLayout device  
   graphicsPipeline <- createGraphicsPipeline device swapChainData [vertexShaderCreateInfo, fragmentShaderCreateInfo] renderPass pipelineLayout

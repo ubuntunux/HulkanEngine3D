@@ -32,7 +32,7 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
-import Lib.Utils
+import Library.Utils
 import Library.Vulkan
 
 

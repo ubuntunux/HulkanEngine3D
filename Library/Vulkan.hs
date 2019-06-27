@@ -49,12 +49,9 @@ module Library.Vulkan
   , drawFrame
   ) where
 
-import Control.Exception
 import Control.Monad
 import Data.Bits
 import Data.List ((\\))
-import Data.Maybe (fromMaybe)
-import Data.Semigroup
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -67,6 +64,8 @@ import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
 import qualified Graphics.UI.GLFW as GLFW
+import Library.Utils
+
 
 vulkanLayers :: [String]
 vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]
@@ -75,7 +74,7 @@ requireDeviceExtensions :: [CString]
 requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
 
 invalidQueueIndex :: Word32
-invalidQueueIndex = -1
+invalidQueueIndex = maxBound
 
 data QueueFamilyIndices = QueueFamilyIndices
   { graphicsQueueIndex :: Word32
@@ -121,7 +120,7 @@ data RenderData = RenderData
 getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)
 getExtensionNames extensionType availableExtensionArrayPtr = do
   availableExtensionNames <- mapM getExtensionName availableExtensionArrayPtr
-  --putStrLn $ "Available " ++ extensionType ++ " extensions : " ++ (show (length availableExtensionNames))
+  putStrLn $ "Available " ++ extensionType ++ " extensions : " ++ (show (length availableExtensionNames))
   --mapM (\extensionName -> putStrLn $ "\t" ++ extensionName) availableExtensionNames
   return availableExtensionNames
   where 
@@ -269,12 +268,13 @@ selectQueueFamily requireQueueFlag ((queueFamilyIndex, queueFamilyProperty):xs) 
     queueFlags = getField @"queueFlags" queueFamilyProperty
 
 selectPresentationFamily :: VkPhysicalDevice
-  -> VkSurfaceKHR
-  -> [(Word32, VkQueueFamilyProperties)]
-  -> IO [Word32]
+                         -> VkSurfaceKHR
+                         -> [(Word32, VkQueueFamilyProperties)]
+                         -> IO [Word32]
 selectPresentationFamily _ _ [] = return []
-selectPresentationFamily device surface ((queueFamilyIndex, queueFamilyProperty):xs) = do
-  supported <- alloca $ \supportedPtr -> do
+selectPresentationFamily device surface (queueFamilies:xs) = do
+  let queueFamilyIndex = fst queueFamilies
+  supported <- alloca $ \supportedPtr -> do      
       throwingVK "vkGetPhysicalDeviceSurfaceSupportKHR: failed to check for presentation support."
         $ vkGetPhysicalDeviceSurfaceSupportKHR device queueFamilyIndex surface supportedPtr
       peek supportedPtr
@@ -294,7 +294,7 @@ getQueueFamilies physicalDevice = alloca $ \queueFamilyCountPtr -> do
   queueFaimilies <- allocaArray familyCount $ \familiesPtr -> do
     vkGetPhysicalDeviceQueueFamilyProperties physicalDevice queueFamilyCountPtr familiesPtr
     zip [0..] <$> peekArray familyCount familiesPtr
-  mapM (\(x,y) -> putStrLn $ "\t[" ++ (show x) ++ "] " ++ (show y) ) queueFaimilies
+  t <- mapM (\(x,y) -> putStrLn $ "\t[" ++ (show x) ++ "] " ++ (show y) ) queueFaimilies
   return queueFaimilies
 
 getQueueFamilyIndices :: VkPhysicalDevice -> VkSurfaceKHR -> Bool -> IO QueueFamilyIndices
@@ -745,8 +745,8 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
       &* setAt @"blendConstants" @2 0.0
       &* setAt @"blendConstants" @3 0.0
 
-    getGraphicsPipelineCreateInfo :: Int -> Ptr VkPipelineShaderStageCreateInfo -> VkGraphicsPipelineCreateInfo
-    getGraphicsPipelineCreateInfo shaderStageCount shaderStageInfosPtr = createVk @VkGraphicsPipelineCreateInfo
+    getGraphicsPipelineCreateInfo :: Ptr VkPipelineShaderStageCreateInfo -> VkGraphicsPipelineCreateInfo
+    getGraphicsPipelineCreateInfo shaderStageInfosPtr = createVk @VkGraphicsPipelineCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
       &* set @"pNext" VK_NULL
       &* set @"flags" VK_ZERO_FLAGS
@@ -769,7 +769,7 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
   in do
     putStrLn $ "Create GraphicsPipeline: " ++ show (swapChainExtent swapChainData)
     shaderStageInfosPtr <- newArray shaderStageInfos
-    let graphicsPipelineCreateInfo = getGraphicsPipelineCreateInfo (length shaderStageInfos) shaderStageInfosPtr
+    let graphicsPipelineCreateInfo = getGraphicsPipelineCreateInfo shaderStageInfosPtr
     createGraphicsPipelinesFunc <- vkGetDeviceProc @VkCreateGraphicsPipelines device    
     graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do
       throwingVK "vkCreateGraphicsPipelines failed!"

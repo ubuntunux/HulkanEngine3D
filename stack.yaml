@@ -6,5 +6,5 @@ extra-deps:
 
 packages:
   - .
-  - location: vulkan-api
+  - location: vulkan/vulkan-api
     extra-dep: true

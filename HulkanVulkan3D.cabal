@@ -1,0 +1,36 @@
+name:                HulkanVulkan3D
+version:             0.2.0.0
+synopsis:            Use cases for vulkan-api
+description:         Some examples of using vulkan-api bindings.
+homepage:            https://github.com/ubuntunux/HulkanEngine3D
+license:             BSD3
+license-file:        LICENSE
+author:              Ubuntunux
+maintainer:          Ubuntunux@gmail.com
+copyright:           Copyright: (c) 2019 Ubuntunux
+category:            vulkan, bsd3, graphics, library, opengl, 3D engine
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable main
+  hs-source-dirs:      .
+  main-is:             Main.hs
+  other-modules:       Library.Application
+                       Library.Shader
+                       Library.Vulkan
+                       Library.Utils
+  ghc-options:         -Wall
+  build-depends:       base >= 4.9 && < 5
+                     , vulkan-api >= 1.1.3
+                     , GLFW-b >= 3.2.1
+                     , containers
+                     , template-haskell
+                     , directory
+                     , process
+                     , filepath
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/ubuntunux/HulkanEngine3D
+  subdir:   .
