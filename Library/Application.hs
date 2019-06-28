@@ -15,10 +15,9 @@ import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Graphics.Vulkan
 import Graphics.Vulkan.Ext.VK_KHR_surface
-import Library.Utils
-
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import qualified Graphics.UI.GLFW as GLFW
+import Library.Utils
 
 
 glfwMainLoop :: GLFW.Window -> IO () -> IO ()
