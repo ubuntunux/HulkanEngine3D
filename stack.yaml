@@ -5,12 +5,7 @@ ghc-options:
   GLFW-b:        -O2
   bindings-GLFW: -O2
 
-flags:
-  vulkan-api:
-    useNativeFFI-1-0: true
-    useNativeFFI-1-1: false
-    useUnsafeFFIDefault: true
-
+    
 extra-deps:
   - bindings-GLFW-3.2.1.1
   - GLFW-b-3.2.1.0

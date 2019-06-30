@@ -9,31 +9,20 @@ module Library.Shader
   , compileGLSL
   )  where
 
-import Control.Arrow (first, second)
-import Control.Exception
 import Control.Monad (unless, when)
-import Data.Bits
-import Data.Char
-import Data.List
 import Data.Maybe (fromMaybe)
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
-import Foreign.Ptr (wordPtrToPtr)
-import GHC.Ptr (Ptr (..), castPtr)
-import Language.Haskell.TH
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
 import System.Process
-
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
-import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
 import Library.Utils
-import Library.Vulkan
 
 
 compileGLSL :: FilePath -> IO (Int, Ptr Word32)

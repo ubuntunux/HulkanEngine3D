@@ -9,12 +9,7 @@ module Library.Application
     ) where
 
 
-import Control.Exception
 import Control.Monad
-import Foreign.Marshal.Alloc
-import Foreign.Storable
-import Graphics.Vulkan
-import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
