@@ -1,8 +1,22 @@
 resolver: lts-12.26
 
+ghc-options:
+  vulkan-api:    -O2
+  GLFW-b:        -O2
+  bindings-GLFW: -O2
+
+flags:
+  vulkan-api:
+    useNativeFFI-1-0: true
+    useNativeFFI-1-1: false
+    useUnsafeFFIDefault: true
+
 extra-deps:
   - bindings-GLFW-3.2.1.1
   - GLFW-b-3.2.1.0
+  - constraints-deriving-1.0.4.0
+  - dimensions-2.0.0.0
+  - wavefront-0.7.1.3
 
 packages:
   - .
