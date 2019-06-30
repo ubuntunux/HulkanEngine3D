@@ -1,3 +1,4 @@
 [submodule "vulkan"]
 	path = vulkan
 	url = https://github.com/achirkin/vulkan
+	branch = master
