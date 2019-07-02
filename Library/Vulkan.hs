@@ -12,6 +12,7 @@ module Library.Vulkan
   , SwapChainSupportDetails (..)
   , SwapChainData (..)
   , RenderData (..)
+  , getMaxUsableSampleCount  
   , getInstanceExtensionSupport
   , getDeviceExtensionSupport
   , checkExtensionSupport
@@ -19,7 +20,8 @@ module Library.Vulkan
   , destroyVulkanInstance
   , createVkSurface
   , destroyVkSurface
-  , selectPhysicalDevice    
+  , selectPhysicalDevice
+  , getPhysicalDeviceProperties
   , getPhysicalDeviceFeatures
   , getQueueFamilyIndices
   , getQueuePrioritiesPtr
@@ -116,7 +118,7 @@ data RenderData = RenderData
   , commandBuffers :: [VkCommandBuffer]
   } deriving (Eq, Show)
 
-  
+
 getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)
 getExtensionNames extensionType availableExtensionArrayPtr = do
   availableExtensionNames <- mapM getExtensionName availableExtensionArrayPtr
@@ -234,9 +236,16 @@ isDeviceSuitable maybeVkSurface physicalDevice = do
 getPhysicalDeviceFeatures :: IO VkPhysicalDeviceFeatures
 getPhysicalDeviceFeatures = newVkData @VkPhysicalDeviceFeatures clearStorable
 
+getPhysicalDeviceProperties :: VkPhysicalDevice -> IO VkPhysicalDeviceProperties
+getPhysicalDeviceProperties physicalDevice = do
+  deviceProperties <- alloca $ \propertiesPtr -> do
+    vkGetPhysicalDeviceProperties physicalDevice propertiesPtr
+    peek propertiesPtr
+  return deviceProperties
+
 selectPhysicalDevice :: VkInstance 
-  -> Maybe VkSurfaceKHR 
-  -> IO (Maybe SwapChainSupportDetails, VkPhysicalDevice)
+                     -> Maybe VkSurfaceKHR 
+                     -> IO (Maybe SwapChainSupportDetails, VkPhysicalDevice)
 selectPhysicalDevice vkInstance maybeVkSurface = do
   devices <- asListVK $ \counterPtr valueArrayPtr ->
     throwingVK "pickPhysicalDevice: Failed to enumerate physical devices." 
@@ -401,6 +410,25 @@ destroyDevice device deviceCreateInfo physicalDeviceFeatures = do
   vkDestroyDevice device VK_NULL_HANDLE
   touchVkData deviceCreateInfo
   touchVkData physicalDeviceFeatures
+
+getMaxUsableSampleCount :: VkPhysicalDeviceProperties -> IO VkSampleCountFlagBits
+getMaxUsableSampleCount deviceProperties = do
+  let limits = getField @"limits" deviceProperties
+      colorSampleCounts = getField @"framebufferColorSampleCounts" limits
+      depthSampleCounts = getField @"framebufferDepthSampleCounts" limits
+      counts = min colorSampleCounts depthSampleCounts
+      splitCounts = filter ((/= VK_ZERO_FLAGS) . (counts .&.))
+        [ VK_SAMPLE_COUNT_64_BIT
+        , VK_SAMPLE_COUNT_32_BIT
+        , VK_SAMPLE_COUNT_16_BIT
+        , VK_SAMPLE_COUNT_8_BIT
+        , VK_SAMPLE_COUNT_4_BIT
+        , VK_SAMPLE_COUNT_2_BIT
+        , VK_SAMPLE_COUNT_1_BIT
+        ]
+      highestCount = head $ splitCounts >>= maskToBits
+  putStrLn $ "MSAA Samples: " ++ show highestCount
+  return highestCount
 
 chooseSwapSurfaceFormat :: SwapChainSupportDetails -> IO VkSurfaceFormatKHR
 chooseSwapSurfaceFormat swapChainSupportDetails = do

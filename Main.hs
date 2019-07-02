@@ -27,7 +27,7 @@ main = do
   requireExtensions <- GLFW.getRequiredInstanceExtensions
   instanceExtensionNames <- getInstanceExtensionSupport
   result <- checkExtensionSupport instanceExtensionNames requireExtensions
-  unless result (throwVKMsg "Failed to initialize GLFW window.")
+  unless result (throwVKMsg "Failed to initialize GLFW window.")  
   let
     Just window = maybeWindow
     progName = "02-GLFWWindow"
@@ -36,6 +36,8 @@ main = do
   vkInstance <- createVulkanInstance progName engineName vulkanLayers requireExtensions
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
+  deviceProperties <- getPhysicalDeviceProperties physicalDevice
+  msaaSamples <- getMaxUsableSampleCount deviceProperties
   physicalDeviceFeatures <- getPhysicalDeviceFeatures  
   queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
   let 
