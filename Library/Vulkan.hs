@@ -47,12 +47,13 @@ module Library.Vulkan
   , createCommandBuffers
   , destroyCommandBuffers
   , createSemaphores
-  , destroySemaphore
+  , destroySemaphores
   , drawFrame
   ) where
 
 import Control.Monad
 import Data.Bits
+import Data.IORef
 import Data.List ((\\))
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
@@ -111,8 +112,11 @@ data SwapChainData = SwapChainData
   , swapChainExtent :: VkExtent2D
   } deriving (Eq, Show)
 
+instance Show (IORef a) where
+    show _ = "<ioref>"
 data RenderData = RenderData
-  { imageAvailableSemaphores :: [VkSemaphore]
+  { frameIndexRef :: IORef Int
+  , imageAvailableSemaphores :: [VkSemaphore]
   , renderFinishedSemaphores :: [VkSemaphore]
   , device :: VkDevice
   , swapChainData :: SwapChainData
@@ -944,59 +948,63 @@ createSemaphores device = do
     let semaphoreCreateInfo = createVk @VkSemaphoreCreateInfo
           $  set @"sType" VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
           &* set @"pNext" VK_NULL
-          &* set @"flags" VK_ZERO_FLAGS
-    withPtr semaphoreCreateInfo $ \semaphoreCreateInfoPtr ->
-      throwingVK "vkCreateSemaphore failed!"
-        $ vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL (ptrAtIndex semaphoresPtr 0)
+          &* set @"flags" VK_ZERO_FLAGS    
+    forM [0..(maxFrameCount-1)] $ \index -> do
+      withPtr semaphoreCreateInfo $ \semaphoreCreateInfoPtr -> do
+        throwingVK "vkCreateSemaphore failed!"
+          $ vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL (ptrAtIndex semaphoresPtr index)
     peekArray maxFrameCount semaphoresPtr
   putStrLn $ "Create Semaphore: " ++ show semaphores
   return semaphores
 
 destroySemaphores :: VkDevice -> [VkSemaphore] -> IO ()
-destroySemaphores device semaphores = do
-  putStrLn $ "Destroy Semaphore: " ++ show semaphore
-  vkDestroySemaphore device semaphore VK_NULL
+destroySemaphores device semaphores = do  
+  forM semaphores $ \semaphore -> 
+    vkDestroySemaphore device semaphore VK_NULL
+  putStrLn $ "Destroy Semaphore: " ++ show semaphores
 
 
 drawFrame :: RenderData -> IO ()
-drawFrame RenderData {..} =
+drawFrame RenderData {..} = do  
+  frameIndex <- readIORef frameIndexRef
   withArray commandBuffers $ \commandBuffersPtr -> do
     throwingVK "vkAcquireNextImageKHR failed!"
-      $ vkAcquireNextImageKHR device swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
+      $ vkAcquireNextImageKHR device swapChain maxBound (imageAvailableSemaphores !! frameIndex) VK_NULL_HANDLE imageIndexPtr
 
     commandBufferPtr <- (\imageIndex -> plusPtr commandBuffersPtr (fromIntegral imageIndex * sizeOf (undefined :: VkCommandBuffer))) 
         <$> peek imageIndexPtr
 
-    withPtr (submitInfo commandBufferPtr) $ \submitInfoPtr ->
+    withPtr (submitInfo commandBufferPtr frameIndex) $ \submitInfoPtr ->
       throwingVK "vkQueueSubmit failed!"
         $ vkQueueSubmit graphicsQueue 1 submitInfoPtr VK_NULL
 
-    withPtr presentInfo $ \presentInfoPtr ->
+    withPtr (presentInfo frameIndex) $ \presentInfoPtr ->
       throwingVK "vkQueuePresentKHR failed!"
         $ vkQueuePresentKHR presentQueue presentInfoPtr
 
     throwingVK "vkQueueWaitIdle failed!"
       $ vkQueueWaitIdle presentQueue
+  writeIORef frameIndexRef $ mod (frameIndex + 1) maxFrameCount
   where
     SwapChainData {..} = swapChainData
     QueueFamilyDatas {..} = queueFamilyDatas
-    submitInfo :: Ptr VkCommandBuffer -> VkSubmitInfo
-    submitInfo commandBufferPtr = createVk @VkSubmitInfo
+    submitInfo :: Ptr VkCommandBuffer -> Int -> VkSubmitInfo
+    submitInfo commandBufferPtr frameIndex = createVk @VkSubmitInfo
       $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
       &* set @"pNext" VK_NULL
       &* set @"waitSemaphoreCount" 1
-      &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
+      &* setListRef @"pWaitSemaphores" [imageAvailableSemaphores !! frameIndex]
       &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
       &* set @"commandBufferCount" 1
       &* set @"pCommandBuffers" commandBufferPtr
       &* set @"signalSemaphoreCount" 1
-      &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
-    presentInfo :: VkPresentInfoKHR
-    presentInfo = createVk @VkPresentInfoKHR
+      &* setListRef @"pSignalSemaphores" [renderFinishedSemaphores !! frameIndex]
+    presentInfo :: Int -> VkPresentInfoKHR
+    presentInfo frameIndex = createVk @VkPresentInfoKHR
       $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
       &* set @"pNext" VK_NULL
       &* set @"pImageIndices" imageIndexPtr
       &* set @"waitSemaphoreCount" 1
-      &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
+      &* setListRef @"pWaitSemaphores" [renderFinishedSemaphores !! frameIndex]
       &* set @"swapchainCount" 1
       &* setListRef @"pSwapchains" [swapChain]

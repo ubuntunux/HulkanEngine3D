@@ -7,6 +7,7 @@
 module Main (main) where
 
 import Control.Monad
+import Data.IORef
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
@@ -20,7 +21,7 @@ import Library.Vulkan
 
 
 main::IO()
-main = do 
+main = do   
   maybeWindow <- createGLFWWindow 800 600 "Vulkan Application"
   when (Nothing == maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
   putStrLn "Initialized GLFW window."
@@ -80,10 +81,11 @@ main = do
   (commandBuffers, commandBuffersPtr) <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
   imageAvailableSemaphores <- createSemaphores device
   renderFinishedSemaphores <- createSemaphores device  
-
+  frameIndexRef <- newIORef 0
   renderData <- alloca $ \imageIndexPtr -> do
     return RenderData
-          { imageAvailableSemaphores = imageAvailableSemaphores
+          { frameIndexRef = frameIndexRef
+          , imageAvailableSemaphores = imageAvailableSemaphores
           , renderFinishedSemaphores = renderFinishedSemaphores
           , device = device
           , swapChainData = swapChainData
