@@ -1,4 +1,9 @@
-{-# LANGUAGE Strict #-}
+{-# LANGUAGE Strict               #-}
+{-# LANGUAGE MagicHash            #-}
+{-# LANGUAGE BangPatterns         #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 
 module Library.Utils
     ( VulkanException (..)
@@ -7,6 +12,8 @@ module Library.Utils
     , throwVKMsg
     , withCStringList
     , asListVK
+    , unsafeAddr
+    , ptrAtIndex
     ) where
 
 import Control.Exception
@@ -16,6 +23,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
+import GHC.Exts
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 
@@ -58,8 +66,6 @@ throwingVK msg f = do
 throwVKMsg :: String -> IO a
 throwVKMsg msg = throwIO $ VulkanException Nothing msg
 
-
-
 -- | Use list of haskell strings as @Ptr CString@
 withCStringList :: [String] -> (Int -> Ptr CString -> IO a) -> IO a
 withCStringList [] f = f 0 nullPtr
@@ -67,7 +73,6 @@ withCStringList xs f = go xs [] 0
   where
     go [] pts n     = withArray (reverse pts) (f n)
     go (s:ss) pts n = withCString s (\p -> go ss (p:pts) (n+1))
-
 
 -- | Get size of action output and then get the result,
 --   performing data copy.
@@ -82,3 +87,13 @@ asListVK action = alloca $ \counterPtr -> do
   else allocaArray counter $ \valPtr -> do
     action counterPtr valPtr
     peekArray counter valPtr
+
+-- Any is a type to which any type can be safely unsafeCoerced to.
+aToWord# :: Any -> Word#
+aToWord# a = let !mb = a in case unsafeCoerce# mb :: Word of W# addr -> addr
+
+unsafeAddr :: a -> Int
+unsafeAddr a = I# (word2Int# (aToWord# (unsafeCoerce# a)))
+
+ptrAtIndex :: forall a. Storable a => Ptr a -> Int -> Ptr a
+ptrAtIndex ptr i = ptr `plusPtr` (i * sizeOf @a undefined)

@@ -46,7 +46,7 @@ module Library.Vulkan
   , destroyCommandPool
   , createCommandBuffers
   , destroyCommandBuffers
-  , createSemaphore
+  , createSemaphores
   , destroySemaphore
   , drawFrame
   ) where
@@ -77,6 +77,9 @@ requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
 
 invalidQueueIndex :: Word32
 invalidQueueIndex = maxBound
+
+maxFrameCount :: Int
+maxFrameCount = 2
 
 data QueueFamilyIndices = QueueFamilyIndices
   { graphicsQueueIndex :: Word32
@@ -109,8 +112,8 @@ data SwapChainData = SwapChainData
   } deriving (Eq, Show)
 
 data RenderData = RenderData
-  { imageAvailableSemaphore :: VkSemaphore
-  , renderFinishedSemaphore :: VkSemaphore
+  { imageAvailableSemaphores :: [VkSemaphore]
+  , renderFinishedSemaphores :: [VkSemaphore]
   , device :: VkDevice
   , swapChainData :: SwapChainData
   , queueFamilyDatas :: QueueFamilyDatas
@@ -935,22 +938,22 @@ destroyCommandBuffers device commandPool buffersCount commandBuffersPtr =
   vkFreeCommandBuffers device commandPool buffersCount commandBuffersPtr
 
 
-createSemaphore :: VkDevice -> IO VkSemaphore
-createSemaphore device = do  
-  semaphore <- alloca $ \semaphorePtr -> do
+createSemaphores :: VkDevice -> IO [VkSemaphore]
+createSemaphores device = do
+  semaphores <- allocaArray maxFrameCount $ \semaphoresPtr -> do
     let semaphoreCreateInfo = createVk @VkSemaphoreCreateInfo
           $  set @"sType" VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
           &* set @"pNext" VK_NULL
           &* set @"flags" VK_ZERO_FLAGS
     withPtr semaphoreCreateInfo $ \semaphoreCreateInfoPtr ->
       throwingVK "vkCreateSemaphore failed!"
-        $ vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL semaphorePtr
-    peek semaphorePtr
-  putStrLn $ "Create Semaphore: " ++ show semaphore
-  return semaphore
+        $ vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL (ptrAtIndex semaphoresPtr 0)
+    peekArray maxFrameCount semaphoresPtr
+  putStrLn $ "Create Semaphore: " ++ show semaphores
+  return semaphores
 
-destroySemaphore :: VkDevice -> VkSemaphore -> IO ()
-destroySemaphore device semaphore = do
+destroySemaphores :: VkDevice -> [VkSemaphore] -> IO ()
+destroySemaphores device semaphores = do
   putStrLn $ "Destroy Semaphore: " ++ show semaphore
   vkDestroySemaphore device semaphore VK_NULL
 

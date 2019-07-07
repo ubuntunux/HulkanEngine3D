@@ -78,13 +78,13 @@ main = do
   frameBuffers <- createFramebuffers device renderPass swapChainData swapChainImageViews
   commandPool <- createCommandPool device queueFamilyDatas
   (commandBuffers, commandBuffersPtr) <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
-  imageAvailableSemaphore <- createSemaphore device
-  renderFinishedSemaphore <- createSemaphore device  
+  imageAvailableSemaphores <- createSemaphores device
+  renderFinishedSemaphores <- createSemaphores device  
 
   renderData <- alloca $ \imageIndexPtr -> do
     return RenderData
-          { imageAvailableSemaphore = imageAvailableSemaphore
-          , renderFinishedSemaphore = renderFinishedSemaphore
+          { imageAvailableSemaphores = imageAvailableSemaphores
+          , renderFinishedSemaphores = renderFinishedSemaphores
           , device = device
           , swapChainData = swapChainData
           , queueFamilyDatas = queueFamilyDatas
@@ -100,8 +100,8 @@ main = do
 
   -- Terminate
   putStrLn "\n[ Terminate ]"
-  destroySemaphore device renderFinishedSemaphore
-  destroySemaphore device imageAvailableSemaphore  
+  destroySemaphores device renderFinishedSemaphores
+  destroySemaphores device imageAvailableSemaphores 
   destroyCommandBuffers device commandPool (fromIntegral $ length commandBuffers) commandBuffersPtr
   destroyCommandPool device commandPool
   destroyFramebuffers device frameBuffers
