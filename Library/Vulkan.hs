@@ -48,6 +48,8 @@ module Library.Vulkan
   , destroyCommandBuffers
   , createSemaphores
   , destroySemaphores
+  , createFrameFences
+  , destroyFrameFences
   , drawFrame
   ) where
 
@@ -123,6 +125,7 @@ data RenderData = RenderData
   , queueFamilyDatas :: QueueFamilyDatas
   , imageIndexPtr :: Ptr Word32
   , commandBuffers :: [VkCommandBuffer]
+  , inFlightFencesPtr :: Ptr VkFence
   } deriving (Eq, Show)
 
 
@@ -880,10 +883,10 @@ createCommandBuffers :: VkDevice
                      -> VkRenderPass
                      -> SwapChainData
                      -> [VkFramebuffer]
-                     -> IO ([VkCommandBuffer], Ptr VkCommandBuffer)
+                     -> IO [VkCommandBuffer]
 createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} frameBuffers = do
   let buffersCount = length frameBuffers
-  (commandBuffers, commandBuffersPtr) <- allocaArray buffersCount $ \commandBuffersPtr -> do    
+  commandBuffers <- allocaArray buffersCount $ \commandBuffersPtr -> do    
     let allocationInfo = createVk @VkCommandBufferAllocateInfo
           $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
           &* set @"pNext" VK_NULL
@@ -892,10 +895,9 @@ createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} fr
           &* set @"commandBufferCount" (fromIntegral buffersCount)
     withPtr allocationInfo $ \allocationInfoPtr ->
       throwingVK "vkAllocateCommandBuffers failed!"
-        $ vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr
-    commandBuffers <- peekArray buffersCount commandBuffersPtr
+        $ vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr    
     putStrLn $ "Create Command Buffer: "  ++ show buffersCount
-    return (commandBuffers, commandBuffersPtr)
+    peekArray buffersCount commandBuffersPtr
 
   -- record command buffers
   forM_ (zip frameBuffers commandBuffers) $ \(frameBuffer, commandBuffer) -> do    
@@ -935,7 +937,7 @@ createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} fr
     vkCmdEndRenderPass commandBuffer
     throwingVK "vkEndCommandBuffer failed!" 
       $ vkEndCommandBuffer commandBuffer
-  return (commandBuffers, commandBuffersPtr)
+  return commandBuffers
 
 destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuffer -> IO ()
 destroyCommandBuffers device commandPool buffersCount commandBuffersPtr =
@@ -963,11 +965,34 @@ destroySemaphores device semaphores = do
     vkDestroySemaphore device semaphore VK_NULL
   putStrLn $ "Destroy Semaphore: " ++ show semaphores
 
+createFrameFences :: VkDevice -> IO [VkFence]
+createFrameFences device = do
+  fences <- allocaArray maxFrameCount $ \fencesPtr -> do
+    let fenceCreateInfo = createVk @VkFenceCreateInfo
+          $  set @"sType" VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+          &* set @"pNext" VK_NULL
+          &* set @"flags" VK_FENCE_CREATE_SIGNALED_BIT
+    forM [0..(maxFrameCount-1)] $ \index -> do
+      withPtr fenceCreateInfo $ \fenceCreateInfoPtr -> do
+        throwingVK "vkCreateSemaphore failed!"
+          $ vkCreateFence device fenceCreateInfoPtr VK_NULL (ptrAtIndex fencesPtr index)
+    peekArray maxFrameCount fencesPtr
+  putStrLn $ "Create VkFence: " ++ show fences
+  return fences
+
+destroyFrameFences :: VkDevice -> [VkFence] -> IO ()
+destroyFrameFences device fences = do  
+  forM fences $ \fence -> 
+    vkDestroyFence device fence VK_NULL
+  putStrLn $ "Destroy VkFence: " ++ show fences
 
 drawFrame :: RenderData -> IO ()
 drawFrame RenderData {..} = do  
   frameIndex <- readIORef frameIndexRef
   withArray commandBuffers $ \commandBuffersPtr -> do
+    throwingVK "vkWaitForFences failed!"
+      $ vkWaitForFences device 1 (ptrAtIndex inFlightFencesPtr frameIndex) VK_TRUE (maxBound :: Word64)
+
     throwingVK "vkAcquireNextImageKHR failed!"
       $ vkAcquireNextImageKHR device swapChain maxBound (imageAvailableSemaphores !! frameIndex) VK_NULL_HANDLE imageIndexPtr
 

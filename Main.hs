@@ -12,6 +12,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
+import Foreign.Marshal.Utils
 import Graphics.Vulkan.Core_1_0
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
@@ -78,12 +79,15 @@ main = do
   graphicsPipeline <- createGraphicsPipeline device swapChainData [vertexShaderCreateInfo, fragmentShaderCreateInfo] renderPass pipelineLayout
   frameBuffers <- createFramebuffers device renderPass swapChainData swapChainImageViews
   commandPool <- createCommandPool device queueFamilyDatas
-  (commandBuffers, commandBuffersPtr) <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
+  commandBuffers <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
+  commandBuffersPtr <- newArray commandBuffers
   imageAvailableSemaphores <- createSemaphores device
   renderFinishedSemaphores <- createSemaphores device  
+  inFlightFences <- createFrameFences device  
+  inFlightFencesPtr <- newArray inFlightFences
   frameIndexRef <- newIORef 0
-  renderData <- alloca $ \imageIndexPtr -> do
-    return RenderData
+  imageIndexPtr <- new 0
+  renderData <- pure RenderData
           { frameIndexRef = frameIndexRef
           , imageAvailableSemaphores = imageAvailableSemaphores
           , renderFinishedSemaphores = renderFinishedSemaphores
@@ -91,7 +95,8 @@ main = do
           , swapChainData = swapChainData
           , queueFamilyDatas = queueFamilyDatas
           , imageIndexPtr = imageIndexPtr
-          , commandBuffers = commandBuffers }
+          , commandBuffers = commandBuffers
+          , inFlightFencesPtr = inFlightFencesPtr }
 
   -- Main Loop
   glfwMainLoop window $ do    
@@ -102,6 +107,7 @@ main = do
 
   -- Terminate
   putStrLn "\n[ Terminate ]"
+  destroyFrameFences device inFlightFences
   destroySemaphores device renderFinishedSemaphores
   destroySemaphores device imageAvailableSemaphores 
   destroyCommandBuffers device commandPool (fromIntegral $ length commandBuffers) commandBuffersPtr
@@ -120,6 +126,9 @@ main = do
   free requireDeviceExtensionsPtr
   free queueCreateInfoArrayPtr
   free createQueueFamilyListPtr  
+  free commandBuffersPtr
+  free inFlightFencesPtr
+  free imageIndexPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
