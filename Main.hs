@@ -83,8 +83,7 @@ main = do
   commandBuffersPtr <- newArray commandBuffers
   imageAvailableSemaphores <- createSemaphores device
   renderFinishedSemaphores <- createSemaphores device  
-  inFlightFences <- createFrameFences device  
-  inFlightFencesPtr <- newArray inFlightFences
+  frameFencesPtr <- createFrameFences device
   frameIndexRef <- newIORef 0
   imageIndexPtr <- new 0
   renderData <- pure RenderData
@@ -96,7 +95,7 @@ main = do
           , queueFamilyDatas = queueFamilyDatas
           , imageIndexPtr = imageIndexPtr
           , commandBuffers = commandBuffers
-          , inFlightFencesPtr = inFlightFencesPtr }
+          , frameFencesPtr = frameFencesPtr }
 
   -- Main Loop
   glfwMainLoop window $ do    
@@ -107,7 +106,7 @@ main = do
 
   -- Terminate
   putStrLn "\n[ Terminate ]"
-  destroyFrameFences device inFlightFences
+  destroyFrameFences device frameFencesPtr
   destroySemaphores device renderFinishedSemaphores
   destroySemaphores device imageAvailableSemaphores 
   destroyCommandBuffers device commandPool (fromIntegral $ length commandBuffers) commandBuffersPtr
@@ -127,7 +126,7 @@ main = do
   free queueCreateInfoArrayPtr
   free createQueueFamilyListPtr  
   free commandBuffersPtr
-  free inFlightFencesPtr
+  free frameFencesPtr
   free imageIndexPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."

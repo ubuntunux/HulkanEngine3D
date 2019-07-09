@@ -125,7 +125,7 @@ data RenderData = RenderData
   , queueFamilyDatas :: QueueFamilyDatas
   , imageIndexPtr :: Ptr Word32
   , commandBuffers :: [VkCommandBuffer]
-  , inFlightFencesPtr :: Ptr VkFence
+  , frameFencesPtr :: Ptr VkFence
   } deriving (Eq, Show)
 
 
@@ -965,33 +965,34 @@ destroySemaphores device semaphores = do
     vkDestroySemaphore device semaphore VK_NULL
   putStrLn $ "Destroy Semaphore: " ++ show semaphores
 
-createFrameFences :: VkDevice -> IO [VkFence]
+createFrameFences :: VkDevice -> IO (Ptr VkFence)
 createFrameFences device = do
-  fences <- allocaArray maxFrameCount $ \fencesPtr -> do
-    let fenceCreateInfo = createVk @VkFenceCreateInfo
-          $  set @"sType" VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
-          &* set @"pNext" VK_NULL
-          &* set @"flags" VK_FENCE_CREATE_SIGNALED_BIT
-    forM [0..(maxFrameCount-1)] $ \index -> do
-      withPtr fenceCreateInfo $ \fenceCreateInfoPtr -> do
-        throwingVK "vkCreateSemaphore failed!"
-          $ vkCreateFence device fenceCreateInfoPtr VK_NULL (ptrAtIndex fencesPtr index)
-    peekArray maxFrameCount fencesPtr
-  putStrLn $ "Create VkFence: " ++ show fences
-  return fences
+  frameFencesPtr <- mallocArray maxFrameCount
+  let fenceCreateInfo = createVk @VkFenceCreateInfo
+        $  set @"sType" VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+        &* set @"pNext" VK_NULL
+        &* set @"flags" VK_FENCE_CREATE_SIGNALED_BIT
+  forM [0..(maxFrameCount-1)] $ \index -> do
+    withPtr fenceCreateInfo $ \fenceCreateInfoPtr -> do
+      throwingVK "vkCreateSemaphore failed!"
+        $ vkCreateFence device fenceCreateInfoPtr VK_NULL (ptrAtIndex frameFencesPtr index)  
+  putStrLn $ "Create VkFences: " ++ show maxFrameCount
+  return frameFencesPtr  
 
-destroyFrameFences :: VkDevice -> [VkFence] -> IO ()
-destroyFrameFences device fences = do  
+destroyFrameFences :: VkDevice -> Ptr VkFence -> IO ()
+destroyFrameFences device frameFencesPtr = do
+  fences <- peekArray maxFrameCount frameFencesPtr
   forM fences $ \fence -> 
     vkDestroyFence device fence VK_NULL
   putStrLn $ "Destroy VkFence: " ++ show fences
+
 
 drawFrame :: RenderData -> IO ()
 drawFrame RenderData {..} = do  
   frameIndex <- readIORef frameIndexRef
   withArray commandBuffers $ \commandBuffersPtr -> do
     throwingVK "vkWaitForFences failed!"
-      $ vkWaitForFences device 1 (ptrAtIndex inFlightFencesPtr frameIndex) VK_TRUE (maxBound :: Word64)
+      $ vkWaitForFences device 1 (ptrAtIndex frameFencesPtr frameIndex) VK_TRUE (maxBound :: Word64)
 
     throwingVK "vkAcquireNextImageKHR failed!"
       $ vkAcquireNextImageKHR device swapChain maxBound (imageAvailableSemaphores !! frameIndex) VK_NULL_HANDLE imageIndexPtr
