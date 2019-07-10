@@ -18,6 +18,7 @@ module Library.Utils
 
 import Control.Exception
 import Control.Monad (when)
+import Data.IORef
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -48,6 +49,9 @@ instance Exception VulkanException where
     , "Vulkan error: " ++ show c
     , "*** " ++ msg
     ]
+
+instance Show (IORef a) where
+  show _ = "<ioref>"
 
 -- | Handle any error and return default value
 handleAllErrors :: a -> SomeException -> IO a

@@ -114,8 +114,6 @@ data SwapChainData = SwapChainData
   , swapChainExtent :: VkExtent2D
   } deriving (Eq, Show)
 
-instance Show (IORef a) where
-    show _ = "<ioref>"
 data RenderData = RenderData
   { frameIndexRef :: IORef Int
   , imageAvailableSemaphores :: [VkSemaphore]
@@ -124,7 +122,7 @@ data RenderData = RenderData
   , swapChainData :: SwapChainData
   , queueFamilyDatas :: QueueFamilyDatas
   , imageIndexPtr :: Ptr Word32
-  , commandBuffers :: [VkCommandBuffer]
+  , commandBuffersPtr :: Ptr VkCommandBuffer
   , frameFencesPtr :: Ptr VkFence
   } deriving (Eq, Show)
 
@@ -883,23 +881,24 @@ createCommandBuffers :: VkDevice
                      -> VkRenderPass
                      -> SwapChainData
                      -> [VkFramebuffer]
-                     -> IO [VkCommandBuffer]
+                     -> IO (Ptr VkCommandBuffer, Int)
 createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} frameBuffers = do
-  let buffersCount = length frameBuffers
-  commandBuffers <- allocaArray buffersCount $ \commandBuffersPtr -> do    
-    let allocationInfo = createVk @VkCommandBufferAllocateInfo
-          $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
-          &* set @"pNext" VK_NULL
-          &* set @"commandPool" commandPool
-          &* set @"level" VK_COMMAND_BUFFER_LEVEL_PRIMARY
-          &* set @"commandBufferCount" (fromIntegral buffersCount)
-    withPtr allocationInfo $ \allocationInfoPtr ->
-      throwingVK "vkAllocateCommandBuffers failed!"
-        $ vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr    
-    putStrLn $ "Create Command Buffer: "  ++ show buffersCount
-    peekArray buffersCount commandBuffersPtr
+  let bufferCount = length frameBuffers
+  commandBuffersPtr <- mallocArray bufferCount::IO (Ptr VkCommandBuffer)
+  let allocationInfo = createVk @VkCommandBufferAllocateInfo
+        $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
+        &* set @"pNext" VK_NULL
+        &* set @"commandPool" commandPool
+        &* set @"level" VK_COMMAND_BUFFER_LEVEL_PRIMARY
+        &* set @"commandBufferCount" (fromIntegral bufferCount)
+  withPtr allocationInfo $ \allocationInfoPtr ->
+    throwingVK "vkAllocateCommandBuffers failed!"
+      $ vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr    
+  putStrLn $ "Create Command Buffer: "  ++ show bufferCount
 
-  -- record command buffers
+  commandBuffers <- peekArray bufferCount commandBuffersPtr
+
+  -- record command buffers  
   forM_ (zip frameBuffers commandBuffers) $ \(frameBuffer, commandBuffer) -> do    
     let
       commandBufferBeginInfo :: VkCommandBufferBeginInfo
@@ -937,11 +936,11 @@ createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} fr
     vkCmdEndRenderPass commandBuffer
     throwingVK "vkEndCommandBuffer failed!" 
       $ vkEndCommandBuffer commandBuffer
-  return commandBuffers
+  return (commandBuffersPtr, bufferCount)
 
 destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuffer -> IO ()
-destroyCommandBuffers device commandPool buffersCount commandBuffersPtr =
-  vkFreeCommandBuffers device commandPool buffersCount commandBuffersPtr
+destroyCommandBuffers device commandPool bufferCount commandBuffersPtr =
+  vkFreeCommandBuffers device commandPool bufferCount commandBuffersPtr
 
 
 createSemaphores :: VkDevice -> IO [VkSemaphore]
@@ -989,48 +988,53 @@ destroyFrameFences device frameFencesPtr = do
 
 drawFrame :: RenderData -> IO ()
 drawFrame RenderData {..} = do  
+  let SwapChainData {..} = swapChainData
+  let QueueFamilyDatas {..} = queueFamilyDatas
+
   frameIndex <- readIORef frameIndexRef
-  withArray commandBuffers $ \commandBuffersPtr -> do
-    throwingVK "vkWaitForFences failed!"
-      $ vkWaitForFences device 1 (ptrAtIndex frameFencesPtr frameIndex) VK_TRUE (maxBound :: Word64)
+  let frameFencePtr = ptrAtIndex frameFencesPtr frameIndex
 
-    throwingVK "vkAcquireNextImageKHR failed!"
-      $ vkAcquireNextImageKHR device swapChain maxBound (imageAvailableSemaphores !! frameIndex) VK_NULL_HANDLE imageIndexPtr
+  throwingVK "vkWaitForFences failed!"
+      $ vkWaitForFences device 1 frameFencePtr VK_TRUE (maxBound :: Word64)
 
-    commandBufferPtr <- (\imageIndex -> plusPtr commandBuffersPtr (fromIntegral imageIndex * sizeOf (undefined :: VkCommandBuffer))) 
-        <$> peek imageIndexPtr
+  let imageAvailableSemaphore = imageAvailableSemaphores !! frameIndex
+      renderFinishedSemaphore = renderFinishedSemaphores !! frameIndex
+      
+  throwingVK "vkAcquireNextImageKHR failed!"
+    $ vkAcquireNextImageKHR device swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
 
-    withPtr (submitInfo commandBufferPtr frameIndex) $ \submitInfoPtr ->
-      throwingVK "vkQueueSubmit failed!"
-        $ vkQueueSubmit graphicsQueue 1 submitInfoPtr VK_NULL
+  imageIndex <- fromIntegral <$> peek imageIndexPtr
+  let commandBufferPtr = ptrAtIndex commandBuffersPtr (fromIntegral imageIndex)
 
-    withPtr (presentInfo frameIndex) $ \presentInfoPtr ->
-      throwingVK "vkQueuePresentKHR failed!"
-        $ vkQueuePresentKHR presentQueue presentInfoPtr
+  let submitInfo = createVk @VkSubmitInfo
+        $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
+        &* set @"pNext" VK_NULL
+        &* set @"waitSemaphoreCount" 1
+        &* setListRef @"pWaitSemaphores" [imageAvailableSemaphores !! frameIndex]
+        &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+        &* set @"commandBufferCount" 1
+        &* set @"pCommandBuffers" commandBufferPtr
+        &* set @"signalSemaphoreCount" 1
+        &* setListRef @"pSignalSemaphores" [renderFinishedSemaphores !! frameIndex]
 
-    throwingVK "vkQueueWaitIdle failed!"
-      $ vkQueueWaitIdle presentQueue
+  withPtr submitInfo $ \submitInfoPtr ->
+    throwingVK "vkQueueSubmit failed!"
+      $ vkQueueSubmit graphicsQueue 1 submitInfoPtr VK_NULL
+
+  let presentInfo = createVk @VkPresentInfoKHR
+        $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
+        &* set @"pNext" VK_NULL
+        &* set @"pImageIndices" imageIndexPtr
+        &* set @"waitSemaphoreCount" 1
+        &* setListRef @"pWaitSemaphores" [renderFinishedSemaphores !! frameIndex]
+        &* set @"swapchainCount" 1
+        &* setListRef @"pSwapchains" [swapChain]
+
+  withPtr presentInfo $ \presentInfoPtr ->
+    throwingVK "vkQueuePresentKHR failed!"
+      $ vkQueuePresentKHR presentQueue presentInfoPtr
+
+  throwingVK "vkQueueWaitIdle failed!"
+    $ vkQueueWaitIdle presentQueue
+
   writeIORef frameIndexRef $ mod (frameIndex + 1) maxFrameCount
-  where
-    SwapChainData {..} = swapChainData
-    QueueFamilyDatas {..} = queueFamilyDatas
-    submitInfo :: Ptr VkCommandBuffer -> Int -> VkSubmitInfo
-    submitInfo commandBufferPtr frameIndex = createVk @VkSubmitInfo
-      $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
-      &* set @"pNext" VK_NULL
-      &* set @"waitSemaphoreCount" 1
-      &* setListRef @"pWaitSemaphores" [imageAvailableSemaphores !! frameIndex]
-      &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-      &* set @"commandBufferCount" 1
-      &* set @"pCommandBuffers" commandBufferPtr
-      &* set @"signalSemaphoreCount" 1
-      &* setListRef @"pSignalSemaphores" [renderFinishedSemaphores !! frameIndex]
-    presentInfo :: Int -> VkPresentInfoKHR
-    presentInfo frameIndex = createVk @VkPresentInfoKHR
-      $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
-      &* set @"pNext" VK_NULL
-      &* set @"pImageIndices" imageIndexPtr
-      &* set @"waitSemaphoreCount" 1
-      &* setListRef @"pWaitSemaphores" [renderFinishedSemaphores !! frameIndex]
-      &* set @"swapchainCount" 1
-      &* setListRef @"pSwapchains" [swapChain]

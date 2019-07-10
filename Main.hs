@@ -79,8 +79,7 @@ main = do
   graphicsPipeline <- createGraphicsPipeline device swapChainData [vertexShaderCreateInfo, fragmentShaderCreateInfo] renderPass pipelineLayout
   frameBuffers <- createFramebuffers device renderPass swapChainData swapChainImageViews
   commandPool <- createCommandPool device queueFamilyDatas
-  commandBuffers <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
-  commandBuffersPtr <- newArray commandBuffers
+  (commandBuffersPtr, commandBufferCount) <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
   imageAvailableSemaphores <- createSemaphores device
   renderFinishedSemaphores <- createSemaphores device  
   frameFencesPtr <- createFrameFences device
@@ -94,7 +93,7 @@ main = do
           , swapChainData = swapChainData
           , queueFamilyDatas = queueFamilyDatas
           , imageIndexPtr = imageIndexPtr
-          , commandBuffers = commandBuffers
+          , commandBuffersPtr = commandBuffersPtr
           , frameFencesPtr = frameFencesPtr }
 
   -- Main Loop
@@ -109,7 +108,7 @@ main = do
   destroyFrameFences device frameFencesPtr
   destroySemaphores device renderFinishedSemaphores
   destroySemaphores device imageAvailableSemaphores 
-  destroyCommandBuffers device commandPool (fromIntegral $ length commandBuffers) commandBuffersPtr
+  destroyCommandBuffers device commandPool (fromIntegral commandBufferCount) commandBuffersPtr
   destroyCommandPool device commandPool
   destroyFramebuffers device frameBuffers
   destroyGraphicsPipeline device graphicsPipeline
