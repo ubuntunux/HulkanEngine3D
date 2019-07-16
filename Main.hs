@@ -9,10 +9,12 @@ module Main (main) where
 import Control.Monad
 import Data.IORef
 import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
+import Foreign.Storable
 import Graphics.Vulkan.Core_1_0
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
@@ -39,34 +41,23 @@ main = do
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   deviceProperties <- getPhysicalDeviceProperties physicalDevice
-  msaaSamples <- getMaxUsableSampleCount deviceProperties
-  physicalDeviceFeatures <- getPhysicalDeviceFeatures  
+  msaaSamples <- getMaxUsableSampleCount deviceProperties  
   queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
   let 
     graphicsQueueIndex' = graphicsQueueIndex queueFamilyIndices
-    presentQueueIndex' = presentQueueIndex queueFamilyIndices
-    createQueueFamilyMap = Map.fromList $ [(index, index) | index <- [graphicsQueueIndex', presentQueueIndex']]
-  queuePrioritiesPtr <- getQueuePrioritiesPtr 1.0
-  queueCreateInfoList <- getQueueCreateInfos (Map.elems createQueueFamilyMap) queuePrioritiesPtr  
-  queueCreateInfoArrayPtr <- newArray queueCreateInfoList
-  requireDeviceExtensionsPtr <- newArray requireDeviceExtensions
-  deviceCreateInfo <- getDeviceCreateInfo 
-    queueCreateInfoArrayPtr 
-    (length queueCreateInfoList)
-    physicalDeviceFeatures
-    vulkanLayers
-    (length requireDeviceExtensions)
-    requireDeviceExtensionsPtr
-  device <- createDevice deviceCreateInfo physicalDevice 
-  queueMap <- createQueues device (Map.elems createQueueFamilyMap)
-  createQueueFamilyListPtr <- newArray (Map.elems createQueueFamilyMap)
+    presentQueueIndex' = presentQueueIndex queueFamilyIndices    
+    queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex', presentQueueIndex']  
+  devicePtr <- createDevice physicalDevice queueFamilyIndexList
+  device <- peek devicePtr
+  queueMap <- createQueues device queueFamilyIndexList
+  queueFamilyIndicesPtr <- newArray queueFamilyIndexList
   let 
     defaultQueue = (Map.elems queueMap) !! 0
     queueFamilyDatas = QueueFamilyDatas
         { graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex' queueMap
         , presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex' queueMap
         , queueFamilyCount = fromIntegral $ length queueMap
-        , queueFamilyIndicesPtr = createQueueFamilyListPtr
+        , queueFamilyIndicesPtr = queueFamilyIndicesPtr
         , graphicsFamilyIndex = graphicsQueueIndex'
         , presentFamilyIndex = presentQueueIndex' }
     imageCount = 3 -- tripple buffering
@@ -105,28 +96,32 @@ main = do
 
   -- Terminate
   putStrLn "\n[ Terminate ]"
+
+  cleanupSwapChain device frameBuffers commandPool commandBufferCount commandBuffersPtr graphicsPipeline pipelineLayout renderPass swapChainImageViews (swapChain swapChainData)
+
   destroyFrameFences device frameFencesPtr
   destroySemaphores device renderFinishedSemaphores
   destroySemaphores device imageAvailableSemaphores 
-  destroyCommandBuffers device commandPool (fromIntegral commandBufferCount) commandBuffersPtr
+  --destroyCommandBuffers device commandPool (fromIntegral commandBufferCount) commandBuffersPtr
   destroyCommandPool device commandPool
-  destroyFramebuffers device frameBuffers
-  destroyGraphicsPipeline device graphicsPipeline
-  destroyPipelineLayout device pipelineLayout
-  destroyRenderPass device renderPass
+  --destroyFramebuffers device frameBuffers
+  --destroyGraphicsPipeline device graphicsPipeline
+  --destroyPipelineLayout device pipelineLayout
+  --destroyRenderPass device renderPass
   destroyShaderStageCreateInfo device vertexShaderCreateInfo
   destroyShaderStageCreateInfo device fragmentShaderCreateInfo
-  destroySwapChainImageViews device swapChainImageViews
-  destroySwapChain device (swapChain swapChainData)
-  destroyDevice device deviceCreateInfo physicalDeviceFeatures
+  --destroySwapChainImageViews device swapChainImageViews
+  --destroySwapChain device (swapChain swapChainData)  
+
+  destroyDevice devicePtr
   destroyVkSurface vkInstance vkSurface
   destroyVulkanInstance vkInstance
-  free requireDeviceExtensionsPtr
-  free queueCreateInfoArrayPtr
-  free createQueueFamilyListPtr  
+  
+  free queueFamilyIndicesPtr  
   free commandBuffersPtr
   free frameFencesPtr
   free imageIndexPtr
+
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()

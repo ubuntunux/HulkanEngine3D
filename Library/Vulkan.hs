@@ -22,10 +22,7 @@ module Library.Vulkan
   , destroyVkSurface
   , selectPhysicalDevice
   , getPhysicalDeviceProperties
-  , getPhysicalDeviceFeatures
   , getQueueFamilyIndices
-  , getQueuePrioritiesPtr
-  , getQueueCreateInfos
   , getDeviceCreateInfo
   , createQueues
   , createDevice
@@ -51,6 +48,7 @@ module Library.Vulkan
   , createFrameFences
   , destroyFrameFences
   , drawFrame
+  , cleanupSwapChain
   ) where
 
 import Control.Monad
@@ -60,6 +58,7 @@ import Data.List ((\\))
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
+import Foreign.Marshal.Utils
 import Foreign.Storable
 import Foreign.C.String
 import Foreign.Ptr
@@ -241,9 +240,6 @@ isDeviceSuitable maybeVkSurface physicalDevice = do
         return (Just swapChainSupportDetails, not (null formats) && not (null presentModes))
   pure (maybeSwapChainSupportDetails, hasExtension && result)
 
-getPhysicalDeviceFeatures :: IO VkPhysicalDeviceFeatures
-getPhysicalDeviceFeatures = newVkData @VkPhysicalDeviceFeatures clearStorable
-
 getPhysicalDeviceProperties :: VkPhysicalDevice -> IO VkPhysicalDeviceProperties
 getPhysicalDeviceProperties physicalDevice = do
   deviceProperties <- alloca $ \propertiesPtr -> do
@@ -345,24 +341,16 @@ getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode = do
         if isConcurrentMode && (elem defaultIndex indices) then defaultIndex
         else if 0 < (length result) then result !! 0
         else defaultIndex
-        
-getQueuePrioritiesPtr :: Float -> IO (Ptr Float)
-getQueuePrioritiesPtr value = 
-  alloca $ \ptr -> do
-    poke ptr value
-    return ptr
 
-getQueueCreateInfos :: [Word32] -> Ptr Float -> IO [VkDeviceQueueCreateInfo]
-getQueueCreateInfos queueFamilyIndices queuePrioritiesPtr = do
-  queueCreateInfoList <- forM queueFamilyIndices $ \queueFamilyIndex ->
-    newVkData @VkDeviceQueueCreateInfo $ \queueCreateInfoPtr -> do
-        writeField @"sType" queueCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
-        writeField @"pNext" queueCreateInfoPtr VK_NULL_HANDLE
-        writeField @"flags" queueCreateInfoPtr VK_ZERO_FLAGS
-        writeField @"queueFamilyIndex" queueCreateInfoPtr queueFamilyIndex
-        writeField @"queueCount" queueCreateInfoPtr 1
-        writeField @"pQueuePriorities" queueCreateInfoPtr queuePrioritiesPtr
-  return queueCreateInfoList
+createQueues :: VkDevice -> [Word32] -> IO (Map.Map Word32 VkQueue)
+createQueues device queueFamilyIndices = do
+  queueList <- forM queueFamilyIndices $ \queueFamilyIndex -> do
+    queue <- alloca $ \queuePtr -> do
+      vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
+      peek queuePtr
+    return (queueFamilyIndex, queue)
+  putStrLn $ "Created Queues: " ++ show (length queueList)
+  return $ Map.fromList queueList
 
 getDeviceCreateInfo :: 
   Ptr VkDeviceQueueCreateInfo
@@ -393,31 +381,45 @@ getDeviceCreateInfo
       writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
   return deviceCreateInfo
 
-createQueues :: VkDevice -> [Word32] -> IO (Map.Map Word32 VkQueue)
-createQueues device queueFamilyIndices = do
-  queueList <- forM queueFamilyIndices $ \queueFamilyIndex -> do
-    queue <- alloca $ \queuePtr -> do
-      vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
-      peek queuePtr
-    return (queueFamilyIndex, queue)
-  putStrLn $ "Created Queues: " ++ show (length queueList)
-  return $ Map.fromList queueList
-
-createDevice :: VkDeviceCreateInfo -> VkPhysicalDevice -> IO VkDevice
-createDevice deviceCreateInfo physicalDevice = do
-  device <- alloca $ \devicePtr -> do
-    throwingVK "vkCreateDevice: failed to create vkDevice"
-      $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
-    peek devicePtr
+createDevice :: VkPhysicalDevice -> [Word32] -> IO (Ptr VkDevice)
+createDevice physicalDevice queueFamilyList = do  
+  queuePrioritiesPtr <- new 1.0
+  queueCreateInfoList <- forM queueFamilyList $ \queueFamilyIndex ->
+    newVkData @VkDeviceQueueCreateInfo $ \queueCreateInfoPtr -> do
+        writeField @"sType" queueCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+        writeField @"pNext" queueCreateInfoPtr VK_NULL_HANDLE
+        writeField @"flags" queueCreateInfoPtr VK_ZERO_FLAGS
+        writeField @"queueFamilyIndex" queueCreateInfoPtr queueFamilyIndex
+        writeField @"queueCount" queueCreateInfoPtr 1
+        writeField @"pQueuePriorities" queueCreateInfoPtr queuePrioritiesPtr
+  physicalDeviceFeatures <- newVkData @VkPhysicalDeviceFeatures clearStorable
+  queueCreateInfoArrayPtr <- newArray queueCreateInfoList
+  requireDeviceExtensionsPtr <- newArray requireDeviceExtensions
+  deviceCreateInfo <- getDeviceCreateInfo 
+    queueCreateInfoArrayPtr 
+    (length queueCreateInfoList)
+    physicalDeviceFeatures
+    vulkanLayers
+    (length requireDeviceExtensions)
+    requireDeviceExtensionsPtr
+  devicePtr <- malloc::IO (Ptr VkDevice)
+  throwingVK "vkCreateDevice: failed to create vkDevice"
+    $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
+  device <- peek devicePtr
   putStrLn $ "Created Device: " ++ show device
-  return device
-
-destroyDevice :: VkDevice -> VkDeviceCreateInfo -> VkPhysicalDeviceFeatures -> IO ()
-destroyDevice device deviceCreateInfo physicalDeviceFeatures = do
-  putStrLn "Destroy VkDevice"
-  vkDestroyDevice device VK_NULL_HANDLE
   touchVkData deviceCreateInfo
   touchVkData physicalDeviceFeatures
+  free requireDeviceExtensionsPtr
+  free queueCreateInfoArrayPtr
+  free queuePrioritiesPtr
+  return devicePtr
+
+destroyDevice :: Ptr VkDevice -> IO ()
+destroyDevice devicePtr = do  
+  device <- peek devicePtr
+  vkDestroyDevice device VK_NULL_HANDLE  
+  free devicePtr
+  putStrLn "Destroy VkDevice"
 
 getMaxUsableSampleCount :: VkPhysicalDeviceProperties -> IO VkSampleCountFlagBits
 getMaxUsableSampleCount deviceProperties = do
@@ -1038,3 +1040,31 @@ drawFrame RenderData {..} = do
     $ vkQueueWaitIdle presentQueue
 
   writeIORef frameIndexRef $ mod (frameIndex + 1) maxFrameCount
+
+cleanupSwapChain :: VkDevice -> [VkFramebuffer] -> VkCommandPool -> Int -> Ptr VkCommandBuffer -> VkPipeline -> VkPipelineLayout -> VkRenderPass -> [VkImageView] -> VkSwapchainKHR -> IO ()
+cleanupSwapChain device frameBuffers commandPool commandBufferCount commandBuffersPtr graphicsPipeline pipelineLayout renderPass swapChainImageViews swapChain = do
+  destroyFramebuffers device frameBuffers
+  destroyCommandBuffers device commandPool (fromIntegral commandBufferCount) commandBuffersPtr
+  destroyGraphicsPipeline device graphicsPipeline
+  destroyPipelineLayout device pipelineLayout
+  destroyRenderPass device renderPass
+  destroySwapChainImageViews device swapChainImageViews
+  destroySwapChain device swapChain
+
+-- cleanup = do
+--   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+--         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+--         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+--         vkDestroyFence(device, inFlightFences[i], nullptr);
+--     }
+
+--     vkDestroyCommandPool(device, commandPool, nullptr);
+
+--     vkDestroyDevice(device, nullptr);
+
+--     if (enableValidationLayers) {
+--         DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+--     }
+
+--     vkDestroySurfaceKHR(instance, surface, nullptr);
+--     vkDestroyInstance(instance, nullptr);
