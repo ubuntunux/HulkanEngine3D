@@ -47,8 +47,9 @@ module Library.Vulkan
   , destroySemaphores
   , createFrameFences
   , destroyFrameFences
-  , drawFrame
+  , drawFrame  
   , cleanupSwapChain
+  , cleanup
   ) where
 
 import Control.Monad
@@ -95,9 +96,7 @@ data QueueFamilyDatas = QueueFamilyDatas
   { _graphicsQueue :: VkQueue
   , _presentQueue :: VkQueue
   , _queueFamilyCount :: Word32
-  , _queueFamilyIndicesPtr :: Ptr Word32
-  , _graphicsFamilyIndex :: Word32
-  , _presentFamilyIndex :: Word32
+  , _queueFamilyIndices :: QueueFamilyIndices
   } deriving (Eq, Show)
 
 data SwapChainSupportDetails = SwapChainSupportDetails
@@ -119,10 +118,11 @@ data RenderData = RenderData
   , _msaaSamples :: VkSampleCountBitmask FlagBit
   , _imageAvailableSemaphores :: [VkSemaphore]
   , _renderFinishedSemaphores :: [VkSemaphore]
+  , _vkInstance :: VkInstance
+  , _vkSurface :: VkSurfaceKHR
   , _device :: VkDevice
   , _swapChainData :: SwapChainData
   , _queueFamilyDatas :: QueueFamilyDatas
-  , _imageIndexPtr :: Ptr Word32
   , _frameFencesPtr :: Ptr VkFence
   , _frameBuffers :: [VkFramebuffer]
   , _commandPool :: VkCommandPool
@@ -393,7 +393,7 @@ getDeviceCreateInfo
       writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
   return deviceCreateInfo
 
-createDevice :: VkPhysicalDevice -> [Word32] -> IO (Ptr VkDevice)
+createDevice :: VkPhysicalDevice -> [Word32] -> IO VkDevice
 createDevice physicalDevice queueFamilyList = do  
   queuePrioritiesPtr <- new 1.0
   queueCreateInfoList <- forM queueFamilyList $ \queueFamilyIndex ->
@@ -414,23 +414,21 @@ createDevice physicalDevice queueFamilyList = do
     vulkanLayers
     (length requireDeviceExtensions)
     requireDeviceExtensionsPtr
-  devicePtr <- malloc::IO (Ptr VkDevice)
-  throwingVK "vkCreateDevice: failed to create vkDevice"
-    $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
-  device <- peek devicePtr
+  device <- alloca $ \devicePtr -> do
+    throwingVK "vkCreateDevice: failed to create vkDevice"
+      $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
+    peek devicePtr
   putStrLn $ "Created Device: " ++ show device
   touchVkData deviceCreateInfo
   touchVkData physicalDeviceFeatures
   free requireDeviceExtensionsPtr
   free queueCreateInfoArrayPtr
   free queuePrioritiesPtr
-  return devicePtr
+  return device
 
-destroyDevice :: Ptr VkDevice -> IO ()
-destroyDevice devicePtr = do  
-  device <- peek devicePtr
-  vkDestroyDevice device VK_NULL_HANDLE  
-  free devicePtr
+destroyDevice :: VkDevice -> IO ()
+destroyDevice device = do
+  vkDestroyDevice device VK_NULL_HANDLE
   putStrLn "Destroy VkDevice"
 
 getMaxUsableSampleCount :: VkPhysicalDeviceProperties -> IO VkSampleCountFlagBits
@@ -500,12 +498,14 @@ createSwapChain :: VkDevice
                 -> Library.Vulkan.SwapChainSupportDetails 
                 -> Word32 
                 -> QueueFamilyDatas 
+                -> [Word32]
                 -> VkSurfaceKHR 
                 -> IO SwapChainData
-createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSurface = do
+createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas queueFamilyIndexList vkSurface = do
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
   imageExtent <- chooseSwapExtent swapChainSupportDetails
+  queueFamilyIndicesPtr <- newArray queueFamilyIndexList
 
   -- try tripple buffering
   let maxImageCount = getField @"maxImageCount" $ _capabilities swapChainSupportDetails
@@ -530,7 +530,7 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSur
     then do
       writeField @"imageSharingMode" swapChainCreateInfoPtr VK_SHARING_MODE_CONCURRENT
       writeField @"queueFamilyIndexCount" swapChainCreateInfoPtr (_queueFamilyCount queueFamilyDatas)
-      writeField @"pQueueFamilyIndices" swapChainCreateInfoPtr (_queueFamilyIndicesPtr queueFamilyDatas)      
+      writeField @"pQueueFamilyIndices" swapChainCreateInfoPtr queueFamilyIndicesPtr
     else do
       writeField @"imageSharingMode" swapChainCreateInfoPtr VK_SHARING_MODE_EXCLUSIVE
       writeField @"queueFamilyIndexCount" swapChainCreateInfoPtr 0
@@ -558,7 +558,10 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSur
 
   let swapChainImageFormat = getField @"imageFormat" swapChainCreateInfo
       swapChainExtent = (getField @"imageExtent" swapChainCreateInfo)
+  
   touchVkData swapChainCreateInfo
+  free queueFamilyIndicesPtr
+
   swapChainImageViews <- createSwapChainImageViews device swapChainImages swapChainImageFormat
   let swapChainData = SwapChainData { _swapChain = swapChain
                                     , _swapChainImages = swapChainImages
@@ -877,13 +880,14 @@ destroyFramebuffers device frameBuffers = do
 
 
 createCommandPool :: VkDevice -> QueueFamilyDatas -> IO VkCommandPool
-createCommandPool device queueFamilyDatas = do
-  putStrLn $ "Create Command Pool: graphicsFamilyIndex(" ++ show (_graphicsFamilyIndex queueFamilyDatas) ++ ")"
+createCommandPool device QueueFamilyDatas {..} = do
+  let graphicsQueueIndex = (_graphicsQueueIndex _queueFamilyIndices)
+  putStrLn $ "Create Command Pool: graphicsFamilyIndex(" ++ show graphicsQueueIndex ++ ")"
   let commandPoolCreateInfo = createVk @VkCommandPoolCreateInfo
         $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
         &* set @"pNext" VK_NULL
         &* set @"flags" VK_ZERO_FLAGS
-        &* set @"queueFamilyIndex" (_graphicsFamilyIndex queueFamilyDatas)
+        &* set @"queueFamilyIndex" graphicsQueueIndex
   commandPool <- alloca $ \commandPoolPtr -> do
     withPtr commandPoolCreateInfo $ \createInfoPtr -> do
       throwingVK "vkCreateCommandPool failed!"
@@ -1008,8 +1012,8 @@ destroyFrameFences device frameFencesPtr = do
     vkDestroyFence device fence VK_NULL
   free frameFencesPtr  
 
-drawFrame :: RenderData -> IO ()
-drawFrame RenderData {..} = do  
+drawFrame :: RenderData -> Ptr Word32 -> IO ()
+drawFrame RenderData {..} imageIndexPtr = do  
   let SwapChainData {..} = _swapChainData
   let QueueFamilyDatas {..} = _queueFamilyDatas
 
@@ -1021,9 +1025,9 @@ drawFrame RenderData {..} = do
 
   let imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex      
   throwingVK "vkAcquireNextImageKHR failed!"
-    $ vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
+    $ vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
 
-  imageIndex <- peek _imageIndexPtr
+  imageIndex <- peek imageIndexPtr
   let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
   let submitInfo = createVk @VkSubmitInfo
         $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
@@ -1043,7 +1047,7 @@ drawFrame RenderData {..} = do
   let presentInfo = createVk @VkPresentInfoKHR
         $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
         &* set @"pNext" VK_NULL
-        &* set @"pImageIndices" _imageIndexPtr
+        &* set @"pImageIndices" imageIndexPtr
         &* set @"waitSemaphoreCount" 1
         &* setListRef @"pWaitSemaphores" [_renderFinishedSemaphores !! frameIndex]
         &* set @"swapchainCount" 1
@@ -1058,12 +1062,26 @@ drawFrame RenderData {..} = do
 
   writeIORef _frameIndexRef $ mod (frameIndex + 1) maxFrameCount
 
-cleanupSwapChain :: VkDevice -> [VkFramebuffer] -> VkCommandPool -> Int -> Ptr VkCommandBuffer -> VkPipeline -> VkPipelineLayout -> VkRenderPass -> [VkImageView] -> VkSwapchainKHR -> IO ()
-cleanupSwapChain device frameBuffers commandPool commandBufferCount commandBuffersPtr graphicsPipeline pipelineLayout renderPass swapChainImageViews swapChain = do
-  destroyFramebuffers device frameBuffers
-  destroyCommandBuffers device commandPool (fromIntegral commandBufferCount) commandBuffersPtr  
-  destroyGraphicsPipeline device graphicsPipeline
-  destroyPipelineLayout device pipelineLayout
-  destroyRenderPass device renderPass
-  destroySwapChainImageViews device swapChainImageViews
-  destroySwapChain device swapChain
+cleanupSwapChain :: RenderData -> IO ()
+cleanupSwapChain RenderData {..} = do
+  let swapChain = (_swapChain _swapChainData)
+      swapChainImageViews = (_swapChainImageViews _swapChainData)
+  destroyFramebuffers _device _frameBuffers
+  destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
+  destroyGraphicsPipeline _device _graphicsPipeline
+  destroyPipelineLayout _device _pipelineLayout
+  destroyRenderPass _device _renderPass
+  destroySwapChainImageViews _device swapChainImageViews
+  destroySwapChain _device swapChain
+
+cleanup :: RenderData -> IO ()
+cleanup renderData@RenderData {..} = do  
+  cleanupSwapChain renderData
+
+  destroySemaphores _device _renderFinishedSemaphores
+  destroySemaphores _device _imageAvailableSemaphores 
+  destroyFrameFences _device _frameFencesPtr  
+  destroyCommandPool _device _commandPool
+  destroyDevice _device
+  destroyVkSurface _vkInstance _vkSurface
+  destroyVulkanInstance _vkInstance

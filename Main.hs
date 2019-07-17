@@ -12,9 +12,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
-import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
-import Foreign.Storable
 import Graphics.Vulkan.Core_1_0
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
@@ -45,21 +43,18 @@ main = do
   queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
   let graphicsQueueIndex = _graphicsQueueIndex queueFamilyIndices
       presentQueueIndex = _presentQueueIndex queueFamilyIndices    
-      queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex, presentQueueIndex]  
-  devicePtr <- createDevice physicalDevice queueFamilyIndexList
-  device <- peek devicePtr
-  queueMap <- createQueues device queueFamilyIndexList
-  queueFamilyIndicesPtr <- newArray queueFamilyIndexList
+      queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex, presentQueueIndex]
+  device <- createDevice physicalDevice queueFamilyIndexList
+  queueMap <- createQueues device queueFamilyIndexList  
   let defaultQueue = (Map.elems queueMap) !! 0
       queueFamilyDatas = QueueFamilyDatas
           { _graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex queueMap
           , _presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
           , _queueFamilyCount = fromIntegral $ length queueMap
-          , _queueFamilyIndicesPtr = queueFamilyIndicesPtr
-          , _graphicsFamilyIndex = graphicsQueueIndex
-          , _presentFamilyIndex = presentQueueIndex }
+          , _queueFamilyIndices = queueFamilyIndices
+          }
       imageCount = 3 -- tripple buffering
-  swapChainData <- createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSurface  
+  swapChainData <- createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas queueFamilyIndexList vkSurface
   vertexShaderCreateInfo <- createShaderStageCreateInfo device "Resource/Shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
   fragmentShaderCreateInfo <- createShaderStageCreateInfo device "Resource/Shaders/triangle.frag" VK_SHADER_STAGE_FRAGMENT_BIT
   renderPass <- createRenderPass device swapChainData
@@ -78,10 +73,11 @@ main = do
           , _msaaSamples = msaaSamples
           , _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
+          , _vkInstance = vkInstance
+          , _vkSurface = vkSurface
           , _device = device
           , _swapChainData = swapChainData
           , _queueFamilyDatas = queueFamilyDatas
-          , _imageIndexPtr = imageIndexPtr
           , _frameFencesPtr = frameFencesPtr
           , _frameBuffers = frameBuffers
           , _commandPool = commandPool
@@ -94,30 +90,17 @@ main = do
 
   -- Main Loop
   glfwMainLoop window $ do    
-    drawFrame renderData
+    drawFrame renderData imageIndexPtr
     
   throwingVK "vkDeviceWaitIdle failed!"
     $ vkDeviceWaitIdle device
 
   -- Terminate
   putStrLn "\n[ Terminate ]"
-
-  cleanupSwapChain device frameBuffers commandPool commandBufferCount commandBuffersPtr graphicsPipeline pipelineLayout renderPass (_swapChainImageViews swapChainData) (_swapChain swapChainData)
-
   destroyShaderStageCreateInfo device vertexShaderCreateInfo
   destroyShaderStageCreateInfo device fragmentShaderCreateInfo
-
-  destroySemaphores device renderFinishedSemaphores
-  destroySemaphores device imageAvailableSemaphores 
-  destroyFrameFences device frameFencesPtr  
-  destroyCommandPool device commandPool
-  destroyDevice devicePtr
-  destroyVkSurface vkInstance vkSurface
-  destroyVulkanInstance vkInstance
-  
-  free queueFamilyIndicesPtr      
+  cleanup renderData  
   free imageIndexPtr
-
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
