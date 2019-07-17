@@ -84,45 +84,53 @@ maxFrameCount :: Int
 maxFrameCount = 2
 
 data QueueFamilyIndices = QueueFamilyIndices
-  { graphicsQueueIndex :: Word32
-  , presentQueueIndex :: Word32
-  , computeQueueIndex :: Word32
-  , transferQueueIndex :: Word32
-  , sparseBindingQueueIndex :: Word32
+  { _graphicsQueueIndex :: Word32
+  , _presentQueueIndex :: Word32
+  , _computeQueueIndex :: Word32
+  , _transferQueueIndex :: Word32
+  , _sparseBindingQueueIndex :: Word32
   } deriving (Eq, Show)
 
 data QueueFamilyDatas = QueueFamilyDatas
-  { graphicsQueue :: VkQueue
-  , presentQueue :: VkQueue
-  , queueFamilyCount :: Word32
-  , queueFamilyIndicesPtr :: Ptr Word32
-  , graphicsFamilyIndex :: Word32
-  , presentFamilyIndex :: Word32
+  { _graphicsQueue :: VkQueue
+  , _presentQueue :: VkQueue
+  , _queueFamilyCount :: Word32
+  , _queueFamilyIndicesPtr :: Ptr Word32
+  , _graphicsFamilyIndex :: Word32
+  , _presentFamilyIndex :: Word32
   } deriving (Eq, Show)
 
 data SwapChainSupportDetails = SwapChainSupportDetails
-  { capabilities :: VkSurfaceCapabilitiesKHR
-  , formats      :: [VkSurfaceFormatKHR]
-  , presentModes :: [VkPresentModeKHR]
+  { _capabilities :: VkSurfaceCapabilitiesKHR
+  , _formats      :: [VkSurfaceFormatKHR]
+  , _presentModes :: [VkPresentModeKHR]
   } deriving (Eq, Show)
 
 data SwapChainData = SwapChainData
-  { swapChain :: VkSwapchainKHR
-  , swapChainImages :: [VkImage]
-  , swapChainImageFormat :: VkFormat
-  , swapChainExtent :: VkExtent2D
+  { _swapChain :: VkSwapchainKHR
+  , _swapChainImages :: [VkImage]
+  , _swapChainImageFormat :: VkFormat
+  , _swapChainImageViews :: [VkImageView]
+  , _swapChainExtent :: VkExtent2D
   } deriving (Eq, Show)
 
 data RenderData = RenderData
-  { frameIndexRef :: IORef Int
-  , imageAvailableSemaphores :: [VkSemaphore]
-  , renderFinishedSemaphores :: [VkSemaphore]
-  , device :: VkDevice
-  , swapChainData :: SwapChainData
-  , queueFamilyDatas :: QueueFamilyDatas
-  , imageIndexPtr :: Ptr Word32
-  , commandBuffersPtr :: Ptr VkCommandBuffer
-  , frameFencesPtr :: Ptr VkFence
+  { _frameIndexRef :: IORef Int
+  , _msaaSamples :: VkSampleCountBitmask FlagBit
+  , _imageAvailableSemaphores :: [VkSemaphore]
+  , _renderFinishedSemaphores :: [VkSemaphore]
+  , _device :: VkDevice
+  , _swapChainData :: SwapChainData
+  , _queueFamilyDatas :: QueueFamilyDatas
+  , _imageIndexPtr :: Ptr Word32
+  , _frameFencesPtr :: Ptr VkFence
+  , _frameBuffers :: [VkFramebuffer]
+  , _commandPool :: VkCommandPool
+  , _commandBufferCount :: Word32
+  , _commandBuffersPtr :: Ptr VkCommandBuffer
+  , _graphicsPipeline :: VkPipeline
+  , _pipelineLayout :: VkPipelineLayout
+  , _renderPass :: VkRenderPass
   } deriving (Eq, Show)
 
 
@@ -225,7 +233,11 @@ querySwapChainSupport physicalDevice vkSurface = do
   presentModes <- asListVK $ \counterPtr valuePtr ->
     throwingVK "vkGetPhysicalDeviceSurfacePresentModesKHR error"
       $ vkGetPhysicalDeviceSurfacePresentModesKHR physicalDevice vkSurface counterPtr valuePtr
-  return SwapChainSupportDetails {..}
+  return SwapChainSupportDetails 
+      { _capabilities = capabilities
+      , _formats = formats
+      , _presentModes = presentModes
+      }
 
 isDeviceSuitable :: Maybe VkSurfaceKHR -> VkPhysicalDevice -> IO (Maybe SwapChainSupportDetails, Bool)
 isDeviceSuitable maybeVkSurface physicalDevice = do
@@ -237,7 +249,7 @@ isDeviceSuitable maybeVkSurface physicalDevice = do
       | not hasExtension -> pure (Nothing, False)
       | otherwise -> do
         swapChainSupportDetails@SwapChainSupportDetails {..} <- querySwapChainSupport physicalDevice vkSurface
-        return (Just swapChainSupportDetails, not (null formats) && not (null presentModes))
+        return (Just swapChainSupportDetails, not (null _formats) && not (null _presentModes))
   pure (maybeSwapChainSupportDetails, hasExtension && result)
 
 getPhysicalDeviceProperties :: VkPhysicalDevice -> IO VkPhysicalDeviceProperties
@@ -321,17 +333,17 @@ getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode = do
   let
     defaultIndex = graphicsQueueIndices !! 0
     queueFamilyIndices = QueueFamilyIndices
-      { graphicsQueueIndex = defaultIndex
-      , presentQueueIndex = getFamilyIndex presentationFamilyIndices defaultIndex
-      , computeQueueIndex = getFamilyIndex computeFamilyIndices defaultIndex
-      , transferQueueIndex = getFamilyIndex transferFamilyIndices defaultIndex
-      , sparseBindingQueueIndex = getFamilyIndex sparseBindingFamilyIndices defaultIndex
+      { _graphicsQueueIndex = defaultIndex
+      , _presentQueueIndex = getFamilyIndex presentationFamilyIndices defaultIndex
+      , _computeQueueIndex = getFamilyIndex computeFamilyIndices defaultIndex
+      , _transferQueueIndex = getFamilyIndex transferFamilyIndices defaultIndex
+      , _sparseBindingQueueIndex = getFamilyIndex sparseBindingFamilyIndices defaultIndex
       }    
-  putStrLn $ "Graphics Queue Index : " ++ show (graphicsQueueIndex queueFamilyIndices)
-  putStrLn $ "Presentation Queue Index : " ++ show (presentQueueIndex queueFamilyIndices) ++ " / " ++ show presentationFamilyIndices
-  putStrLn $ "Computer Queue Index : " ++ show (computeQueueIndex queueFamilyIndices) ++ " / " ++ show computeFamilyIndices
-  putStrLn $ "Transfer Queue Index : " ++ show (transferQueueIndex queueFamilyIndices) ++ " / " ++ show transferFamilyIndices
-  putStrLn $ "Sparse Binding Queue Index : " ++ show (sparseBindingQueueIndex queueFamilyIndices)  ++ " / " ++ show sparseBindingFamilyIndices
+  putStrLn $ "Graphics Queue Index : " ++ show (_graphicsQueueIndex queueFamilyIndices)
+  putStrLn $ "Presentation Queue Index : " ++ show (_presentQueueIndex queueFamilyIndices) ++ " / " ++ show presentationFamilyIndices
+  putStrLn $ "Computer Queue Index : " ++ show (_computeQueueIndex queueFamilyIndices) ++ " / " ++ show computeFamilyIndices
+  putStrLn $ "Transfer Queue Index : " ++ show (_transferQueueIndex queueFamilyIndices) ++ " / " ++ show transferFamilyIndices
+  putStrLn $ "Sparse Binding Queue Index : " ++ show (_sparseBindingQueueIndex queueFamilyIndices)  ++ " / " ++ show sparseBindingFamilyIndices
   return queueFamilyIndices
   where
     getFamilyIndex [] _ = invalidQueueIndex
@@ -442,18 +454,18 @@ getMaxUsableSampleCount deviceProperties = do
 
 chooseSwapSurfaceFormat :: SwapChainSupportDetails -> IO VkSurfaceFormatKHR
 chooseSwapSurfaceFormat swapChainSupportDetails = do
-  if 1 == length(formats') && VK_FORMAT_UNDEFINED == getFormat (formats' !! 0) then 
+  if 1 == (length formats) && VK_FORMAT_UNDEFINED == getFormat (formats !! 0) then 
     newVkData $ \surfaceFormatPtr -> do
       writeField @"format" surfaceFormatPtr VK_FORMAT_B8G8R8A8_UNORM
       writeField @"colorSpace" surfaceFormatPtr VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
   else
-    findAvailableFormat formats'
+    findAvailableFormat formats
   where
-    formats' = formats swapChainSupportDetails
+    formats = _formats swapChainSupportDetails
     getFormat = getField @"format"
     getColorSpace = getField @"colorSpace"    
     findAvailableFormat :: [VkSurfaceFormatKHR] -> IO VkSurfaceFormatKHR
-    findAvailableFormat [] = return $ formats' !! 0
+    findAvailableFormat [] = return $ formats !! 0
     findAvailableFormat (x:xs) = do
       if VK_FORMAT_B8G8R8A8_UNORM == getFormat x && VK_COLOR_SPACE_SRGB_NONLINEAR_KHR == getColorSpace x
       then return x
@@ -461,26 +473,26 @@ chooseSwapSurfaceFormat swapChainSupportDetails = do
 
 chooseSwapPresentMode :: SwapChainSupportDetails -> IO VkPresentModeKHR
 chooseSwapPresentMode swapChainSupportDetails = do
-  if elem VK_PRESENT_MODE_FIFO_KHR presentModes' then return VK_PRESENT_MODE_FIFO_KHR
-  else if elem VK_PRESENT_MODE_MAILBOX_KHR presentModes' then return VK_PRESENT_MODE_MAILBOX_KHR
-  else if elem VK_PRESENT_MODE_FIFO_RELAXED_KHR presentModes' then return VK_PRESENT_MODE_FIFO_RELAXED_KHR
-  else if elem VK_PRESENT_MODE_IMMEDIATE_KHR presentModes' then return VK_PRESENT_MODE_IMMEDIATE_KHR
+  if elem VK_PRESENT_MODE_FIFO_KHR presentModes then return VK_PRESENT_MODE_FIFO_KHR
+  else if elem VK_PRESENT_MODE_MAILBOX_KHR presentModes then return VK_PRESENT_MODE_MAILBOX_KHR
+  else if elem VK_PRESENT_MODE_FIFO_RELAXED_KHR presentModes then return VK_PRESENT_MODE_FIFO_RELAXED_KHR
+  else if elem VK_PRESENT_MODE_IMMEDIATE_KHR presentModes then return VK_PRESENT_MODE_IMMEDIATE_KHR
   else return VK_PRESENT_MODE_FIFO_KHR
   where
-    presentModes' = presentModes swapChainSupportDetails
+    presentModes = _presentModes swapChainSupportDetails
 
 chooseSwapExtent :: SwapChainSupportDetails -> IO VkExtent2D
 chooseSwapExtent swapChainSupportDetails = do
   imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
-    writeField @"width" extentPtr $ max (width $ getField @"minImageExtent" capabilities')
-                             $ min (width $ getField @"maxImageExtent" capabilities')
-                                   (width $ getField @"currentExtent"  capabilities')
-    writeField @"height" extentPtr $ max (height $ getField @"minImageExtent" capabilities')
-                              $ min (height $ getField @"maxImageExtent" capabilities')
-                                    (height $ getField @"currentExtent"  capabilities')
+    writeField @"width" extentPtr $ max (width $ getField @"minImageExtent" capabilities)
+                             $ min (width $ getField @"maxImageExtent" capabilities)
+                                   (width $ getField @"currentExtent"  capabilities)
+    writeField @"height" extentPtr $ max (height $ getField @"minImageExtent" capabilities)
+                              $ min (height $ getField @"maxImageExtent" capabilities)
+                                    (height $ getField @"currentExtent"  capabilities)
   return imageExtent
   where
-    capabilities' = capabilities swapChainSupportDetails
+    capabilities = _capabilities swapChainSupportDetails
     width = getField @"width"
     height = getField @"height"
 
@@ -496,8 +508,8 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSur
   imageExtent <- chooseSwapExtent swapChainSupportDetails
 
   -- try tripple buffering
-  let maxImageCount = getField @"maxImageCount" $ capabilities swapChainSupportDetails
-      minImageCount = getField @"minImageCount" $ capabilities swapChainSupportDetails
+  let maxImageCount = getField @"maxImageCount" $ _capabilities swapChainSupportDetails
+      minImageCount = getField @"minImageCount" $ _capabilities swapChainSupportDetails
       imageCount' = if maxImageCount <= 0
                    then max minImageCount imageCount
                    else min maxImageCount $ max minImageCount imageCount
@@ -514,16 +526,16 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSur
     writeField @"imageExtent" swapChainCreateInfoPtr imageExtent
     writeField @"imageArrayLayers" swapChainCreateInfoPtr 1
     writeField @"imageUsage" swapChainCreateInfoPtr VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-    if graphicsQueue queueFamilyDatas /= presentQueue queueFamilyDatas
+    if (_graphicsQueue queueFamilyDatas) /= (_presentQueue queueFamilyDatas)
     then do
       writeField @"imageSharingMode" swapChainCreateInfoPtr VK_SHARING_MODE_CONCURRENT
-      writeField @"queueFamilyIndexCount" swapChainCreateInfoPtr (queueFamilyCount queueFamilyDatas)
-      writeField @"pQueueFamilyIndices" swapChainCreateInfoPtr (queueFamilyIndicesPtr queueFamilyDatas)      
+      writeField @"queueFamilyIndexCount" swapChainCreateInfoPtr (_queueFamilyCount queueFamilyDatas)
+      writeField @"pQueueFamilyIndices" swapChainCreateInfoPtr (_queueFamilyIndicesPtr queueFamilyDatas)      
     else do
       writeField @"imageSharingMode" swapChainCreateInfoPtr VK_SHARING_MODE_EXCLUSIVE
       writeField @"queueFamilyIndexCount" swapChainCreateInfoPtr 0
       writeField @"pQueueFamilyIndices" swapChainCreateInfoPtr VK_NULL_HANDLE      
-    writeField @"preTransform" swapChainCreateInfoPtr (getField @"currentTransform" $ capabilities swapChainSupportDetails)
+    writeField @"preTransform" swapChainCreateInfoPtr (getField @"currentTransform" $ _capabilities swapChainSupportDetails)
     writeField @"compositeAlpha" swapChainCreateInfoPtr VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
     writeField @"presentMode" swapChainCreateInfoPtr presentMode
     writeField @"clipped" swapChainCreateInfoPtr VK_TRUE
@@ -539,14 +551,21 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSur
     throwingVK "vkCreateSwapchainKHR failed!"
       $ vkCreateSwapchainKHR device (unsafePtr swapChainCreateInfo) VK_NULL_HANDLE swapChainPtr
     peek swapChainPtr
+
   swapChainImages <- asListVK $ \counterPtr valueArrayPtr ->
     throwingVK "vkGetSwapchainImagesKHR error"
       $ vkGetSwapchainImagesKHR device swapChain counterPtr valueArrayPtr
-  let swapChainData = SwapChainData { swapChain = swapChain
-                                    , swapChainImages = swapChainImages
-                                    , swapChainImageFormat = (getField @"imageFormat" swapChainCreateInfo)
-                                    , swapChainExtent = (getField @"imageExtent" swapChainCreateInfo) }
+
+  let swapChainImageFormat = getField @"imageFormat" swapChainCreateInfo
+      swapChainExtent = (getField @"imageExtent" swapChainCreateInfo)
   touchVkData swapChainCreateInfo
+  swapChainImageViews <- createSwapChainImageViews device swapChainImages swapChainImageFormat
+  let swapChainData = SwapChainData { _swapChain = swapChain
+                                    , _swapChainImages = swapChainImages
+                                    , _swapChainImageFormat = swapChainImageFormat
+                                    , _swapChainImageViews = swapChainImageViews
+                                    , _swapChainExtent = swapChainExtent
+                                    }
   return swapChainData
 
 destroySwapChain :: VkDevice -> VkSwapchainKHR -> IO ()
@@ -554,8 +573,8 @@ destroySwapChain device swapChain = do
   putStrLn "Destroy SwapChain"
   vkDestroySwapchainKHR device swapChain VK_NULL_HANDLE
 
-createSwapChainImageViews :: VkDevice -> SwapChainData -> IO [VkImageView]
-createSwapChainImageViews device swapChainData = do
+createSwapChainImageViews :: VkDevice -> [VkImage] -> VkFormat -> IO [VkImageView]
+createSwapChainImageViews device swapChainImages swapChainImageFormat = do
   components <- (newVkData $ \componentsPtr -> do
     writeField @"r" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
     writeField @"g" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
@@ -575,10 +594,10 @@ createSwapChainImageViews device swapChainData = do
       writeField @"flags" viewPtr VK_ZERO_FLAGS
       writeField @"image" viewPtr image
       writeField @"viewType" viewPtr VK_IMAGE_VIEW_TYPE_2D
-      writeField @"format" viewPtr (swapChainImageFormat swapChainData)
+      writeField @"format" viewPtr swapChainImageFormat
       writeField @"components" viewPtr components
       writeField @"subresourceRange" viewPtr subresourceRange  
-  imageViewCreateInfos <- mapM getImageViewCreateInfo (swapChainImages swapChainData)
+  imageViewCreateInfos <- mapM getImageViewCreateInfo swapChainImages
   imageViews <- forM imageViewCreateInfos $ \imageViewCreateInfo ->
     alloca $ \imageViewPtr -> do
       throwingVK "vkCreateImageView error"
@@ -598,7 +617,7 @@ createRenderPass device swapChainData =
     colorAttachment :: VkAttachmentDescription
     colorAttachment = createVk @VkAttachmentDescription
       $  set @"flags" VK_ZERO_FLAGS
-      &* set @"format" (swapChainImageFormat swapChainData)
+      &* set @"format" (_swapChainImageFormat swapChainData)
       &* set @"samples" VK_SAMPLE_COUNT_1_BIT
       &* set @"loadOp" VK_ATTACHMENT_LOAD_OP_CLEAR
       &* set @"storeOp" VK_ATTACHMENT_STORE_OP_STORE
@@ -645,7 +664,7 @@ createRenderPass device swapChainData =
         $ vkCreateRenderPass device (unsafePtr renderPassCreateInfo) VK_NULL renderPassPtr
       peek renderPassPtr
     touchVkData renderPassCreateInfo
-    putStrLn $ "Create RenderPass: " ++ show (swapChainImageFormat swapChainData)
+    putStrLn $ "Create RenderPass: " ++ show (_swapChainImageFormat swapChainData)
     return renderPass
 
 destroyRenderPass :: VkDevice -> VkRenderPass -> IO ()
@@ -710,14 +729,14 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
     viewPort = createVk @VkViewport
       $  set @"x" 0
       &* set @"y" 0
-      &* set @"width" (fromIntegral $ getField @"width" (swapChainExtent swapChainData))
-      &* set @"height" (fromIntegral $ getField @"height" (swapChainExtent swapChainData))
+      &* set @"width" (fromIntegral $ getField @"width" (_swapChainExtent swapChainData))
+      &* set @"height" (fromIntegral $ getField @"height" (_swapChainExtent swapChainData))
       &* set @"minDepth" 0
       &* set @"maxDepth" 1
 
     scissorRect :: VkRect2D
     scissorRect = createVk @VkRect2D
-      $  set   @"extent" (swapChainExtent swapChainData)
+      $  set   @"extent" (_swapChainExtent swapChainData)
       &* setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
 
     viewPortState :: VkPipelineViewportStateCreateInfo
@@ -805,7 +824,7 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
       &* set @"basePipelineHandle" VK_NULL_HANDLE
       &* set @"basePipelineIndex" (-1)
   in do
-    putStrLn $ "Create GraphicsPipeline: " ++ show (swapChainExtent swapChainData)
+    putStrLn $ "Create GraphicsPipeline: " ++ show (_swapChainExtent swapChainData)
     shaderStageInfosPtr <- newArray shaderStageInfos
     let graphicsPipelineCreateInfo = getGraphicsPipelineCreateInfo shaderStageInfosPtr
     createGraphicsPipelinesFunc <- vkGetDeviceProc @VkCreateGraphicsPipelines device    
@@ -823,10 +842,11 @@ destroyGraphicsPipeline device graphicsPipeline = do
   vkDestroyPipeline device graphicsPipeline VK_NULL
 
 
-createFramebuffers :: VkDevice -> VkRenderPass -> SwapChainData -> [VkImageView] -> IO [VkFramebuffer]
-createFramebuffers device renderPass swapChainData swapChainImageViews = do
-  putStrLn $ "Create Framebuffers: " ++ show (length swapChainImageViews)
-  framebuffers <- mapM createFrameBuffer swapChainImageViews  
+createFramebuffers :: VkDevice -> VkRenderPass -> SwapChainData -> IO [VkFramebuffer]
+createFramebuffers device renderPass swapChainData = do  
+  let swapChainImageViews' = (_swapChainImageViews swapChainData)
+  putStrLn $ "Create Framebuffers: " ++ show (length swapChainImageViews')
+  framebuffers <- mapM createFrameBuffer swapChainImageViews'
   return framebuffers
   where
     createFrameBuffer :: VkImageView -> IO VkFramebuffer
@@ -838,8 +858,8 @@ createFramebuffers device renderPass swapChainData swapChainImageViews = do
             &* set @"renderPass" renderPass
             &* set @"attachmentCount" 1
             &* setListRef @"pAttachments" [swapChainImageView]
-            &* set @"width" (getField @"width" (swapChainExtent swapChainData))
-            &* set @"height" (getField @"height" (swapChainExtent swapChainData))
+            &* set @"width" (getField @"width" (_swapChainExtent swapChainData))
+            &* set @"height" (getField @"height" (_swapChainExtent swapChainData))
             &* set @"layers" 1
       in do
         frameBuffer <- alloca $ \framebufferPtr -> do
@@ -858,12 +878,12 @@ destroyFramebuffers device frameBuffers = do
 
 createCommandPool :: VkDevice -> QueueFamilyDatas -> IO VkCommandPool
 createCommandPool device queueFamilyDatas = do
-  putStrLn $ "Create Command Pool: graphicsFamilyIndex(" ++ show (graphicsFamilyIndex queueFamilyDatas) ++ ")"
+  putStrLn $ "Create Command Pool: graphicsFamilyIndex(" ++ show (_graphicsFamilyIndex queueFamilyDatas) ++ ")"
   let commandPoolCreateInfo = createVk @VkCommandPoolCreateInfo
         $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
         &* set @"pNext" VK_NULL
         &* set @"flags" VK_ZERO_FLAGS
-        &* set @"queueFamilyIndex" (graphicsFamilyIndex queueFamilyDatas)
+        &* set @"queueFamilyIndex" (_graphicsFamilyIndex queueFamilyDatas)
   commandPool <- alloca $ \commandPoolPtr -> do
     withPtr commandPoolCreateInfo $ \createInfoPtr -> do
       throwingVK "vkCreateCommandPool failed!"
@@ -916,7 +936,7 @@ createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} fr
           &* set @"framebuffer" frameBuffer
           &* setVk @"renderArea" ( 
             setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
-            &* set @"extent" swapChainExtent )
+            &* set @"extent" _swapChainExtent )
           &* set @"clearValueCount" 1
           &* setVkRef @"pClearValues"
               ( createVk $ setVk @"color"
@@ -941,9 +961,9 @@ createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} fr
   return (commandBuffersPtr, bufferCount)
 
 destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuffer -> IO ()
-destroyCommandBuffers device commandPool bufferCount commandBuffersPtr =
+destroyCommandBuffers device commandPool bufferCount commandBuffersPtr = do
   vkFreeCommandBuffers device commandPool bufferCount commandBuffersPtr
-
+  free commandBuffersPtr
 
 createSemaphores :: VkDevice -> IO [VkSemaphore]
 createSemaphores device = do
@@ -952,17 +972,17 @@ createSemaphores device = do
           $  set @"sType" VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
           &* set @"pNext" VK_NULL
           &* set @"flags" VK_ZERO_FLAGS    
-    forM [0..(maxFrameCount-1)] $ \index -> do
+    forM_ [0..(maxFrameCount-1)] $ \index -> do
       withPtr semaphoreCreateInfo $ \semaphoreCreateInfoPtr -> do
         throwingVK "vkCreateSemaphore failed!"
           $ vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL (ptrAtIndex semaphoresPtr index)
-    peekArray maxFrameCount semaphoresPtr
+    peekArray maxFrameCount semaphoresPtr    
   putStrLn $ "Create Semaphore: " ++ show semaphores
   return semaphores
 
 destroySemaphores :: VkDevice -> [VkSemaphore] -> IO ()
 destroySemaphores device semaphores = do  
-  forM semaphores $ \semaphore -> 
+  forM_ semaphores $ \semaphore -> 
     vkDestroySemaphore device semaphore VK_NULL
   putStrLn $ "Destroy Semaphore: " ++ show semaphores
 
@@ -973,7 +993,7 @@ createFrameFences device = do
         $  set @"sType" VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
         &* set @"pNext" VK_NULL
         &* set @"flags" VK_FENCE_CREATE_SIGNALED_BIT
-  forM [0..(maxFrameCount-1)] $ \index -> do
+  forM_ [0..(maxFrameCount-1)] $ \index -> do
     withPtr fenceCreateInfo $ \fenceCreateInfoPtr -> do
       throwingVK "vkCreateSemaphore failed!"
         $ vkCreateFence device fenceCreateInfoPtr VK_NULL (ptrAtIndex frameFencesPtr index)  
@@ -983,88 +1003,67 @@ createFrameFences device = do
 destroyFrameFences :: VkDevice -> Ptr VkFence -> IO ()
 destroyFrameFences device frameFencesPtr = do
   fences <- peekArray maxFrameCount frameFencesPtr
-  forM fences $ \fence -> 
-    vkDestroyFence device fence VK_NULL
   putStrLn $ "Destroy VkFence: " ++ show fences
-
+  forM_ fences $ \fence -> 
+    vkDestroyFence device fence VK_NULL
+  free frameFencesPtr  
 
 drawFrame :: RenderData -> IO ()
 drawFrame RenderData {..} = do  
-  let SwapChainData {..} = swapChainData
-  let QueueFamilyDatas {..} = queueFamilyDatas
+  let SwapChainData {..} = _swapChainData
+  let QueueFamilyDatas {..} = _queueFamilyDatas
 
-  frameIndex <- readIORef frameIndexRef
-  let frameFencePtr = ptrAtIndex frameFencesPtr frameIndex
+  frameIndex <- readIORef _frameIndexRef
+  let frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
 
   throwingVK "vkWaitForFences failed!"
-      $ vkWaitForFences device 1 frameFencePtr VK_TRUE (maxBound :: Word64)
+      $ vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64)
 
-  let imageAvailableSemaphore = imageAvailableSemaphores !! frameIndex
-      renderFinishedSemaphore = renderFinishedSemaphores !! frameIndex
-      
+  let imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex      
   throwingVK "vkAcquireNextImageKHR failed!"
-    $ vkAcquireNextImageKHR device swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
+    $ vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
 
-  imageIndex <- fromIntegral <$> peek imageIndexPtr
-  let commandBufferPtr = ptrAtIndex commandBuffersPtr (fromIntegral imageIndex)
-
+  imageIndex <- peek _imageIndexPtr
+  let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
   let submitInfo = createVk @VkSubmitInfo
         $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
         &* set @"pNext" VK_NULL
         &* set @"waitSemaphoreCount" 1
-        &* setListRef @"pWaitSemaphores" [imageAvailableSemaphores !! frameIndex]
+        &* setListRef @"pWaitSemaphores" [_imageAvailableSemaphores !! frameIndex]
         &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
         &* set @"commandBufferCount" 1
         &* set @"pCommandBuffers" commandBufferPtr
         &* set @"signalSemaphoreCount" 1
-        &* setListRef @"pSignalSemaphores" [renderFinishedSemaphores !! frameIndex]
+        &* setListRef @"pSignalSemaphores" [_renderFinishedSemaphores !! frameIndex]
 
   withPtr submitInfo $ \submitInfoPtr ->
     throwingVK "vkQueueSubmit failed!"
-      $ vkQueueSubmit graphicsQueue 1 submitInfoPtr VK_NULL
+      $ vkQueueSubmit _graphicsQueue 1 submitInfoPtr VK_NULL
 
   let presentInfo = createVk @VkPresentInfoKHR
         $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
         &* set @"pNext" VK_NULL
-        &* set @"pImageIndices" imageIndexPtr
+        &* set @"pImageIndices" _imageIndexPtr
         &* set @"waitSemaphoreCount" 1
-        &* setListRef @"pWaitSemaphores" [renderFinishedSemaphores !! frameIndex]
+        &* setListRef @"pWaitSemaphores" [_renderFinishedSemaphores !! frameIndex]
         &* set @"swapchainCount" 1
-        &* setListRef @"pSwapchains" [swapChain]
+        &* setListRef @"pSwapchains" [_swapChain]
 
   withPtr presentInfo $ \presentInfoPtr ->
     throwingVK "vkQueuePresentKHR failed!"
-      $ vkQueuePresentKHR presentQueue presentInfoPtr
+      $ vkQueuePresentKHR _presentQueue presentInfoPtr
 
   throwingVK "vkQueueWaitIdle failed!"
-    $ vkQueueWaitIdle presentQueue
+    $ vkQueueWaitIdle _presentQueue
 
-  writeIORef frameIndexRef $ mod (frameIndex + 1) maxFrameCount
+  writeIORef _frameIndexRef $ mod (frameIndex + 1) maxFrameCount
 
 cleanupSwapChain :: VkDevice -> [VkFramebuffer] -> VkCommandPool -> Int -> Ptr VkCommandBuffer -> VkPipeline -> VkPipelineLayout -> VkRenderPass -> [VkImageView] -> VkSwapchainKHR -> IO ()
 cleanupSwapChain device frameBuffers commandPool commandBufferCount commandBuffersPtr graphicsPipeline pipelineLayout renderPass swapChainImageViews swapChain = do
   destroyFramebuffers device frameBuffers
-  destroyCommandBuffers device commandPool (fromIntegral commandBufferCount) commandBuffersPtr
+  destroyCommandBuffers device commandPool (fromIntegral commandBufferCount) commandBuffersPtr  
   destroyGraphicsPipeline device graphicsPipeline
   destroyPipelineLayout device pipelineLayout
   destroyRenderPass device renderPass
   destroySwapChainImageViews device swapChainImageViews
   destroySwapChain device swapChain
-
--- cleanup = do
---   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
---         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
---         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
---         vkDestroyFence(device, inFlightFences[i], nullptr);
---     }
-
---     vkDestroyCommandPool(device, commandPool, nullptr);
-
---     vkDestroyDevice(device, nullptr);
-
---     if (enableValidationLayers) {
---         DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
---     }
-
---     vkDestroySurfaceKHR(instance, surface, nullptr);
---     vkDestroyInstance(instance, nullptr);

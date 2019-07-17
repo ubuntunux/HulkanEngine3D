@@ -35,7 +35,7 @@ main = do
   let
     Just window = maybeWindow
     progName = "02-GLFWWindow"
-    engineName = "My perfect Haskell engine"
+    engineName = "My perfect Haskell engine" 
     isConcurrentMode = True
   vkInstance <- createVulkanInstance progName engineName vulkanLayers requireExtensions
   vkSurface <- createVkSurface vkInstance window
@@ -43,32 +43,29 @@ main = do
   deviceProperties <- getPhysicalDeviceProperties physicalDevice
   msaaSamples <- getMaxUsableSampleCount deviceProperties  
   queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
-  let 
-    graphicsQueueIndex' = graphicsQueueIndex queueFamilyIndices
-    presentQueueIndex' = presentQueueIndex queueFamilyIndices    
-    queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex', presentQueueIndex']  
+  let graphicsQueueIndex = _graphicsQueueIndex queueFamilyIndices
+      presentQueueIndex = _presentQueueIndex queueFamilyIndices    
+      queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex, presentQueueIndex]  
   devicePtr <- createDevice physicalDevice queueFamilyIndexList
   device <- peek devicePtr
   queueMap <- createQueues device queueFamilyIndexList
   queueFamilyIndicesPtr <- newArray queueFamilyIndexList
-  let 
-    defaultQueue = (Map.elems queueMap) !! 0
-    queueFamilyDatas = QueueFamilyDatas
-        { graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex' queueMap
-        , presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex' queueMap
-        , queueFamilyCount = fromIntegral $ length queueMap
-        , queueFamilyIndicesPtr = queueFamilyIndicesPtr
-        , graphicsFamilyIndex = graphicsQueueIndex'
-        , presentFamilyIndex = presentQueueIndex' }
-    imageCount = 3 -- tripple buffering
-  swapChainData <- createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSurface
-  swapChainImageViews <- createSwapChainImageViews device swapChainData
+  let defaultQueue = (Map.elems queueMap) !! 0
+      queueFamilyDatas = QueueFamilyDatas
+          { _graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex queueMap
+          , _presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
+          , _queueFamilyCount = fromIntegral $ length queueMap
+          , _queueFamilyIndicesPtr = queueFamilyIndicesPtr
+          , _graphicsFamilyIndex = graphicsQueueIndex
+          , _presentFamilyIndex = presentQueueIndex }
+      imageCount = 3 -- tripple buffering
+  swapChainData <- createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas vkSurface  
   vertexShaderCreateInfo <- createShaderStageCreateInfo device "Resource/Shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
   fragmentShaderCreateInfo <- createShaderStageCreateInfo device "Resource/Shaders/triangle.frag" VK_SHADER_STAGE_FRAGMENT_BIT
   renderPass <- createRenderPass device swapChainData
   pipelineLayout <- createPipelineLayout device  
   graphicsPipeline <- createGraphicsPipeline device swapChainData [vertexShaderCreateInfo, fragmentShaderCreateInfo] renderPass pipelineLayout
-  frameBuffers <- createFramebuffers device renderPass swapChainData swapChainImageViews
+  frameBuffers <- createFramebuffers device renderPass swapChainData
   commandPool <- createCommandPool device queueFamilyDatas
   (commandBuffersPtr, commandBufferCount) <- createCommandBuffers device graphicsPipeline commandPool renderPass swapChainData frameBuffers
   imageAvailableSemaphores <- createSemaphores device
@@ -76,16 +73,24 @@ main = do
   frameFencesPtr <- createFrameFences device
   frameIndexRef <- newIORef 0
   imageIndexPtr <- new 0
-  renderData <- pure RenderData
-          { frameIndexRef = frameIndexRef
-          , imageAvailableSemaphores = imageAvailableSemaphores
-          , renderFinishedSemaphores = renderFinishedSemaphores
-          , device = device
-          , swapChainData = swapChainData
-          , queueFamilyDatas = queueFamilyDatas
-          , imageIndexPtr = imageIndexPtr
-          , commandBuffersPtr = commandBuffersPtr
-          , frameFencesPtr = frameFencesPtr }
+  let renderData = RenderData
+          { _frameIndexRef = frameIndexRef
+          , _msaaSamples = msaaSamples
+          , _imageAvailableSemaphores = imageAvailableSemaphores
+          , _renderFinishedSemaphores = renderFinishedSemaphores
+          , _device = device
+          , _swapChainData = swapChainData
+          , _queueFamilyDatas = queueFamilyDatas
+          , _imageIndexPtr = imageIndexPtr
+          , _frameFencesPtr = frameFencesPtr
+          , _frameBuffers = frameBuffers
+          , _commandPool = commandPool
+          , _commandBufferCount = (fromIntegral commandBufferCount)
+          , _commandBuffersPtr = commandBuffersPtr
+          , _graphicsPipeline = graphicsPipeline
+          , _pipelineLayout = pipelineLayout
+          , _renderPass = renderPass
+          }
 
   -- Main Loop
   glfwMainLoop window $ do    
@@ -97,29 +102,20 @@ main = do
   -- Terminate
   putStrLn "\n[ Terminate ]"
 
-  cleanupSwapChain device frameBuffers commandPool commandBufferCount commandBuffersPtr graphicsPipeline pipelineLayout renderPass swapChainImageViews (swapChain swapChainData)
+  cleanupSwapChain device frameBuffers commandPool commandBufferCount commandBuffersPtr graphicsPipeline pipelineLayout renderPass (_swapChainImageViews swapChainData) (_swapChain swapChainData)
 
-  destroyFrameFences device frameFencesPtr
-  destroySemaphores device renderFinishedSemaphores
-  destroySemaphores device imageAvailableSemaphores 
-  --destroyCommandBuffers device commandPool (fromIntegral commandBufferCount) commandBuffersPtr
-  destroyCommandPool device commandPool
-  --destroyFramebuffers device frameBuffers
-  --destroyGraphicsPipeline device graphicsPipeline
-  --destroyPipelineLayout device pipelineLayout
-  --destroyRenderPass device renderPass
   destroyShaderStageCreateInfo device vertexShaderCreateInfo
   destroyShaderStageCreateInfo device fragmentShaderCreateInfo
-  --destroySwapChainImageViews device swapChainImageViews
-  --destroySwapChain device (swapChain swapChainData)  
 
+  destroySemaphores device renderFinishedSemaphores
+  destroySemaphores device imageAvailableSemaphores 
+  destroyFrameFences device frameFencesPtr  
+  destroyCommandPool device commandPool
   destroyDevice devicePtr
   destroyVkSurface vkInstance vkSurface
   destroyVulkanInstance vkInstance
   
-  free queueFamilyIndicesPtr  
-  free commandBuffersPtr
-  free frameFencesPtr
+  free queueFamilyIndicesPtr      
   free imageIndexPtr
 
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
