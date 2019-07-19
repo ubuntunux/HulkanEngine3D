@@ -22,9 +22,10 @@ executable main
     main-is:          Main.hs
     ghc-options:      -threaded
     other-modules:    Library.Application
-                      Library.Shader
-                      Library.Vulkan
-                      Library.Utils
+                      Library.Constants
+                      Library.Shader                      
+                      Library.Utils 
+                      Library.Vulkan                     
     build-depends:    base >= 4.11 && < 5
                       , vulkan-api >= 1.3.0.0
                       , GLFW-b >= 3.2.1

@@ -19,6 +19,7 @@ import Library.Utils
 import Library.Application
 import Library.Shader
 import Library.Vulkan
+import qualified Library.Constants as Constants
 
 
 main::IO()
@@ -35,7 +36,7 @@ main = do
     progName = "02-GLFWWindow"
     engineName = "My perfect Haskell engine" 
     isConcurrentMode = True
-  vkInstance <- createVulkanInstance progName engineName vulkanLayers requireExtensions
+  vkInstance <- createVulkanInstance progName engineName Constants.vulkanLayers requireExtensions
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
   deviceProperties <- getPhysicalDeviceProperties physicalDevice
@@ -52,9 +53,8 @@ main = do
           , _presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
           , _queueFamilyCount = fromIntegral $ length queueMap
           , _queueFamilyIndices = queueFamilyIndices
-          }
-      imageCount = 3 -- tripple buffering
-  swapChainData <- createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas queueFamilyIndexList vkSurface
+          }      
+  swapChainData <- createSwapChain device swapChainSupportDetails queueFamilyDatas queueFamilyIndexList vkSurface
   vertexShaderCreateInfo <- createShaderStageCreateInfo device "Resource/Shaders/triangle.vert" VK_SHADER_STAGE_VERTEX_BIT
   fragmentShaderCreateInfo <- createShaderStageCreateInfo device "Resource/Shaders/triangle.frag" VK_SHADER_STAGE_FRAGMENT_BIT
   renderPass <- createRenderPass device swapChainData
@@ -69,8 +69,7 @@ main = do
   frameIndexRef <- newIORef 0
   imageIndexPtr <- new 0
   let renderData = RenderData
-          { _frameIndexRef = frameIndexRef
-          , _msaaSamples = msaaSamples
+          { _msaaSamples = msaaSamples
           , _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
           , _vkInstance = vkInstance
@@ -87,10 +86,12 @@ main = do
           , _pipelineLayout = pipelineLayout
           , _renderPass = renderPass
           }
-
+          
   -- Main Loop
-  glfwMainLoop window $ do    
-    drawFrame renderData imageIndexPtr
+  glfwMainLoop window $ do
+    frameIndex <- readIORef frameIndexRef
+    drawFrame renderData frameIndex imageIndexPtr
+    writeIORef frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
     
   throwingVK "vkDeviceWaitIdle failed!"
     $ vkDeviceWaitIdle device

@@ -5,9 +5,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Vulkan
-  ( vulkanLayers
-  , requireDeviceExtensions
-  , QueueFamilyIndices (..)
+  ( QueueFamilyIndices (..)
   , QueueFamilyDatas (..)  
   , SwapChainSupportDetails (..)
   , SwapChainData (..)
@@ -23,7 +21,6 @@ module Library.Vulkan
   , selectPhysicalDevice
   , getPhysicalDeviceProperties
   , getQueueFamilyIndices
-  , getDeviceCreateInfo
   , createQueues
   , createDevice
   , destroyDevice
@@ -54,7 +51,6 @@ module Library.Vulkan
 
 import Control.Monad
 import Data.Bits
-import Data.IORef
 import Data.List ((\\))
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
@@ -70,19 +66,8 @@ import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
+import qualified Library.Constants as Constants
 
-
-vulkanLayers :: [String]
-vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]
-
-requireDeviceExtensions :: [CString]
-requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
-
-invalidQueueIndex :: Word32
-invalidQueueIndex = maxBound
-
-maxFrameCount :: Int
-maxFrameCount = 2
 
 data QueueFamilyIndices = QueueFamilyIndices
   { _graphicsQueueIndex :: Word32
@@ -114,8 +99,7 @@ data SwapChainData = SwapChainData
   } deriving (Eq, Show)
 
 data RenderData = RenderData
-  { _frameIndexRef :: IORef Int
-  , _msaaSamples :: VkSampleCountBitmask FlagBit
+  { _msaaSamples :: VkSampleCountBitmask FlagBit
   , _imageAvailableSemaphores :: [VkSemaphore]
   , _renderFinishedSemaphores :: [VkSemaphore]
   , _vkInstance :: VkInstance
@@ -242,7 +226,7 @@ querySwapChainSupport physicalDevice vkSurface = do
 isDeviceSuitable :: Maybe VkSurfaceKHR -> VkPhysicalDevice -> IO (Maybe SwapChainSupportDetails, Bool)
 isDeviceSuitable maybeVkSurface physicalDevice = do
   deviceExtensionNames <- getDeviceExtensionSupport physicalDevice
-  hasExtension <- checkExtensionSupport deviceExtensionNames requireDeviceExtensions
+  hasExtension <- checkExtensionSupport deviceExtensionNames Constants.requireDeviceExtensions
   (maybeSwapChainSupportDetails, result) <- case maybeVkSurface of
     Nothing -> pure (Nothing, True)
     Just vkSurface
@@ -346,7 +330,7 @@ getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode = do
   putStrLn $ "Sparse Binding Queue Index : " ++ show (_sparseBindingQueueIndex queueFamilyIndices)  ++ " / " ++ show sparseBindingFamilyIndices
   return queueFamilyIndices
   where
-    getFamilyIndex [] _ = invalidQueueIndex
+    getFamilyIndex [] _ = Constants.invalidQueueIndex
     getFamilyIndex indices defaultIndex = 
       let result = [x | x <- indices, x /= defaultIndex]
       in
@@ -364,35 +348,6 @@ createQueues device queueFamilyIndices = do
   putStrLn $ "Created Queues: " ++ show (length queueList)
   return $ Map.fromList queueList
 
-getDeviceCreateInfo :: 
-  Ptr VkDeviceQueueCreateInfo
-  -> Int
-  -> VkPhysicalDeviceFeatures
-  -> [String]
-  -> Int
-  -> Ptr CString
-  -> IO VkDeviceCreateInfo
-getDeviceCreateInfo 
-  queueCreateInfoArrayPtr 
-  queueCreateInfoCount 
-  physicalDeviceFeatures 
-  layers
-  requireDeviceExtensionCount
-  requireDeviceExtensionsPtr = do
-  deviceCreateInfo <- withCStringList layers $ \layerCount layerNames -> do
-    newVkData @VkDeviceCreateInfo $ \devCreateInfoPtr -> do
-      writeField @"sType" devCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
-      writeField @"pNext" devCreateInfoPtr VK_NULL_HANDLE
-      writeField @"flags" devCreateInfoPtr VK_ZERO_FLAGS
-      writeField @"pQueueCreateInfos" devCreateInfoPtr queueCreateInfoArrayPtr
-      writeField @"queueCreateInfoCount" devCreateInfoPtr (fromIntegral queueCreateInfoCount)
-      writeField @"enabledLayerCount" devCreateInfoPtr (fromIntegral layerCount)
-      writeField @"ppEnabledLayerNames" devCreateInfoPtr layerNames
-      writeField @"enabledExtensionCount" devCreateInfoPtr (fromIntegral requireDeviceExtensionCount)
-      writeField @"ppEnabledExtensionNames" devCreateInfoPtr requireDeviceExtensionsPtr
-      writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
-  return deviceCreateInfo
-
 createDevice :: VkPhysicalDevice -> [Word32] -> IO VkDevice
 createDevice physicalDevice queueFamilyList = do  
   queuePrioritiesPtr <- new 1.0
@@ -406,14 +361,19 @@ createDevice physicalDevice queueFamilyList = do
         writeField @"pQueuePriorities" queueCreateInfoPtr queuePrioritiesPtr
   physicalDeviceFeatures <- newVkData @VkPhysicalDeviceFeatures clearStorable
   queueCreateInfoArrayPtr <- newArray queueCreateInfoList
-  requireDeviceExtensionsPtr <- newArray requireDeviceExtensions
-  deviceCreateInfo <- getDeviceCreateInfo 
-    queueCreateInfoArrayPtr 
-    (length queueCreateInfoList)
-    physicalDeviceFeatures
-    vulkanLayers
-    (length requireDeviceExtensions)
-    requireDeviceExtensionsPtr
+  requireDeviceExtensionsPtr <- newArray Constants.requireDeviceExtensions
+  deviceCreateInfo <- withCStringList Constants.vulkanLayers $ \layerCount layerNames -> do
+    newVkData @VkDeviceCreateInfo $ \devCreateInfoPtr -> do
+      writeField @"sType" devCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+      writeField @"pNext" devCreateInfoPtr VK_NULL_HANDLE
+      writeField @"flags" devCreateInfoPtr VK_ZERO_FLAGS
+      writeField @"pQueueCreateInfos" devCreateInfoPtr queueCreateInfoArrayPtr
+      writeField @"queueCreateInfoCount" devCreateInfoPtr (fromIntegral $ length queueCreateInfoList)
+      writeField @"enabledLayerCount" devCreateInfoPtr (fromIntegral layerCount)
+      writeField @"ppEnabledLayerNames" devCreateInfoPtr layerNames
+      writeField @"enabledExtensionCount" devCreateInfoPtr (fromIntegral $ length Constants.requireDeviceExtensions)
+      writeField @"ppEnabledExtensionNames" devCreateInfoPtr requireDeviceExtensionsPtr
+      writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
   device <- alloca $ \devicePtr -> do
     throwingVK "vkCreateDevice: failed to create vkDevice"
       $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
@@ -495,13 +455,12 @@ chooseSwapExtent swapChainSupportDetails = do
     height = getField @"height"
 
 createSwapChain :: VkDevice 
-                -> Library.Vulkan.SwapChainSupportDetails 
-                -> Word32 
+                -> SwapChainSupportDetails
                 -> QueueFamilyDatas 
                 -> [Word32]
                 -> VkSurfaceKHR 
                 -> IO SwapChainData
-createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas queueFamilyIndexList vkSurface = do
+createSwapChain device swapChainSupportDetails queueFamilyDatas queueFamilyIndexList vkSurface = do
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
   imageExtent <- chooseSwapExtent swapChainSupportDetails
@@ -511,8 +470,8 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas queue
   let maxImageCount = getField @"maxImageCount" $ _capabilities swapChainSupportDetails
       minImageCount = getField @"minImageCount" $ _capabilities swapChainSupportDetails
       imageCount' = if maxImageCount <= 0
-                   then max minImageCount imageCount
-                   else min maxImageCount $ max minImageCount imageCount
+                   then max minImageCount Constants.imageCount
+                   else min maxImageCount $ max minImageCount Constants.imageCount
 
   -- write VkSwapchainCreateInfoKHR
   swapChainCreateInfo <- newVkData @VkSwapchainCreateInfoKHR $ \swapChainCreateInfoPtr -> do
@@ -520,7 +479,7 @@ createSwapChain device swapChainSupportDetails imageCount queueFamilyDatas queue
     writeField @"pNext" swapChainCreateInfoPtr VK_NULL_HANDLE
     writeField @"flags" swapChainCreateInfoPtr VK_ZERO_FLAGS
     writeField @"surface" swapChainCreateInfoPtr vkSurface
-    writeField @"minImageCount" swapChainCreateInfoPtr (fromIntegral imageCount')
+    writeField @"minImageCount" swapChainCreateInfoPtr imageCount'
     writeField @"imageFormat" swapChainCreateInfoPtr (getField @"format" surfaceFormat)
     writeField @"imageColorSpace" swapChainCreateInfoPtr (getField @"colorSpace" surfaceFormat)
     writeField @"imageExtent" swapChainCreateInfoPtr imageExtent
@@ -971,16 +930,16 @@ destroyCommandBuffers device commandPool bufferCount commandBuffersPtr = do
 
 createSemaphores :: VkDevice -> IO [VkSemaphore]
 createSemaphores device = do
-  semaphores <- allocaArray maxFrameCount $ \semaphoresPtr -> do
+  semaphores <- allocaArray Constants.maxFrameCount $ \semaphoresPtr -> do
     let semaphoreCreateInfo = createVk @VkSemaphoreCreateInfo
           $  set @"sType" VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
           &* set @"pNext" VK_NULL
           &* set @"flags" VK_ZERO_FLAGS    
-    forM_ [0..(maxFrameCount-1)] $ \index -> do
+    forM_ [0..(Constants.maxFrameCount - 1)] $ \index -> do
       withPtr semaphoreCreateInfo $ \semaphoreCreateInfoPtr -> do
         throwingVK "vkCreateSemaphore failed!"
           $ vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL (ptrAtIndex semaphoresPtr index)
-    peekArray maxFrameCount semaphoresPtr    
+    peekArray Constants.maxFrameCount semaphoresPtr    
   putStrLn $ "Create Semaphore: " ++ show semaphores
   return semaphores
 
@@ -992,54 +951,53 @@ destroySemaphores device semaphores = do
 
 createFrameFences :: VkDevice -> IO (Ptr VkFence)
 createFrameFences device = do
-  frameFencesPtr <- mallocArray maxFrameCount
+  frameFencesPtr <- mallocArray Constants.maxFrameCount
   let fenceCreateInfo = createVk @VkFenceCreateInfo
         $  set @"sType" VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
         &* set @"pNext" VK_NULL
         &* set @"flags" VK_FENCE_CREATE_SIGNALED_BIT
-  forM_ [0..(maxFrameCount-1)] $ \index -> do
+  forM_ [0..(Constants.maxFrameCount - 1)] $ \index -> do
     withPtr fenceCreateInfo $ \fenceCreateInfoPtr -> do
       throwingVK "vkCreateSemaphore failed!"
         $ vkCreateFence device fenceCreateInfoPtr VK_NULL (ptrAtIndex frameFencesPtr index)  
-  putStrLn $ "Create VkFences: " ++ show maxFrameCount
+  putStrLn $ "Create VkFences: " ++ show Constants.maxFrameCount
   return frameFencesPtr  
 
 destroyFrameFences :: VkDevice -> Ptr VkFence -> IO ()
 destroyFrameFences device frameFencesPtr = do
-  fences <- peekArray maxFrameCount frameFencesPtr
+  fences <- peekArray Constants.maxFrameCount frameFencesPtr
   putStrLn $ "Destroy VkFence: " ++ show fences
   forM_ fences $ \fence -> 
     vkDestroyFence device fence VK_NULL
   free frameFencesPtr  
 
-drawFrame :: RenderData -> Ptr Word32 -> IO ()
-drawFrame RenderData {..} imageIndexPtr = do  
+drawFrame :: RenderData -> Int -> Ptr Word32 -> IO ()
+drawFrame RenderData {..} frameIndex imageIndexPtr = do
   let SwapChainData {..} = _swapChainData
-  let QueueFamilyDatas {..} = _queueFamilyDatas
-
-  frameIndex <- readIORef _frameIndexRef
-  let frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
-
+      QueueFamilyDatas {..} = _queueFamilyDatas
+      frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
+      imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
+      renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
+  
   throwingVK "vkWaitForFences failed!"
-      $ vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64)
-
-  let imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex      
+      $ vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64)  
+  
   throwingVK "vkAcquireNextImageKHR failed!"
     $ vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
-
+  
   imageIndex <- peek imageIndexPtr
   let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
   let submitInfo = createVk @VkSubmitInfo
         $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
         &* set @"pNext" VK_NULL
         &* set @"waitSemaphoreCount" 1
-        &* setListRef @"pWaitSemaphores" [_imageAvailableSemaphores !! frameIndex]
+        &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
         &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
         &* set @"commandBufferCount" 1
         &* set @"pCommandBuffers" commandBufferPtr
         &* set @"signalSemaphoreCount" 1
-        &* setListRef @"pSignalSemaphores" [_renderFinishedSemaphores !! frameIndex]
-
+        &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
+  
   withPtr submitInfo $ \submitInfoPtr ->
     throwingVK "vkQueueSubmit failed!"
       $ vkQueueSubmit _graphicsQueue 1 submitInfoPtr VK_NULL
@@ -1049,7 +1007,7 @@ drawFrame RenderData {..} imageIndexPtr = do
         &* set @"pNext" VK_NULL
         &* set @"pImageIndices" imageIndexPtr
         &* set @"waitSemaphoreCount" 1
-        &* setListRef @"pWaitSemaphores" [_renderFinishedSemaphores !! frameIndex]
+        &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
         &* set @"swapchainCount" 1
         &* setListRef @"pSwapchains" [_swapChain]
 
@@ -1059,8 +1017,6 @@ drawFrame RenderData {..} imageIndexPtr = do
 
   throwingVK "vkQueueWaitIdle failed!"
     $ vkQueueWaitIdle _presentQueue
-
-  writeIORef _frameIndexRef $ mod (frameIndex + 1) maxFrameCount
 
 cleanupSwapChain :: RenderData -> IO ()
 cleanupSwapChain RenderData {..} = do
