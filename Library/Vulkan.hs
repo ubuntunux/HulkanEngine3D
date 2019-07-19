@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE Strict           #-}
-{-# LANGUAGE TemplateHaskell  #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Vulkan
@@ -9,6 +8,7 @@ module Library.Vulkan
   , QueueFamilyDatas (..)  
   , SwapChainSupportDetails (..)
   , SwapChainData (..)
+  , GraphicsPipelineData (..)
   , RenderData (..)
   , getMaxUsableSampleCount  
   , getInstanceExtensionSupport
@@ -47,6 +47,7 @@ module Library.Vulkan
   , drawFrame  
   , cleanupSwapChain
   , cleanup
+  , recreateSwapChain
   ) where
 
 import Control.Monad
@@ -65,6 +66,7 @@ import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
 import qualified Graphics.UI.GLFW as GLFW
+import Library.Shader
 import Library.Utils
 import qualified Library.Constants as Constants
 
@@ -80,8 +82,9 @@ data QueueFamilyIndices = QueueFamilyIndices
 data QueueFamilyDatas = QueueFamilyDatas
   { _graphicsQueue :: VkQueue
   , _presentQueue :: VkQueue
+  , _queueFamilyIndexList :: [Word32]
   , _queueFamilyCount :: Word32
-  , _queueFamilyIndices :: QueueFamilyIndices
+  , _queueFamilyIndices :: QueueFamilyIndices  
   } deriving (Eq, Show)
 
 data SwapChainSupportDetails = SwapChainSupportDetails
@@ -98,6 +101,13 @@ data SwapChainData = SwapChainData
   , _swapChainExtent :: VkExtent2D
   } deriving (Eq, Show)
 
+data GraphicsPipelineData = GraphicsPipelineData
+  { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
+  , _fragmentShaderCreateInfo :: VkPipelineShaderStageCreateInfo
+  , _pipelineLayout :: VkPipelineLayout
+  , _pipeline :: VkPipeline  
+  } deriving (Eq, Show)
+
 data RenderData = RenderData
   { _msaaSamples :: VkSampleCountBitmask FlagBit
   , _imageAvailableSemaphores :: [VkSemaphore]
@@ -112,8 +122,7 @@ data RenderData = RenderData
   , _commandPool :: VkCommandPool
   , _commandBufferCount :: Word32
   , _commandBuffersPtr :: Ptr VkCommandBuffer
-  , _graphicsPipeline :: VkPipeline
-  , _pipelineLayout :: VkPipelineLayout
+  , _graphicsPipelineData :: GraphicsPipelineData
   , _renderPass :: VkRenderPass
   } deriving (Eq, Show)
 
@@ -457,14 +466,13 @@ chooseSwapExtent swapChainSupportDetails = do
 createSwapChain :: VkDevice 
                 -> SwapChainSupportDetails
                 -> QueueFamilyDatas 
-                -> [Word32]
                 -> VkSurfaceKHR 
                 -> IO SwapChainData
-createSwapChain device swapChainSupportDetails queueFamilyDatas queueFamilyIndexList vkSurface = do
+createSwapChain device swapChainSupportDetails queueFamilyDatas vkSurface = do
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
   imageExtent <- chooseSwapExtent swapChainSupportDetails
-  queueFamilyIndicesPtr <- newArray queueFamilyIndexList
+  queueFamilyIndicesPtr <- newArray (_queueFamilyIndexList queueFamilyDatas)
 
   -- try tripple buffering
   let maxImageCount = getField @"maxImageCount" $ _capabilities swapChainSupportDetails
@@ -530,10 +538,11 @@ createSwapChain device swapChainSupportDetails queueFamilyDatas queueFamilyIndex
                                     }
   return swapChainData
 
-destroySwapChain :: VkDevice -> VkSwapchainKHR -> IO ()
-destroySwapChain device swapChain = do
+destroySwapChain :: VkDevice -> SwapChainData -> IO ()
+destroySwapChain device swapChainData = do
+  destroySwapChainImageViews device (_swapChainImageViews swapChainData)
   putStrLn "Destroy SwapChain"
-  vkDestroySwapchainKHR device swapChain VK_NULL_HANDLE
+  vkDestroySwapchainKHR device (_swapChain swapChainData) VK_NULL_HANDLE
 
 createSwapChainImageViews :: VkDevice -> [VkImage] -> VkFormat -> IO [VkImageView]
 createSwapChainImageViews device swapChainImages swapChainImageFormat = do
@@ -634,17 +643,9 @@ destroyRenderPass device renderPass = do
   putStrLn "Destroy RenderPass"
   vkDestroyRenderPass device renderPass VK_NULL
 
-
 createPipelineLayout :: VkDevice -> IO VkPipelineLayout
-createPipelineLayout device = do
-  putStrLn "Create PipelineLayout"
-  pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
-    throwingVK "vkCreatePipelineLayout failed!"
-      $ vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
-    peek pipelineLayoutPtr
-  touchVkData pipelineCreateInfo
-  return pipelineLayout
-  where
+createPipelineLayout device = do  
+  let 
     pipelineCreateInfo :: VkPipelineLayoutCreateInfo
     pipelineCreateInfo = createVk @VkPipelineLayoutCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
@@ -655,6 +656,15 @@ createPipelineLayout device = do
       &* set @"pushConstantRangeCount" 0      
       &* set @"pPushConstantRanges" VK_NULL
 
+  pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
+    throwingVK "vkCreatePipelineLayout failed!"
+      $ vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
+    putStrLn "Create PipelineLayout"
+    peek pipelineLayoutPtr
+
+  touchVkData pipelineCreateInfo
+  return pipelineLayout
+
 destroyPipelineLayout :: VkDevice -> VkPipelineLayout -> IO ()
 destroyPipelineLayout device pipelineLayout = do
   putStrLn "Destroy PipelineLayout"
@@ -662,12 +672,16 @@ destroyPipelineLayout device pipelineLayout = do
 
 
 createGraphicsPipeline :: VkDevice
-                       -> SwapChainData
-                       -> [VkPipelineShaderStageCreateInfo]
+                       -> VkExtent2D
+                       -> String
+                       -> String
                        -> VkRenderPass
-                       -> VkPipelineLayout
-                       -> IO VkPipeline
-createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipelineLayout =  
+                       -> IO GraphicsPipelineData
+createGraphicsPipeline device swapChainExtent vertexShaderFile fragmentShaderFile renderPass = do
+  vertexShaderCreateInfo <- createShaderStageCreateInfo device vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
+  fragmentShaderCreateInfo <- createShaderStageCreateInfo device fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
+  let shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
+  pipelineLayout <- createPipelineLayout device
   let
     vertexInputInfo :: VkPipelineVertexInputStateCreateInfo
     vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
@@ -691,14 +705,14 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
     viewPort = createVk @VkViewport
       $  set @"x" 0
       &* set @"y" 0
-      &* set @"width" (fromIntegral $ getField @"width" (_swapChainExtent swapChainData))
-      &* set @"height" (fromIntegral $ getField @"height" (_swapChainExtent swapChainData))
+      &* set @"width" (fromIntegral $ getField @"width" swapChainExtent)
+      &* set @"height" (fromIntegral $ getField @"height" swapChainExtent)
       &* set @"minDepth" 0
       &* set @"maxDepth" 1
 
     scissorRect :: VkRect2D
     scissorRect = createVk @VkRect2D
-      $  set   @"extent" (_swapChainExtent swapChainData)
+      $  set   @"extent" swapChainExtent
       &* setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
 
     viewPortState :: VkPipelineViewportStateCreateInfo
@@ -764,12 +778,12 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
       &* setAt @"blendConstants" @2 0.0
       &* setAt @"blendConstants" @3 0.0
 
-    getGraphicsPipelineCreateInfo :: Ptr VkPipelineShaderStageCreateInfo -> VkGraphicsPipelineCreateInfo
-    getGraphicsPipelineCreateInfo shaderStageInfosPtr = createVk @VkGraphicsPipelineCreateInfo
+    getGraphicsPipelineCreateInfo :: Ptr VkPipelineShaderStageCreateInfo -> Word32 -> VkGraphicsPipelineCreateInfo
+    getGraphicsPipelineCreateInfo shaderStageInfosPtr shaderStageInfoCount = createVk @VkGraphicsPipelineCreateInfo
       $  set @"sType" VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
       &* set @"pNext" VK_NULL
       &* set @"flags" VK_ZERO_FLAGS
-      &* set @"stageCount" (fromIntegral $ length shaderStageInfos)
+      &* set @"stageCount" shaderStageInfoCount
       &* set @"pStages" shaderStageInfosPtr
       &* setVkRef @"pVertexInputState" vertexInputInfo
       &* setVkRef @"pInputAssemblyState" inputAssembly
@@ -785,24 +799,36 @@ createGraphicsPipeline device swapChainData shaderStageInfos renderPass pipeline
       &* set @"subpass" 0
       &* set @"basePipelineHandle" VK_NULL_HANDLE
       &* set @"basePipelineIndex" (-1)
-  in do
-    putStrLn $ "Create GraphicsPipeline: " ++ show (_swapChainExtent swapChainData)
-    shaderStageInfosPtr <- newArray shaderStageInfos
-    let graphicsPipelineCreateInfo = getGraphicsPipelineCreateInfo shaderStageInfosPtr
-    createGraphicsPipelinesFunc <- vkGetDeviceProc @VkCreateGraphicsPipelines device    
-    graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do
-      throwingVK "vkCreateGraphicsPipelines failed!"
-        $ createGraphicsPipelinesFunc device VK_NULL_HANDLE 1 (unsafePtr graphicsPipelineCreateInfo) VK_NULL graphicsPipelinePtr
-      peek graphicsPipelinePtr
-    touchVkData graphicsPipelineCreateInfo
-    free shaderStageInfosPtr
-    return graphicsPipeline
 
-destroyGraphicsPipeline :: VkDevice -> VkPipeline -> IO ()
-destroyGraphicsPipeline device graphicsPipeline = do
+  putStrLn $ "Create Pipeline: " ++ show swapChainExtent  
+  shaderStageInfosPtr <- newArray shaderStageInfos
+  let graphicsPipelineCreateInfo = getGraphicsPipelineCreateInfo shaderStageInfosPtr (fromIntegral $ length shaderStageInfos)  
+  createGraphicsPipelinesFunc <- vkGetDeviceProc @VkCreateGraphicsPipelines device  
+
+  graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do
+    throwingVK "vkCreatePipelines failed!"
+      $ createGraphicsPipelinesFunc device VK_NULL_HANDLE 1 (unsafePtr graphicsPipelineCreateInfo) VK_NULL graphicsPipelinePtr
+    peek graphicsPipelinePtr
+
+  touchVkData graphicsPipelineCreateInfo
+  free shaderStageInfosPtr
+
+  let 
+    graphicsPipelineData = GraphicsPipelineData
+      { _vertexShaderCreateInfo = vertexShaderCreateInfo
+      , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
+      , _pipelineLayout = pipelineLayout
+      , _pipeline = graphicsPipeline }
+  return graphicsPipelineData
+
+destroyGraphicsPipeline :: VkDevice -> GraphicsPipelineData -> IO ()
+destroyGraphicsPipeline device graphicsPipelineData = do
   putStrLn $ "Destroy GraphicsPipeline"
-  vkDestroyPipeline device graphicsPipeline VK_NULL
-
+  let GraphicsPipelineData {..} = graphicsPipelineData
+  vkDestroyPipeline device _pipeline VK_NULL
+  destroyPipelineLayout device _pipelineLayout
+  destroyShaderStageCreateInfo device _vertexShaderCreateInfo
+  destroyShaderStageCreateInfo device _fragmentShaderCreateInfo
 
 createFramebuffers :: VkDevice -> VkRenderPass -> SwapChainData -> IO [VkFramebuffer]
 createFramebuffers device renderPass swapChainData = do  
@@ -837,7 +863,6 @@ destroyFramebuffers device frameBuffers = do
   forM_ frameBuffers $ \frameBuffer ->
     vkDestroyFramebuffer device frameBuffer VK_NULL_HANDLE
 
-
 createCommandPool :: VkDevice -> QueueFamilyDatas -> IO VkCommandPool
 createCommandPool device QueueFamilyDatas {..} = do
   let graphicsQueueIndex = (_graphicsQueueIndex _queueFamilyIndices)
@@ -867,7 +892,7 @@ createCommandBuffers :: VkDevice
                      -> SwapChainData
                      -> [VkFramebuffer]
                      -> IO (Ptr VkCommandBuffer, Int)
-createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} frameBuffers = do
+createCommandBuffers device graphicsPipeline commandPool renderPass SwapChainData{..} frameBuffers = do
   let bufferCount = length frameBuffers
   commandBuffersPtr <- mallocArray bufferCount::IO (Ptr VkCommandBuffer)
   let allocationInfo = createVk @VkCommandBufferAllocateInfo
@@ -915,7 +940,7 @@ createCommandBuffers device pipeline commandPool renderPass SwapChainData{..} fr
     withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
       vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
     -- basic drawing commands
-    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
+    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS graphicsPipeline
     vkCmdDraw commandBuffer 3 1 0 0
     -- finishing up
     vkCmdEndRenderPass commandBuffer
@@ -985,8 +1010,7 @@ drawFrame RenderData {..} frameIndex imageIndexPtr = do
   throwingVK "vkAcquireNextImageKHR failed!"
     $ vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
   
-  imageIndex <- peek imageIndexPtr
-  let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
+  imageIndex <- peek imageIndexPtr  
   let submitInfo = createVk @VkSubmitInfo
         $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
         &* set @"pNext" VK_NULL
@@ -994,7 +1018,7 @@ drawFrame RenderData {..} frameIndex imageIndexPtr = do
         &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
         &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
         &* set @"commandBufferCount" 1
-        &* set @"pCommandBuffers" commandBufferPtr
+        &* set @"pCommandBuffers" (ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex))
         &* set @"signalSemaphoreCount" 1
         &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
   
@@ -1019,16 +1043,12 @@ drawFrame RenderData {..} frameIndex imageIndexPtr = do
     $ vkQueueWaitIdle _presentQueue
 
 cleanupSwapChain :: RenderData -> IO ()
-cleanupSwapChain RenderData {..} = do
-  let swapChain = (_swapChain _swapChainData)
-      swapChainImageViews = (_swapChainImageViews _swapChainData)
+cleanupSwapChain RenderData {..} = do  
   destroyFramebuffers _device _frameBuffers
-  destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
-  destroyGraphicsPipeline _device _graphicsPipeline
-  destroyPipelineLayout _device _pipelineLayout
-  destroyRenderPass _device _renderPass
-  destroySwapChainImageViews _device swapChainImageViews
-  destroySwapChain _device swapChain
+  destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr  
+  destroyGraphicsPipeline _device _graphicsPipelineData
+  destroyRenderPass _device _renderPass  
+  destroySwapChain _device _swapChainData
 
 cleanup :: RenderData -> IO ()
 cleanup renderData@RenderData {..} = do  
@@ -1041,3 +1061,26 @@ cleanup renderData@RenderData {..} = do
   destroyDevice _device
   destroyVkSurface _vkInstance _vkSurface
   destroyVulkanInstance _vkInstance
+
+recreateSwapChain :: RenderData -> SwapChainSupportDetails -> IO RenderData
+recreateSwapChain renderData@RenderData {..} swapChainSupportDetails = do
+  throwingVK "vkDeviceWaitIdle failed!"
+    $ vkDeviceWaitIdle _device
+    
+  cleanupSwapChain renderData
+
+  swapChainData <- createSwapChain _device swapChainSupportDetails _queueFamilyDatas _vkSurface
+  renderPass <- createRenderPass _device swapChainData  
+  let vertexShaderFile = "Resource/Shaders/triangle.vert"
+      fragmentShaderFile = "Resource/Shaders/triangle.frag"
+  graphicsPipelineData <- createGraphicsPipeline _device (_swapChainExtent swapChainData) vertexShaderFile fragmentShaderFile renderPass
+  frameBuffers <- createFramebuffers _device renderPass swapChainData
+  (commandBuffersPtr, commandBufferCount) <- createCommandBuffers _device (_pipeline graphicsPipelineData) _commandPool renderPass swapChainData frameBuffers
+  return renderData 
+    { _swapChainData = swapChainData
+    , _renderPass = renderPass
+    , _graphicsPipelineData = graphicsPipelineData
+    , _frameBuffers = frameBuffers
+    , _commandBuffersPtr = commandBuffersPtr
+    , _commandBufferCount = fromIntegral commandBufferCount }
+  
