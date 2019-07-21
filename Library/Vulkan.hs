@@ -24,12 +24,8 @@ module Library.Vulkan
   , createQueues
   , createDevice
   , destroyDevice
-  , createSwapChain
-  , destroySwapChain
-  , createSwapChainImageViews
-  , destroySwapChainImageViews
-  , createPipelineLayout
-  , destroyPipelineLayout
+  , createSwapChainData
+  , destroySwapChainData
   , createRenderPass
   , destroyRenderPass
   , createGraphicsPipeline
@@ -44,10 +40,12 @@ module Library.Vulkan
   , destroySemaphores
   , createFrameFences
   , destroyFrameFences
-  , drawFrame  
-  , cleanupSwapChain
-  , cleanup
-  , recreateSwapChain
+  , drawFrame
+  , getDefaultRenderData
+  , createRenderData
+  , destroyRenderData
+  , createRenderer
+  , destroyRenderer  
   ) where
 
 import Control.Monad
@@ -192,7 +190,7 @@ createVulkanInstance progName engineName layers extensions = do
     throwingVK "vkCreateInstance: Failed to create vkInstance."
       $ vkCreateInstance (unsafePtr instanceCreateInfo) VK_NULL vkInstPtr    
     peek vkInstPtr  
-  touchVkData instanceCreateInfo
+  touchVkData instanceCreateInfo  
   return vkInstance
 
 destroyVulkanInstance :: VkInstance -> IO ()
@@ -463,12 +461,12 @@ chooseSwapExtent swapChainSupportDetails = do
     width = getField @"width"
     height = getField @"height"
 
-createSwapChain :: VkDevice 
-                -> SwapChainSupportDetails
-                -> QueueFamilyDatas 
-                -> VkSurfaceKHR 
-                -> IO SwapChainData
-createSwapChain device swapChainSupportDetails queueFamilyDatas vkSurface = do
+createSwapChainData :: VkDevice 
+                    -> SwapChainSupportDetails
+                    -> QueueFamilyDatas 
+                    -> VkSurfaceKHR 
+                    -> IO SwapChainData
+createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = do
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
   presentMode <- chooseSwapPresentMode swapChainSupportDetails
   imageExtent <- chooseSwapExtent swapChainSupportDetails
@@ -538,8 +536,8 @@ createSwapChain device swapChainSupportDetails queueFamilyDatas vkSurface = do
                                     }
   return swapChainData
 
-destroySwapChain :: VkDevice -> SwapChainData -> IO ()
-destroySwapChain device swapChainData = do
+destroySwapChainData :: VkDevice -> SwapChainData -> IO ()
+destroySwapChainData device swapChainData = do
   destroySwapChainImageViews device (_swapChainImageViews swapChainData)
   putStrLn "Destroy SwapChain"
   vkDestroySwapchainKHR device (_swapChain swapChainData) VK_NULL_HANDLE
@@ -1042,34 +1040,67 @@ drawFrame RenderData {..} frameIndex imageIndexPtr = do
   throwingVK "vkQueueWaitIdle failed!"
     $ vkQueueWaitIdle _presentQueue
 
-cleanupSwapChain :: RenderData -> IO ()
-cleanupSwapChain RenderData {..} = do  
-  destroyFramebuffers _device _frameBuffers
-  destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr  
-  destroyGraphicsPipeline _device _graphicsPipelineData
-  destroyRenderPass _device _renderPass  
-  destroySwapChain _device _swapChainData
+getDefaultRenderData :: IO RenderData
+getDefaultRenderData = do
+  imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
+    writeField @"width" extentPtr $ 0
+    writeField @"height" extentPtr $ 0
+  let 
+    defaultSwapChainData = SwapChainData
+      { _swapChain = VK_NULL
+      , _swapChainImages = []
+      , _swapChainImageFormat = VK_FORMAT_UNDEFINED
+      , _swapChainImageViews = []
+      , _swapChainExtent = imageExtent }
+    defaultQueueFamilyIndices = QueueFamilyIndices
+      { _graphicsQueueIndex = 0
+      , _presentQueueIndex = 0
+      , _computeQueueIndex = 0
+      , _transferQueueIndex = 0
+      , _sparseBindingQueueIndex = 0 }
+    defaultQueueFamilyDatas = QueueFamilyDatas
+      { _graphicsQueue = VK_NULL
+      , _presentQueue = VK_NULL
+      , _queueFamilyIndexList = []
+      , _queueFamilyCount = 0
+      , _queueFamilyIndices = defaultQueueFamilyIndices }
+    deafaultShaderCreateInfo = createVk @VkPipelineShaderStageCreateInfo
+      $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
+      &* set @"pNext" VK_NULL
+      &* set @"stage" VK_SHADER_STAGE_VERTEX_BIT
+      &* set @"module" VK_NULL
+      &* setStrRef @"pName" "main"
+    defaultGraphicsPipelineData = GraphicsPipelineData
+      { _vertexShaderCreateInfo = deafaultShaderCreateInfo
+      , _fragmentShaderCreateInfo = deafaultShaderCreateInfo
+      , _pipelineLayout = VK_NULL
+      , _pipeline = VK_NULL }
+  return RenderData
+      { _msaaSamples = VK_SAMPLE_COUNT_4_BIT
+      , _imageAvailableSemaphores = []
+      , _renderFinishedSemaphores = []
+      , _vkInstance = VK_NULL
+      , _vkSurface = VK_NULL
+      , _device = VK_NULL
+      , _swapChainData = defaultSwapChainData
+      , _queueFamilyDatas = defaultQueueFamilyDatas
+      , _frameFencesPtr = VK_NULL
+      , _frameBuffers = []
+      , _commandPool = VK_NULL
+      , _commandBufferCount = 0
+      , _commandBuffersPtr = VK_NULL
+      , _graphicsPipelineData = defaultGraphicsPipelineData
+      , _renderPass = VK_NULL
+      }
 
-cleanup :: RenderData -> IO ()
-cleanup renderData@RenderData {..} = do  
-  cleanupSwapChain renderData
-
-  destroySemaphores _device _renderFinishedSemaphores
-  destroySemaphores _device _imageAvailableSemaphores 
-  destroyFrameFences _device _frameFencesPtr  
-  destroyCommandPool _device _commandPool
-  destroyDevice _device
-  destroyVkSurface _vkInstance _vkSurface
-  destroyVulkanInstance _vkInstance
-
-recreateSwapChain :: RenderData -> SwapChainSupportDetails -> IO RenderData
-recreateSwapChain renderData@RenderData {..} swapChainSupportDetails = do
+createRenderData :: RenderData -> SwapChainSupportDetails -> Bool -> IO RenderData
+createRenderData renderData@RenderData {..} swapChainSupportDetails doDestroy = do
   throwingVK "vkDeviceWaitIdle failed!"
     $ vkDeviceWaitIdle _device
     
-  cleanupSwapChain renderData
+  when doDestroy $ destroyRenderData renderData
 
-  swapChainData <- createSwapChain _device swapChainSupportDetails _queueFamilyDatas _vkSurface
+  swapChainData <- createSwapChainData _device swapChainSupportDetails _queueFamilyDatas _vkSurface
   renderPass <- createRenderPass _device swapChainData  
   let vertexShaderFile = "Resource/Shaders/triangle.vert"
       fragmentShaderFile = "Resource/Shaders/triangle.frag"
@@ -1084,3 +1115,26 @@ recreateSwapChain renderData@RenderData {..} swapChainSupportDetails = do
     , _commandBuffersPtr = commandBuffersPtr
     , _commandBufferCount = fromIntegral commandBufferCount }
   
+destroyRenderData :: RenderData -> IO ()
+destroyRenderData RenderData {..} = do  
+  destroyFramebuffers _device _frameBuffers
+  destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr  
+  destroyGraphicsPipeline _device _graphicsPipelineData
+  destroyRenderPass _device _renderPass  
+  destroySwapChainData _device _swapChainData
+
+createRenderer :: IO ()
+createRenderer = do
+  return ()
+
+destroyRenderer :: RenderData -> IO ()
+destroyRenderer renderData@RenderData {..} = do  
+  destroyRenderData renderData
+
+  destroySemaphores _device _renderFinishedSemaphores
+  destroySemaphores _device _imageAvailableSemaphores 
+  destroyFrameFences _device _frameFencesPtr  
+  destroyCommandPool _device _commandPool
+  destroyDevice _device
+  destroyVkSurface _vkInstance _vkSurface
+  destroyVulkanInstance _vkInstance

@@ -25,7 +25,7 @@ main::IO()
 main = do   
   maybeWindow <- createGLFWWindow 800 600 "Vulkan Application"
   when (Nothing == maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
-  putStrLn "Initialized GLFW window."
+  putStrLn "Initialized GLFW window."  
   requireExtensions <- GLFW.getRequiredInstanceExtensions
   instanceExtensionNames <- getInstanceExtensionSupport
   result <- checkExtensionSupport instanceExtensionNames requireExtensions
@@ -52,20 +52,23 @@ main = do
           , _presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
           , _queueFamilyIndexList = queueFamilyIndexList
           , _queueFamilyCount = fromIntegral $ length queueMap
-          , _queueFamilyIndices = queueFamilyIndices }      
-  swapChainData <- createSwapChain device swapChainSupportDetails queueFamilyDatas vkSurface
+          , _queueFamilyIndices = queueFamilyIndices }
+  commandPool <- createCommandPool device queueFamilyDatas
+  imageAvailableSemaphores <- createSemaphores device
+  renderFinishedSemaphores <- createSemaphores device
+  frameFencesPtr <- createFrameFences device
+
+  defaultRenderData <- getDefaultRenderData
+  swapChainData <- createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface
   renderPass <- createRenderPass device swapChainData  
   let vertexShaderFile = "Resource/Shaders/triangle.vert"
       fragmentShaderFile = "Resource/Shaders/triangle.frag"
   graphicsPipelineData <- createGraphicsPipeline device (_swapChainExtent swapChainData) vertexShaderFile fragmentShaderFile renderPass
   frameBuffers <- createFramebuffers device renderPass swapChainData
-  commandPool <- createCommandPool device queueFamilyDatas
   (commandBuffersPtr, commandBufferCount) <- createCommandBuffers device (_pipeline graphicsPipelineData) commandPool renderPass swapChainData frameBuffers
-  imageAvailableSemaphores <- createSemaphores device
-  renderFinishedSemaphores <- createSemaphores device  
-  frameFencesPtr <- createFrameFences device
-  frameIndexRef <- newIORef 0
-  imageIndexPtr <- new 0
+
+  frameIndexRef <- newIORef 0  
+  imageIndexPtr <- new 0  
   renderData <- pure RenderData
       { _msaaSamples = msaaSamples
       , _imageAvailableSemaphores = imageAvailableSemaphores
@@ -93,8 +96,8 @@ main = do
     $ vkDeviceWaitIdle device
 
   -- Terminate
-  putStrLn "\n[ Terminate ]"  
-  cleanup renderData  
+  putStrLn "\n[ Terminate ]"
+  destroyRenderer renderData  
   free imageIndexPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
