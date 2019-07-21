@@ -51,6 +51,8 @@ module Library.Vulkan
 import Control.Monad
 import Data.Bits
 import Data.List ((\\))
+import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -1120,9 +1122,47 @@ destroyRenderData RenderData {..} = do
   destroyRenderPass _device _renderPass  
   destroySwapChainData _device _swapChainData
 
-createRenderer :: IO ()
-createRenderer = do
-  return ()
+createRenderer :: RenderData
+               -> GLFW.Window
+               -> String
+               -> String
+               -> Bool
+               -> [CString]
+               -> IO (RenderData, SwapChainSupportDetails)
+createRenderer defaultRenderData window progName engineName isConcurrentMode requireExtensions = do
+  vkInstance <- createVulkanInstance progName engineName Constants.vulkanLayers requireExtensions
+  vkSurface <- createVkSurface vkInstance window
+  (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
+  deviceProperties <- getPhysicalDeviceProperties physicalDevice
+  msaaSamples <- getMaxUsableSampleCount deviceProperties  
+  queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
+  let graphicsQueueIndex = _graphicsQueueIndex queueFamilyIndices
+      presentQueueIndex = _presentQueueIndex queueFamilyIndices    
+      queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex, presentQueueIndex]
+  device <- createDevice physicalDevice queueFamilyIndexList
+  queueMap <- createQueues device queueFamilyIndexList  
+  let defaultQueue = (Map.elems queueMap) !! 0
+      queueFamilyDatas = QueueFamilyDatas
+          { _graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex queueMap
+          , _presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
+          , _queueFamilyIndexList = queueFamilyIndexList
+          , _queueFamilyCount = fromIntegral $ length queueMap
+          , _queueFamilyIndices = queueFamilyIndices }
+  commandPool <- createCommandPool device queueFamilyDatas
+  imageAvailableSemaphores <- createSemaphores device
+  renderFinishedSemaphores <- createSemaphores device
+  frameFencesPtr <- createFrameFences device
+  renderData <- pure defaultRenderData
+      { _msaaSamples = msaaSamples
+      , _imageAvailableSemaphores = imageAvailableSemaphores
+      , _renderFinishedSemaphores = renderFinishedSemaphores
+      , _vkInstance = vkInstance
+      , _vkSurface = vkSurface
+      , _device = device
+      , _queueFamilyDatas = queueFamilyDatas
+      , _frameFencesPtr = frameFencesPtr
+      , _commandPool = commandPool }
+  return (renderData, swapChainSupportDetails)
 
 destroyRenderer :: RenderData -> IO ()
 destroyRenderer renderData@RenderData {..} = do  
