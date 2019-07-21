@@ -811,13 +811,11 @@ createGraphicsPipeline device swapChainExtent vertexShaderFile fragmentShaderFil
   touchVkData graphicsPipelineCreateInfo
   free shaderStageInfosPtr
 
-  let 
-    graphicsPipelineData = GraphicsPipelineData
-      { _vertexShaderCreateInfo = vertexShaderCreateInfo
-      , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
-      , _pipelineLayout = pipelineLayout
-      , _pipeline = graphicsPipeline }
-  return graphicsPipelineData
+  return GraphicsPipelineData
+    { _vertexShaderCreateInfo = vertexShaderCreateInfo
+    , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
+    , _pipelineLayout = pipelineLayout
+    , _pipeline = graphicsPipeline }
 
 destroyGraphicsPipeline :: VkDevice -> GraphicsPipelineData -> IO ()
 destroyGraphicsPipeline device graphicsPipelineData = do
@@ -1090,8 +1088,7 @@ getDefaultRenderData = do
       , _commandBufferCount = 0
       , _commandBuffersPtr = VK_NULL
       , _graphicsPipelineData = defaultGraphicsPipelineData
-      , _renderPass = VK_NULL
-      }
+      , _renderPass = VK_NULL }
 
 createRenderData :: RenderData -> SwapChainSupportDetails -> Bool -> IO RenderData
 createRenderData renderData@RenderData {..} swapChainSupportDetails doDestroy = do

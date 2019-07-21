@@ -59,32 +59,20 @@ main = do
   frameFencesPtr <- createFrameFences device
 
   defaultRenderData <- getDefaultRenderData
-  swapChainData <- createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface
-  renderPass <- createRenderPass device swapChainData  
-  let vertexShaderFile = "Resource/Shaders/triangle.vert"
-      fragmentShaderFile = "Resource/Shaders/triangle.frag"
-  graphicsPipelineData <- createGraphicsPipeline device (_swapChainExtent swapChainData) vertexShaderFile fragmentShaderFile renderPass
-  frameBuffers <- createFramebuffers device renderPass swapChainData
-  (commandBuffersPtr, commandBufferCount) <- createCommandBuffers device (_pipeline graphicsPipelineData) commandPool renderPass swapChainData frameBuffers
-
-  frameIndexRef <- newIORef 0  
-  imageIndexPtr <- new 0  
-  renderData <- pure RenderData
+  renderData' <- pure defaultRenderData
       { _msaaSamples = msaaSamples
       , _imageAvailableSemaphores = imageAvailableSemaphores
       , _renderFinishedSemaphores = renderFinishedSemaphores
       , _vkInstance = vkInstance
       , _vkSurface = vkSurface
       , _device = device
-      , _swapChainData = swapChainData
       , _queueFamilyDatas = queueFamilyDatas
       , _frameFencesPtr = frameFencesPtr
-      , _frameBuffers = frameBuffers
-      , _commandPool = commandPool
-      , _commandBufferCount = (fromIntegral commandBufferCount)
-      , _commandBuffersPtr = commandBuffersPtr
-      , _graphicsPipelineData = graphicsPipelineData
-      , _renderPass = renderPass }
+      , _commandPool = commandPool }
+  renderData <- createRenderData renderData' swapChainSupportDetails False
+
+  frameIndexRef <- newIORef 0  
+  imageIndexPtr <- new 0  
           
   -- Main Loop
   glfwMainLoop window $ do
