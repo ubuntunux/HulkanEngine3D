@@ -10,21 +10,25 @@ module Library.Application
 
 
 import Control.Monad
+import Data.IORef
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
 
 
-glfwMainLoop :: GLFW.Window -> IO () -> IO ()
+glfwMainLoop :: GLFW.Window -> IO Bool -> IO ()
 glfwMainLoop window mainLoop = go
   where
     go = do
       should <- GLFW.windowShouldClose window
-      unless should $ GLFW.pollEvents >> mainLoop >> go
+      unless should $ do
+        GLFW.pollEvents
+        result <- mainLoop
+        if result then go else return ()
 
 
-createGLFWWindow::Int -> Int -> String -> IO (Maybe GLFW.Window)
-createGLFWWindow width height title = do
+createGLFWWindow::Int -> Int -> String -> IORef Bool -> IO (Maybe GLFW.Window)
+createGLFWWindow width height title windowSizeChanged = do
   GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")  
   putStrLn "Initialized GLFW."
   version <- GLFW.getVersionString
@@ -32,5 +36,10 @@ createGLFWWindow width height title = do
   GLFW.vulkanSupported >>= flip unless (throwVKMsg "GLFW reports that vulkan is not supported!")
   GLFW.windowHint $ WindowHint'ClientAPI ClientAPI'NoAPI
   GLFW.windowHint $ WindowHint'Resizable True
-  window <- GLFW.createWindow width height title Nothing Nothing
-  return window
+  maybeWindow <- GLFW.createWindow width height title Nothing Nothing
+  let Just window = maybeWindow
+  
+  GLFW.setWindowSizeCallback window $ do
+    Just (\_ _ _ -> atomicWriteIORef windowSizeChanged True)
+
+  return maybeWindow

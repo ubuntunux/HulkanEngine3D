@@ -354,7 +354,7 @@ createQueues device queueFamilyIndices = do
       vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
       peek queuePtr
     return (queueFamilyIndex, queue)
-  putStrLn $ "Created Queues: " ++ show (length queueList)
+  putStrLn $ "Created Queues: " ++ show queueList
   return $ Map.fromList queueList
 
 createDevice :: VkPhysicalDevice -> [Word32] -> IO VkDevice
@@ -830,9 +830,9 @@ destroyGraphicsPipeline device graphicsPipelineData = do
 
 createFramebuffers :: VkDevice -> VkRenderPass -> SwapChainData -> IO [VkFramebuffer]
 createFramebuffers device renderPass swapChainData = do  
-  let swapChainImageViews' = (_swapChainImageViews swapChainData)
-  putStrLn $ "Create Framebuffers: " ++ show (length swapChainImageViews')
+  let swapChainImageViews' = (_swapChainImageViews swapChainData)  
   framebuffers <- mapM createFrameBuffer swapChainImageViews'
+  putStrLn $ "Create Framebuffers: " ++ show framebuffers
   return framebuffers
   where
     createFrameBuffer :: VkImageView -> IO VkFramebuffer
@@ -857,7 +857,7 @@ createFramebuffers device renderPass swapChainData = do
 
 destroyFramebuffers :: VkDevice -> [VkFramebuffer] -> IO ()
 destroyFramebuffers device frameBuffers = do
-  putStrLn $ "Destroy Framebuffers"
+  putStrLn $ "Destroy Framebuffers" ++ show frameBuffers
   forM_ frameBuffers $ \frameBuffer ->
     vkDestroyFramebuffer device frameBuffer VK_NULL_HANDLE
 
@@ -879,7 +879,7 @@ createCommandPool device QueueFamilyDatas {..} = do
 
 destroyCommandPool :: VkDevice -> VkCommandPool -> IO ()
 destroyCommandPool device commandPool = do
-  putStrLn $ "Destroy Command Pool"
+  putStrLn $ "Destroy Command Pool" ++ show commandPool
   vkDestroyCommandPool device commandPool VK_NULL
 
 
@@ -983,7 +983,8 @@ createFrameFences device = do
     withPtr fenceCreateInfo $ \fenceCreateInfoPtr -> do
       throwingVK "vkCreateSemaphore failed!"
         $ vkCreateFence device fenceCreateInfoPtr VK_NULL (ptrAtIndex frameFencesPtr index)  
-  putStrLn $ "Create VkFences: " ++ show Constants.maxFrameCount
+  fences <- peekArray Constants.maxFrameCount frameFencesPtr
+  putStrLn $ "Create VkFences: " ++ show fences
   return frameFencesPtr  
 
 destroyFrameFences :: VkDevice -> Ptr VkFence -> IO ()
@@ -994,7 +995,7 @@ destroyFrameFences device frameFencesPtr = do
     vkDestroyFence device fence VK_NULL
   free frameFencesPtr  
 
-drawFrame :: RenderData -> Int -> Ptr Word32 -> IO ()
+drawFrame :: RenderData -> Int -> Ptr Word32 -> IO VkResult
 drawFrame RenderData {..} frameIndex imageIndexPtr = do
   let SwapChainData {..} = _swapChainData
       QueueFamilyDatas {..} = _queueFamilyDatas
@@ -1005,40 +1006,44 @@ drawFrame RenderData {..} frameIndex imageIndexPtr = do
   throwingVK "vkWaitForFences failed!"
       $ vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64)  
   
-  throwingVK "vkAcquireNextImageKHR failed!"
-    $ vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
-  
-  imageIndex <- peek imageIndexPtr  
-  let submitInfo = createVk @VkSubmitInfo
-        $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
-        &* set @"pNext" VK_NULL
-        &* set @"waitSemaphoreCount" 1
-        &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
-        &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-        &* set @"commandBufferCount" 1
-        &* set @"pCommandBuffers" (ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex))
-        &* set @"signalSemaphoreCount" 1
-        &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
-  
-  withPtr submitInfo $ \submitInfoPtr ->
-    throwingVK "vkQueueSubmit failed!"
-      $ vkQueueSubmit _graphicsQueue 1 submitInfoPtr VK_NULL
+  --throwingVK "vkAcquireNextImageKHR failed!"
+  result <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
+  if (VK_SUCCESS /= result) then 
+    return result
+  else do
+    imageIndex <- peek imageIndexPtr  
+    let submitInfo = createVk @VkSubmitInfo
+          $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
+          &* set @"pNext" VK_NULL
+          &* set @"waitSemaphoreCount" 1
+          &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
+          &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+          &* set @"commandBufferCount" 1
+          &* set @"pCommandBuffers" (ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex))
+          &* set @"signalSemaphoreCount" 1
+          &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
+    
+    withPtr submitInfo $ \submitInfoPtr ->
+      throwingVK "vkQueueSubmit failed!"
+        $ vkQueueSubmit _graphicsQueue 1 submitInfoPtr VK_NULL
 
-  let presentInfo = createVk @VkPresentInfoKHR
-        $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
-        &* set @"pNext" VK_NULL
-        &* set @"pImageIndices" imageIndexPtr
-        &* set @"waitSemaphoreCount" 1
-        &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
-        &* set @"swapchainCount" 1
-        &* setListRef @"pSwapchains" [_swapChain]
+    let presentInfo = createVk @VkPresentInfoKHR
+          $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
+          &* set @"pNext" VK_NULL
+          &* set @"pImageIndices" imageIndexPtr
+          &* set @"waitSemaphoreCount" 1
+          &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
+          &* set @"swapchainCount" 1
+          &* setListRef @"pSwapchains" [_swapChain]
 
-  withPtr presentInfo $ \presentInfoPtr ->
-    throwingVK "vkQueuePresentKHR failed!"
-      $ vkQueuePresentKHR _presentQueue presentInfoPtr
+    presnetResult <- withPtr presentInfo $ \presentInfoPtr ->    
+      vkQueuePresentKHR _presentQueue presentInfoPtr
 
-  throwingVK "vkQueueWaitIdle failed!"
-    $ vkQueueWaitIdle _presentQueue
+    throwingVK "vkQueueWaitIdle failed!"
+      $ vkQueueWaitIdle _presentQueue
+
+    return presnetResult
+
 
 getDefaultRenderData :: IO RenderData
 getDefaultRenderData = do
@@ -1092,13 +1097,8 @@ getDefaultRenderData = do
       , _graphicsPipelineData = defaultGraphicsPipelineData
       , _renderPass = VK_NULL }
 
-createRenderData :: RenderData -> SwapChainSupportDetails -> Bool -> IO RenderData
-createRenderData renderData@RenderData {..} swapChainSupportDetails doDestroy = do
-  throwingVK "vkDeviceWaitIdle failed!"
-    $ vkDeviceWaitIdle _device
-    
-  when doDestroy $ destroyRenderData renderData
-
+createRenderData :: RenderData -> SwapChainSupportDetails -> IO RenderData
+createRenderData renderData@RenderData {..} swapChainSupportDetails = do
   swapChainData <- createSwapChainData _device swapChainSupportDetails _queueFamilyDatas _vkSurface
   renderPass <- createRenderPass _device swapChainData  
   let vertexShaderFile = "Resource/Shaders/triangle.vert"
@@ -1115,7 +1115,7 @@ createRenderData renderData@RenderData {..} swapChainSupportDetails doDestroy = 
     , _commandBufferCount = fromIntegral commandBufferCount }
   
 destroyRenderData :: RenderData -> IO ()
-destroyRenderData RenderData {..} = do  
+destroyRenderData RenderData {..} = do    
   destroyFramebuffers _device _frameBuffers
   destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr  
   destroyGraphicsPipeline _device _graphicsPipelineData
