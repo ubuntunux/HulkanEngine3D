@@ -17,6 +17,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
 import Library.Application
 import Library.Vulkan
+import Library.Resource.ObjLoader
 import qualified Library.Constants as Constants
 
 
@@ -41,6 +42,8 @@ main = do
   renderDataRef <- newIORef defaultRenderData
   frameIndexRef <- newIORef 0
   imageIndexPtr <- new (0::Word32)
+
+  (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
           
   -- Main Loop
   glfwMainLoop window $ do    

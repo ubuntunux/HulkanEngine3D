@@ -91,8 +91,8 @@ vertIADs = ST.runST $ do
         &* set @"offset" (bFieldOffsetOf @"texCoord" @Vertex undefined)
     ST.unsafeFreezeDataFrame mv
 
-triangleToFaceIndices :: Tri -> [FaceIndex]
 -- reversal here for correct culling in combination with the (-y) below
+triangleToFaceIndices :: Tri -> [FaceIndex]
 triangleToFaceIndices (Tri a b c) = [c, b, a]
 
 faceToTriangles :: Face -> [Tri]
@@ -102,11 +102,10 @@ faceToTriangles (Face a b c is) = pairwise (Tri a) (b:c:is)
 
 loadModel :: FilePath -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])
 loadModel file = do
-  putStrLn "Loading model.."
+  putStrLn $ "Loading model: " ++ file
   obj <- either throwVKMsg pure =<< Codec.Wavefront.fromFile file
-  let r = objVertices obj
-  return r
-
+  let (vertices, indices) = objVertices obj
+  return (vertices, indices)
 
 objVertices :: WavefrontOBJ -> (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])
 objVertices WavefrontOBJ {..}
@@ -135,8 +134,10 @@ objVertices WavefrontOBJ {..}
        "Each of these types of vertices is numbered separately, starting with 1"
      -}
     mkVertex :: ( KnownDim n, KnownDim m)
-             => Matrix Float n 3 -> Matrix Float m 2
-             -> FaceIndex -> Vertex
+             => Matrix Float n 3
+             -> Matrix Float m 2
+             -> FaceIndex 
+             -> Vertex
     mkVertex objLocs objTexCs FaceIndex {..} = Vertex
       { pos      = objLocs ! fromIntegral (faceLocIndex - 1)
       , color    = vec3 1 1 1
