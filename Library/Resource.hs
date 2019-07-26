@@ -1,0 +1,4 @@
+
+module Library.Resource
+  (
+  ) where
