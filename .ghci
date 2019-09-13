@@ -1,1 +1,3 @@
+:set prompt "¥ë> "
+:set prompt-cont "| "
 :set -fobject-code
