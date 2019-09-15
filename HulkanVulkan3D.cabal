@@ -26,6 +26,7 @@ executable main
                       Library.Shader
                       Library.Utils
                       Library.Vulkan
+                      Library.Vulkan.Buffer
                       Library.Resource
                       Library.Resource.ObjLoader
     build-depends:    base >= 4.11 && < 5
