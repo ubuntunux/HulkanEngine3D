@@ -6,23 +6,32 @@
 
 module Library.Vulkan.Buffer
   ( createBuffer
+  , destroyBuffer
 --   , copyBuffer
 --   , findMemoryType
---   , createVertexBuffer
+   , createVertexBuffer
 --   , createIndexBuffer
   ) where
 
 import Data.Bits
 import Foreign.Ptr              (castPtr)
+import Foreign.Marshal.Alloc
+import Foreign.Storable
+import Numeric.DataFrame
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame
-import Numeric.DataFrame
 
+import Library.Utils
 import Library.Vulkan
+import Library.Vulkan.Mesh
 
--- -- | Create a generic @VkBuffer@ and allocate @VkDeviceMemory@ for it.
+
+destroyBuffer :: VkDevice -> VkBuffer -> IO ()
+destroyBuffer device buffer = do
+  vkDestroyBuffer device buffer VK_NULL
+
 createBuffer :: VkPhysicalDevice
              -> VkDevice
              -> VkDeviceSize
@@ -30,15 +39,28 @@ createBuffer :: VkPhysicalDevice
              -> VkMemoryPropertyFlags
              -> IO ()
             --  -> IO (VkDeviceMemory, VkBuffer)
-createBuffer pdev dev bSize bUsage bMemPropFlags = do    
-    let bufferInfo = createVk @VkBufferCreateInfo
+createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFlags = do    
+    let bufferCreateInfo = createVk @VkBufferCreateInfo
           $  set @"sType" VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO
           &* set @"pNext" VK_NULL
-          &* set @"size" bSize
-          &* set @"usage" bUsage
+          &* set @"size" bufferSize
+          &* set @"usage" bufferUsageFlags
           &* set @"sharingMode" VK_SHARING_MODE_EXCLUSIVE
           &* set @"queueFamilyIndexCount" 0
           &* set @"pQueueFamilyIndices" VK_NULL
+    buffer <- alloca $ \bufferPtr -> do
+      withPtr bufferCreateInfo $ \createInfoPtr -> do
+        throwingVK "bufferCreateInfo failed!"
+          $ vkCreateBuffer device createInfoPtr VK_NULL bufferPtr
+      peek bufferPtr
+    touchVkData bufferCreateInfo
+
+    memRequirements <- alloca $ \bufferPtr -> do
+      vkGetBufferMemoryRequirements device buffer bufferPtr
+      peek bufferPtr
+
+    putStrLn $ "createBuffer : " ++ show memRequirements
+    
     return ()
 --     (buf, freeBufLater) <- allocResource'
 --       (\vb -> liftIO $ vkDestroyBuffer dev vb VK_NULL) $
@@ -107,15 +129,21 @@ createBuffer pdev dev bSize bUsage bMemPropFlags = do
 --                            else go (i+1)
 --     go 0
 
--- createVertexBuffer :: VkPhysicalDevice
---                    -> VkDevice
---                    -> VkCommandPool
---                    -> VkQueue
---                    -> DataFrame Vertex '[XN 3]
---                       -- ^ A collection of at least three vertices
---                    -> Program r VkBuffer
--- createVertexBuffer pdev dev cmdPool cmdQueue (XFrame vertices) = do
-
+createVertexBuffer :: RenderData
+                   -> DataFrame Vertex '[XN 3] -- ^ A collection of at least three vertices
+                   -> IO ()
+                   -- -> IO VkBuffer
+createVertexBuffer renderData (XFrame vertices) = do
+  let 
+      device = _device renderData
+      physicalDevice = _physicalDevice renderData
+      graphicsQueue = _graphicsQueue $ _queueFamilyDatas renderData
+      commandPool = _commandPool renderData
+      bufferSize = bSizeOf vertices
+      bufferUsageFlags = ( VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+      memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+  buffer <- createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFlags
+  return ()
 --     let bSize = bSizeOf vertices
 
 --     (_, vertexBuf) <-

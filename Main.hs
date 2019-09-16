@@ -17,6 +17,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
 import Library.Application
 import Library.Vulkan
+import Library.Vulkan.Buffer
 import Library.Resource.ObjLoader
 import qualified Library.Constants as Constants
 
@@ -37,16 +38,16 @@ main = do
     engineName = "HulkanEngine3D" 
     isConcurrentMode = True
     
+  needCreateResourceRef <- newIORef True
   needCreateRenderDataRef <- newIORef True
   defaultRenderData <- getDefaultRenderData
   renderDataRef <- newIORef defaultRenderData
   frameIndexRef <- newIORef 0
   imageIndexPtr <- new (0::Word32)
-
-  (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-          
+        
   -- Main Loop
-  glfwMainLoop window $ do    
+  glfwMainLoop window $ do 
+    -- creat render data   
     needCreateRenderData <- readIORef needCreateRenderDataRef
     when needCreateRenderData $ do
       writeIORef needCreateRenderDataRef False
@@ -58,6 +59,15 @@ main = do
       (preRenderData, swapChainSupportDetails) <- createRenderer defaultRenderData window progName engineName isConcurrentMode requireExtensions
       newRenderData <- createRenderData preRenderData swapChainSupportDetails
       writeIORef renderDataRef newRenderData
+    -- create resource
+    needCreateResource <- readIORef needCreateResourceRef
+    when needCreateResource $ do
+      writeIORef needCreateResourceRef False
+      renderData <- readIORef renderDataRef      
+      (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"      
+      vertexBuffer <- createVertexBuffer renderData vertices
+      return ()
+    -- main loop
     renderData <- readIORef renderDataRef
     frameIndex <- readIORef frameIndexRef
     result <- drawFrame renderData frameIndex imageIndexPtr

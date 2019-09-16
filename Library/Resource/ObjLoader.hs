@@ -9,8 +9,7 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module Library.Resource.ObjLoader
-  ( Vertex (..)
-  , vertIBD
+  ( vertIBD
   , vertIADs
   , loadModel
   , atLeastThree
@@ -31,18 +30,7 @@ import qualified Numeric.DataFrame.ST as ST
 import Numeric.Dimensions
 
 import Library.Utils
-
-data Vertex = Vertex
-  { pos      :: Vec3f
-  , color    :: Vec3f
-  , texCoord :: Vec2f
-  } deriving (Eq, Ord, Show, Generic)
-
-data Tri = Tri {-# UNPACK #-}!FaceIndex
-               {-# UNPACK #-}!FaceIndex
-               {-# UNPACK #-}!FaceIndex
-
-instance PrimBytes Vertex
+import Library.Vulkan.Mesh
 
 
 -- | Check if the frame has enough elements.

@@ -66,6 +66,7 @@ import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
 import qualified Graphics.UI.GLFW as GLFW
+
 import Library.Shader
 import Library.Utils
 import qualified Library.Constants as Constants
@@ -115,6 +116,7 @@ data RenderData = RenderData
   , _vkInstance :: VkInstance
   , _vkSurface :: VkSurfaceKHR
   , _device :: VkDevice
+  , _physicalDevice :: VkPhysicalDevice
   , _swapChainData :: SwapChainData
   , _queueFamilyDatas :: QueueFamilyDatas
   , _frameFencesPtr :: Ptr VkFence
@@ -1087,6 +1089,7 @@ getDefaultRenderData = do
       , _vkInstance = VK_NULL
       , _vkSurface = VK_NULL
       , _device = VK_NULL
+      , _physicalDevice = VK_NULL
       , _swapChainData = defaultSwapChainData
       , _queueFamilyDatas = defaultQueueFamilyDatas
       , _frameFencesPtr = VK_NULL
@@ -1159,6 +1162,7 @@ createRenderer defaultRenderData window progName engineName isConcurrentMode req
       , _vkInstance = vkInstance
       , _vkSurface = vkSurface
       , _device = device
+      , _physicalDevice = physicalDevice
       , _queueFamilyDatas = queueFamilyDatas
       , _frameFencesPtr = frameFencesPtr
       , _commandPool = commandPool }
