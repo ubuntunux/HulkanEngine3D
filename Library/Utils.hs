@@ -14,6 +14,7 @@ module Library.Utils
     , asListVK
     , unsafeAddr
     , ptrAtIndex
+    , allocaPeek
     ) where
 
 import Control.Exception
@@ -101,3 +102,7 @@ unsafeAddr a = I# (word2Int# (aToWord# (unsafeCoerce# a)))
 
 ptrAtIndex :: forall a. Storable a => Ptr a -> Int -> Ptr a
 ptrAtIndex ptr i = ptr `plusPtr` (i * sizeOf @a undefined)
+
+allocaPeek :: Storable a => (Ptr a -> IO b) -> IO a
+allocaPeek action = alloca $ \ptr -> do
+  action ptr >> peek ptr

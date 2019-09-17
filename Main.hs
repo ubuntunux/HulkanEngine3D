@@ -66,6 +66,10 @@ main = do
       renderData <- readIORef renderDataRef      
       (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"      
       vertexBuffer <- createVertexBuffer renderData vertices
+
+      -- TODO
+      -- destroyVertexBuffer
+      -- destroyBuffer device buffer bufferMemory
       return ()
     -- main loop
     renderData <- readIORef renderDataRef
