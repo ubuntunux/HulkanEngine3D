@@ -28,12 +28,6 @@ import Library.Vulkan
 import Library.Vulkan.Mesh
 
 
-destroyBuffer :: VkDevice -> VkBuffer -> VkDeviceMemory -> IO ()
-destroyBuffer device buffer memory = do
-  putStrLn $ "Destroy Buffer : "  ++ show buffer ++ ", Memory : " ++ show memory
-  vkDestroyBuffer device buffer VK_NULL
-  vkFreeMemory device memory VK_NULL
-
 createBuffer :: VkPhysicalDevice
              -> VkDevice
              -> VkDeviceSize
@@ -55,7 +49,6 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
       withPtr bufferCreateInfo $ \createInfoPtr -> do
         throwingVK "vkCreateBuffer failed!"
           $ vkCreateBuffer device createInfoPtr VK_NULL bufferPtr
-    touchVkData bufferCreateInfo
 
     memoryRequirements <- allocaPeek $ vkGetBufferMemoryRequirements device buffer
     memoryTypeIndex <- findMemoryType physicalDevice (getField @"memoryTypeBits" memoryRequirements) memoryPropertyFlags
@@ -71,7 +64,6 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
       withPtr allocInfo $ \allocInfoPtr -> do
         throwingVK "vkAllocateMemory failed!"
           $ vkAllocateMemory device allocInfoPtr VK_NULL bufferMemoryPtr
-    touchVkData allocInfo
 
     putStrLn $ "Create Buffer : "  ++ show buffer ++ ", Memory : " ++ show bufferMemory
     putStrLn $ "\tbufferSize : " ++ show bufferSize
@@ -83,6 +75,12 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
 
     return (bufferMemory, buffer)
 
+destroyBuffer :: VkDevice -> VkBuffer -> VkDeviceMemory -> IO ()
+destroyBuffer device buffer memory = do
+  putStrLn $ "Destroy Buffer : "  ++ show buffer ++ ", Memory : " ++ show memory
+  vkDestroyBuffer device buffer VK_NULL
+  vkFreeMemory device memory VK_NULL
+
 
 -- | @copyBuffer dev pool queue src dest n@ copies @n@ bytes from @src@ buffer to @dest@ buffer.
 copyBuffer :: VkDevice
@@ -92,13 +90,16 @@ copyBuffer :: VkDevice
            -> VkBuffer 
            -> VkDeviceSize 
            -> IO ()
-copyBuffer device commandPool commandQueue srcBuffer dstBuffer bufferSize =
+copyBuffer device commandPool commandQueue srcBuffer dstBuffer bufferSize = do
+  putStrLn $ "CopyBuffer : " ++ show srcBuffer ++ " -> " ++ show dstBuffer ++ " { size = " ++ show bufferSize ++ " }"
   runCommandsOnce device commandPool commandQueue $ \commandBuffer -> do
     let copyRegion = createVk @VkBufferCopy
           $  set @"srcOffset" 0
           &* set @"dstOffset" 0
           &* set @"size" bufferSize
-    withVkPtr copyRegion $ liftIO . vkCmdCopyBuffer commandBuffer srcBuffer dstBuffer 1
+    withPtr copyRegion $ \copyRegionPtr -> do
+      vkCmdCopyBuffer commandBuffer srcBuffer dstBuffer 1 copyRegionPtr
+
 
 -- | Return an index of a memory type for a device
 findMemoryType :: VkPhysicalDevice
@@ -116,6 +117,7 @@ findMemoryType physicalDevice typeFilter propertyFlags = do
                          then return i
                          else go (i + 1)
   go 0
+
 
 createVertexBuffer :: RenderData
                    -> DataFrame Vertex '[XN 3] -- ^ A collection of at least three vertices
