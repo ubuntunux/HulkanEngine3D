@@ -19,3 +19,5 @@ stack build
 stack exec main
 ```
 
+### Note
+    * Triangle (1024 x 768) : 1500 fps
