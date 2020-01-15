@@ -22,6 +22,7 @@ executable main
     main-is:          Main.hs
     ghc-options:      -threaded
                       -Wunused-do-bind
+                      -Wunused-matches
     other-modules:    Library.Application
                       Library.Constants
                       Library.Shader

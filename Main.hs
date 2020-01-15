@@ -1,14 +1,13 @@
 {-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE Strict           #-}
-{-# LANGUAGE TemplateHaskell  #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Main (main) where
 
-import Control.Exception
 import Control.Monad
 import Data.IORef
+import Data.Maybe (isNothing)
+import System.CPUTime
+import Text.Printf
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
 import Graphics.Vulkan.Core_1_0
@@ -23,74 +22,85 @@ import qualified Library.Constants as Constants
 
 
 main::IO()
-main = do   
+main = do
   windowSizeChanged <- newIORef False
-  maybeWindow <- createGLFWWindow 800 600 "Vulkan Application" windowSizeChanged
-  when (Nothing == maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
-  putStrLn "Initialized GLFW window."  
+  maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged
+  when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
+  putStrLn "Initialized GLFW window."
   requireExtensions <- GLFW.getRequiredInstanceExtensions
-  instanceExtensionNames <- getInstanceExtensionSupport  
+  instanceExtensionNames <- getInstanceExtensionSupport
   checkExtensionResult <- checkExtensionSupport instanceExtensionNames requireExtensions
-  unless checkExtensionResult (throwVKMsg "Failed to initialize GLFW window.")  
-  let
-    Just window = maybeWindow
-    progName = "Hulkan App"
-    engineName = "HulkanEngine3D" 
-    isConcurrentMode = True
-    
+  unless checkExtensionResult (throwVKMsg "Failed to initialize GLFW window.")
+  let Just window = maybeWindow
+      progName = "Hulkan App"
+      engineName = "HulkanEngine3D"
+      isConcurrentMode = True
   needCreateResourceRef <- newIORef True
   needCreateRenderDataRef <- newIORef True
   defaultRenderData <- getDefaultRenderData
   renderDataRef <- newIORef defaultRenderData
   frameIndexRef <- newIORef 0
-  imageIndexPtr <- new (0::Word32)
-        
-  -- Main Loop
-  glfwMainLoop window $ do 
-    -- creat render data   
-    needCreateRenderData <- readIORef needCreateRenderDataRef
-    when needCreateRenderData $ do
-      writeIORef needCreateRenderDataRef False
-      readRenderData <- readIORef renderDataRef
-      when (VK_NULL /= _device readRenderData) $ do        
-        throwingVK "vkDeviceWaitIdle failed!"
-          $ vkDeviceWaitIdle (_device readRenderData)
-        destroyRenderData readRenderData
-      (preRenderData, swapChainSupportDetails) <- createRenderer defaultRenderData window progName engineName isConcurrentMode requireExtensions
-      newRenderData <- createRenderData preRenderData swapChainSupportDetails
-      writeIORef renderDataRef newRenderData
-    -- create resource
-    needCreateResource <- readIORef needCreateResourceRef
-    when needCreateResource $ do
-      writeIORef needCreateResourceRef False
-      renderData <- readIORef renderDataRef      
-      (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"      
-      vertexBuffer <- createVertexBuffer renderData vertices
+  imageIndexPtr <- new (0 :: Word32)
+  currentTime <- getCPUTime
+  currentTimeRef <- newIORef currentTime
+  elapsedTimeRef <- newIORef (0.0::Double)
+  frameCountRef <- newIORef 0
 
-      -- TODO
-      -- destroyVertexBuffer
-      -- destroyBuffer device buffer bufferMemory
-      return ()
-    -- main loop
-    renderData <- readIORef renderDataRef
-    frameIndex <- readIORef frameIndexRef
-    result <- drawFrame renderData frameIndex imageIndexPtr
-    writeIORef frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
-    sizeChanged <- readIORef windowSizeChanged
-    when (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged) 
-      $ do
+  -- Main Loop
+  glfwMainLoop window $
+    do
+      currentTime <- getCPUTime
+      previousTime <- readIORef currentTimeRef
+      let deltaTime = (fromIntegral (currentTime - previousTime) / (10^12))::Double
+      elapsedTime <- do
+          elapsedTimePrev <- readIORef elapsedTimeRef
+          return $ elapsedTimePrev + deltaTime
+      writeIORef currentTimeRef currentTime
+      writeIORef elapsedTimeRef elapsedTime
+
+      frameCount <- readIORef frameCountRef
+      writeIORef frameCountRef (frameCount + 1)
+      print (1.0 / deltaTime)
+
+      needCreateRenderData <- readIORef needCreateRenderDataRef
+      when needCreateRenderData $ do
+        writeIORef needCreateRenderDataRef False
+        readRenderData <- readIORef renderDataRef
+        when (VK_NULL /= _device readRenderData) $ do
+          throwingVK "vkDeviceWaitIdle failed!" $ vkDeviceWaitIdle (_device readRenderData)
+          destroyRenderData readRenderData
+        (preRenderData, swapChainSupportDetails) <-
+          createRenderer defaultRenderData window progName engineName isConcurrentMode requireExtensions
+        newRenderData <- createRenderData preRenderData swapChainSupportDetails
+        writeIORef renderDataRef newRenderData
+      -- create resource
+      needCreateResource <- readIORef needCreateResourceRef
+      when needCreateResource $ do
+        writeIORef needCreateResourceRef False
+        renderData <- readIORef renderDataRef
+        (vertices, _) <- loadModel "Resource/Externals/Meshes/suzan.obj"
+        _ <- createVertexBuffer renderData vertices
+        -- TODO
+        -- destroyVertexBuffer
+        -- destroyBuffer device buffer bufferMemory
+        return ()
+      -- main loop
+      renderData <- readIORef renderDataRef
+      frameIndex <- readIORef frameIndexRef
+      result <- drawFrame renderData frameIndex imageIndexPtr
+      writeIORef frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
+      sizeChanged <- readIORef windowSizeChanged
+      when (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged) $ do
         atomicWriteIORef windowSizeChanged False
         writeIORef needCreateRenderDataRef True
-    return True
+      return True
 
   -- Terminate
-  putStrLn "\n[ Terminate ]"  
+  putStrLn "\n[ Terminate ]"
   renderData <- readIORef renderDataRef
-  throwingVK "vkDeviceWaitIdle failed!"
-    $ vkDeviceWaitIdle (_device renderData)
-  destroyRenderer renderData  
+  throwingVK "vkDeviceWaitIdle failed!" $ vkDeviceWaitIdle (_device renderData)
+  destroyRenderer renderData
   free imageIndexPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
   return ()
-
