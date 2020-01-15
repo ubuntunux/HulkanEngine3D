@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE Strict           #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Library.Application
     ( glfwMainLoop
@@ -29,17 +27,15 @@ glfwMainLoop window mainLoop = go
 
 createGLFWWindow::Int -> Int -> String -> IORef Bool -> IO (Maybe GLFW.Window)
 createGLFWWindow width height title windowSizeChanged = do
-  GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")  
-  putStrLn "Initialized GLFW."
-  version <- GLFW.getVersionString
-  mapM_ (putStrLn . ("GLFW Version: " ++)) version
-  GLFW.vulkanSupported >>= flip unless (throwVKMsg "GLFW reports that vulkan is not supported!")
-  GLFW.windowHint $ WindowHint'ClientAPI ClientAPI'NoAPI
-  GLFW.windowHint $ WindowHint'Resizable True
-  maybeWindow <- GLFW.createWindow width height title Nothing Nothing
-  let Just window = maybeWindow
-  
-  GLFW.setWindowSizeCallback window $ do
-    Just (\_ _ _ -> atomicWriteIORef windowSizeChanged True)
-
-  return maybeWindow
+    GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")
+    putStrLn "Initialized GLFW."
+    version <- GLFW.getVersionString
+    mapM_ (putStrLn . ("GLFW Version: " ++)) version
+    GLFW.vulkanSupported >>= flip unless (throwVKMsg "GLFW reports that vulkan is not supported!")
+    GLFW.windowHint $ WindowHint'ClientAPI ClientAPI'NoAPI
+    GLFW.windowHint $ WindowHint'Resizable True
+    maybeWindow <- GLFW.createWindow width height title Nothing Nothing
+    let Just window = maybeWindow
+    GLFW.setWindowSizeCallback window $
+        Just (\_ _ _ -> atomicWriteIORef windowSizeChanged True)
+    return maybeWindow
