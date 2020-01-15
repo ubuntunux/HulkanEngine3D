@@ -21,6 +21,7 @@ executable main
     hs-source-dirs:   .
     main-is:          Main.hs
     ghc-options:      -threaded
+                      -Wunused-do-bind
     other-modules:    Library.Application
                       Library.Constants
                       Library.Shader

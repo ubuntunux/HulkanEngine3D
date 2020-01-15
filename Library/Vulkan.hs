@@ -1146,7 +1146,8 @@ createRenderer defaultRenderData window progName engineName isConcurrentMode req
   device <- createDevice physicalDevice queueFamilyIndexList
   queueMap <- createQueues device queueFamilyIndexList  
   let defaultQueue = (Map.elems queueMap) !! 0
-      queueFamilyDatas = QueueFamilyDatas
+      queueFamilyDatas =
+        QueueFamilyDatas
           { _graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex queueMap
           , _presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
           , _queueFamilyIndexList = queueFamilyIndexList
@@ -1156,17 +1157,17 @@ createRenderer defaultRenderData window progName engineName isConcurrentMode req
   imageAvailableSemaphores <- createSemaphores device
   renderFinishedSemaphores <- createSemaphores device
   frameFencesPtr <- createFrameFences device
-  renderData <- pure defaultRenderData
-      { _msaaSamples = msaaSamples
-      , _imageAvailableSemaphores = imageAvailableSemaphores
-      , _renderFinishedSemaphores = renderFinishedSemaphores
-      , _vkInstance = vkInstance
-      , _vkSurface = vkSurface
-      , _device = device
-      , _physicalDevice = physicalDevice
-      , _queueFamilyDatas = queueFamilyDatas
-      , _frameFencesPtr = frameFencesPtr
-      , _commandPool = commandPool }
+  let renderData = defaultRenderData
+        { _msaaSamples = msaaSamples
+        , _imageAvailableSemaphores = imageAvailableSemaphores
+        , _renderFinishedSemaphores = renderFinishedSemaphores
+        , _vkInstance = vkInstance
+        , _vkSurface = vkSurface
+        , _device = device
+        , _physicalDevice = physicalDevice
+        , _queueFamilyDatas = queueFamilyDatas
+        , _frameFencesPtr = frameFencesPtr
+        , _commandPool = commandPool }
   return (renderData, swapChainSupportDetails)
 
 destroyRenderer :: RenderData -> IO ()
