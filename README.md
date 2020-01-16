@@ -11,10 +11,6 @@
 ### Installation
 ```bash
 git clone https://github.com/ubuntunux/HulkanEngine3D --recursive
-cd HulkanEngine3D/vulkan/genvulkan
-stack build
-stack exec genvulkan
-cd ../..
 stack build
 stack exec main
 ```
