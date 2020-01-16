@@ -423,8 +423,8 @@ getMaxUsableSampleCount deviceProperties = do
   return highestCount
 
 chooseSwapSurfaceFormat :: SwapChainSupportDetails -> IO VkSurfaceFormatKHR
-chooseSwapSurfaceFormat swapChainSupportDetails = do
-  if 1 == (length formats) && VK_FORMAT_UNDEFINED == getFormat (formats !! 0) then 
+chooseSwapSurfaceFormat swapChainSupportDetails =
+  if 1 == length formats && VK_FORMAT_UNDEFINED == getFormat (head formats) then
     newVkData $ \surfaceFormatPtr -> do
       writeField @"format" surfaceFormatPtr VK_FORMAT_B8G8R8A8_UNORM
       writeField @"colorSpace" surfaceFormatPtr VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
@@ -435,19 +435,19 @@ chooseSwapSurfaceFormat swapChainSupportDetails = do
     getFormat = getField @"format"
     getColorSpace = getField @"colorSpace"    
     findAvailableFormat :: [VkSurfaceFormatKHR] -> IO VkSurfaceFormatKHR
-    findAvailableFormat [] = return $ formats !! 0
-    findAvailableFormat (x:xs) = do
+    findAvailableFormat [] = return $ head formats
+    findAvailableFormat (x:xs) =
       if VK_FORMAT_B8G8R8A8_UNORM == getFormat x && VK_COLOR_SPACE_SRGB_NONLINEAR_KHR == getColorSpace x
       then return x
       else findAvailableFormat xs
 
 chooseSwapPresentMode :: SwapChainSupportDetails -> IO VkPresentModeKHR
-chooseSwapPresentMode swapChainSupportDetails = do
-  if elem VK_PRESENT_MODE_FIFO_KHR presentModes then return VK_PRESENT_MODE_FIFO_KHR
-  else if elem VK_PRESENT_MODE_MAILBOX_KHR presentModes then return VK_PRESENT_MODE_MAILBOX_KHR
-  else if elem VK_PRESENT_MODE_FIFO_RELAXED_KHR presentModes then return VK_PRESENT_MODE_FIFO_RELAXED_KHR
-  else if elem VK_PRESENT_MODE_IMMEDIATE_KHR presentModes then return VK_PRESENT_MODE_IMMEDIATE_KHR
-  else return VK_PRESENT_MODE_FIFO_KHR
+chooseSwapPresentMode swapChainSupportDetails
+  | VK_PRESENT_MODE_FIFO_KHR `elem` presentModes = return VK_PRESENT_MODE_FIFO_KHR
+  | VK_PRESENT_MODE_MAILBOX_KHR `elem` presentModes = return VK_PRESENT_MODE_MAILBOX_KHR
+  | VK_PRESENT_MODE_FIFO_RELAXED_KHR `elem` presentModes = return VK_PRESENT_MODE_FIFO_RELAXED_KHR
+  | VK_PRESENT_MODE_IMMEDIATE_KHR `elem` presentModes = return VK_PRESENT_MODE_IMMEDIATE_KHR
+  | otherwise = return VK_PRESENT_MODE_FIFO_KHR
   where
     presentModes = _presentModes swapChainSupportDetails
 
