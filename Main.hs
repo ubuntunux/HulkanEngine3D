@@ -53,6 +53,7 @@ main = do
         return $ elapsedTimePrev + deltaTime
     writeIORef currentTimeRef currentTime
     writeIORef elapsedTimeRef elapsedTime
+    --when (0.0 < deltaTime) $ print (1.0 / deltaTime)
 
     needCreateRenderData <- readIORef needCreateRenderDataRef
     when needCreateRenderData $ do
