@@ -20,4 +20,4 @@ stack exec main
 ```
 
 ### Note
-    * Triangle (1024 x 768) : 1500fps / 0.00066ms
+    * Triangle (1024 x 768) : 1500fps / 0.66ms
