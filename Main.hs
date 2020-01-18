@@ -60,7 +60,8 @@ main = do
       writeIORef needCreateRenderDataRef False
       readRenderData <- readIORef renderDataRef
       when (VK_NULL /= _device readRenderData) $ do
-        throwingVK "vkDeviceWaitIdle failed!" $ vkDeviceWaitIdle (_device readRenderData)
+        result <- vkDeviceWaitIdle $ _device readRenderData
+        validationVK result "vkDeviceWaitIdle failed!"
         destroyRenderData readRenderData
       (preRenderData, swapChainSupportDetails) <-
         createRenderer defaultRenderData window progName engineName isConcurrentMode requireExtensions
@@ -85,7 +86,8 @@ main = do
   -- Terminate
   putStrLn "\n[ Terminate ]"
   renderData <- readIORef renderDataRef
-  throwingVK "vkDeviceWaitIdle failed!" $ vkDeviceWaitIdle (_device renderData)
+  result <- vkDeviceWaitIdle $ _device renderData
+  validationVK result "vkDeviceWaitIdle failed!"
   destroyRenderer renderData
   free imageIndexPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."

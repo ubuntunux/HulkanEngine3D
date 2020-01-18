@@ -87,8 +87,8 @@ createShaderStageCreateInfo device shaderFilePath stageBit = do
   (codeSize, codePtr) <- compileGLSL shaderFilePath
   shaderModuleCreateInfo <- getShaderModuleCreateInfo codeSize codePtr
   shaderModule <- alloca $ \shaderModulePtr -> do
-    throwingVK "vkCreateShaderModule failed!"
-      $ vkCreateShaderModule device (unsafePtr shaderModuleCreateInfo) VK_NULL shaderModulePtr
+    result <- vkCreateShaderModule device (unsafePtr shaderModuleCreateInfo) VK_NULL shaderModulePtr
+    validationVK result "vkCreateShaderModule failed!"
     peek shaderModulePtr
   touchVkData shaderModuleCreateInfo
   free codePtr

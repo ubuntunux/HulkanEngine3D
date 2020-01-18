@@ -143,16 +143,16 @@ getExtensionNames extensionType availableExtensionArrayPtr = do
 
 getInstanceExtensionSupport :: IO [String]
 getInstanceExtensionSupport = do
-  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> 
-    throwingVK "vkEnumerateInstanceExtensionProperties error"
-      $ vkEnumerateInstanceExtensionProperties VK_NULL_HANDLE counterPtr valueArrayPtr
+  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> do
+      result <- vkEnumerateInstanceExtensionProperties VK_NULL_HANDLE counterPtr valueArrayPtr
+      validationVK result "vkEnumerateInstanceExtensionProperties error"
   getExtensionNames "Instance" availableExtensionArrayPtr
 
 getDeviceExtensionSupport :: VkPhysicalDevice -> IO [String]
 getDeviceExtensionSupport physicalDevice = do
-  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> 
-    throwingVK "vkEnumerateInstanceExtensionProperties error"
-      $ vkEnumerateDeviceExtensionProperties physicalDevice VK_NULL_HANDLE counterPtr valueArrayPtr
+  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> do
+      result <- vkEnumerateDeviceExtensionProperties physicalDevice VK_NULL_HANDLE counterPtr valueArrayPtr
+      validationVK result "vkEnumerateInstanceExtensionProperties error"
   getExtensionNames "Device" availableExtensionArrayPtr
 
 checkExtensionSupport :: [String] -> [CString] -> IO Bool
@@ -192,9 +192,9 @@ createVulkanInstance progName engineName layers extensions = do
       &* set @"enabledExtensionCount" (fromIntegral $ length extensions)
       &* setListRef @"ppEnabledExtensionNames" extensions
   vkInstance <- alloca $ \vkInstPtr -> do
-    throwingVK "vkCreateInstance: Failed to create vkInstance."
-      $ vkCreateInstance (unsafePtr instanceCreateInfo) VK_NULL vkInstPtr    
-    peek vkInstPtr  
+      result <- vkCreateInstance (unsafePtr instanceCreateInfo) VK_NULL vkInstPtr
+      validationVK result "vkCreateInstance: Failed to create vkInstance."
+      peek vkInstPtr
   touchVkData instanceCreateInfo  
   return vkInstance
 
@@ -206,8 +206,8 @@ destroyVulkanInstance vkInstance = do
 createVkSurface :: Ptr vkInstance -> GLFW.Window -> IO VkSurfaceKHR
 createVkSurface vkInstance window = do
   vkSurface <- alloca $ \vkSurfacePtr -> do
-    throwingVK "glfwCreateWindowSurface: failed to create window surface"
-      $ GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE vkSurfacePtr
+    result <- GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE vkSurfacePtr
+    validationVK result "glfwCreateWindowSurface: failed to create window surface"
     putStrLn $ "Createad surface: " ++ show vkSurfacePtr
     peek vkSurfacePtr    
   return vkSurface
@@ -220,20 +220,18 @@ destroyVkSurface vkInstance vkSurface = do
 
 querySwapChainSupport :: VkPhysicalDevice -> VkSurfaceKHR -> IO SwapChainSupportDetails
 querySwapChainSupport physicalDevice vkSurface = do
-  capabilities <- newVkData
-    $ throwingVK "vkGetPhysicalDeviceSurfaceCapabilitiesKHR error"
-    . vkGetPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice vkSurface
-  formats <- asListVK $ \counterPtr valuePtr ->
-    throwingVK "vkGetPhysicalDeviceSurfaceFormatsKHR error"
-      $ vkGetPhysicalDeviceSurfaceFormatsKHR physicalDevice vkSurface counterPtr valuePtr
-  presentModes <- asListVK $ \counterPtr valuePtr ->
-    throwingVK "vkGetPhysicalDeviceSurfacePresentModesKHR error"
-      $ vkGetPhysicalDeviceSurfacePresentModesKHR physicalDevice vkSurface counterPtr valuePtr
-  return SwapChainSupportDetails 
-      { _capabilities = capabilities
-      , _formats = formats
-      , _presentModes = presentModes
-      }
+  capabilities <- newVkData $ \pSurfaceCapabilities -> do
+    result <- vkGetPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice vkSurface pSurfaceCapabilities
+    validationVK result "vkGetPhysicalDeviceSurfaceCapabilitiesKHR error"
+  formats <- asListVK $ \counterPtr valuePtr -> do
+    result <- vkGetPhysicalDeviceSurfaceFormatsKHR physicalDevice vkSurface counterPtr valuePtr
+    validationVK result "vkGetPhysicalDeviceSurfaceFormatsKHR error"
+  presentModes <- asListVK $ \counterPtr valuePtr -> do
+    result <- vkGetPhysicalDeviceSurfacePresentModesKHR physicalDevice vkSurface counterPtr valuePtr
+    validationVK result "vkGetPhysicalDeviceSurfacePresentModesKHR error"
+  return SwapChainSupportDetails { _capabilities = capabilities
+                                 , _formats = formats
+                                 , _presentModes = presentModes }
 
 isDeviceSuitable :: Maybe VkSurfaceKHR -> VkPhysicalDevice -> IO (Maybe SwapChainSupportDetails, Bool)
 isDeviceSuitable maybeVkSurface physicalDevice = do
@@ -259,9 +257,9 @@ selectPhysicalDevice :: VkInstance
                      -> Maybe VkSurfaceKHR 
                      -> IO (Maybe SwapChainSupportDetails, VkPhysicalDevice)
 selectPhysicalDevice vkInstance maybeVkSurface = do
-  devices <- asListVK $ \counterPtr valueArrayPtr ->
-    throwingVK "pickPhysicalDevice: Failed to enumerate physical devices." 
-      $ vkEnumeratePhysicalDevices vkInstance counterPtr valueArrayPtr
+  devices <- asListVK $ \counterPtr valueArrayPtr -> do
+      result <- vkEnumeratePhysicalDevices vkInstance counterPtr valueArrayPtr
+      validationVK result "pickPhysicalDevice: Failed to enumerate physical devices."
   when (null devices) $ throwVKMsg "Zeo device count!"
   putStrLn $ "Found " ++ show (length devices) ++ " devices."
   selectFirstSuitable devices
@@ -295,10 +293,10 @@ selectPresentationFamily :: VkPhysicalDevice
 selectPresentationFamily _ _ [] = return []
 selectPresentationFamily device surface (queueFamilies:xs) = do
   let queueFamilyIndex = fst queueFamilies
-  supported <- alloca $ \supportedPtr -> do      
-      throwingVK "vkGetPhysicalDeviceSurfaceSupportKHR: failed to check for presentation support."
-        $ vkGetPhysicalDeviceSurfaceSupportKHR device queueFamilyIndex surface supportedPtr
-      peek supportedPtr
+  supported <- alloca $ \supportedPtr -> do
+    result <- vkGetPhysicalDeviceSurfaceSupportKHR device queueFamilyIndex surface supportedPtr
+    validationVK result "vkGetPhysicalDeviceSurfaceSupportKHR: failed to check for presentation support."
+    peek supportedPtr
   if VK_TRUE == supported
     then do
       result <- selectPresentationFamily device surface xs
@@ -387,8 +385,8 @@ createDevice physicalDevice queueFamilyList = do
       writeField @"ppEnabledExtensionNames" devCreateInfoPtr requireDeviceExtensionsPtr
       writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
   device <- alloca $ \devicePtr -> do
-    throwingVK "vkCreateDevice: failed to create vkDevice"
-      $ vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
+    result <- vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
+    validationVK result "vkCreateDevice: failed to create vkDevice"
     peek devicePtr
   putStrLn $ "Created Device: " ++ show device
   touchVkData deviceCreateInfo
@@ -518,13 +516,13 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = 
   putStrLn $ "\timageSharingMode : " ++ (show $ getField @"imageSharingMode" swapChainCreateInfo)
 
   swapChain <- alloca $ \swapChainPtr -> do
-    throwingVK "vkCreateSwapchainKHR failed!"
-      $ vkCreateSwapchainKHR device (unsafePtr swapChainCreateInfo) VK_NULL_HANDLE swapChainPtr
-    peek swapChainPtr
+      result <- vkCreateSwapchainKHR device (unsafePtr swapChainCreateInfo) VK_NULL_HANDLE swapChainPtr
+      validationVK result "vkCreateSwapchainKHR failed!"
+      peek swapChainPtr
 
-  swapChainImages <- asListVK $ \counterPtr valueArrayPtr ->
-    throwingVK "vkGetSwapchainImagesKHR error"
-      $ vkGetSwapchainImagesKHR device swapChain counterPtr valueArrayPtr
+  swapChainImages <- asListVK $ \counterPtr valueArrayPtr -> do
+      result <- vkGetSwapchainImagesKHR device swapChain counterPtr valueArrayPtr
+      validationVK result "vkGetSwapchainImagesKHR error"
 
   let swapChainImageFormat = getField @"imageFormat" swapChainCreateInfo
       swapChainExtent = (getField @"imageExtent" swapChainCreateInfo)
@@ -574,9 +572,9 @@ createSwapChainImageViews device swapChainImages swapChainImageFormat = do
   imageViewCreateInfos <- mapM getImageViewCreateInfo swapChainImages
   imageViews <- forM imageViewCreateInfos $ \imageViewCreateInfo ->
     alloca $ \imageViewPtr -> do
-      throwingVK "vkCreateImageView error"
-        $ vkCreateImageView device (unsafePtr imageViewCreateInfo) VK_NULL_HANDLE imageViewPtr
-      peek imageViewPtr
+        result <- vkCreateImageView device (unsafePtr imageViewCreateInfo) VK_NULL_HANDLE imageViewPtr
+        validationVK result "vkCreateImageView error"
+        peek imageViewPtr
   mapM_ touchVkData imageViewCreateInfos
   return imageViews
 
@@ -634,9 +632,9 @@ createRenderPass device swapChainData =
       &* setVkRef @"pDependencies" dependency
   in do
     renderPass <- alloca $ \renderPassPtr -> do
-      throwingVK "vkCreatePipelineLayout failed!"
-        $ vkCreateRenderPass device (unsafePtr renderPassCreateInfo) VK_NULL renderPassPtr
-      peek renderPassPtr
+        result <- vkCreateRenderPass device (unsafePtr renderPassCreateInfo) VK_NULL renderPassPtr
+        validationVK result "vkCreatePipelineLayout failed!"
+        peek renderPassPtr
     touchVkData renderPassCreateInfo
     putStrLn $ "Create RenderPass: " ++ show (_swapChainImageFormat swapChainData)
     return renderPass
@@ -660,10 +658,10 @@ createPipelineLayout device = do
       &* set @"pPushConstantRanges" VK_NULL
 
   pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
-    throwingVK "vkCreatePipelineLayout failed!"
-      $ vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
-    putStrLn "Create PipelineLayout"
-    peek pipelineLayoutPtr
+      result <- vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
+      validationVK result "vkCreatePipelineLayout failed!"
+      putStrLn "Create PipelineLayout"
+      peek pipelineLayoutPtr
 
   touchVkData pipelineCreateInfo
   return pipelineLayout
@@ -809,9 +807,9 @@ createGraphicsPipeline device swapChainExtent vertexShaderFile fragmentShaderFil
   createGraphicsPipelinesFunc <- vkGetDeviceProc @VkCreateGraphicsPipelines device  
 
   graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do
-    throwingVK "vkCreatePipelines failed!"
-      $ createGraphicsPipelinesFunc device VK_NULL_HANDLE 1 (unsafePtr graphicsPipelineCreateInfo) VK_NULL graphicsPipelinePtr
-    peek graphicsPipelinePtr
+      result <- createGraphicsPipelinesFunc device VK_NULL_HANDLE 1 (unsafePtr graphicsPipelineCreateInfo) VK_NULL graphicsPipelinePtr
+      validationVK result "vkCreatePipelines failed!"
+      peek graphicsPipelinePtr
 
   touchVkData graphicsPipelineCreateInfo
   free shaderStageInfosPtr
@@ -852,9 +850,9 @@ createFramebuffers device renderPass swapChainData = do
             &* set @"layers" 1
       in do
         frameBuffer <- alloca $ \framebufferPtr -> do
-          throwingVK "vkCreateFramebuffer failed!"
-            $ vkCreateFramebuffer device (unsafePtr frameBufferCreateInfo) VK_NULL framebufferPtr
-          peek framebufferPtr
+            result <- vkCreateFramebuffer device (unsafePtr frameBufferCreateInfo) VK_NULL framebufferPtr
+            validationVK result "vkCreateFramebuffer failed!"
+            peek framebufferPtr
         touchVkData frameBufferCreateInfo
         return frameBuffer
 
@@ -875,8 +873,8 @@ createCommandPool device QueueFamilyDatas {..} = do
         &* set @"queueFamilyIndex" graphicsQueueIndex
   commandPool <- alloca $ \commandPoolPtr -> do
     withPtr commandPoolCreateInfo $ \createInfoPtr -> do
-      throwingVK "vkCreateCommandPool failed!"
-        $ vkCreateCommandPool device createInfoPtr VK_NULL commandPoolPtr
+        result <- vkCreateCommandPool device createInfoPtr VK_NULL commandPoolPtr
+        validationVK result "vkCreateCommandPool failed!"
     peek commandPoolPtr
   return commandPool
 
@@ -902,9 +900,9 @@ createCommandBuffers device graphicsPipeline commandPool renderPass SwapChainDat
         &* set @"commandPool" commandPool
         &* set @"level" VK_COMMAND_BUFFER_LEVEL_PRIMARY
         &* set @"commandBufferCount" (fromIntegral bufferCount)
-  withPtr allocationInfo $ \allocationInfoPtr ->
-    throwingVK "vkAllocateCommandBuffers failed!"
-      $ vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr    
+  withPtr allocationInfo $ \allocationInfoPtr -> do
+      result <- vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr
+      validationVK result "vkAllocateCommandBuffers failed!"
   putStrLn $ "Create Command Buffer: "  ++ show bufferCount
 
   commandBuffers <- peekArray bufferCount commandBuffersPtr
@@ -936,8 +934,8 @@ createCommandBuffers device graphicsPipeline commandPool renderPass SwapChainDat
     -- begin commands
     putStrLn $ "\tvkBeginCommandBuffer: " ++ show commandBuffer
     withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
-      throwingVK "vkBeginCommandBuffer failed!"
-        $ vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
+        result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
+        validationVK result "vkBeginCommandBuffer failed!"
     withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
       vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
     -- basic drawing commands
@@ -945,8 +943,7 @@ createCommandBuffers device graphicsPipeline commandPool renderPass SwapChainDat
     vkCmdDraw commandBuffer 3 1 0 0
     -- finishing up
     vkCmdEndRenderPass commandBuffer
-    throwingVK "vkEndCommandBuffer failed!" 
-      $ vkEndCommandBuffer commandBuffer
+    vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
   return (commandBuffersPtr, bufferCount)
 
 destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuffer -> IO ()
@@ -963,8 +960,8 @@ createSemaphores device = do
           &* set @"flags" VK_ZERO_FLAGS    
     forM_ [0..(Constants.maxFrameCount - 1)] $ \index -> do
       withPtr semaphoreCreateInfo $ \semaphoreCreateInfoPtr -> do
-        throwingVK "vkCreateSemaphore failed!"
-          $ vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL (ptrAtIndex semaphoresPtr index)
+          result <- vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL (ptrAtIndex semaphoresPtr index)
+          validationVK result "vkCreateSemaphore failed!"
     peekArray Constants.maxFrameCount semaphoresPtr    
   putStrLn $ "Create Semaphore: " ++ show semaphores
   return semaphores
@@ -984,8 +981,8 @@ createFrameFences device = do
         &* set @"flags" VK_FENCE_CREATE_SIGNALED_BIT
   forM_ [0..(Constants.maxFrameCount - 1)] $ \index -> do
     withPtr fenceCreateInfo $ \fenceCreateInfoPtr -> do
-      throwingVK "vkCreateSemaphore failed!"
-        $ vkCreateFence device fenceCreateInfoPtr VK_NULL (ptrAtIndex frameFencesPtr index)  
+        result <- vkCreateFence device fenceCreateInfoPtr VK_NULL (ptrAtIndex frameFencesPtr index)
+        validationVK result "vkCreateSemaphore failed!"
   fences <- peekArray Constants.maxFrameCount frameFencesPtr
   putStrLn $ "Create VkFences: " ++ show fences
   return frameFencesPtr  
@@ -1006,10 +1003,10 @@ drawFrame RenderData {..} frameIndex imageIndexPtr = do
       imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
       renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
   
-  throwingVK "vkWaitForFences failed!"
-      $ vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64)  
+  vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
+    flip validationVK "vkWaitForFences failed!"
   
-  --throwingVK "vkAcquireNextImageKHR failed!"
+  --  validationVK result "vkAcquireNextImageKHR failed!"
   result <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
   if (VK_SUCCESS /= result) then 
     return result
@@ -1027,8 +1024,8 @@ drawFrame RenderData {..} frameIndex imageIndexPtr = do
           &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
     
     withPtr submitInfo $ \submitInfoPtr ->
-      throwingVK "vkQueueSubmit failed!"
-        $ vkQueueSubmit _graphicsQueue 1 submitInfoPtr VK_NULL
+        vkQueueSubmit _graphicsQueue 1 submitInfoPtr VK_NULL >>=
+          flip validationVK "vkQueueSubmit failed!"
 
     let presentInfo = createVk @VkPresentInfoKHR
           $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
@@ -1039,13 +1036,10 @@ drawFrame RenderData {..} frameIndex imageIndexPtr = do
           &* set @"swapchainCount" 1
           &* setListRef @"pSwapchains" [_swapChain]
 
-    presnetResult <- withPtr presentInfo $ \presentInfoPtr ->    
+    presentResult <- withPtr presentInfo $ \presentInfoPtr -> do
       vkQueuePresentKHR _presentQueue presentInfoPtr
-
-    throwingVK "vkQueueWaitIdle failed!"
-      $ vkQueueWaitIdle _presentQueue
-
-    return presnetResult
+    vkQueueWaitIdle _presentQueue >>= flip validationVK "vkQueueWaitIdle failed!"
+    return presentResult
 
 
 getDefaultRenderData :: IO RenderData

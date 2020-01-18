@@ -14,8 +14,7 @@ module Library.Vulkan.Buffer
   ) where
 
 import Data.Bits
-import Foreign.Ptr              (castPtr)
-import Foreign.Marshal.Alloc
+import Foreign.Ptr (castPtr)
 import Foreign.Storable
 import Numeric.DataFrame
 import Graphics.Vulkan
@@ -47,8 +46,8 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
     -- create buffer
     buffer <- allocaPeek $ \bufferPtr -> do
       withPtr bufferCreateInfo $ \createInfoPtr -> do
-        throwingVK "vkCreateBuffer failed!"
-          $ vkCreateBuffer device createInfoPtr VK_NULL bufferPtr
+        result <- vkCreateBuffer device createInfoPtr VK_NULL bufferPtr
+        validationVK result "vkCreateBuffer failed!"
 
     memoryRequirements <- allocaPeek $ vkGetBufferMemoryRequirements device buffer
     memoryTypeIndex <- findMemoryType physicalDevice (getField @"memoryTypeBits" memoryRequirements) memoryPropertyFlags
@@ -62,8 +61,8 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
     -- create allocate memory
     bufferMemory <- allocaPeek $ \bufferMemoryPtr -> do
       withPtr allocInfo $ \allocInfoPtr -> do
-        throwingVK "vkAllocateMemory failed!"
-          $ vkAllocateMemory device allocInfoPtr VK_NULL bufferMemoryPtr
+        result <- vkAllocateMemory device allocInfoPtr VK_NULL bufferMemoryPtr
+        validationVK result "vkAllocateMemory failed!"
 
     putStrLn $ "Create Buffer : "  ++ show buffer ++ ", Memory : " ++ show bufferMemory
     putStrLn $ "\tbufferSize : " ++ show bufferSize

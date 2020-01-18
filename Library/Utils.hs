@@ -8,6 +8,7 @@
 module Library.Utils
     ( VulkanException (..)
     , handleAllErrors
+    , validationVK
     , throwingVK
     , throwVKMsg
     , withCStringList
@@ -60,12 +61,18 @@ handleAllErrors a (SomeException e)
   = a <$ putStrLn (displayException e)
 
 -- | Throw VulkanException if something goes wrong
+validationVK :: VkResult
+             -> String
+             -> IO ()
+validationVK result msg = do
+  when (result < VK_SUCCESS) $ throwIO $ VulkanException (Just result) msg
+
 throwingVK :: String
            -> IO VkResult
            -> IO ()
 throwingVK msg f = do
   vkRez <- f
-  when (vkRez < VK_SUCCESS) $ throwIO $ VulkanException (Just vkRez) msg
+  validationVK vkRez msg
 
 -- | Throw VulkanException without error code
 throwVKMsg :: String -> IO a

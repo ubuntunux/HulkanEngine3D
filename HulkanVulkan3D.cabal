@@ -21,8 +21,6 @@ executable main
     hs-source-dirs:   .
     main-is:          Main.hs
     ghc-options:      -threaded
-                      -Wunused-do-bind
-                      -Wunused-matches
     other-modules:    Library.Application
                       Library.Constants
                       Library.Shader
@@ -53,7 +51,7 @@ executable main
     default-language: Haskell2010
     if flag(dev)
         cpp-options: -DDEVELOPMENT
-        ghc-options: -O0 -Wall
+        ghc-options: -O0 -Wall -Wno-unused-do-bind -Wno-unused-matches
     else
         ghc-options: -O2
 
