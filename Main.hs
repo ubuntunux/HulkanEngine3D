@@ -1,7 +1,9 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE Strict           #-}
 
-module Main (main) where
+module Main
+  ( main
+  , runProgramTest ) where
 
 import Control.Monad
 import Data.IORef
@@ -14,6 +16,7 @@ import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
 import Library.Application
+import Library.Program
 import Library.Vulkan
 import Library.Vulkan.Buffer
 import Library.Resource.ObjLoader
@@ -92,4 +95,10 @@ main = do
   free imageIndexPtr
   GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
   GLFW.terminate >> putStrLn "Terminated GLFW."
+  runProgramTest
   return ()
+
+
+runProgramTest = runProgram checkStatus $ do
+  logInfo "runProgramTest - Test 0"
+  logError "runProgramTest - Test 1"
