@@ -20,6 +20,7 @@ import Library.Program
 import Library.Vulkan
 import Library.Vulkan.Buffer
 import Library.Resource.ObjLoader
+import Library.Resource ( Resource )
 import qualified Library.Constants as Constants
 
 
@@ -46,6 +47,7 @@ main = do
   currentTime <- getCPUTime
   currentTimeRef <- newIORef currentTime
   elapsedTimeRef <- newIORef (0.0 :: Double)
+  --resourceRef <- newIORef Resource
   -- Main Loop
   glfwMainLoop window $ do
     currentTime <- getCPUTime
@@ -74,8 +76,8 @@ main = do
     when needCreateResource $ do
       writeIORef needCreateResourceRef False
       renderData <- readIORef renderDataRef
-      (vertices, _) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-      _ <- createVertexBuffer renderData vertices
+      (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
+      vertexBuffer <- createVertexBuffer renderData vertices
       return ()
     renderData <- readIORef renderDataRef
     frameIndex <- readIORef frameIndexRef
