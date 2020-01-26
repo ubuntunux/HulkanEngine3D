@@ -15,15 +15,14 @@ import Foreign.Marshal.Utils
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import qualified Graphics.UI.GLFW as GLFW
+
 import Library.Utils
 import Library.Application
 import Library.Program
 import Library.Vulkan
-import Library.Vulkan.Buffer
 import Library.Vulkan.Mesh
 import Library.Resource.ObjLoader
 import qualified Library.Constants as Constants
-
 
 
 main::IO()
@@ -80,7 +79,7 @@ main = do
             writeIORef needCreateResourceRef False
             renderData <- readIORef renderDataRef
             (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-            geometryBuffer <- createGeometryBuffer renderData vertices indices
+            geometryBuffer <- createGeometryBuffer "test" renderData vertices indices
             geometryBufferList <- readIORef geometryBufferListRef
             writeIORef geometryBufferListRef (DList.cons geometryBuffer geometryBufferList)
             return ()

@@ -50,21 +50,25 @@ instance PrimBytes Vertex
 
 
 data GeometryBuffer = GeometryBuffer
-    { _vertexBufferMemory :: VkDeviceMemory
+    { _bufferName :: String
+    , _vertexBufferMemory :: VkDeviceMemory
     , _vertexBuffer :: VkBuffer
     , _indexBufferMemory :: VkDeviceMemory
     , _indexBuffer :: VkBuffer
     }  deriving (Eq, Show, Generic)
 
 
-createGeometryBuffer:: RenderData
+createGeometryBuffer:: String
+                    -> RenderData
                     -> DataFrame Vertex '[XN 3]
                     -> DataFrame Word32 '[XN 3]
                     -> IO GeometryBuffer
-createGeometryBuffer renderData vertices indices = do
+createGeometryBuffer bufferName renderData vertices indices = do
+    putStrLn $ "createGeometryBuffer : "  ++ bufferName
     (vertexBufferMemory, vertexBuffer) <- createVertexBuffer renderData vertices
     (indexBufferMemory, indexBuffer) <- createIndexBuffer renderData indices
-    return GeometryBuffer { _vertexBufferMemory = vertexBufferMemory
+    return GeometryBuffer { _bufferName = bufferName
+                          , _vertexBufferMemory = vertexBufferMemory
                           , _vertexBuffer = vertexBuffer
                           , _indexBufferMemory = indexBufferMemory
                           , _indexBuffer = indexBuffer }
