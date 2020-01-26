@@ -9,8 +9,6 @@ module Library.Vulkan.Buffer
   , destroyBuffer
   , copyBuffer
   , findMemoryType
-  , createVertexBuffer
---   , createIndexBuffer
   ) where
 
 import Data.Bits
@@ -24,7 +22,6 @@ import Graphics.Vulkan.Marshal.Create.DataFrame
 
 import Library.Utils
 import Library.Vulkan
-import Library.Vulkan.Mesh
 
 
 createBuffer :: VkPhysicalDevice
@@ -116,67 +113,3 @@ findMemoryType physicalDevice typeFilter propertyFlags = do
                          then return i
                          else go (i + 1)
   go 0
-
-
-createVertexBuffer :: RenderData
-                   -> DataFrame Vertex '[XN 3] -- ^ A collection of at least three vertices
-                   -> IO VkBuffer
-createVertexBuffer renderData (XFrame vertices) = do
-  let device = _device renderData
-      physicalDevice = _physicalDevice renderData
-      graphicsQueue = _graphicsQueue $ _queueFamilyDatas renderData
-      commandPool = _commandPool renderData
-      bufferSize = bSizeOf vertices
-      bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
-      memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-
-  -- create vertex buffer
-  (vertexMemory, vertexBuffer) <- createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFlags
-
-  let stagingBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
-      stagingMemoryPropertyFlags = (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-
-  -- Destroy temporary staging buffer after data copy is complete.
-  (stagingMemory, stagingBuffer) <- createBuffer physicalDevice device bufferSize stagingBufferUsageFlags stagingMemoryPropertyFlags
-
-  -- copy data
-  stagingDataPtr <- allocaPeek $ vkMapMemory device stagingMemory 0 bufferSize VK_ZERO_FLAGS
-  poke (castPtr stagingDataPtr) vertices
-  vkUnmapMemory device stagingMemory
-  copyBuffer device commandPool graphicsQueue stagingBuffer vertexBuffer bufferSize
-
-  destroyBuffer device stagingBuffer stagingMemory
-  -- destroyBuffer device vertexBuffer vertexMemory
- 
-  return vertexBuffer
-
--- createIndexBuffer :: VkPhysicalDevice
---                   -> VkDevice
---                   -> VkCommandPool
---                   -> VkQueue
---                   -> DataFrame Word32 '[XN 3]
---                      -- ^ A collection of at least three indices
---                   -> Program r VkBuffer
--- createIndexBuffer pdev dev cmdPool cmdQueue (XFrame indices) = do
-
---     let bSize = bSizeOf indices
-
---     (_, vertexBuf) <-
---       createBuffer pdev dev bSize
---         ( VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_INDEX_BUFFER_BIT )
---         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-
---     -- Use "locally" to destroy temporary staging buffer after data copy is complete
---     locally $ do
---       (stagingMem, stagingBuf) <-
---         createBuffer pdev dev bSize VK_BUFFER_USAGE_TRANSFER_SRC_BIT
---           ( VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
-
---       -- copy data
---       stagingDataPtr <- allocaPeek $
---         runVk . vkMapMemory dev stagingMem 0 bSize VK_ZERO_FLAGS
---       poke (castPtr stagingDataPtr) indices
---       liftIO $ vkUnmapMemory dev stagingMem
---       copyBuffer dev cmdPool cmdQueue stagingBuf vertexBuf bSize
-
---     return vertexBuf

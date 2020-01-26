@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module Library.Resource
-  ( Resource
+  ( GeometryData(..)
   ) where
 
 
@@ -19,8 +19,11 @@ import Numeric.DataFrame
 
 import Library.Vulkan.Mesh
 
+class Resource a where
 
-data Resource = Resource {
+data GeometryData = GeometryData {
   vertices :: DataFrame Vertex '[XN 3],
   indices :: DataFrame Word32 '[XN 3]
-}
+} deriving Show
+
+instance Resource GeometryData
