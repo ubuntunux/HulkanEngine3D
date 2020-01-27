@@ -93,7 +93,7 @@ main = do
             writeIORef needCreateRenderDataRef True
         return True
     -- Terminate
-    logInfo "\n[ Terminate ]"
+    logInfo "[ Terminate ]"
     renderData <- readIORef renderDataRef
     geometryBufferList <- readIORef geometryBufferListRef
     destroyGeometryBuffers (_device renderData) geometryBufferList
