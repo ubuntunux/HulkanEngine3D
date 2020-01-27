@@ -21,7 +21,6 @@ import qualified Control.Monad.ST as ST
 import Data.Foldable (toList)
 import Data.Maybe
 import qualified Data.Set as Set
-import GHC.Generics (Generic)
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame ()

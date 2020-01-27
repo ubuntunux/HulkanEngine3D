@@ -13,7 +13,7 @@ module Library.Vulkan.Mesh
   , Tri (..)
   , GeometryBuffer(..)
   , createGeometryBuffer
-  , destroyGeometryBuffers
+  , destroyGeometryBuffer
   , createVertexBuffer
   , createIndexBuffer
   ) where
@@ -22,7 +22,6 @@ import GHC.Generics (Generic)
 import Data.Bits
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
-import qualified Data.DList as DList
 import Codec.Wavefront
 import Numeric.DataFrame
 import Graphics.Vulkan
@@ -59,36 +58,35 @@ data GeometryBuffer = GeometryBuffer
 
 
 createGeometryBuffer:: String
-                    -> RenderData
+                    -> RendererData
                     -> DataFrame Vertex '[XN 3]
                     -> DataFrame Word32 '[XN 3]
                     -> IO GeometryBuffer
-createGeometryBuffer bufferName renderData vertices indices = do
+createGeometryBuffer bufferName rendererData vertices indices = do
     logInfo $ "createGeometryBuffer : "  ++ bufferName
-    (vertexBufferMemory, vertexBuffer) <- createVertexBuffer renderData vertices
-    (indexBufferMemory, indexBuffer) <- createIndexBuffer renderData indices
+    (vertexBufferMemory, vertexBuffer) <- createVertexBuffer rendererData vertices
+    (indexBufferMemory, indexBuffer) <- createIndexBuffer rendererData indices
     return GeometryBuffer { _bufferName = bufferName
                           , _vertexBufferMemory = vertexBufferMemory
                           , _vertexBuffer = vertexBuffer
                           , _indexBufferMemory = indexBufferMemory
                           , _indexBuffer = indexBuffer }
 
-destroyGeometryBuffers :: VkDevice -> DList.DList GeometryBuffer -> IO ()
-destroyGeometryBuffers device geometryBufferList = do
-    let geometryBuffer = (DList.toList geometryBufferList) !! 0
+destroyGeometryBuffer :: VkDevice -> GeometryBuffer -> IO ()
+destroyGeometryBuffer device geometryBuffer = do
     destroyBuffer device (_vertexBuffer geometryBuffer) (_vertexBufferMemory geometryBuffer)
     destroyBuffer device (_indexBuffer geometryBuffer) (_indexBufferMemory geometryBuffer)
     return ()
 
 
-createVertexBuffer :: RenderData
+createVertexBuffer :: RendererData
                    -> DataFrame Vertex '[XN 3]
                    -> IO (VkDeviceMemory, VkBuffer)
-createVertexBuffer renderData (XFrame vertices) = do
-    let device = _device renderData
-        physicalDevice = _physicalDevice renderData
-        graphicsQueue = _graphicsQueue $ _queueFamilyDatas renderData
-        commandPool = _commandPool renderData
+createVertexBuffer rendererData (XFrame vertices) = do
+    let device = _device rendererData
+        physicalDevice = _physicalDevice rendererData
+        graphicsQueue = _graphicsQueue $ _queueFamilyDatas rendererData
+        commandPool = _commandPool rendererData
         bufferSize = bSizeOf vertices
         bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
         memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
@@ -114,14 +112,14 @@ createVertexBuffer renderData (XFrame vertices) = do
     return (vertexBufferMemory, vertexBuffer)
 
 
-createIndexBuffer :: RenderData
+createIndexBuffer :: RendererData
                   -> DataFrame Word32 '[XN 3]
                   -> IO (VkDeviceMemory, VkBuffer)
-createIndexBuffer renderData (XFrame indices) = do
-    let device = _device renderData
-        physicalDevice = _physicalDevice renderData
-        graphicsQueue = _graphicsQueue $ _queueFamilyDatas renderData
-        commandPool = _commandPool renderData
+createIndexBuffer rendererData (XFrame indices) = do
+    let device = _device rendererData
+        physicalDevice = _physicalDevice rendererData
+        graphicsQueue = _graphicsQueue $ _queueFamilyDatas rendererData
+        commandPool = _commandPool rendererData
         bufferSize = bSizeOf indices
         bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
         memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT

@@ -12,8 +12,6 @@ module Library.Vulkan.Buffer
   ) where
 
 import Data.Bits
-import Foreign.Ptr (castPtr)
-import Foreign.Storable
 import Numeric.DataFrame
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0

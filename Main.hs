@@ -30,7 +30,7 @@ main = do
     windowSizeChanged <- newIORef False
     maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged
     when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
-    logInfo "Initialized GLFW window."
+    logInfo "<< Initialized GLFW window >>"
     requireExtensions <- GLFW.getRequiredInstanceExtensions
     instanceExtensionNames <- getInstanceExtensionSupport
     checkExtensionResult <- checkExtensionSupport instanceExtensionNames requireExtensions
@@ -39,16 +39,27 @@ main = do
         progName = "Hulkan App"
         engineName = "HulkanEngine3D"
         isConcurrentMode = True
-    needCreateResourceRef <- newIORef True
-    needCreateRenderDataRef <- newIORef True
-    defaultRenderData <- getDefaultRenderData
-    renderDataRef <- newIORef defaultRenderData
+    -- create renderer
+    defaultRendererData <- getDefaultRendererData
+    rendererData <- createRenderer defaultRendererData window progName engineName isConcurrentMode requireExtensions
+    rendererDataRef <- newIORef rendererData
+
+    -- create render pass data
+    renderPassData <- createRenderPassData rendererData
+    runCommandBuffer rendererData renderPassData
+    renderPassDataListRef <- newIORef (DList.singleton renderPassData)
+
+    -- create resources
+    (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
+    geometryBuffer <- createGeometryBuffer "test" rendererData vertices indices
+    geometryBufferListRef <- newIORef (DList.singleton geometryBuffer)
+
+    needRecreateSwapChainRef <- newIORef False
     frameIndexRef <- newIORef 0
     imageIndexPtr <- new (0 :: Word32)
     currentTime <- getCPUTime
     currentTimeRef <- newIORef currentTime
     elapsedTimeRef <- newIORef (0.0 :: Double)
-    geometryBufferListRef <- newIORef (DList.fromList []::DList.DList GeometryBuffer)
     --resourceRef <- newIORef Resource
     -- Main Loop
     glfwMainLoop window $ do
@@ -62,44 +73,48 @@ main = do
         writeIORef elapsedTimeRef elapsedTime
         --when (0.0 < deltaTime) $ print (1.0 / deltaTime)
 
-        needCreateRenderData <- readIORef needCreateRenderDataRef
-        when needCreateRenderData $ do
-            writeIORef needCreateRenderDataRef False
-            readRenderData <- readIORef renderDataRef
-            when (VK_NULL /= _device readRenderData) $ do
-                result <- vkDeviceWaitIdle $ _device readRenderData
-                validationVK result "vkDeviceWaitIdle failed!"
-                destroyRenderData readRenderData
-            (preRenderData, swapChainSupportDetails) <-
-                createRenderer defaultRenderData window progName engineName isConcurrentMode requireExtensions
-            newRenderData <- createRenderData preRenderData swapChainSupportDetails
-            writeIORef renderDataRef newRenderData
-        needCreateResource <- readIORef needCreateResourceRef
-        when needCreateResource $ do
-            writeIORef needCreateResourceRef False
-            renderData <- readIORef renderDataRef
-            (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-            geometryBuffer <- createGeometryBuffer "test" renderData vertices indices
-            geometryBufferList <- readIORef geometryBufferListRef
-            writeIORef geometryBufferListRef (DList.cons geometryBuffer geometryBufferList)
-            return ()
-        renderData <- readIORef renderDataRef
+        needRecreateSwapChain <- readIORef needRecreateSwapChainRef
+        when needRecreateSwapChain $ do
+            writeIORef needRecreateSwapChainRef False
+            logInfo "<< Recreate SwapChain >>"
+
+            rendererData <- readIORef rendererDataRef
+            result <- vkDeviceWaitIdle $ _device rendererData
+            validationVK result "vkDeviceWaitIdle failed!"
+
+            renderPassDataList <- readIORef renderPassDataListRef
+            forM_ renderPassDataList $ \renderPassData -> do
+                destroyRenderPassData (_device rendererData) renderPassData
+
+            newRendererData <- reCreateSwapChainAndCommandBuffer rendererData window
+            newRenderPassData <- createRenderPassData newRendererData
+            runCommandBuffer newRendererData newRenderPassData
+            writeIORef renderPassDataListRef (DList.fromList [newRenderPassData])
+            writeIORef rendererDataRef newRendererData
         frameIndex <- readIORef frameIndexRef
-        result <- drawFrame renderData frameIndex imageIndexPtr
+        rendererData <- readIORef rendererDataRef
+        renderPassDataList <- readIORef renderPassDataListRef
+        result <- drawFrame rendererData frameIndex imageIndexPtr
         writeIORef frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
         sizeChanged <- readIORef windowSizeChanged
         when (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged) $ do
             atomicWriteIORef windowSizeChanged False
-            writeIORef needCreateRenderDataRef True
+            writeIORef needRecreateSwapChainRef True
         return True
     -- Terminate
-    logInfo "[ Terminate ]"
-    renderData <- readIORef renderDataRef
-    geometryBufferList <- readIORef geometryBufferListRef
-    destroyGeometryBuffers (_device renderData) geometryBufferList
-    result <- vkDeviceWaitIdle $ _device renderData
+    logInfo "<< Terminate >>"
+    rendererData <- readIORef rendererDataRef
+    result <- vkDeviceWaitIdle $ _device rendererData
     validationVK result "vkDeviceWaitIdle failed!"
-    destroyRenderer renderData
+
+    geometryBufferList <- readIORef geometryBufferListRef
+    forM_ geometryBufferList $ \geometryBuffer -> do
+        destroyGeometryBuffer (_device rendererData) geometryBuffer
+
+    renderPassDataList <- readIORef renderPassDataListRef
+    forM_ renderPassDataList $ \renderPassData -> do
+        destroyRenderPassData (_device rendererData) renderPassData
+
+    destroyRenderer rendererData
     free imageIndexPtr
-    
     return ()

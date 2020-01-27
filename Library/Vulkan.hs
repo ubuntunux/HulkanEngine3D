@@ -9,7 +9,9 @@ module Library.Vulkan
   , SwapChainSupportDetails (..)
   , SwapChainData (..)
   , GraphicsPipelineData (..)
-  , RenderData (..)
+  , RendererData (..)
+  , RenderPassData (..)
+  , FrameBufferData (..)
   , getMaxUsableSampleCount  
   , getInstanceExtensionSupport
   , getDeviceExtensionSupport
@@ -26,26 +28,28 @@ module Library.Vulkan
   , destroyDevice
   , createSwapChainData
   , destroySwapChainData
+  , createRenderPassData
+  , destroyRenderPassData
   , createRenderPass
   , destroyRenderPass
   , createGraphicsPipeline
   , destroyGraphicsPipeline
-  , createFramebuffers
-  , destroyFramebuffers
+  , createFramebufferData
+  , destroyFramebufferData
   , createCommandPool
   , destroyCommandPool
   , createCommandBuffers
   , destroyCommandBuffers
+  , runCommandBuffer
   , createSemaphores
   , destroySemaphores
   , createFrameFences
   , destroyFrameFences
   , drawFrame
-  , getDefaultRenderData
-  , createRenderData
-  , destroyRenderData
+  , getDefaultRendererData
   , createRenderer
-  , destroyRenderer  
+  , destroyRenderer
+  , reCreateSwapChainAndCommandBuffer
   , runCommandsOnce
   ) where
 
@@ -75,60 +79,70 @@ import qualified Library.Constants as Constants
 
 
 data QueueFamilyIndices = QueueFamilyIndices
-  { _graphicsQueueIndex :: Word32
-  , _presentQueueIndex :: Word32
-  , _computeQueueIndex :: Word32
-  , _transferQueueIndex :: Word32
-  , _sparseBindingQueueIndex :: Word32
-  } deriving (Eq, Show)
+    { _graphicsQueueIndex :: Word32
+    , _presentQueueIndex :: Word32
+    , _computeQueueIndex :: Word32
+    , _transferQueueIndex :: Word32
+    , _sparseBindingQueueIndex :: Word32
+    } deriving (Eq, Show)
 
 data QueueFamilyDatas = QueueFamilyDatas
-  { _graphicsQueue :: VkQueue
-  , _presentQueue :: VkQueue
-  , _queueFamilyIndexList :: [Word32]
-  , _queueFamilyCount :: Word32
-  , _queueFamilyIndices :: QueueFamilyIndices  
-  } deriving (Eq, Show)
+    { _graphicsQueue :: VkQueue
+    , _presentQueue :: VkQueue
+    , _queueFamilyIndexList :: [Word32]
+    , _queueFamilyCount :: Word32
+    , _queueFamilyIndices :: QueueFamilyIndices
+    } deriving (Eq, Show)
 
 data SwapChainSupportDetails = SwapChainSupportDetails
-  { _capabilities :: VkSurfaceCapabilitiesKHR
-  , _formats      :: [VkSurfaceFormatKHR]
-  , _presentModes :: [VkPresentModeKHR]
-  } deriving (Eq, Show)
+    { _capabilities :: VkSurfaceCapabilitiesKHR
+    , _formats      :: [VkSurfaceFormatKHR]
+    , _presentModes :: [VkPresentModeKHR]
+    } deriving (Eq, Show)
 
 data SwapChainData = SwapChainData
-  { _swapChain :: VkSwapchainKHR
-  , _swapChainImages :: [VkImage]
-  , _swapChainImageFormat :: VkFormat
-  , _swapChainImageViews :: [VkImageView]
-  , _swapChainExtent :: VkExtent2D
-  } deriving (Eq, Show)
+    { _swapChain :: VkSwapchainKHR
+    , _swapChainImageCount :: Word32
+    , _swapChainImageFormat :: VkFormat
+    , _swapChainImages :: [VkImage]
+    , _swapChainImageViews :: [VkImageView]
+    , _swapChainExtent :: VkExtent2D
+    } deriving (Eq, Show)
+
+data RendererData = RendererData
+    { _msaaSamples :: VkSampleCountBitmask FlagBit
+    , _imageAvailableSemaphores :: [VkSemaphore]
+    , _renderFinishedSemaphores :: [VkSemaphore]
+    , _vkInstance :: VkInstance
+    , _vkSurface :: VkSurfaceKHR
+    , _device :: VkDevice
+    , _physicalDevice :: VkPhysicalDevice
+    , _swapChainData :: SwapChainData
+    , _swapChainSupportDetails :: SwapChainSupportDetails
+    , _queueFamilyDatas :: QueueFamilyDatas
+    , _frameFencesPtr :: Ptr VkFence
+    , _commandPool :: VkCommandPool
+    , _commandBufferCount :: Word32
+    , _commandBuffersPtr :: Ptr VkCommandBuffer
+    } deriving (Eq, Show)
 
 data GraphicsPipelineData = GraphicsPipelineData
-  { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
-  , _fragmentShaderCreateInfo :: VkPipelineShaderStageCreateInfo
-  , _pipelineLayout :: VkPipelineLayout
-  , _pipeline :: VkPipeline  
-  } deriving (Eq, Show)
+    { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
+    , _fragmentShaderCreateInfo :: VkPipelineShaderStageCreateInfo
+    , _pipelineLayout :: VkPipelineLayout
+    , _pipeline :: VkPipeline
+    } deriving (Eq, Show)
 
-data RenderData = RenderData
-  { _msaaSamples :: VkSampleCountBitmask FlagBit
-  , _imageAvailableSemaphores :: [VkSemaphore]
-  , _renderFinishedSemaphores :: [VkSemaphore]
-  , _vkInstance :: VkInstance
-  , _vkSurface :: VkSurfaceKHR
-  , _device :: VkDevice
-  , _physicalDevice :: VkPhysicalDevice
-  , _swapChainData :: SwapChainData
-  , _queueFamilyDatas :: QueueFamilyDatas
-  , _frameFencesPtr :: Ptr VkFence
-  , _frameBuffers :: [VkFramebuffer]
-  , _commandPool :: VkCommandPool
-  , _commandBufferCount :: Word32
-  , _commandBuffersPtr :: Ptr VkCommandBuffer
-  , _graphicsPipelineData :: GraphicsPipelineData
-  , _renderPass :: VkRenderPass
-  } deriving (Eq, Show)
+data FrameBufferData = FrameBufferData
+    { _frameBuffers :: [VkFramebuffer]
+    , _imageExtent :: VkExtent2D
+    } deriving (Eq, Show)
+
+data RenderPassData = RenderPassData
+    { _graphicsPipelineData :: GraphicsPipelineData
+    , _renderPass :: VkRenderPass
+    , _frameBufferData :: FrameBufferData
+    } deriving (Eq, Show)
 
 
 getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)
@@ -509,12 +523,6 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = 
     writeField @"presentMode" swapChainCreateInfoPtr presentMode
     writeField @"clipped" swapChainCreateInfoPtr VK_TRUE
     writeField @"oldSwapchain" swapChainCreateInfoPtr VK_NULL_HANDLE
-  logInfo "Create SwapChain"
-  logInfo $ "    imageCount : " ++ (show imageCount')
-  logInfo $ "    imageFormat : " ++ (show $ getField @"imageFormat" swapChainCreateInfo)
-  logInfo $ "    imageColorSpace : " ++ (show $ getField @"imageColorSpace" swapChainCreateInfo)
-  logInfo $ "    imageExtent : " ++ (show $ getField @"imageExtent" swapChainCreateInfo)
-  logInfo $ "    imageSharingMode : " ++ (show $ getField @"imageSharingMode" swapChainCreateInfo)
 
   swapChain <- alloca $ \swapChainPtr -> do
       result <- vkCreateSwapchainKHR device (unsafePtr swapChainCreateInfo) VK_NULL_HANDLE swapChainPtr
@@ -532,12 +540,21 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = 
   free queueFamilyIndicesPtr
 
   swapChainImageViews <- createSwapChainImageViews device swapChainImages swapChainImageFormat
+
+  logInfo $ "Create SwapChain : " ++ (show swapChain)
+  logInfo $ "    imageCount : " ++ (show imageCount') ++ " " ++ (show swapChainImages)
+  logInfo $ "    imageFormat : " ++ (show $ getField @"imageFormat" swapChainCreateInfo)
+  logInfo $ "    imageColorSpace : " ++ (show $ getField @"imageColorSpace" swapChainCreateInfo)
+  logInfo $ "    imageViews : " ++ (show swapChainImageViews)
+  logInfo $ "    imageExtent : " ++ (show $ getField @"imageExtent" swapChainCreateInfo)
+  logInfo $ "    imageSharingMode : " ++ (show $ getField @"imageSharingMode" swapChainCreateInfo)
+
   let swapChainData = SwapChainData { _swapChain = swapChain
+                                    , _swapChainImageCount = fromIntegral (length swapChainImages)
                                     , _swapChainImages = swapChainImages
                                     , _swapChainImageFormat = swapChainImageFormat
                                     , _swapChainImageViews = swapChainImageViews
-                                    , _swapChainExtent = swapChainExtent
-                                    }
+                                    , _swapChainExtent = swapChainExtent }
   return swapChainData
 
 destroySwapChainData :: VkDevice -> SwapChainData -> IO ()
@@ -584,13 +601,13 @@ destroySwapChainImageViews device imageViews = do
   mapM_ (\imageView -> vkDestroyImageView device imageView VK_NULL_HANDLE) imageViews
   
 
-createRenderPass :: VkDevice -> SwapChainData -> IO VkRenderPass
-createRenderPass device swapChainData =
+createRenderPass :: VkDevice -> VkFormat -> IO VkRenderPass
+createRenderPass device imageFormat =
   let
     colorAttachment :: VkAttachmentDescription
     colorAttachment = createVk @VkAttachmentDescription
       $  set @"flags" VK_ZERO_FLAGS
-      &* set @"format" (_swapChainImageFormat swapChainData)
+      &* set @"format" imageFormat
       &* set @"samples" VK_SAMPLE_COUNT_1_BIT
       &* set @"loadOp" VK_ATTACHMENT_LOAD_OP_CLEAR
       &* set @"storeOp" VK_ATTACHMENT_STORE_OP_STORE
@@ -637,7 +654,7 @@ createRenderPass device swapChainData =
         validationVK result "vkCreatePipelineLayout failed!"
         peek renderPassPtr
     touchVkData renderPassCreateInfo
-    logInfo $ "Create RenderPass: " ++ show (_swapChainImageFormat swapChainData)
+    logInfo $ "Create RenderPass: " ++ show imageFormat
     return renderPass
 
 destroyRenderPass :: VkDevice -> VkRenderPass -> IO ()
@@ -653,7 +670,7 @@ createPipelineLayout device = do
       $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
       &* set @"pNext" VK_NULL
       &* set @"flags" VK_ZERO_FLAGS
-      &* set @"setLayoutCount" 0      
+      &* set @"setLayoutCount" 0
       &* set @"pSetLayouts" VK_NULL
       &* set @"pushConstantRangeCount" 0      
       &* set @"pPushConstantRanges" VK_NULL
@@ -661,8 +678,9 @@ createPipelineLayout device = do
   pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
       result <- vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
       validationVK result "vkCreatePipelineLayout failed!"
-      logInfo "Create PipelineLayout"
       peek pipelineLayoutPtr
+
+  logInfo $ "Create PipelineLayout : " ++ (show pipelineLayout)
 
   touchVkData pipelineCreateInfo
   return pipelineLayout
@@ -679,7 +697,7 @@ createGraphicsPipeline :: VkDevice
                        -> String
                        -> VkRenderPass
                        -> IO GraphicsPipelineData
-createGraphicsPipeline device swapChainExtent vertexShaderFile fragmentShaderFile renderPass = do
+createGraphicsPipeline device imageExtent vertexShaderFile fragmentShaderFile renderPass = do
   vertexShaderCreateInfo <- createShaderStageCreateInfo device vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
   fragmentShaderCreateInfo <- createShaderStageCreateInfo device fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
   let shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
@@ -707,14 +725,14 @@ createGraphicsPipeline device swapChainExtent vertexShaderFile fragmentShaderFil
     viewPort = createVk @VkViewport
       $  set @"x" 0
       &* set @"y" 0
-      &* set @"width" (fromIntegral $ getField @"width" swapChainExtent)
-      &* set @"height" (fromIntegral $ getField @"height" swapChainExtent)
+      &* set @"width" (fromIntegral $ getField @"width" imageExtent)
+      &* set @"height" (fromIntegral $ getField @"height" imageExtent)
       &* set @"minDepth" 0
       &* set @"maxDepth" 1
 
     scissorRect :: VkRect2D
     scissorRect = createVk @VkRect2D
-      $  set   @"extent" swapChainExtent
+      $  set   @"extent" imageExtent
       &* setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
 
     viewPortState :: VkPipelineViewportStateCreateInfo
@@ -802,7 +820,7 @@ createGraphicsPipeline device swapChainExtent vertexShaderFile fragmentShaderFil
       &* set @"basePipelineHandle" VK_NULL_HANDLE
       &* set @"basePipelineIndex" (-1)
 
-  logInfo $ "Create Pipeline: " ++ show swapChainExtent  
+  logInfo $ "Create Pipeline: " ++ show imageExtent
   shaderStageInfosPtr <- newArray shaderStageInfos
   let graphicsPipelineCreateInfo = getGraphicsPipelineCreateInfo shaderStageInfosPtr (fromIntegral $ length shaderStageInfos)  
   createGraphicsPipelinesFunc <- vkGetDeviceProc @VkCreateGraphicsPipelines device  
@@ -830,26 +848,25 @@ destroyGraphicsPipeline device graphicsPipelineData = do
   destroyShaderStageCreateInfo device _vertexShaderCreateInfo
   destroyShaderStageCreateInfo device _fragmentShaderCreateInfo
 
-createFramebuffers :: VkDevice -> VkRenderPass -> SwapChainData -> IO [VkFramebuffer]
-createFramebuffers device renderPass swapChainData = do  
-  let swapChainImageViews' = (_swapChainImageViews swapChainData)  
-  framebuffers <- mapM createFrameBuffer swapChainImageViews'
+
+createFramebufferData :: VkDevice -> VkRenderPass -> [VkImageView] -> VkExtent2D -> IO FrameBufferData
+createFramebufferData device renderPass imageViews imageExtent = do
+  framebuffers <- mapM createFrameBuffer imageViews
   logInfo $ "Create Framebuffers: " ++ show framebuffers
-  return framebuffers
+  return FrameBufferData { _frameBuffers = framebuffers, _imageExtent = imageExtent }
   where
     createFrameBuffer :: VkImageView -> IO VkFramebuffer
-    createFrameBuffer swapChainImageView =
-      let frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
-            $  set @"sType" VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
-            &* set @"pNext" VK_NULL
-            &* set @"flags" VK_ZERO_FLAGS
-            &* set @"renderPass" renderPass
-            &* set @"attachmentCount" 1
-            &* setListRef @"pAttachments" [swapChainImageView]
-            &* set @"width" (getField @"width" (_swapChainExtent swapChainData))
-            &* set @"height" (getField @"height" (_swapChainExtent swapChainData))
-            &* set @"layers" 1
-      in do
+    createFrameBuffer imageView = do
+        let frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
+                $  set @"sType" VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
+                &* set @"pNext" VK_NULL
+                &* set @"flags" VK_ZERO_FLAGS
+                &* set @"renderPass" renderPass
+                &* set @"attachmentCount" 1
+                &* setListRef @"pAttachments" [imageView]
+                &* set @"width" (getField @"width" imageExtent)
+                &* set @"height" (getField @"height" imageExtent)
+                &* set @"layers" 1
         frameBuffer <- alloca $ \framebufferPtr -> do
             result <- vkCreateFramebuffer device (unsafePtr frameBufferCreateInfo) VK_NULL framebufferPtr
             validationVK result "vkCreateFramebuffer failed!"
@@ -857,11 +874,13 @@ createFramebuffers device renderPass swapChainData = do
         touchVkData frameBufferCreateInfo
         return frameBuffer
 
-destroyFramebuffers :: VkDevice -> [VkFramebuffer] -> IO ()
-destroyFramebuffers device frameBuffers = do
-  logInfo $ "Destroy Framebuffers" ++ show frameBuffers
-  forM_ frameBuffers $ \frameBuffer ->
+
+destroyFramebufferData :: VkDevice -> FrameBufferData -> IO ()
+destroyFramebufferData device frameBufferData = do
+  logInfo $ "Destroy Framebuffers" ++ show frameBufferData
+  forM_ (_frameBuffers frameBufferData) $ \frameBuffer ->
     vkDestroyFramebuffer device frameBuffer VK_NULL_HANDLE
+
 
 createCommandPool :: VkDevice -> QueueFamilyDatas -> IO VkCommandPool
 createCommandPool device QueueFamilyDatas {..} = do
@@ -879,6 +898,7 @@ createCommandPool device QueueFamilyDatas {..} = do
     peek commandPoolPtr
   return commandPool
 
+
 destroyCommandPool :: VkDevice -> VkCommandPool -> IO ()
 destroyCommandPool device commandPool = do
   logInfo $ "Destroy Command Pool: " ++ show commandPool
@@ -886,71 +906,76 @@ destroyCommandPool device commandPool = do
 
 
 createCommandBuffers :: VkDevice
-                     -> VkPipeline
                      -> VkCommandPool
-                     -> VkRenderPass
-                     -> SwapChainData
-                     -> [VkFramebuffer]
-                     -> IO (Ptr VkCommandBuffer, Int)
-createCommandBuffers device graphicsPipeline commandPool renderPass SwapChainData{..} frameBuffers = do
-  let bufferCount = length frameBuffers
-  commandBuffersPtr <- mallocArray bufferCount::IO (Ptr VkCommandBuffer)
-  let allocationInfo = createVk @VkCommandBufferAllocateInfo
-        $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
-        &* set @"pNext" VK_NULL
-        &* set @"commandPool" commandPool
-        &* set @"level" VK_COMMAND_BUFFER_LEVEL_PRIMARY
-        &* set @"commandBufferCount" (fromIntegral bufferCount)
-  withPtr allocationInfo $ \allocationInfoPtr -> do
-      result <- vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr
-      validationVK result "vkAllocateCommandBuffers failed!"
-  logInfo $ "Create Command Buffer: "  ++ show bufferCount
+                     -> Word32
+                     -> IO (Ptr VkCommandBuffer)
+createCommandBuffers device commandPool commandBufferCount = do
+    commandBuffersPtr <- mallocArray (fromIntegral commandBufferCount)::IO (Ptr VkCommandBuffer)
+    let allocationInfo = createVk @VkCommandBufferAllocateInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"commandPool" commandPool
+            &* set @"level" VK_COMMAND_BUFFER_LEVEL_PRIMARY
+            &* set @"commandBufferCount" (fromIntegral commandBufferCount)
+    withPtr allocationInfo $ \allocationInfoPtr -> do
+        result <- vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr
+        validationVK result "vkAllocateCommandBuffers failed!"
+    logInfo $ "Create Command Buffer: "  ++ show commandBufferCount ++ " " ++ (show commandBuffersPtr)
+    commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
+    return commandBuffersPtr
 
-  commandBuffers <- peekArray bufferCount commandBuffersPtr
-
-  -- record command buffers  
-  forM_ (zip frameBuffers commandBuffers) $ \(frameBuffer, commandBuffer) -> do    
-    let
-      commandBufferBeginInfo :: VkCommandBufferBeginInfo
-      commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
-          $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-          &* set @"pNext" VK_NULL
-          &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT      
-      renderPassBeginInfo :: VkRenderPassBeginInfo
-      renderPassBeginInfo = createVk @VkRenderPassBeginInfo
-          $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
-          &* set @"pNext" VK_NULL
-          &* set @"renderPass" renderPass
-          &* set @"framebuffer" frameBuffer
-          &* setVk @"renderArea" ( 
-            setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
-            &* set @"extent" _swapChainExtent )
-          &* set @"clearValueCount" 1
-          &* setVkRef @"pClearValues"
-              ( createVk $ setVk @"color"
-                $  setAt @"float32" @0 0
-                &* setAt @"float32" @1 0
-                &* setAt @"float32" @2 0.2
-                &* setAt @"float32" @3 1 )
-    -- begin commands
-    logInfo $ "    vkBeginCommandBuffer: " ++ show commandBuffer
-    withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
-        result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
-        validationVK result "vkBeginCommandBuffer failed!"
-    withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
-      vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
-    -- basic drawing commands
-    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS graphicsPipeline
-    vkCmdDraw commandBuffer 3 1 0 0
-    -- finishing up
-    vkCmdEndRenderPass commandBuffer
-    vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
-  return (commandBuffersPtr, bufferCount)
 
 destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuffer -> IO ()
 destroyCommandBuffers device commandPool bufferCount commandBuffersPtr = do
   vkFreeCommandBuffers device commandPool bufferCount commandBuffersPtr
   free commandBuffersPtr
+
+
+runCommandBuffer :: RendererData -> RenderPassData -> IO ()
+runCommandBuffer rendererData renderPassData = do
+    let frameBufferData = (_frameBufferData renderPassData)
+        frameBuffers = (_frameBuffers frameBufferData)
+        imageExtent = (_imageExtent frameBufferData)
+        graphicsPipelineData = (_graphicsPipelineData renderPassData)
+        graphicsPipeline = (_pipeline graphicsPipelineData)
+        commandBufferCount = (_commandBufferCount rendererData)
+        commandBuffersPtr = (_commandBuffersPtr rendererData)
+    commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
+    -- record command buffers
+    forM_ (zip frameBuffers commandBuffers) $ \(frameBuffer, commandBuffer) -> do
+        let commandBufferBeginInfo :: VkCommandBufferBeginInfo
+            commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
+                $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+                &* set @"pNext" VK_NULL
+                &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
+            renderPassBeginInfo :: VkRenderPassBeginInfo
+            renderPassBeginInfo = createVk @VkRenderPassBeginInfo
+                $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
+                &* set @"pNext" VK_NULL
+                &* set @"renderPass" (_renderPass renderPassData)
+                &* set @"framebuffer" frameBuffer
+                &* setVk @"renderArea" (
+                    setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
+                    &* set @"extent" imageExtent )
+                &* set @"clearValueCount" 1
+                &* setVkRef @"pClearValues"
+                    ( createVk $ setVk @"color"
+                        $  setAt @"float32" @0 0
+                        &* setAt @"float32" @1 0
+                        &* setAt @"float32" @2 0.2
+                        &* setAt @"float32" @3 1 )
+        -- begin
+        withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
+            result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
+            validationVK result "vkBeginCommandBuffer failed!"
+        withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
+            vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
+        vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS graphicsPipeline
+        -- draw
+        vkCmdDraw commandBuffer 3 1 0 0
+        -- end
+        vkCmdEndRenderPass commandBuffer
+        vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
 
 createSemaphores :: VkDevice -> IO [VkSemaphore]
 createSemaphores device = do
@@ -996,8 +1021,8 @@ destroyFrameFences device frameFencesPtr = do
     vkDestroyFence device fence VK_NULL
   free frameFencesPtr  
 
-drawFrame :: RenderData -> Int -> Ptr Word32 -> IO VkResult
-drawFrame RenderData {..} frameIndex imageIndexPtr = do
+drawFrame :: RendererData -> Int -> Ptr Word32 -> IO VkResult
+drawFrame RendererData {..} frameIndex imageIndexPtr = do
   let SwapChainData {..} = _swapChainData
       QueueFamilyDatas {..} = _queueFamilyDatas
       frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
@@ -1043,42 +1068,37 @@ drawFrame RenderData {..} frameIndex imageIndexPtr = do
     return presentResult
 
 
-getDefaultRenderData :: IO RenderData
-getDefaultRenderData = do
-  imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
-    writeField @"width" extentPtr $ 0
-    writeField @"height" extentPtr $ 0
-  let 
-    defaultSwapChainData = SwapChainData
-      { _swapChain = VK_NULL
-      , _swapChainImages = []
-      , _swapChainImageFormat = VK_FORMAT_UNDEFINED
-      , _swapChainImageViews = []
-      , _swapChainExtent = imageExtent }
-    defaultQueueFamilyIndices = QueueFamilyIndices
-      { _graphicsQueueIndex = 0
-      , _presentQueueIndex = 0
-      , _computeQueueIndex = 0
-      , _transferQueueIndex = 0
-      , _sparseBindingQueueIndex = 0 }
-    defaultQueueFamilyDatas = QueueFamilyDatas
-      { _graphicsQueue = VK_NULL
-      , _presentQueue = VK_NULL
-      , _queueFamilyIndexList = []
-      , _queueFamilyCount = 0
-      , _queueFamilyIndices = defaultQueueFamilyIndices }
-    deafaultShaderCreateInfo = createVk @VkPipelineShaderStageCreateInfo
-      $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
-      &* set @"pNext" VK_NULL
-      &* set @"stage" VK_SHADER_STAGE_VERTEX_BIT
-      &* set @"module" VK_NULL
-      &* setStrRef @"pName" "main"
-    defaultGraphicsPipelineData = GraphicsPipelineData
-      { _vertexShaderCreateInfo = deafaultShaderCreateInfo
-      , _fragmentShaderCreateInfo = deafaultShaderCreateInfo
-      , _pipelineLayout = VK_NULL
-      , _pipeline = VK_NULL }
-  return RenderData
+getDefaultRendererData :: IO RendererData
+getDefaultRendererData = do
+    imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
+        writeField @"width" extentPtr $ 0
+        writeField @"height" extentPtr $ 0
+    surfaceCapabilities <- newVkData @VkSurfaceCapabilitiesKHR $ \surfaceCapabilitiesPtr -> do
+        return ()
+    let defaultSwapChainData = SwapChainData
+            { _swapChain = VK_NULL
+            , _swapChainImages = []
+            , _swapChainImageCount = 0
+            , _swapChainImageFormat = VK_FORMAT_UNDEFINED
+            , _swapChainImageViews = []
+            , _swapChainExtent = imageExtent }
+        defaultSwapChainSupportDetails = SwapChainSupportDetails
+            { _capabilities = surfaceCapabilities
+            , _formats = []
+            , _presentModes = [] }
+        defaultQueueFamilyIndices = QueueFamilyIndices
+            { _graphicsQueueIndex = 0
+            , _presentQueueIndex = 0
+            , _computeQueueIndex = 0
+            , _transferQueueIndex = 0
+            , _sparseBindingQueueIndex = 0 }
+        defaultQueueFamilyDatas = QueueFamilyDatas
+            { _graphicsQueue = VK_NULL
+            , _presentQueue = VK_NULL
+            , _queueFamilyIndexList = []
+            , _queueFamilyCount = 0
+            , _queueFamilyIndices = defaultQueueFamilyIndices }
+    return RendererData
       { _msaaSamples = VK_SAMPLE_COUNT_4_BIT
       , _imageAvailableSemaphores = []
       , _renderFinishedSemaphores = []
@@ -1087,48 +1107,57 @@ getDefaultRenderData = do
       , _device = VK_NULL
       , _physicalDevice = VK_NULL
       , _swapChainData = defaultSwapChainData
+      , _swapChainSupportDetails = defaultSwapChainSupportDetails
       , _queueFamilyDatas = defaultQueueFamilyDatas
       , _frameFencesPtr = VK_NULL
-      , _frameBuffers = []
       , _commandPool = VK_NULL
       , _commandBufferCount = 0
-      , _commandBuffersPtr = VK_NULL
-      , _graphicsPipelineData = defaultGraphicsPipelineData
-      , _renderPass = VK_NULL }
+      , _commandBuffersPtr = VK_NULL }
 
-createRenderData :: RenderData -> SwapChainSupportDetails -> IO RenderData
-createRenderData renderData@RenderData {..} swapChainSupportDetails = do
-  swapChainData <- createSwapChainData _device swapChainSupportDetails _queueFamilyDatas _vkSurface
-  renderPass <- createRenderPass _device swapChainData  
-  let vertexShaderFile = "Resource/Shaders/triangle.vert"
-      fragmentShaderFile = "Resource/Shaders/triangle.frag"
-  graphicsPipelineData <- createGraphicsPipeline _device (_swapChainExtent swapChainData) vertexShaderFile fragmentShaderFile renderPass
-  frameBuffers <- createFramebuffers _device renderPass swapChainData
-  (commandBuffersPtr, commandBufferCount) <- createCommandBuffers _device (_pipeline graphicsPipelineData) _commandPool renderPass swapChainData frameBuffers
-  return renderData 
-    { _swapChainData = swapChainData
-    , _renderPass = renderPass
-    , _graphicsPipelineData = graphicsPipelineData
-    , _frameBuffers = frameBuffers
-    , _commandBuffersPtr = commandBuffersPtr
-    , _commandBufferCount = fromIntegral commandBufferCount }
-  
-destroyRenderData :: RenderData -> IO ()
-destroyRenderData RenderData {..} = do    
-  destroyFramebuffers _device _frameBuffers
-  destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr  
-  destroyGraphicsPipeline _device _graphicsPipelineData
-  destroyRenderPass _device _renderPass  
-  destroySwapChainData _device _swapChainData
 
-createRenderer :: RenderData
+createRenderPassData :: RendererData -> IO RenderPassData
+createRenderPassData rendererData@RendererData {..} = do
+    let defaultShaderCreateInfo = createVk @VkPipelineShaderStageCreateInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"stage" VK_SHADER_STAGE_VERTEX_BIT
+            &* set @"module" VK_NULL
+            &* setStrRef @"pName" "main"
+    let defaultGraphicsPipelineData = GraphicsPipelineData
+            { _vertexShaderCreateInfo = defaultShaderCreateInfo
+            , _fragmentShaderCreateInfo = defaultShaderCreateInfo
+            , _pipelineLayout = VK_NULL
+            , _pipeline = VK_NULL }
+    let vertexShaderFile = "Resource/Shaders/triangle.vert"
+        fragmentShaderFile = "Resource/Shaders/triangle.frag"
+        imageFormat = _swapChainImageFormat _swapChainData
+        imageExtent = _swapChainExtent _swapChainData
+        imageViews = _swapChainImageViews _swapChainData
+
+    renderPass <- createRenderPass _device imageFormat
+    graphicsPipelineData <- createGraphicsPipeline _device imageExtent vertexShaderFile fragmentShaderFile renderPass
+    frameBufferData <- createFramebufferData _device renderPass imageViews imageExtent
+
+    return RenderPassData
+        { _renderPass = renderPass
+        , _graphicsPipelineData = graphicsPipelineData
+        , _frameBufferData = frameBufferData }
+
+destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
+destroyRenderPassData device RenderPassData {..} = do
+  destroyFramebufferData device _frameBufferData
+  destroyGraphicsPipeline device _graphicsPipelineData
+  destroyRenderPass device _renderPass
+
+
+createRenderer :: RendererData
                -> GLFW.Window
                -> String
                -> String
                -> Bool
                -> [CString]
-               -> IO (RenderData, SwapChainSupportDetails)
-createRenderer defaultRenderData window progName engineName isConcurrentMode requireExtensions = do
+               -> IO RendererData
+createRenderer defaultRendererData window progName engineName isConcurrentMode requireExtensions = do
   vkInstance <- createVulkanInstance progName engineName Constants.vulkanLayers requireExtensions
   vkSurface <- createVkSurface vkInstance window
   (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
@@ -1152,7 +1181,10 @@ createRenderer defaultRenderData window progName engineName isConcurrentMode req
   imageAvailableSemaphores <- createSemaphores device
   renderFinishedSemaphores <- createSemaphores device
   frameFencesPtr <- createFrameFences device
-  let renderData = defaultRenderData
+  swapChainData <- createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface
+  let commandBufferCount = _swapChainImageCount swapChainData
+  commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
+  let rendererData = defaultRendererData
         { _msaaSamples = msaaSamples
         , _imageAvailableSemaphores = imageAvailableSemaphores
         , _renderFinishedSemaphores = renderFinishedSemaphores
@@ -1162,20 +1194,39 @@ createRenderer defaultRenderData window progName engineName isConcurrentMode req
         , _physicalDevice = physicalDevice
         , _queueFamilyDatas = queueFamilyDatas
         , _frameFencesPtr = frameFencesPtr
-        , _commandPool = commandPool }
-  return (renderData, swapChainSupportDetails)
+        , _commandPool = commandPool
+        , _commandBuffersPtr = commandBuffersPtr
+        , _commandBufferCount = commandBufferCount
+        , _swapChainData = swapChainData
+        , _swapChainSupportDetails = swapChainSupportDetails }
+  return rendererData
 
-destroyRenderer :: RenderData -> IO ()
-destroyRenderer renderData@RenderData {..} = do  
-  destroyRenderData renderData
+destroyRenderer :: RendererData -> IO ()
+destroyRenderer rendererData@RendererData {..} = do
+    destroySemaphores _device _renderFinishedSemaphores
+    destroySemaphores _device _imageAvailableSemaphores
+    destroyFrameFences _device _frameFencesPtr
+    destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
+    destroyCommandPool _device _commandPool
+    destroySwapChainData _device _swapChainData
+    destroyDevice _device
+    destroyVkSurface _vkInstance _vkSurface
+    destroyVulkanInstance _vkInstance
 
-  destroySemaphores _device _renderFinishedSemaphores
-  destroySemaphores _device _imageAvailableSemaphores 
-  destroyFrameFences _device _frameFencesPtr  
-  destroyCommandPool _device _commandPool
-  destroyDevice _device
-  destroyVkSurface _vkInstance _vkSurface
-  destroyVulkanInstance _vkInstance
+reCreateSwapChainAndCommandBuffer :: RendererData -> GLFW.Window -> IO RendererData
+reCreateSwapChainAndCommandBuffer rendererData@RendererData {..} window = do
+    destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
+    destroySwapChainData _device _swapChainData
+
+    newSwapChainSupportDetails <- querySwapChainSupport _physicalDevice _vkSurface
+    newSwapChainData <- createSwapChainData _device newSwapChainSupportDetails _queueFamilyDatas _vkSurface
+    let commandBufferCount = _swapChainImageCount newSwapChainData
+    newCommandBuffersPtr <- createCommandBuffers _device _commandPool commandBufferCount
+
+    return rendererData
+        { _swapChainSupportDetails = newSwapChainSupportDetails
+        , _swapChainData = newSwapChainData
+        , _commandBuffersPtr = newCommandBuffersPtr }
 
 
 runCommandsOnce :: VkDevice
