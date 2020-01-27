@@ -22,7 +22,9 @@ import System.Process
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
+
 import Library.Utils
+import Library.Logger
 
 
 compileGLSL :: FilePath -> IO (Int, Ptr Word32)
@@ -49,8 +51,8 @@ compileGLSL filePath = do
   case exitCode of
     ExitSuccess -> pure ()
     ExitFailure i -> do
-      putStrLn stdo
-      putStrLn stde
+      logInfo stdo
+      logInfo stde
       error $ "glslangValidator exited with code " ++ show i ++ "."
 
   withBinaryFile spirvCodeFile ReadMode $ \h -> do
@@ -83,7 +85,7 @@ getShaderCreateInfo stageBit shaderModule = createVk @VkPipelineShaderStageCreat
 
 createShaderStageCreateInfo :: VkDevice -> String -> VkShaderStageFlagBits -> IO VkPipelineShaderStageCreateInfo
 createShaderStageCreateInfo device shaderFilePath stageBit = do
-  putStrLn $ show stageBit ++ ": " ++ shaderFilePath
+  logInfo $ show stageBit ++ ": " ++ shaderFilePath
   (codeSize, codePtr) <- compileGLSL shaderFilePath
   shaderModuleCreateInfo <- getShaderModuleCreateInfo codeSize codePtr
   shaderModule <- alloca $ \shaderModulePtr -> do

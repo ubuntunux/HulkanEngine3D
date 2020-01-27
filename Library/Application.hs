@@ -12,7 +12,7 @@ import Data.IORef
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import qualified Graphics.UI.GLFW as GLFW
 import Library.Utils
-
+import Library.Logger
 
 glfwMainLoop :: GLFW.Window -> IO Bool -> IO ()
 glfwMainLoop window mainLoop = go
@@ -28,9 +28,9 @@ glfwMainLoop window mainLoop = go
 createGLFWWindow::Int -> Int -> String -> IORef Bool -> IO (Maybe GLFW.Window)
 createGLFWWindow width height title windowSizeChanged = do
     GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")
-    putStrLn "Initialized GLFW."
+    logInfo "Initialized GLFW."
     version <- GLFW.getVersionString
-    mapM_ (putStrLn . ("GLFW Version: " ++)) version
+    mapM_ (logInfo . ("GLFW Version: " ++)) version
     GLFW.vulkanSupported >>= flip unless (throwVKMsg "GLFW reports that vulkan is not supported!")
     GLFW.windowHint $ WindowHint'ClientAPI ClientAPI'NoAPI
     GLFW.windowHint $ WindowHint'Resizable True
@@ -39,3 +39,7 @@ createGLFWWindow width height title windowSizeChanged = do
     GLFW.setWindowSizeCallback window $
         Just (\_ _ _ -> atomicWriteIORef windowSizeChanged True)
     return maybeWindow
+
+destroyGLFWWindow window = do
+    GLFW.destroyWindow window >> logInfo "Closed GLFW window."
+    GLFW.terminate >> logInfo "Terminated GLFW."

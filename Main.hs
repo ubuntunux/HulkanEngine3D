@@ -3,7 +3,7 @@
 
 module Main
   ( main
-  , runProgramTest ) where
+  ) where
 
 import Control.Monad
 import Data.IORef
@@ -18,7 +18,7 @@ import qualified Graphics.UI.GLFW as GLFW
 
 import Library.Utils
 import Library.Application
-import Library.Program
+import Library.Logger
 import Library.Vulkan
 import Library.Vulkan.Mesh
 import Library.Resource.ObjLoader
@@ -30,7 +30,7 @@ main = do
     windowSizeChanged <- newIORef False
     maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged
     when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
-    putStrLn "Initialized GLFW window."
+    logInfo "Initialized GLFW window."
     requireExtensions <- GLFW.getRequiredInstanceExtensions
     instanceExtensionNames <- getInstanceExtensionSupport
     checkExtensionResult <- checkExtensionSupport instanceExtensionNames requireExtensions
@@ -93,7 +93,7 @@ main = do
             writeIORef needCreateRenderDataRef True
         return True
     -- Terminate
-    putStrLn "\n[ Terminate ]"
+    logInfo "\n[ Terminate ]"
     renderData <- readIORef renderDataRef
     geometryBufferList <- readIORef geometryBufferListRef
     destroyGeometryBuffers (_device renderData) geometryBufferList
@@ -101,13 +101,5 @@ main = do
     validationVK result "vkDeviceWaitIdle failed!"
     destroyRenderer renderData
     free imageIndexPtr
-    GLFW.destroyWindow window >> putStrLn "Closed GLFW window."
-    GLFW.terminate >> putStrLn "Terminated GLFW."
-    runProgramTest
+    
     return ()
-
-
-runProgramTest :: IO ()
-runProgramTest = runProgram checkStatus $ do
-  logInfo "runProgramTest - Test 0"
-  logError "runProgramTest - Test 1"

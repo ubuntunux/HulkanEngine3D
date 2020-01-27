@@ -31,7 +31,7 @@ import Graphics.Vulkan.Core_1_0
 import Library.Utils
 import Library.Vulkan
 import Library.Vulkan.Buffer
-
+import Library.Logger
 
 
 -- | Preparing Vertex data to make an interleaved array.
@@ -64,7 +64,7 @@ createGeometryBuffer:: String
                     -> DataFrame Word32 '[XN 3]
                     -> IO GeometryBuffer
 createGeometryBuffer bufferName renderData vertices indices = do
-    putStrLn $ "createGeometryBuffer : "  ++ bufferName
+    logInfo $ "createGeometryBuffer : "  ++ bufferName
     (vertexBufferMemory, vertexBuffer) <- createVertexBuffer renderData vertices
     (indexBufferMemory, indexBuffer) <- createIndexBuffer renderData indices
     return GeometryBuffer { _bufferName = bufferName

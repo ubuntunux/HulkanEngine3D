@@ -23,6 +23,7 @@ executable main
     ghc-options:      -threaded
     other-modules:    Library.Application
                       Library.Constants
+                      Library.Logger
                       Library.Shader
                       Library.Utils
                       Library.Vulkan

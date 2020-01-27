@@ -31,6 +31,7 @@ import Numeric.Dimensions
 
 import Library.Utils
 import Library.Vulkan.Mesh
+import Library.Logger
 
 
 -- | Check if the frame has enough elements.
@@ -90,7 +91,7 @@ faceToTriangles (Face a b c is) = pairwise (Tri a) (b:c:is)
 
 loadModel :: FilePath -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])
 loadModel file = do
-  putStrLn $ "Loading model: " ++ file
+  logInfo $ "Loading model: " ++ file
   obj <- either throwVKMsg pure =<< Codec.Wavefront.fromFile file
   (vertices, indices) <- objVertices obj
   return (vertices, indices)
