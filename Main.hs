@@ -45,8 +45,7 @@ main = do
     rendererDataRef <- newIORef rendererData
 
     -- create render pass data
-    renderPassData <- createRenderPassData rendererData
-    runCommandBuffer rendererData renderPassData
+    renderPassData <- createRenderPassData rendererData [0, 0, 0.2, 1]
     renderPassDataListRef <- newIORef (DList.singleton renderPassData)
 
     -- create resources
@@ -86,9 +85,8 @@ main = do
             forM_ renderPassDataList $ \renderPassData -> do
                 destroyRenderPassData (_device rendererData) renderPassData
 
-            newRendererData <- reCreateSwapChainAndCommandBuffer rendererData window
-            newRenderPassData <- createRenderPassData newRendererData
-            runCommandBuffer newRendererData newRenderPassData
+            newRendererData <- recreateSwapChain rendererData window
+            newRenderPassData <- createRenderPassData newRendererData [0, 0, 0.2, 1]
             writeIORef renderPassDataListRef (DList.fromList [newRenderPassData])
             writeIORef rendererDataRef newRendererData
         frameIndex <- readIORef frameIndexRef

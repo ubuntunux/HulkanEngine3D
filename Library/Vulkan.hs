@@ -40,7 +40,7 @@ module Library.Vulkan
   , destroyCommandPool
   , createCommandBuffers
   , destroyCommandBuffers
-  , runCommandBuffer
+  , recordCommandBuffer
   , createSemaphores
   , destroySemaphores
   , createFrameFences
@@ -49,7 +49,7 @@ module Library.Vulkan
   , getDefaultRendererData
   , createRenderer
   , destroyRenderer
-  , reCreateSwapChainAndCommandBuffer
+  , recreateSwapChain
   , runCommandsOnce
   ) where
 
@@ -142,6 +142,7 @@ data RenderPassData = RenderPassData
     { _graphicsPipelineData :: GraphicsPipelineData
     , _renderPass :: VkRenderPass
     , _frameBufferData :: FrameBufferData
+    , _clearValues :: [Float]
     } deriving (Eq, Show)
 
 
@@ -931,52 +932,6 @@ destroyCommandBuffers device commandPool bufferCount commandBuffersPtr = do
   free commandBuffersPtr
 
 
-runCommandBuffer :: RendererData -> RenderPassData -> IO ()
-runCommandBuffer rendererData renderPassData = do
-    let frameBufferData = (_frameBufferData renderPassData)
-        frameBuffers = (_frameBuffers frameBufferData)
-        imageExtent = (_imageExtent frameBufferData)
-        graphicsPipelineData = (_graphicsPipelineData renderPassData)
-        graphicsPipeline = (_pipeline graphicsPipelineData)
-        commandBufferCount = (_commandBufferCount rendererData)
-        commandBuffersPtr = (_commandBuffersPtr rendererData)
-    commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
-    -- record command buffers
-    forM_ (zip frameBuffers commandBuffers) $ \(frameBuffer, commandBuffer) -> do
-        let commandBufferBeginInfo :: VkCommandBufferBeginInfo
-            commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
-                $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-                &* set @"pNext" VK_NULL
-                &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
-            renderPassBeginInfo :: VkRenderPassBeginInfo
-            renderPassBeginInfo = createVk @VkRenderPassBeginInfo
-                $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
-                &* set @"pNext" VK_NULL
-                &* set @"renderPass" (_renderPass renderPassData)
-                &* set @"framebuffer" frameBuffer
-                &* setVk @"renderArea" (
-                    setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
-                    &* set @"extent" imageExtent )
-                &* set @"clearValueCount" 1
-                &* setVkRef @"pClearValues"
-                    ( createVk $ setVk @"color"
-                        $  setAt @"float32" @0 0
-                        &* setAt @"float32" @1 0
-                        &* setAt @"float32" @2 0.2
-                        &* setAt @"float32" @3 1 )
-        -- begin
-        withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
-            result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
-            validationVK result "vkBeginCommandBuffer failed!"
-        withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
-            vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
-        vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS graphicsPipeline
-        -- draw
-        vkCmdDraw commandBuffer 3 1 0 0
-        -- end
-        vkCmdEndRenderPass commandBuffer
-        vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
-
 createSemaphores :: VkDevice -> IO [VkSemaphore]
 createSemaphores device = do
   semaphores <- allocaArray Constants.maxFrameCount $ \semaphoresPtr -> do
@@ -1115,8 +1070,8 @@ getDefaultRendererData = do
       , _commandBuffersPtr = VK_NULL }
 
 
-createRenderPassData :: RendererData -> IO RenderPassData
-createRenderPassData rendererData@RendererData {..} = do
+createRenderPassData :: RendererData -> [Float] -> IO RenderPassData
+createRenderPassData rendererData@RendererData {..} clearValues = do
     let defaultShaderCreateInfo = createVk @VkPipelineShaderStageCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -1138,10 +1093,15 @@ createRenderPassData rendererData@RendererData {..} = do
     graphicsPipelineData <- createGraphicsPipeline _device imageExtent vertexShaderFile fragmentShaderFile renderPass
     frameBufferData <- createFramebufferData _device renderPass imageViews imageExtent
 
-    return RenderPassData
-        { _renderPass = renderPass
-        , _graphicsPipelineData = graphicsPipelineData
-        , _frameBufferData = frameBufferData }
+    let newRenderPassData = RenderPassData
+            { _renderPass = renderPass
+            , _graphicsPipelineData = graphicsPipelineData
+            , _frameBufferData = frameBufferData
+            , _clearValues = clearValues }
+
+    recordCommandBuffer rendererData newRenderPassData
+
+    return newRenderPassData
 
 destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
 destroyRenderPassData device RenderPassData {..} = do
@@ -1213,8 +1173,8 @@ destroyRenderer rendererData@RendererData {..} = do
     destroyVkSurface _vkInstance _vkSurface
     destroyVulkanInstance _vkInstance
 
-reCreateSwapChainAndCommandBuffer :: RendererData -> GLFW.Window -> IO RendererData
-reCreateSwapChainAndCommandBuffer rendererData@RendererData {..} window = do
+recreateSwapChain :: RendererData -> GLFW.Window -> IO RendererData
+recreateSwapChain rendererData@RendererData {..} window = do
     destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
     destroySwapChainData _device _swapChainData
 
@@ -1229,6 +1189,55 @@ reCreateSwapChainAndCommandBuffer rendererData@RendererData {..} window = do
         , _commandBuffersPtr = newCommandBuffersPtr }
 
 
+recordCommandBuffer :: RendererData -> RenderPassData -> IO ()
+recordCommandBuffer rendererData renderPassData = do
+    let frameBufferData = _frameBufferData renderPassData
+        frameBuffers = _frameBuffers frameBufferData
+        imageExtent = _imageExtent frameBufferData
+        graphicsPipelineData = _graphicsPipelineData renderPassData
+        graphicsPipeline = _pipeline graphicsPipelineData
+        renderPass = _renderPass renderPassData
+        clearValues = _clearValues renderPassData
+        commandBufferCount = _commandBufferCount rendererData
+        commandBuffersPtr = _commandBuffersPtr rendererData
+    commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
+    -- record command buffers
+    forM_ (zip frameBuffers commandBuffers) $ \(frameBuffer, commandBuffer) -> do
+        let commandBufferBeginInfo :: VkCommandBufferBeginInfo
+            commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
+                $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+                &* set @"pNext" VK_NULL
+                &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
+            renderPassBeginInfo :: VkRenderPassBeginInfo
+            renderPassBeginInfo = createVk @VkRenderPassBeginInfo
+                $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
+                &* set @"pNext" VK_NULL
+                &* set @"renderPass" renderPass
+                &* set @"framebuffer" frameBuffer
+                &* setVk @"renderArea" (
+                    setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
+                    &* set @"extent" imageExtent )
+                &* set @"clearValueCount" 1
+                &* setVkRef @"pClearValues"
+                    ( createVk $ setVk @"color"
+                        $  setAt @"float32" @0 (clearValues !! 0)
+                        &* setAt @"float32" @1 (clearValues !! 1)
+                        &* setAt @"float32" @2 (clearValues !! 2)
+                        &* setAt @"float32" @3 (clearValues !! 3) )
+        -- begin
+        withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
+            result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
+            validationVK result "vkBeginCommandBuffer failed!"
+        withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
+            vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
+        vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS graphicsPipeline
+        -- draw
+        vkCmdDraw commandBuffer 3 1 0 0
+        -- end
+        vkCmdEndRenderPass commandBuffer
+        vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
+
+
 runCommandsOnce :: VkDevice
                 -> VkCommandPool
                 -> VkQueue
@@ -1241,7 +1250,7 @@ runCommandsOnce device commandPool commandQueue action = do
           &* set @"commandPool" commandPool
           &* set @"commandBufferCount" 1
           &* set @"pNext" VK_NULL
-
+          
   allocaPeek $ \commandBufferPtr -> do
     withPtr allocInfo $ \allocInfoPtr -> do
       vkAllocateCommandBuffers device allocInfoPtr commandBufferPtr
