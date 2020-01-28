@@ -782,14 +782,13 @@ createRenderPassData rendererData@RendererData {..} clearValues = do
         imageViews = _swapChainImageViews _swapChainData
 
     renderPass <- createRenderPass _device imageFormat
-    graphicsPipelineData <- createGraphicsPipeline _device imageExtent vertexShaderFile fragmentShaderFile renderPass
-    frameBufferData <- createFramebufferData _device renderPass imageViews imageExtent
+    graphicsPipelineData <- createGraphicsPipeline _device renderPass imageExtent vertexShaderFile fragmentShaderFile
+    frameBufferData <- createFramebufferData _device renderPass imageViews imageExtent clearValues
 
     let newRenderPassData = RenderPassData
             { _renderPass = renderPass
             , _graphicsPipelineData = graphicsPipelineData
-            , _frameBufferData = frameBufferData
-            , _clearValues = clearValues }
+            , _frameBufferData = frameBufferData }
 
     recordCommandBuffer rendererData newRenderPassData
 
@@ -885,11 +884,11 @@ recordCommandBuffer :: RendererData -> RenderPassData -> IO ()
 recordCommandBuffer rendererData renderPassData = do
     let frameBufferData = _frameBufferData renderPassData
         frameBuffers = _frameBuffers frameBufferData
-        imageExtent = _imageExtent frameBufferData
+        imageExtent = _frameBufferSize frameBufferData
         graphicsPipelineData = _graphicsPipelineData renderPassData
         graphicsPipeline = _pipeline graphicsPipelineData
         renderPass = _renderPass renderPassData
-        clearValues = _clearValues renderPassData
+        clearValues = _frameBufferClearValues frameBufferData
         commandBufferCount = _commandBufferCount rendererData
         commandBuffersPtr = _commandBuffersPtr rendererData
     commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr

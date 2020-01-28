@@ -21,34 +21,43 @@ import Library.Logger
 
 data FrameBufferData = FrameBufferData
     { _frameBuffers :: [VkFramebuffer]
-    , _imageExtent :: VkExtent2D
+    , _frameBufferSize :: VkExtent2D
+    , _frameBufferClearValues :: [Float]
     } deriving (Eq, Show)
 
 
-createFramebufferData :: VkDevice -> VkRenderPass -> [VkImageView] -> VkExtent2D -> IO FrameBufferData
-createFramebufferData device renderPass imageViews imageExtent = do
-  framebuffers <- mapM createFrameBuffer imageViews
-  logInfo $ "Create Framebuffers: " ++ show framebuffers
-  return FrameBufferData { _frameBuffers = framebuffers, _imageExtent = imageExtent }
-  where
-    createFrameBuffer :: VkImageView -> IO VkFramebuffer
-    createFrameBuffer imageView = do
-        let frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
-                $  set @"sType" VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
-                &* set @"pNext" VK_NULL
-                &* set @"flags" VK_ZERO_FLAGS
-                &* set @"renderPass" renderPass
-                &* set @"attachmentCount" 1
-                &* setListRef @"pAttachments" [imageView]
-                &* set @"width" (getField @"width" imageExtent)
-                &* set @"height" (getField @"height" imageExtent)
-                &* set @"layers" 1
-        frameBuffer <- alloca $ \framebufferPtr -> do
-            result <- vkCreateFramebuffer device (unsafePtr frameBufferCreateInfo) VK_NULL framebufferPtr
-            validationVK result "vkCreateFramebuffer failed!"
-            peek framebufferPtr
-        touchVkData frameBufferCreateInfo
-        return frameBuffer
+createFramebufferData :: VkDevice
+                      -> VkRenderPass
+                      -> [VkImageView]
+                      -> VkExtent2D
+                      -> [Float]
+                      -> IO FrameBufferData
+createFramebufferData device renderPass imageViews imageExtent clearValues = do
+    framebuffers <- mapM createFrameBuffer imageViews
+    logInfo $ "Create Framebuffers: " ++ show framebuffers
+    return FrameBufferData
+        { _frameBuffers = framebuffers
+        , _frameBufferSize = imageExtent
+        , _frameBufferClearValues = clearValues }
+    where
+        createFrameBuffer :: VkImageView -> IO VkFramebuffer
+        createFrameBuffer imageView = do
+            let frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
+                    $  set @"sType" VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
+                    &* set @"pNext" VK_NULL
+                    &* set @"flags" VK_ZERO_FLAGS
+                    &* set @"renderPass" renderPass
+                    &* set @"attachmentCount" 1
+                    &* setListRef @"pAttachments" [imageView]
+                    &* set @"width" (getField @"width" imageExtent)
+                    &* set @"height" (getField @"height" imageExtent)
+                    &* set @"layers" 1
+            frameBuffer <- alloca $ \framebufferPtr -> do
+                result <- vkCreateFramebuffer device (unsafePtr frameBufferCreateInfo) VK_NULL framebufferPtr
+                validationVK result "vkCreateFramebuffer failed!"
+                peek framebufferPtr
+            touchVkData frameBufferCreateInfo
+            return frameBuffer
 
 
 destroyFramebufferData :: VkDevice -> FrameBufferData -> IO ()

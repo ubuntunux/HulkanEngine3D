@@ -39,7 +39,6 @@ data RenderPassData = RenderPassData
     { _graphicsPipelineData :: GraphicsPipelineData
     , _renderPass :: VkRenderPass
     , _frameBufferData :: FrameBufferData
-    , _clearValues :: [Float]
     } deriving (Eq, Show)
 
 
@@ -137,12 +136,12 @@ destroyPipelineLayout device pipelineLayout = do
 
 
 createGraphicsPipeline :: VkDevice
+                       -> VkRenderPass
                        -> VkExtent2D
                        -> String
                        -> String
-                       -> VkRenderPass
                        -> IO GraphicsPipelineData
-createGraphicsPipeline device imageExtent vertexShaderFile fragmentShaderFile renderPass = do
+createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentShaderFile = do
   vertexShaderCreateInfo <- createShaderStageCreateInfo device vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
   fragmentShaderCreateInfo <- createShaderStageCreateInfo device fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
   let shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
