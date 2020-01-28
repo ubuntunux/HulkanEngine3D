@@ -28,9 +28,10 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 
 import Library.Utils
+import Library.Logger
 import Library.Vulkan
 import Library.Vulkan.Buffer
-import Library.Logger
+import Library.Vulkan.Queue
 
 
 -- | Preparing Vertex data to make an interleaved array.
@@ -40,13 +41,11 @@ data Vertex = Vertex
   , texCoord :: Vec2f
   } deriving (Eq, Ord, Show, Generic)
 
+instance PrimBytes Vertex
+
 data Tri = Tri {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
-
-instance PrimBytes Vertex
-
-
 
 data GeometryBuffer = GeometryBuffer
     { _bufferName :: String

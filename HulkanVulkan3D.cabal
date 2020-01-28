@@ -30,7 +30,9 @@ executable main
                       Library.Vulkan.Mesh
                       Library.Vulkan.FrameBuffer
                       Library.Vulkan.RenderPass
+                      Library.Vulkan.Queue
                       Library.Vulkan.Shader
+                      Library.Vulkan.SwapChain
                       Library.Program
                       Library.Resource
                       Library.Resource.ObjLoader

@@ -4,11 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Vulkan
-  ( QueueFamilyIndices (..)
-  , QueueFamilyDatas (..)  
-  , SwapChainSupportDetails (..)
-  , SwapChainData (..)
-  , RendererData (..)
+  ( RendererData (..)
   , getMaxUsableSampleCount  
   , getInstanceExtensionSupport
   , getDeviceExtensionSupport
@@ -19,12 +15,8 @@ module Library.Vulkan
   , destroyVkSurface
   , selectPhysicalDevice
   , getPhysicalDeviceProperties
-  , getQueueFamilyIndices
-  , createQueues
   , createDevice
   , destroyDevice
-  , createSwapChainData
-  , destroySwapChainData
   , createRenderPassData
   , destroyRenderPassData
   , createCommandPool
@@ -68,38 +60,9 @@ import Library.Utils
 import Library.Logger
 import Library.Vulkan.FrameBuffer
 import Library.Vulkan.RenderPass
+import Library.Vulkan.Queue
+import Library.Vulkan.SwapChain
 
-
-data QueueFamilyIndices = QueueFamilyIndices
-    { _graphicsQueueIndex :: Word32
-    , _presentQueueIndex :: Word32
-    , _computeQueueIndex :: Word32
-    , _transferQueueIndex :: Word32
-    , _sparseBindingQueueIndex :: Word32
-    } deriving (Eq, Show)
-
-data QueueFamilyDatas = QueueFamilyDatas
-    { _graphicsQueue :: VkQueue
-    , _presentQueue :: VkQueue
-    , _queueFamilyIndexList :: [Word32]
-    , _queueFamilyCount :: Word32
-    , _queueFamilyIndices :: QueueFamilyIndices
-    } deriving (Eq, Show)
-
-data SwapChainSupportDetails = SwapChainSupportDetails
-    { _capabilities :: VkSurfaceCapabilitiesKHR
-    , _formats      :: [VkSurfaceFormatKHR]
-    , _presentModes :: [VkPresentModeKHR]
-    } deriving (Eq, Show)
-
-data SwapChainData = SwapChainData
-    { _swapChain :: VkSwapchainKHR
-    , _swapChainImageCount :: Word32
-    , _swapChainImageFormat :: VkFormat
-    , _swapChainImages :: [VkImage]
-    , _swapChainImageViews :: [VkImageView]
-    , _swapChainExtent :: VkExtent2D
-    } deriving (Eq, Show)
 
 data RendererData = RendererData
     { _msaaSamples :: VkSampleCountBitmask FlagBit
@@ -262,91 +225,6 @@ selectPhysicalDevice vkInstance maybeVkSurface = do
         else
           selectFirstSuitable physicalDeviceArray
 
-selectQueueFamily :: VkQueueBitmask FlagMask -> [(Word32, VkQueueFamilyProperties)] -> IO [Word32]
-selectQueueFamily _ [] = return []
-selectQueueFamily requireQueueFlag ((queueFamilyIndex, queueFamilyProperty):xs) = do
-  if 0 < queueCount && (queueFlags .&. requireQueueFlag) /= zeroBits
-    then do
-      result <- selectQueueFamily requireQueueFlag xs
-      return (queueFamilyIndex:result)
-    else
-      selectQueueFamily requireQueueFlag xs
-  where
-    queueCount = getField @"queueCount" queueFamilyProperty
-    queueFlags = getField @"queueFlags" queueFamilyProperty
-
-selectPresentationFamily :: VkPhysicalDevice
-                         -> VkSurfaceKHR
-                         -> [(Word32, VkQueueFamilyProperties)]
-                         -> IO [Word32]
-selectPresentationFamily _ _ [] = return []
-selectPresentationFamily device surface (queueFamilies:xs) = do
-  let queueFamilyIndex = fst queueFamilies
-  supported <- alloca $ \supportedPtr -> do
-    result <- vkGetPhysicalDeviceSurfaceSupportKHR device queueFamilyIndex surface supportedPtr
-    validationVK result "vkGetPhysicalDeviceSurfaceSupportKHR: failed to check for presentation support."
-    peek supportedPtr
-  if VK_TRUE == supported
-    then do
-      result <- selectPresentationFamily device surface xs
-      return (queueFamilyIndex:result)
-    else
-      selectPresentationFamily device surface xs
-
-getQueueFamilies :: VkPhysicalDevice -> IO [(Word32, VkQueueFamilyProperties)]
-getQueueFamilies physicalDevice = alloca $ \queueFamilyCountPtr -> do
-  vkGetPhysicalDeviceQueueFamilyProperties physicalDevice queueFamilyCountPtr VK_NULL_HANDLE
-  familyCount <- fromIntegral <$> peek queueFamilyCountPtr
-  when (familyCount <= 0) $ throwVKMsg "Zero queue family count!"
-  logInfo $ "Found " ++ show familyCount ++ " queue families."
-  queueFaimilies <- allocaArray familyCount $ \familiesPtr -> do
-    vkGetPhysicalDeviceQueueFamilyProperties physicalDevice queueFamilyCountPtr familiesPtr
-    zip [0..] <$> peekArray familyCount familiesPtr
-  mapM_ (\(x,y) -> logInfo $ "    [" ++ (show x) ++ "] " ++ (show y) ) queueFaimilies
-  return queueFaimilies
-
-getQueueFamilyIndices :: VkPhysicalDevice -> VkSurfaceKHR -> Bool -> IO QueueFamilyIndices
-getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode = do 
-  queueFaimilies <- getQueueFamilies physicalDevice  
-  presentationFamilyIndices <- selectPresentationFamily physicalDevice vkSurface queueFaimilies  
-  graphicsQueueIndices <- selectQueueFamily VK_QUEUE_GRAPHICS_BIT queueFaimilies
-  computeFamilyIndices <- selectQueueFamily VK_QUEUE_COMPUTE_BIT queueFaimilies
-  transferFamilyIndices <- selectQueueFamily VK_QUEUE_TRANSFER_BIT queueFaimilies
-  sparseBindingFamilyIndices <- selectQueueFamily VK_QUEUE_SPARSE_BINDING_BIT queueFaimilies  
-  let
-    defaultIndex = graphicsQueueIndices !! 0
-    queueFamilyIndices = QueueFamilyIndices
-      { _graphicsQueueIndex = defaultIndex
-      , _presentQueueIndex = getFamilyIndex presentationFamilyIndices defaultIndex
-      , _computeQueueIndex = getFamilyIndex computeFamilyIndices defaultIndex
-      , _transferQueueIndex = getFamilyIndex transferFamilyIndices defaultIndex
-      , _sparseBindingQueueIndex = getFamilyIndex sparseBindingFamilyIndices defaultIndex
-      }    
-  logInfo $ "Graphics Queue Index : " ++ show (_graphicsQueueIndex queueFamilyIndices)
-  logInfo $ "Presentation Queue Index : " ++ show (_presentQueueIndex queueFamilyIndices) ++ " / " ++ show presentationFamilyIndices
-  logInfo $ "Computer Queue Index : " ++ show (_computeQueueIndex queueFamilyIndices) ++ " / " ++ show computeFamilyIndices
-  logInfo $ "Transfer Queue Index : " ++ show (_transferQueueIndex queueFamilyIndices) ++ " / " ++ show transferFamilyIndices
-  logInfo $ "Sparse Binding Queue Index : " ++ show (_sparseBindingQueueIndex queueFamilyIndices)  ++ " / " ++ show sparseBindingFamilyIndices
-  return queueFamilyIndices
-  where
-    getFamilyIndex [] _ = Constants.invalidQueueIndex
-    getFamilyIndex indices defaultIndex = 
-      let result = [x | x <- indices, x /= defaultIndex]
-      in
-        if isConcurrentMode && (elem defaultIndex indices) then defaultIndex
-        else if 0 < (length result) then result !! 0
-        else defaultIndex
-
-createQueues :: VkDevice -> [Word32] -> IO (Map.Map Word32 VkQueue)
-createQueues device queueFamilyIndices = do
-  queueList <- forM queueFamilyIndices $ \queueFamilyIndex -> do
-    queue <- alloca $ \queuePtr -> do
-      vkGetDeviceQueue device queueFamilyIndex 0 queuePtr
-      peek queuePtr
-    return (queueFamilyIndex, queue)
-  logInfo $ "Created Queues: " ++ show queueList
-  return $ Map.fromList queueList
-
 createDevice :: VkPhysicalDevice -> [Word32] -> IO VkDevice
 createDevice physicalDevice queueFamilyList = do  
   queuePrioritiesPtr <- new 1.0
@@ -408,171 +286,6 @@ getMaxUsableSampleCount deviceProperties = do
       highestCount = head $ splitCounts >>= maskToBits
   logInfo $ "MSAA Samples: " ++ show highestCount
   return highestCount
-
-chooseSwapSurfaceFormat :: SwapChainSupportDetails -> IO VkSurfaceFormatKHR
-chooseSwapSurfaceFormat swapChainSupportDetails =
-  if 1 == length formats && VK_FORMAT_UNDEFINED == getFormat (head formats) then
-    newVkData $ \surfaceFormatPtr -> do
-      writeField @"format" surfaceFormatPtr VK_FORMAT_B8G8R8A8_UNORM
-      writeField @"colorSpace" surfaceFormatPtr VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-  else
-    findAvailableFormat formats
-  where
-    formats = _formats swapChainSupportDetails
-    getFormat = getField @"format"
-    getColorSpace = getField @"colorSpace"    
-    findAvailableFormat :: [VkSurfaceFormatKHR] -> IO VkSurfaceFormatKHR
-    findAvailableFormat [] = return $ head formats
-    findAvailableFormat (x:xs) =
-      if VK_FORMAT_B8G8R8A8_UNORM == getFormat x && VK_COLOR_SPACE_SRGB_NONLINEAR_KHR == getColorSpace x
-      then return x
-      else findAvailableFormat xs
-
-chooseSwapPresentMode :: SwapChainSupportDetails -> IO VkPresentModeKHR
-chooseSwapPresentMode swapChainSupportDetails
-  | VK_PRESENT_MODE_FIFO_KHR `elem` presentModes = return VK_PRESENT_MODE_FIFO_KHR
-  | VK_PRESENT_MODE_MAILBOX_KHR `elem` presentModes = return VK_PRESENT_MODE_MAILBOX_KHR
-  | VK_PRESENT_MODE_FIFO_RELAXED_KHR `elem` presentModes = return VK_PRESENT_MODE_FIFO_RELAXED_KHR
-  | VK_PRESENT_MODE_IMMEDIATE_KHR `elem` presentModes = return VK_PRESENT_MODE_IMMEDIATE_KHR
-  | otherwise = return VK_PRESENT_MODE_FIFO_KHR
-  where
-    presentModes = _presentModes swapChainSupportDetails
-
-chooseSwapExtent :: SwapChainSupportDetails -> IO VkExtent2D
-chooseSwapExtent swapChainSupportDetails = do
-  imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
-    writeField @"width" extentPtr $ max (width $ getField @"minImageExtent" capabilities)
-                             $ min (width $ getField @"maxImageExtent" capabilities)
-                                   (width $ getField @"currentExtent"  capabilities)
-    writeField @"height" extentPtr $ max (height $ getField @"minImageExtent" capabilities)
-                              $ min (height $ getField @"maxImageExtent" capabilities)
-                                    (height $ getField @"currentExtent"  capabilities)
-  return imageExtent
-  where
-    capabilities = _capabilities swapChainSupportDetails
-    width = getField @"width"
-    height = getField @"height"
-
-createSwapChainData :: VkDevice 
-                    -> SwapChainSupportDetails
-                    -> QueueFamilyDatas 
-                    -> VkSurfaceKHR 
-                    -> IO SwapChainData
-createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = do
-  surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
-  presentMode <- chooseSwapPresentMode swapChainSupportDetails
-  imageExtent <- chooseSwapExtent swapChainSupportDetails
-  queueFamilyIndicesPtr <- newArray (_queueFamilyIndexList queueFamilyDatas)
-
-  -- try tripple buffering
-  let maxImageCount = getField @"maxImageCount" $ _capabilities swapChainSupportDetails
-      minImageCount = getField @"minImageCount" $ _capabilities swapChainSupportDetails
-      imageCount' = if maxImageCount <= 0
-                   then max minImageCount Constants.imageCount
-                   else min maxImageCount $ max minImageCount Constants.imageCount
-
-  -- write VkSwapchainCreateInfoKHR
-  swapChainCreateInfo <- newVkData @VkSwapchainCreateInfoKHR $ \swapChainCreateInfoPtr -> do
-    writeField @"sType" swapChainCreateInfoPtr VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
-    writeField @"pNext" swapChainCreateInfoPtr VK_NULL_HANDLE
-    writeField @"flags" swapChainCreateInfoPtr VK_ZERO_FLAGS
-    writeField @"surface" swapChainCreateInfoPtr vkSurface
-    writeField @"minImageCount" swapChainCreateInfoPtr imageCount'
-    writeField @"imageFormat" swapChainCreateInfoPtr (getField @"format" surfaceFormat)
-    writeField @"imageColorSpace" swapChainCreateInfoPtr (getField @"colorSpace" surfaceFormat)
-    writeField @"imageExtent" swapChainCreateInfoPtr imageExtent
-    writeField @"imageArrayLayers" swapChainCreateInfoPtr 1
-    writeField @"imageUsage" swapChainCreateInfoPtr VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-    if (_graphicsQueue queueFamilyDatas) /= (_presentQueue queueFamilyDatas)
-    then do
-      writeField @"imageSharingMode" swapChainCreateInfoPtr VK_SHARING_MODE_CONCURRENT
-      writeField @"queueFamilyIndexCount" swapChainCreateInfoPtr (_queueFamilyCount queueFamilyDatas)
-      writeField @"pQueueFamilyIndices" swapChainCreateInfoPtr queueFamilyIndicesPtr
-    else do
-      writeField @"imageSharingMode" swapChainCreateInfoPtr VK_SHARING_MODE_EXCLUSIVE
-      writeField @"queueFamilyIndexCount" swapChainCreateInfoPtr 0
-      writeField @"pQueueFamilyIndices" swapChainCreateInfoPtr VK_NULL_HANDLE      
-    writeField @"preTransform" swapChainCreateInfoPtr (getField @"currentTransform" $ _capabilities swapChainSupportDetails)
-    writeField @"compositeAlpha" swapChainCreateInfoPtr VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
-    writeField @"presentMode" swapChainCreateInfoPtr presentMode
-    writeField @"clipped" swapChainCreateInfoPtr VK_TRUE
-    writeField @"oldSwapchain" swapChainCreateInfoPtr VK_NULL_HANDLE
-
-  swapChain <- alloca $ \swapChainPtr -> do
-      result <- vkCreateSwapchainKHR device (unsafePtr swapChainCreateInfo) VK_NULL_HANDLE swapChainPtr
-      validationVK result "vkCreateSwapchainKHR failed!"
-      peek swapChainPtr
-
-  swapChainImages <- asListVK $ \counterPtr valueArrayPtr -> do
-      result <- vkGetSwapchainImagesKHR device swapChain counterPtr valueArrayPtr
-      validationVK result "vkGetSwapchainImagesKHR error"
-
-  let swapChainImageFormat = getField @"imageFormat" swapChainCreateInfo
-      swapChainExtent = (getField @"imageExtent" swapChainCreateInfo)
-  
-  touchVkData swapChainCreateInfo
-  free queueFamilyIndicesPtr
-
-  swapChainImageViews <- createSwapChainImageViews device swapChainImages swapChainImageFormat
-
-  logInfo $ "Create SwapChain : " ++ (show swapChain)
-  logInfo $ "    imageCount : " ++ (show imageCount') ++ " " ++ (show swapChainImages)
-  logInfo $ "    imageFormat : " ++ (show $ getField @"imageFormat" swapChainCreateInfo)
-  logInfo $ "    imageColorSpace : " ++ (show $ getField @"imageColorSpace" swapChainCreateInfo)
-  logInfo $ "    imageViews : " ++ (show swapChainImageViews)
-  logInfo $ "    imageExtent : " ++ (show $ getField @"imageExtent" swapChainCreateInfo)
-  logInfo $ "    imageSharingMode : " ++ (show $ getField @"imageSharingMode" swapChainCreateInfo)
-
-  let swapChainData = SwapChainData { _swapChain = swapChain
-                                    , _swapChainImageCount = fromIntegral (length swapChainImages)
-                                    , _swapChainImages = swapChainImages
-                                    , _swapChainImageFormat = swapChainImageFormat
-                                    , _swapChainImageViews = swapChainImageViews
-                                    , _swapChainExtent = swapChainExtent }
-  return swapChainData
-
-destroySwapChainData :: VkDevice -> SwapChainData -> IO ()
-destroySwapChainData device swapChainData = do
-  destroySwapChainImageViews device (_swapChainImageViews swapChainData)
-  logInfo "Destroy SwapChain"
-  vkDestroySwapchainKHR device (_swapChain swapChainData) VK_NULL_HANDLE
-
-createSwapChainImageViews :: VkDevice -> [VkImage] -> VkFormat -> IO [VkImageView]
-createSwapChainImageViews device swapChainImages swapChainImageFormat = do
-  components <- (newVkData $ \componentsPtr -> do
-    writeField @"r" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-    writeField @"g" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-    writeField @"b" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-    writeField @"a" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY)::IO VkComponentMapping
-  subresourceRange <- (newVkData $ \subresourceRangePtr -> do
-    writeField @"aspectMask" subresourceRangePtr VK_IMAGE_ASPECT_COLOR_BIT
-    writeField @"baseMipLevel" subresourceRangePtr 0
-    writeField @"levelCount" subresourceRangePtr 1
-    writeField @"baseArrayLayer" subresourceRangePtr 0
-    writeField @"layerCount" subresourceRangePtr 1)::IO VkImageSubresourceRange
-  let 
-    getImageViewCreateInfo :: VkImage -> IO VkImageViewCreateInfo
-    getImageViewCreateInfo image = newVkData @VkImageViewCreateInfo $ \viewPtr -> do
-      writeField @"sType" viewPtr VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
-      writeField @"pNext" viewPtr VK_NULL_HANDLE
-      writeField @"flags" viewPtr VK_ZERO_FLAGS
-      writeField @"image" viewPtr image
-      writeField @"viewType" viewPtr VK_IMAGE_VIEW_TYPE_2D
-      writeField @"format" viewPtr swapChainImageFormat
-      writeField @"components" viewPtr components
-      writeField @"subresourceRange" viewPtr subresourceRange  
-  imageViewCreateInfos <- mapM getImageViewCreateInfo swapChainImages
-  imageViews <- forM imageViewCreateInfos $ \imageViewCreateInfo ->
-    alloca $ \imageViewPtr -> do
-        result <- vkCreateImageView device (unsafePtr imageViewCreateInfo) VK_NULL_HANDLE imageViewPtr
-        validationVK result "vkCreateImageView error"
-        peek imageViewPtr
-  mapM_ touchVkData imageViewCreateInfos
-  return imageViews
-
-destroySwapChainImageViews :: VkDevice -> [VkImageView] -> IO ()
-destroySwapChainImageViews device imageViews = do
-  mapM_ (\imageView -> vkDestroyImageView device imageView VK_NULL_HANDLE) imageViews
 
 
 createCommandPool :: VkDevice -> QueueFamilyDatas -> IO VkCommandPool
@@ -764,17 +477,6 @@ getDefaultRendererData = do
 
 createRenderPassData :: RendererData -> [Float] -> IO RenderPassData
 createRenderPassData rendererData@RendererData {..} clearValues = do
-    let defaultShaderCreateInfo = createVk @VkPipelineShaderStageCreateInfo
-            $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
-            &* set @"pNext" VK_NULL
-            &* set @"stage" VK_SHADER_STAGE_VERTEX_BIT
-            &* set @"module" VK_NULL
-            &* setStrRef @"pName" "main"
-    let defaultGraphicsPipelineData = GraphicsPipelineData
-            { _vertexShaderCreateInfo = defaultShaderCreateInfo
-            , _fragmentShaderCreateInfo = defaultShaderCreateInfo
-            , _pipelineLayout = VK_NULL
-            , _pipeline = VK_NULL }
     let vertexShaderFile = "Resource/Shaders/triangle.vert"
         fragmentShaderFile = "Resource/Shaders/triangle.frag"
         imageFormat = _swapChainImageFormat _swapChainData
