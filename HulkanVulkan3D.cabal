@@ -24,11 +24,13 @@ executable main
     other-modules:    Library.Application
                       Library.Constants
                       Library.Logger
-                      Library.Shader
                       Library.Utils
                       Library.Vulkan
                       Library.Vulkan.Buffer
                       Library.Vulkan.Mesh
+                      Library.Vulkan.FrameBuffer
+                      Library.Vulkan.RenderPass
+                      Library.Vulkan.Shader
                       Library.Program
                       Library.Resource
                       Library.Resource.ObjLoader

@@ -3,7 +3,7 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Shader
+module Library.Vulkan.Shader
   ( createShaderStageCreateInfo
   , destroyShaderStageCreateInfo  
   , compileGLSL
