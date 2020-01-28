@@ -45,7 +45,7 @@ main = do
     rendererDataRef <- newIORef rendererData
 
     -- create render pass data
-    renderPassData <- createRenderPassData rendererData [0, 0, 0.2, 1]
+    renderPassData <- createGraphicsRenderPass rendererData [0, 0, 0.2, 1]
     renderPassDataListRef <- newIORef (DList.singleton renderPassData)
 
     -- create resources
@@ -83,10 +83,10 @@ main = do
 
             renderPassDataList <- readIORef renderPassDataListRef
             forM_ renderPassDataList $ \renderPassData -> do
-                destroyRenderPassData (_device rendererData) renderPassData
+                destroyGraphicsRenderPass rendererData renderPassData
 
             newRendererData <- recreateSwapChain rendererData window
-            newRenderPassData <- createRenderPassData newRendererData [0, 0, 0.2, 1]
+            newRenderPassData <- createGraphicsRenderPass newRendererData [0, 0, 0.2, 1]
             writeIORef renderPassDataListRef (DList.fromList [newRenderPassData])
             writeIORef rendererDataRef newRendererData
         frameIndex <- readIORef frameIndexRef
@@ -111,7 +111,7 @@ main = do
 
     renderPassDataList <- readIORef renderPassDataListRef
     forM_ renderPassDataList $ \renderPassData -> do
-        destroyRenderPassData (_device rendererData) renderPassData
+        destroyGraphicsRenderPass rendererData renderPassData
 
     destroyRenderer rendererData
     free imageIndexPtr

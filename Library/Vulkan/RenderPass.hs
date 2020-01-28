@@ -6,6 +6,8 @@
 module Library.Vulkan.RenderPass
     ( RenderPassData (..)
     , GraphicsPipelineData (..)
+    , createRenderPassData
+    , destroyRenderPassData
     , createRenderPass
     , destroyRenderPass
     , createGraphicsPipeline
@@ -41,6 +43,30 @@ data RenderPassData = RenderPassData
     , _frameBufferData :: FrameBufferData
     } deriving (Eq, Show)
 
+
+createRenderPassData :: VkDevice
+                     -> String
+                     -> String
+                     -> VkFormat
+                     -> VkExtent2D
+                     -> [VkImageView]
+                     -> [Float]
+                     -> IO RenderPassData
+createRenderPassData device vertexShaderFile fragmentShaderFile imageFormat imageExtent imageViews clearValues = do
+    renderPass <- createRenderPass device imageFormat
+    graphicsPipelineData <- createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentShaderFile
+    frameBufferData <- createFramebufferData device renderPass imageViews imageExtent clearValues
+    let newRenderPassData = RenderPassData
+            { _renderPass = renderPass
+            , _graphicsPipelineData = graphicsPipelineData
+            , _frameBufferData = frameBufferData }
+    return newRenderPassData
+
+destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
+destroyRenderPassData device RenderPassData {..} = do
+  destroyFramebufferData device _frameBufferData
+  destroyGraphicsPipeline device _graphicsPipelineData
+  destroyRenderPass device _renderPass
 
 createRenderPass :: VkDevice -> VkFormat -> IO VkRenderPass
 createRenderPass device imageFormat =

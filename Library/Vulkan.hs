@@ -5,7 +5,7 @@
 
 module Library.Vulkan
   ( RendererData (..)
-  , getMaxUsableSampleCount  
+  , getMaxUsableSampleCount
   , getInstanceExtensionSupport
   , getDeviceExtensionSupport
   , checkExtensionSupport
@@ -17,8 +17,8 @@ module Library.Vulkan
   , getPhysicalDeviceProperties
   , createDevice
   , destroyDevice
-  , createRenderPassData
-  , destroyRenderPassData
+  , createGraphicsRenderPass
+  , destroyGraphicsRenderPass
   , createCommandPool
   , destroyCommandPool
   , createCommandBuffers
@@ -475,32 +475,21 @@ getDefaultRendererData = do
       , _commandBuffersPtr = VK_NULL }
 
 
-createRenderPassData :: RendererData -> [Float] -> IO RenderPassData
-createRenderPassData rendererData@RendererData {..} clearValues = do
+createGraphicsRenderPass :: RendererData -> [Float] -> IO RenderPassData
+createGraphicsRenderPass rendererData@RendererData {..} clearValues = do
     let vertexShaderFile = "Resource/Shaders/triangle.vert"
         fragmentShaderFile = "Resource/Shaders/triangle.frag"
         imageFormat = _swapChainImageFormat _swapChainData
         imageExtent = _swapChainExtent _swapChainData
         imageViews = _swapChainImageViews _swapChainData
 
-    renderPass <- createRenderPass _device imageFormat
-    graphicsPipelineData <- createGraphicsPipeline _device renderPass imageExtent vertexShaderFile fragmentShaderFile
-    frameBufferData <- createFramebufferData _device renderPass imageViews imageExtent clearValues
+    renderPassData <- createRenderPassData _device vertexShaderFile fragmentShaderFile imageFormat imageExtent imageViews clearValues
+    recordCommandBuffer rendererData renderPassData
+    return renderPassData
 
-    let newRenderPassData = RenderPassData
-            { _renderPass = renderPass
-            , _graphicsPipelineData = graphicsPipelineData
-            , _frameBufferData = frameBufferData }
-
-    recordCommandBuffer rendererData newRenderPassData
-
-    return newRenderPassData
-
-destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
-destroyRenderPassData device RenderPassData {..} = do
-  destroyFramebufferData device _frameBufferData
-  destroyGraphicsPipeline device _graphicsPipelineData
-  destroyRenderPass device _renderPass
+destroyGraphicsRenderPass :: RendererData -> RenderPassData -> IO ()
+destroyGraphicsRenderPass rendererData renderPassData = do
+    destroyRenderPassData (_device rendererData) renderPassData
 
 
 createRenderer :: RendererData
