@@ -4,8 +4,9 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Library.Vulkan.RenderPass
-    ( RenderPassData (..)
-    , GraphicsPipelineData (..)
+    ( GraphicsPipelineData (..)
+    , RenderPassData (..)
+    , RenderPassCreateInfo (..)
     , createRenderPassData
     , destroyRenderPassData
     , createRenderPass
@@ -44,22 +45,29 @@ data RenderPassData = RenderPassData
     } deriving (Eq, Show)
 
 
-createRenderPassData :: VkDevice
-                     -> String
-                     -> String
-                     -> VkFormat
-                     -> VkExtent2D
-                     -> [VkImageView]
-                     -> [Float]
-                     -> IO RenderPassData
-createRenderPassData device vertexShaderFile fragmentShaderFile imageFormat imageExtent imageViews clearValues = do
-    renderPass <- createRenderPass device imageFormat
-    graphicsPipelineData <- createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentShaderFile
-    frameBufferData <- createFramebufferData device renderPass imageViews imageExtent clearValues
+data RenderPassCreateInfo = RenderPassCreateInfo
+    { _vertexShaderFile :: String
+    , _fragmentShaderFile :: String
+    , _renderPassImageFormat :: VkFormat
+    , _renderPassImageExtent :: VkExtent2D
+    , _renderPassImageViews :: [VkImageView]
+    , _renderPassClearValues :: [Float]
+    , _renderPassRecordCommandBufferFunc :: RenderPassData -> IO ()
+    }
+
+
+createRenderPassData :: VkDevice -> RenderPassCreateInfo -> IO RenderPassData
+createRenderPassData device renderPassCreateInfo@RenderPassCreateInfo {..} = do
+    renderPass <- createRenderPass device _renderPassImageFormat
+    graphicsPipelineData <- createGraphicsPipeline device renderPass _renderPassImageExtent _vertexShaderFile _fragmentShaderFile
+    frameBufferData <- createFramebufferData device renderPass _renderPassImageViews _renderPassImageExtent _renderPassClearValues
     let newRenderPassData = RenderPassData
             { _renderPass = renderPass
             , _graphicsPipelineData = graphicsPipelineData
             , _frameBufferData = frameBufferData }
+
+    _renderPassRecordCommandBufferFunc newRenderPassData
+
     return newRenderPassData
 
 destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()

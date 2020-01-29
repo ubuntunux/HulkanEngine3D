@@ -9,6 +9,8 @@ module Library.Vulkan
   , getInstanceExtensionSupport
   , getDeviceExtensionSupport
   , checkExtensionSupport
+  , getDefaultRenderPassCreateInfo
+  , getDefaultRendererData
   , createVulkanInstance
   , destroyVulkanInstance
   , createVkSurface
@@ -17,8 +19,6 @@ module Library.Vulkan
   , getPhysicalDeviceProperties
   , createDevice
   , destroyDevice
-  , createGraphicsRenderPass
-  , destroyGraphicsRenderPass
   , createCommandPool
   , destroyCommandPool
   , createCommandBuffers
@@ -29,7 +29,6 @@ module Library.Vulkan
   , createFrameFences
   , destroyFrameFences
   , drawFrame
-  , getDefaultRendererData
   , createRenderer
   , destroyRenderer
   , recreateSwapChain
@@ -120,6 +119,67 @@ checkExtensionSupport availableDeviceExtensions requireExtensions = do
         then logInfo ("    " ++ x ++ " (OK)")
         else logInfo ("    " ++ x ++ " (Failed)")
       isAvailable xs
+
+
+getDefaultRenderPassCreateInfo :: RendererData -> IO RenderPassCreateInfo
+getDefaultRenderPassCreateInfo rendererData = do
+    let swapChainData = _swapChainData rendererData
+    return RenderPassCreateInfo
+        { _vertexShaderFile = "Resource/Shaders/triangle.vert"
+        , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
+        , _renderPassImageFormat = _swapChainImageFormat swapChainData
+        , _renderPassImageExtent = _swapChainExtent swapChainData
+        , _renderPassImageViews = _swapChainImageViews swapChainData
+        , _renderPassClearValues = [0, 0, 0.2, 1]
+        , _renderPassRecordCommandBufferFunc = recordCommandBuffer rendererData }
+
+
+getDefaultRendererData :: IO RendererData
+getDefaultRendererData = do
+    imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
+        writeField @"width" extentPtr $ 0
+        writeField @"height" extentPtr $ 0
+    surfaceCapabilities <- newVkData @VkSurfaceCapabilitiesKHR $ \surfaceCapabilitiesPtr -> do
+        return ()
+    let defaultSwapChainData = SwapChainData
+            { _swapChain = VK_NULL
+            , _swapChainImages = []
+            , _swapChainImageCount = 0
+            , _swapChainImageFormat = VK_FORMAT_UNDEFINED
+            , _swapChainImageViews = []
+            , _swapChainExtent = imageExtent }
+        defaultSwapChainSupportDetails = SwapChainSupportDetails
+            { _capabilities = surfaceCapabilities
+            , _formats = []
+            , _presentModes = [] }
+        defaultQueueFamilyIndices = QueueFamilyIndices
+            { _graphicsQueueIndex = 0
+            , _presentQueueIndex = 0
+            , _computeQueueIndex = 0
+            , _transferQueueIndex = 0
+            , _sparseBindingQueueIndex = 0 }
+        defaultQueueFamilyDatas = QueueFamilyDatas
+            { _graphicsQueue = VK_NULL
+            , _presentQueue = VK_NULL
+            , _queueFamilyIndexList = []
+            , _queueFamilyCount = 0
+            , _queueFamilyIndices = defaultQueueFamilyIndices }
+    return RendererData
+        { _msaaSamples = VK_SAMPLE_COUNT_4_BIT
+        , _imageAvailableSemaphores = []
+        , _renderFinishedSemaphores = []
+        , _vkInstance = VK_NULL
+        , _vkSurface = VK_NULL
+        , _device = VK_NULL
+        , _physicalDevice = VK_NULL
+        , _swapChainData = defaultSwapChainData
+        , _swapChainSupportDetails = defaultSwapChainSupportDetails
+        , _queueFamilyDatas = defaultQueueFamilyDatas
+        , _frameFencesPtr = VK_NULL
+        , _commandPool = VK_NULL
+        , _commandBufferCount = 0
+        , _commandBuffersPtr = VK_NULL }
+
 
 createVulkanInstance :: String -> String -> [String] -> [CString] -> IO VkInstance
 createVulkanInstance progName engineName layers extensions = do
@@ -426,70 +486,6 @@ drawFrame RendererData {..} frameIndex imageIndexPtr = do
       vkQueuePresentKHR _presentQueue presentInfoPtr
     vkQueueWaitIdle _presentQueue >>= flip validationVK "vkQueueWaitIdle failed!"
     return presentResult
-
-
-getDefaultRendererData :: IO RendererData
-getDefaultRendererData = do
-    imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
-        writeField @"width" extentPtr $ 0
-        writeField @"height" extentPtr $ 0
-    surfaceCapabilities <- newVkData @VkSurfaceCapabilitiesKHR $ \surfaceCapabilitiesPtr -> do
-        return ()
-    let defaultSwapChainData = SwapChainData
-            { _swapChain = VK_NULL
-            , _swapChainImages = []
-            , _swapChainImageCount = 0
-            , _swapChainImageFormat = VK_FORMAT_UNDEFINED
-            , _swapChainImageViews = []
-            , _swapChainExtent = imageExtent }
-        defaultSwapChainSupportDetails = SwapChainSupportDetails
-            { _capabilities = surfaceCapabilities
-            , _formats = []
-            , _presentModes = [] }
-        defaultQueueFamilyIndices = QueueFamilyIndices
-            { _graphicsQueueIndex = 0
-            , _presentQueueIndex = 0
-            , _computeQueueIndex = 0
-            , _transferQueueIndex = 0
-            , _sparseBindingQueueIndex = 0 }
-        defaultQueueFamilyDatas = QueueFamilyDatas
-            { _graphicsQueue = VK_NULL
-            , _presentQueue = VK_NULL
-            , _queueFamilyIndexList = []
-            , _queueFamilyCount = 0
-            , _queueFamilyIndices = defaultQueueFamilyIndices }
-    return RendererData
-      { _msaaSamples = VK_SAMPLE_COUNT_4_BIT
-      , _imageAvailableSemaphores = []
-      , _renderFinishedSemaphores = []
-      , _vkInstance = VK_NULL
-      , _vkSurface = VK_NULL
-      , _device = VK_NULL
-      , _physicalDevice = VK_NULL
-      , _swapChainData = defaultSwapChainData
-      , _swapChainSupportDetails = defaultSwapChainSupportDetails
-      , _queueFamilyDatas = defaultQueueFamilyDatas
-      , _frameFencesPtr = VK_NULL
-      , _commandPool = VK_NULL
-      , _commandBufferCount = 0
-      , _commandBuffersPtr = VK_NULL }
-
-
-createGraphicsRenderPass :: RendererData -> [Float] -> IO RenderPassData
-createGraphicsRenderPass rendererData@RendererData {..} clearValues = do
-    let vertexShaderFile = "Resource/Shaders/triangle.vert"
-        fragmentShaderFile = "Resource/Shaders/triangle.frag"
-        imageFormat = _swapChainImageFormat _swapChainData
-        imageExtent = _swapChainExtent _swapChainData
-        imageViews = _swapChainImageViews _swapChainData
-
-    renderPassData <- createRenderPassData _device vertexShaderFile fragmentShaderFile imageFormat imageExtent imageViews clearValues
-    recordCommandBuffer rendererData renderPassData
-    return renderPassData
-
-destroyGraphicsRenderPass :: RendererData -> RenderPassData -> IO ()
-destroyGraphicsRenderPass rendererData renderPassData = do
-    destroyRenderPassData (_device rendererData) renderPassData
 
 
 createRenderer :: RendererData

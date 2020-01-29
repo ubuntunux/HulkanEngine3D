@@ -21,6 +21,8 @@ import Library.Application
 import Library.Logger
 import Library.Vulkan
 import Library.Vulkan.Mesh
+import Library.Vulkan.RenderPass
+import Library.Vulkan.SwapChain
 import Library.Resource.ObjLoader
 import qualified Library.Constants as Constants
 
@@ -45,7 +47,8 @@ main = do
     rendererDataRef <- newIORef rendererData
 
     -- create render pass data
-    renderPassData <- createGraphicsRenderPass rendererData [0, 0, 0.2, 1]
+    renderPassCreateInfo <- getDefaultRenderPassCreateInfo rendererData
+    renderPassData <- createRenderPassData (_device rendererData) renderPassCreateInfo
     renderPassDataListRef <- newIORef (DList.singleton renderPassData)
 
     -- create resources
@@ -77,18 +80,21 @@ main = do
             writeIORef needRecreateSwapChainRef False
             logInfo "<< Recreate SwapChain >>"
 
+            -- cleanUp swapChain
             rendererData <- readIORef rendererDataRef
             result <- vkDeviceWaitIdle $ _device rendererData
             validationVK result "vkDeviceWaitIdle failed!"
 
             renderPassDataList <- readIORef renderPassDataListRef
             forM_ renderPassDataList $ \renderPassData -> do
-                destroyGraphicsRenderPass rendererData renderPassData
+                destroyRenderPassData (_device rendererData) renderPassData
 
-            newRendererData <- recreateSwapChain rendererData window
-            newRenderPassData <- createGraphicsRenderPass newRendererData [0, 0, 0.2, 1]
-            writeIORef renderPassDataListRef (DList.fromList [newRenderPassData])
-            writeIORef rendererDataRef newRendererData
+            -- recreate swapChain
+            rendererData <- recreateSwapChain rendererData window
+            renderPassCreateInfo <- getDefaultRenderPassCreateInfo rendererData
+            renderPassData <- createRenderPassData (_device rendererData) renderPassCreateInfo
+            writeIORef renderPassDataListRef (DList.fromList [renderPassData])
+            writeIORef rendererDataRef rendererData
         frameIndex <- readIORef frameIndexRef
         rendererData <- readIORef rendererDataRef
         renderPassDataList <- readIORef renderPassDataListRef
@@ -111,7 +117,7 @@ main = do
 
     renderPassDataList <- readIORef renderPassDataListRef
     forM_ renderPassDataList $ \renderPassData -> do
-        destroyGraphicsRenderPass rendererData renderPassData
+        destroyRenderPassData (_device rendererData) renderPassData
 
     destroyRenderer rendererData
     free imageIndexPtr
