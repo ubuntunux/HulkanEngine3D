@@ -9,6 +9,7 @@ module Library.Vulkan
   , getInstanceExtensionSupport
   , getDeviceExtensionSupport
   , checkExtensionSupport
+  , getCommandBuffers
   , getDefaultRenderPassCreateInfo
   , getDefaultRendererData
   , createVulkanInstance
@@ -23,7 +24,6 @@ module Library.Vulkan
   , destroyCommandPool
   , createCommandBuffers
   , destroyCommandBuffers
-  , recordCommandBuffer
   , createSemaphores
   , destroySemaphores
   , createFrameFences
@@ -33,6 +33,7 @@ module Library.Vulkan
   , destroyRenderer
   , recreateSwapChain
   , runCommandsOnce
+  , recordCommandBuffer
   ) where
 
 import Control.Monad
@@ -121,6 +122,11 @@ checkExtensionSupport availableDeviceExtensions requireExtensions = do
       isAvailable xs
 
 
+getCommandBuffers :: RendererData -> IO [VkCommandBuffer]
+getCommandBuffers rendererData@RendererData{..} =
+    peekArray (fromIntegral _commandBufferCount) _commandBuffersPtr
+
+
 getDefaultRenderPassCreateInfo :: RendererData -> IO RenderPassCreateInfo
 getDefaultRenderPassCreateInfo rendererData = do
     let swapChainData = _swapChainData rendererData
@@ -131,7 +137,7 @@ getDefaultRenderPassCreateInfo rendererData = do
         , _renderPassImageExtent = _swapChainExtent swapChainData
         , _renderPassImageViews = _swapChainImageViews swapChainData
         , _renderPassClearValues = [0, 0, 0.2, 1]
-        , _renderPassRecordCommandBufferFunc = recordCommandBuffer rendererData }
+        }
 
 
 getDefaultRendererData :: IO RendererData
@@ -387,7 +393,6 @@ createCommandBuffers device commandPool commandBufferCount = do
         result <- vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr
         validationVK result "vkAllocateCommandBuffers failed!"
     logInfo $ "Create Command Buffer: "  ++ show commandBufferCount ++ " " ++ (show commandBuffersPtr)
-    commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
     return commandBuffersPtr
 
 
@@ -551,6 +556,7 @@ destroyRenderer rendererData@RendererData {..} = do
     destroyVkSurface _vkInstance _vkSurface
     destroyVulkanInstance _vkInstance
 
+
 recreateSwapChain :: RendererData -> GLFW.Window -> IO RendererData
 recreateSwapChain rendererData@RendererData {..} window = do
     destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
@@ -567,8 +573,8 @@ recreateSwapChain rendererData@RendererData {..} window = do
         , _commandBuffersPtr = newCommandBuffersPtr }
 
 
-recordCommandBuffer :: RendererData -> RenderPassData -> IO ()
-recordCommandBuffer rendererData renderPassData = do
+recordCommandBuffer :: [VkCommandBuffer] -> RenderPassData -> IO ()
+recordCommandBuffer commandBuffers renderPassData = do
     let frameBufferData = _frameBufferData renderPassData
         frameBuffers = _frameBuffers frameBufferData
         imageExtent = _frameBufferSize frameBufferData
@@ -576,9 +582,6 @@ recordCommandBuffer rendererData renderPassData = do
         graphicsPipeline = _pipeline graphicsPipelineData
         renderPass = _renderPass renderPassData
         clearValues = _frameBufferClearValues frameBufferData
-        commandBufferCount = _commandBufferCount rendererData
-        commandBuffersPtr = _commandBuffersPtr rendererData
-    commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
     -- record command buffers
     forM_ (zip frameBuffers commandBuffers) $ \(frameBuffer, commandBuffer) -> do
         let commandBufferBeginInfo :: VkCommandBufferBeginInfo
@@ -628,7 +631,7 @@ runCommandsOnce device commandPool commandQueue action = do
           &* set @"commandPool" commandPool
           &* set @"commandBufferCount" 1
           &* set @"pNext" VK_NULL
-          
+
   allocaPeek $ \commandBufferPtr -> do
     withPtr allocInfo $ \allocInfoPtr -> do
       vkAllocateCommandBuffers device allocInfoPtr commandBufferPtr
@@ -682,8 +685,9 @@ runCommandsOnce device commandPool commandQueue action = do
     --   runVk $ vkWaitForFences dev 1 fencePtr VK_TRUE (maxBound :: Word64)
 
     withPtr submitInfo $ \submitInfoPtr -> do
-      vkQueueSubmit commandQueue 1 submitInfoPtr VK_NULL_HANDLE
-    vkQueueWaitIdle commandQueue
+        result <- vkQueueSubmit commandQueue 1 submitInfoPtr VK_NULL_HANDLE
+        validationVK result "vkQueueSubmit error"
+    vkQueueWaitIdle commandQueue >>= flip validationVK "vkQueueWaitIdle error"
 
     vkFreeCommandBuffers device commandPool 1 commandBufferPtr
   return ()

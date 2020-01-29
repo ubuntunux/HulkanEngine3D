@@ -27,6 +27,7 @@ import Graphics.Vulkan.Marshal.Create
 
 import Library.Utils
 import Library.Logger
+import {-# SOURCE #-} Library.Vulkan
 import Library.Vulkan.FrameBuffer
 import Library.Vulkan.Shader
 
@@ -52,23 +53,22 @@ data RenderPassCreateInfo = RenderPassCreateInfo
     , _renderPassImageExtent :: VkExtent2D
     , _renderPassImageViews :: [VkImageView]
     , _renderPassClearValues :: [Float]
-    , _renderPassRecordCommandBufferFunc :: RenderPassData -> IO ()
     }
 
 
-createRenderPassData :: VkDevice -> RenderPassCreateInfo -> IO RenderPassData
-createRenderPassData device renderPassCreateInfo@RenderPassCreateInfo {..} = do
+createRenderPassData :: VkDevice -> [VkCommandBuffer] -> RenderPassCreateInfo -> IO RenderPassData
+createRenderPassData device commandBuffers renderPassCreateInfo@RenderPassCreateInfo {..} = do
     renderPass <- createRenderPass device _renderPassImageFormat
     graphicsPipelineData <- createGraphicsPipeline device renderPass _renderPassImageExtent _vertexShaderFile _fragmentShaderFile
     frameBufferData <- createFramebufferData device renderPass _renderPassImageViews _renderPassImageExtent _renderPassClearValues
-    let newRenderPassData = RenderPassData
+    let renderPassData = RenderPassData
             { _renderPass = renderPass
             , _graphicsPipelineData = graphicsPipelineData
             , _frameBufferData = frameBufferData }
+    -- record command buffer
+    recordCommandBuffer commandBuffers renderPassData
 
-    _renderPassRecordCommandBufferFunc newRenderPassData
-
-    return newRenderPassData
+    return renderPassData
 
 destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
 destroyRenderPassData device RenderPassData {..} = do

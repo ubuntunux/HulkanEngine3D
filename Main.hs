@@ -22,7 +22,6 @@ import Library.Logger
 import Library.Vulkan
 import Library.Vulkan.Mesh
 import Library.Vulkan.RenderPass
-import Library.Vulkan.SwapChain
 import Library.Resource.ObjLoader
 import qualified Library.Constants as Constants
 
@@ -47,8 +46,9 @@ main = do
     rendererDataRef <- newIORef rendererData
 
     -- create render pass data
+    commandBuffers <- getCommandBuffers rendererData
     renderPassCreateInfo <- getDefaultRenderPassCreateInfo rendererData
-    renderPassData <- createRenderPassData (_device rendererData) renderPassCreateInfo
+    renderPassData <- createRenderPassData (_device rendererData) commandBuffers renderPassCreateInfo
     renderPassDataListRef <- newIORef (DList.singleton renderPassData)
 
     -- create resources
@@ -91,8 +91,9 @@ main = do
 
             -- recreate swapChain
             rendererData <- recreateSwapChain rendererData window
+            commandBuffers <- getCommandBuffers rendererData
             renderPassCreateInfo <- getDefaultRenderPassCreateInfo rendererData
-            renderPassData <- createRenderPassData (_device rendererData) renderPassCreateInfo
+            renderPassData <- createRenderPassData (_device rendererData) commandBuffers renderPassCreateInfo
             writeIORef renderPassDataListRef (DList.fromList [renderPassData])
             writeIORef rendererDataRef rendererData
         frameIndex <- readIORef frameIndexRef
