@@ -27,13 +27,13 @@ executable main
                       Library.Utils
                       Library.Vulkan
                       Library.Vulkan.Buffer
+                      Library.Vulkan.Descriptor
                       Library.Vulkan.Mesh
                       Library.Vulkan.FrameBuffer
                       Library.Vulkan.RenderPass
                       Library.Vulkan.Queue
                       Library.Vulkan.Shader
                       Library.Vulkan.SwapChain
-                      Library.Program
                       Library.Resource
                       Library.Resource.ObjLoader
     build-depends:    base >= 4.11 && < 5

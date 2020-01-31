@@ -16,6 +16,7 @@ module Library.Utils
     , unsafeAddr
     , ptrAtIndex
     , allocaPeek
+    , allocaPtr
     ) where
 
 import Control.Exception
@@ -113,3 +114,6 @@ ptrAtIndex ptr i = ptr `plusPtr` (i * sizeOf @a undefined)
 allocaPeek :: Storable a => (Ptr a -> IO b) -> IO a
 allocaPeek action = alloca $ \ptr -> do
   action ptr >> peek ptr
+
+allocaPtr :: Storable a => IO (Ptr a)
+allocaPtr = alloca $ \ptr -> return ptr

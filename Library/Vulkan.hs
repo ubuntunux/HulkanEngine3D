@@ -356,20 +356,17 @@ getMaxUsableSampleCount deviceProperties = do
 
 createCommandPool :: VkDevice -> QueueFamilyDatas -> IO VkCommandPool
 createCommandPool device QueueFamilyDatas {..} = do
-  let graphicsQueueIndex = (_graphicsQueueIndex _queueFamilyIndices)
-  logInfo $ "Create Command Pool: graphicsFamilyIndex(" ++ show graphicsQueueIndex ++ ")"
-  let commandPoolCreateInfo = createVk @VkCommandPoolCreateInfo
-        $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
-        &* set @"pNext" VK_NULL
-        &* set @"flags" VK_ZERO_FLAGS
-        &* set @"queueFamilyIndex" graphicsQueueIndex
-  commandPool <- alloca $ \commandPoolPtr -> do
-    withPtr commandPoolCreateInfo $ \createInfoPtr -> do
-        result <- vkCreateCommandPool device createInfoPtr VK_NULL commandPoolPtr
-        validationVK result "vkCreateCommandPool failed!"
-    peek commandPoolPtr
-  return commandPool
-
+    let graphicsQueueIndex = (_graphicsQueueIndex _queueFamilyIndices)
+        commandPoolCreateInfo = createVk @VkCommandPoolCreateInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"flags" VK_ZERO_FLAGS
+            &* set @"queueFamilyIndex" graphicsQueueIndex
+    logInfo $ "Create Command Pool: graphicsFamilyIndex(" ++ show graphicsQueueIndex ++ ")"
+    allocaPeek $ \commandPoolPtr -> do
+        withPtr commandPoolCreateInfo $ \createInfoPtr -> do
+            result <- vkCreateCommandPool device createInfoPtr VK_NULL commandPoolPtr
+            validationVK result "vkCreateCommandPool failed!"
 
 destroyCommandPool :: VkDevice -> VkCommandPool -> IO ()
 destroyCommandPool device commandPool = do
