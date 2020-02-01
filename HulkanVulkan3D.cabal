@@ -27,6 +27,7 @@ executable main
                       Library.Utils
                       Library.Vulkan
                       Library.Vulkan.Buffer
+                      Library.Vulkan.CommandBuffer
                       Library.Vulkan.Descriptor
                       Library.Vulkan.Mesh
                       Library.Vulkan.FrameBuffer
@@ -34,6 +35,7 @@ executable main
                       Library.Vulkan.Queue
                       Library.Vulkan.Shader
                       Library.Vulkan.SwapChain
+                      Library.Vulkan.Sync
                       Library.Resource
                       Library.Resource.ObjLoader
     build-depends:    base >= 4.11 && < 5

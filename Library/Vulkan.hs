@@ -24,10 +24,6 @@ module Library.Vulkan
   , destroyCommandPool
   , createCommandBuffers
   , destroyCommandBuffers
-  , createSemaphores
-  , destroySemaphores
-  , createFrameFences
-  , destroyFrameFences
   , drawFrame
   , createRenderer
   , destroyRenderer
@@ -58,10 +54,12 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Library.Constants as Constants
 import Library.Utils
 import Library.Logger
+import Library.Vulkan.CommandBuffer
 import Library.Vulkan.FrameBuffer
 import Library.Vulkan.RenderPass
 import Library.Vulkan.Queue
 import Library.Vulkan.SwapChain
+import Library.Vulkan.Sync
 
 
 data RendererData = RendererData
@@ -353,95 +351,6 @@ getMaxUsableSampleCount deviceProperties = do
   logInfo $ "MSAA Samples: " ++ show highestCount
   return highestCount
 
-
-createCommandPool :: VkDevice -> QueueFamilyDatas -> IO VkCommandPool
-createCommandPool device QueueFamilyDatas {..} = do
-    let graphicsQueueIndex = (_graphicsQueueIndex _queueFamilyIndices)
-        commandPoolCreateInfo = createVk @VkCommandPoolCreateInfo
-            $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
-            &* set @"pNext" VK_NULL
-            &* set @"flags" VK_ZERO_FLAGS
-            &* set @"queueFamilyIndex" graphicsQueueIndex
-    logInfo $ "Create Command Pool: graphicsFamilyIndex(" ++ show graphicsQueueIndex ++ ")"
-    allocaPeek $ \commandPoolPtr -> do
-        withPtr commandPoolCreateInfo $ \createInfoPtr -> do
-            result <- vkCreateCommandPool device createInfoPtr VK_NULL commandPoolPtr
-            validationVK result "vkCreateCommandPool failed!"
-
-destroyCommandPool :: VkDevice -> VkCommandPool -> IO ()
-destroyCommandPool device commandPool = do
-  logInfo $ "Destroy Command Pool: " ++ show commandPool
-  vkDestroyCommandPool device commandPool VK_NULL
-
-
-createCommandBuffers :: VkDevice
-                     -> VkCommandPool
-                     -> Word32
-                     -> IO (Ptr VkCommandBuffer)
-createCommandBuffers device commandPool commandBufferCount = do
-    commandBuffersPtr <- mallocArray (fromIntegral commandBufferCount)::IO (Ptr VkCommandBuffer)
-    let allocationInfo = createVk @VkCommandBufferAllocateInfo
-            $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
-            &* set @"pNext" VK_NULL
-            &* set @"commandPool" commandPool
-            &* set @"level" VK_COMMAND_BUFFER_LEVEL_PRIMARY
-            &* set @"commandBufferCount" (fromIntegral commandBufferCount)
-    withPtr allocationInfo $ \allocationInfoPtr -> do
-        result <- vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr
-        validationVK result "vkAllocateCommandBuffers failed!"
-    logInfo $ "Create Command Buffer: "  ++ show commandBufferCount ++ " " ++ (show commandBuffersPtr)
-    return commandBuffersPtr
-
-
-destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuffer -> IO ()
-destroyCommandBuffers device commandPool bufferCount commandBuffersPtr = do
-  vkFreeCommandBuffers device commandPool bufferCount commandBuffersPtr
-  free commandBuffersPtr
-
-
-createSemaphores :: VkDevice -> IO [VkSemaphore]
-createSemaphores device = do
-  semaphores <- allocaArray Constants.maxFrameCount $ \semaphoresPtr -> do
-    let semaphoreCreateInfo = createVk @VkSemaphoreCreateInfo
-          $  set @"sType" VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-          &* set @"pNext" VK_NULL
-          &* set @"flags" VK_ZERO_FLAGS    
-    forM_ [0..(Constants.maxFrameCount - 1)] $ \index -> do
-      withPtr semaphoreCreateInfo $ \semaphoreCreateInfoPtr -> do
-          result <- vkCreateSemaphore device semaphoreCreateInfoPtr VK_NULL (ptrAtIndex semaphoresPtr index)
-          validationVK result "vkCreateSemaphore failed!"
-    peekArray Constants.maxFrameCount semaphoresPtr    
-  logInfo $ "Create Semaphore: " ++ show semaphores
-  return semaphores
-
-destroySemaphores :: VkDevice -> [VkSemaphore] -> IO ()
-destroySemaphores device semaphores = do  
-  forM_ semaphores $ \semaphore -> 
-    vkDestroySemaphore device semaphore VK_NULL
-  logInfo $ "Destroy Semaphore: " ++ show semaphores
-
-createFrameFences :: VkDevice -> IO (Ptr VkFence)
-createFrameFences device = do
-  frameFencesPtr <- mallocArray Constants.maxFrameCount
-  let fenceCreateInfo = createVk @VkFenceCreateInfo
-        $  set @"sType" VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
-        &* set @"pNext" VK_NULL
-        &* set @"flags" VK_FENCE_CREATE_SIGNALED_BIT
-  forM_ [0..(Constants.maxFrameCount - 1)] $ \index -> do
-    withPtr fenceCreateInfo $ \fenceCreateInfoPtr -> do
-        result <- vkCreateFence device fenceCreateInfoPtr VK_NULL (ptrAtIndex frameFencesPtr index)
-        validationVK result "vkCreateSemaphore failed!"
-  fences <- peekArray Constants.maxFrameCount frameFencesPtr
-  logInfo $ "Create VkFences: " ++ show fences
-  return frameFencesPtr  
-
-destroyFrameFences :: VkDevice -> Ptr VkFence -> IO ()
-destroyFrameFences device frameFencesPtr = do
-  fences <- peekArray Constants.maxFrameCount frameFencesPtr
-  logInfo $ "Destroy VkFence: " ++ show fences
-  forM_ fences $ \fence -> 
-    vkDestroyFence device fence VK_NULL
-  free frameFencesPtr  
 
 drawFrame :: RendererData -> Int -> Ptr Word32 -> IO VkResult
 drawFrame RendererData {..} frameIndex imageIndexPtr = do
