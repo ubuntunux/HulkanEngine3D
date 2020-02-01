@@ -76,53 +76,47 @@ destroyRenderPassData device RenderPassData {..} = do
   destroyRenderPass device _renderPass
 
 createRenderPass :: VkDevice -> VkFormat -> IO VkRenderPass
-createRenderPass device imageFormat =
-  let
-    colorAttachment :: VkAttachmentDescription
-    colorAttachment = createVk @VkAttachmentDescription
-      $  set @"flags" VK_ZERO_FLAGS
-      &* set @"format" imageFormat
-      &* set @"samples" VK_SAMPLE_COUNT_1_BIT
-      &* set @"loadOp" VK_ATTACHMENT_LOAD_OP_CLEAR
-      &* set @"storeOp" VK_ATTACHMENT_STORE_OP_STORE
-      &* set @"stencilLoadOp" VK_ATTACHMENT_LOAD_OP_DONT_CARE
-      &* set @"stencilStoreOp" VK_ATTACHMENT_STORE_OP_DONT_CARE
-      &* set @"initialLayout" VK_IMAGE_LAYOUT_UNDEFINED
-      &* set @"finalLayout" VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+createRenderPass device imageFormat = do
+    let colorAttachment = createVk @VkAttachmentDescription
+            $  set @"flags" VK_ZERO_FLAGS
+            &* set @"format" imageFormat
+            &* set @"samples" VK_SAMPLE_COUNT_1_BIT
+            &* set @"loadOp" VK_ATTACHMENT_LOAD_OP_CLEAR
+            &* set @"storeOp" VK_ATTACHMENT_STORE_OP_STORE
+            &* set @"stencilLoadOp" VK_ATTACHMENT_LOAD_OP_DONT_CARE
+            &* set @"stencilStoreOp" VK_ATTACHMENT_STORE_OP_DONT_CARE
+            &* set @"initialLayout" VK_IMAGE_LAYOUT_UNDEFINED
+            &* set @"finalLayout" VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 
-    colorAttachmentRef :: VkAttachmentReference
-    colorAttachmentRef = createVk @VkAttachmentReference
-      $  set @"attachment" 0
-      &* set @"layout" VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        colorAttachmentRef = createVk @VkAttachmentReference
+            $  set @"attachment" 0
+            &* set @"layout" VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 
-    subpass :: VkSubpassDescription
-    subpass = createVk @VkSubpassDescription
-      $  set @"pipelineBindPoint" VK_PIPELINE_BIND_POINT_GRAPHICS
-      &* set @"colorAttachmentCount" 1
-      &* setVkRef @"pColorAttachments" colorAttachmentRef
-      &* set @"pPreserveAttachments" VK_NULL
-      &* set @"pInputAttachments" VK_NULL
+        subpass = createVk @VkSubpassDescription
+            $  set @"pipelineBindPoint" VK_PIPELINE_BIND_POINT_GRAPHICS
+            &* set @"colorAttachmentCount" 1
+            &* setVkRef @"pColorAttachments" colorAttachmentRef
+            &* set @"pPreserveAttachments" VK_NULL
+            &* set @"pInputAttachments" VK_NULL
 
-    dependency :: VkSubpassDependency
-    dependency = createVk @VkSubpassDependency
-      $  set @"srcSubpass" VK_SUBPASS_EXTERNAL
-      &* set @"dstSubpass" 0
-      &* set @"srcStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-      &* set @"srcAccessMask" VK_ZERO_FLAGS
-      &* set @"dstStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-      &* set @"dstAccessMask" (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT .|. VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+        dependency = createVk @VkSubpassDependency
+            $  set @"srcSubpass" VK_SUBPASS_EXTERNAL
+            &* set @"dstSubpass" 0
+            &* set @"srcStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+            &* set @"srcAccessMask" VK_ZERO_FLAGS
+            &* set @"dstStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+            &* set @"dstAccessMask" (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT .|. VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
 
-    renderPassCreateInfo :: VkRenderPassCreateInfo
-    renderPassCreateInfo = createVk @VkRenderPassCreateInfo
-      $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
-      &* set @"pNext" VK_NULL
-      &* set @"attachmentCount" 1
-      &* setVkRef @"pAttachments" colorAttachment
-      &* set @"subpassCount" 1
-      &* setVkRef @"pSubpasses" subpass
-      &* set @"dependencyCount" 1
-      &* setVkRef @"pDependencies" dependency
-  in do
+        renderPassCreateInfo = createVk @VkRenderPassCreateInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"attachmentCount" 1
+            &* setVkRef @"pAttachments" colorAttachment
+            &* set @"subpassCount" 1
+            &* setVkRef @"pSubpasses" subpass
+            &* set @"dependencyCount" 1
+            &* setVkRef @"pDependencies" dependency
+
     renderPass <- alloca $ \renderPassPtr -> do
         result <- vkCreateRenderPass device (unsafePtr renderPassCreateInfo) VK_NULL renderPassPtr
         validationVK result "vkCreatePipelineLayout failed!"
@@ -134,32 +128,27 @@ createRenderPass device imageFormat =
 
 destroyRenderPass :: VkDevice -> VkRenderPass -> IO ()
 destroyRenderPass device renderPass = do
-  logInfo "Destroy RenderPass"
-  vkDestroyRenderPass device renderPass VK_NULL
+    logInfo "Destroy RenderPass"
+    vkDestroyRenderPass device renderPass VK_NULL
 
 
 createPipelineLayout :: VkDevice -> IO VkPipelineLayout
 createPipelineLayout device = do
-  let
-    pipelineCreateInfo :: VkPipelineLayoutCreateInfo
-    pipelineCreateInfo = createVk @VkPipelineLayoutCreateInfo
-      $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
-      &* set @"pNext" VK_NULL
-      &* set @"flags" VK_ZERO_FLAGS
-      &* set @"setLayoutCount" 0
-      &* set @"pSetLayouts" VK_NULL
-      &* set @"pushConstantRangeCount" 0
-      &* set @"pPushConstantRanges" VK_NULL
-
-  pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
-      result <- vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
-      validationVK result "vkCreatePipelineLayout failed!"
-      peek pipelineLayoutPtr
-
-  logInfo $ "Create PipelineLayout : " ++ (show pipelineLayout)
-
-  touchVkData pipelineCreateInfo
-  return pipelineLayout
+    let pipelineCreateInfo = createVk @VkPipelineLayoutCreateInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"flags" VK_ZERO_FLAGS
+            &* set @"setLayoutCount" 0
+            &* set @"pSetLayouts" VK_NULL
+            &* set @"pushConstantRangeCount" 0
+            &* set @"pPushConstantRanges" VK_NULL
+    pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
+        result <- vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
+        validationVK result "vkCreatePipelineLayout failed!"
+        peek pipelineLayoutPtr
+    touchVkData pipelineCreateInfo
+    logInfo $ "Create PipelineLayout : " ++ (show pipelineLayout)
+    return pipelineLayout
 
 
 destroyPipelineLayout :: VkDevice -> VkPipelineLayout -> IO ()
