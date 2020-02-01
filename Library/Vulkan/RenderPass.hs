@@ -19,7 +19,6 @@ import Data.Bits
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
-import Foreign.Ptr
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
@@ -179,9 +178,12 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
     vertexShaderCreateInfo <- createShaderStageCreateInfo device vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
     pipelineLayout <- createPipelineLayout device
+
     let shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
-    let vertexInputInfo :: VkPipelineVertexInputStateCreateInfo
-        vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
+        shaderStageInfoCount = length shaderStageInfos
+    shaderStageInfosPtr <- newArray shaderStageInfos
+
+    let vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
@@ -190,7 +192,6 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
             &* set @"vertexAttributeDescriptionCount" 0
             &* set @"pVertexAttributeDescriptions" VK_NULL
 
-        inputAssembly :: VkPipelineInputAssemblyStateCreateInfo
         inputAssembly = createVk @VkPipelineInputAssemblyStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -198,7 +199,6 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
             &* set @"topology" VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
             &* set @"primitiveRestartEnable" VK_FALSE
 
-        viewPort :: VkViewport
         viewPort = createVk @VkViewport
             $  set @"x" 0
             &* set @"y" 0
@@ -207,12 +207,10 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
             &* set @"minDepth" 0
             &* set @"maxDepth" 1
 
-        scissorRect :: VkRect2D
         scissorRect = createVk @VkRect2D
             $  set   @"extent" imageExtent
             &* setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
 
-        viewPortState :: VkPipelineViewportStateCreateInfo
         viewPortState = createVk @VkPipelineViewportStateCreateInfo
             $ set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -222,7 +220,6 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
             &* set @"scissorCount" 1
             &* setVkRef @"pScissors" scissorRect
 
-        rasterizer :: VkPipelineRasterizationStateCreateInfo
         rasterizer = createVk @VkPipelineRasterizationStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -238,7 +235,6 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
             &* set @"depthBiasSlopeFactor" 0
             &* set @"lineWidth" 1.0
 
-        multisampling :: VkPipelineMultisampleStateCreateInfo
         multisampling = createVk @VkPipelineMultisampleStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -250,7 +246,6 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
             &* set @"alphaToCoverageEnable" VK_FALSE
             &* set @"alphaToOneEnable" VK_FALSE
 
-        colorBlendAttachment :: VkPipelineColorBlendAttachmentState
         colorBlendAttachment = createVk @VkPipelineColorBlendAttachmentState
             $  set @"colorWriteMask" (VK_COLOR_COMPONENT_R_BIT .|. VK_COLOR_COMPONENT_G_BIT .|. VK_COLOR_COMPONENT_B_BIT .|. VK_COLOR_COMPONENT_A_BIT)
             &* set @"blendEnable" VK_FALSE
@@ -261,7 +256,6 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
             &* set @"dstAlphaBlendFactor" VK_BLEND_FACTOR_ZERO
             &* set @"alphaBlendOp" VK_BLEND_OP_ADD
 
-        colorBlending :: VkPipelineColorBlendStateCreateInfo
         colorBlending = createVk @VkPipelineColorBlendStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -275,12 +269,11 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
             &* setAt @"blendConstants" @2 0.0
             &* setAt @"blendConstants" @3 0.0
 
-        getGraphicsPipelineCreateInfo :: Ptr VkPipelineShaderStageCreateInfo -> Word32 -> VkGraphicsPipelineCreateInfo
-        getGraphicsPipelineCreateInfo shaderStageInfosPtr shaderStageInfoCount = createVk @VkGraphicsPipelineCreateInfo
+        graphicsPipelineCreateInfo = createVk @VkGraphicsPipelineCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
-            &* set @"stageCount" shaderStageInfoCount
+            &* set @"stageCount" (fromIntegral shaderStageInfoCount)
             &* set @"pStages" shaderStageInfosPtr
             &* setVkRef @"pVertexInputState" vertexInputInfo
             &* setVkRef @"pInputAssemblyState" inputAssembly
@@ -298,16 +291,12 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
             &* set @"basePipelineIndex" (-1)
 
     logInfo $ "Create Pipeline: " ++ show imageExtent
-    shaderStageInfosPtr <- newArray shaderStageInfos
-    let graphicsPipelineCreateInfo = getGraphicsPipelineCreateInfo shaderStageInfosPtr (fromIntegral $ length shaderStageInfos)
     createGraphicsPipelinesFunc <- vkGetDeviceProc @VkCreateGraphicsPipelines device
-
     graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do
-        result <- createGraphicsPipelinesFunc device VK_NULL_HANDLE 1 (unsafePtr graphicsPipelineCreateInfo) VK_NULL graphicsPipelinePtr
-        validationVK result "vkCreatePipelines failed!"
+        withPtr graphicsPipelineCreateInfo $ \graphicsPipelineCreateInfoPtr -> do
+            result <- createGraphicsPipelinesFunc device VK_NULL_HANDLE 1 graphicsPipelineCreateInfoPtr VK_NULL graphicsPipelinePtr
+            validationVK result "vkCreatePipelines failed!"
         peek graphicsPipelinePtr
-
-    touchVkData graphicsPipelineCreateInfo
     free shaderStageInfosPtr
 
     return GraphicsPipelineData
