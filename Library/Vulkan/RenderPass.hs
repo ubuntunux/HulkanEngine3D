@@ -300,10 +300,10 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
     free shaderStageInfosPtr
 
     return GraphicsPipelineData
-      { _vertexShaderCreateInfo = vertexShaderCreateInfo
-      , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
-      , _pipelineLayout = pipelineLayout
-      , _pipeline = graphicsPipeline }
+        { _vertexShaderCreateInfo = vertexShaderCreateInfo
+        , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
+        , _pipelineLayout = pipelineLayout
+        , _pipeline = graphicsPipeline }
 
 
 destroyGraphicsPipeline :: VkDevice -> GraphicsPipelineData -> IO ()
