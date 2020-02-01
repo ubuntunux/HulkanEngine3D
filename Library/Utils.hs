@@ -5,6 +5,14 @@
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Strict              #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE UnboxedTuples       #-}
+
 module Library.Utils
     ( VulkanException (..)
     , handleAllErrors
@@ -13,12 +21,16 @@ module Library.Utils
     , throwVKMsg
     , withCStringList
     , asListVK
+    , withVkArrayLen
     , unsafeAddr
     , ptrAtIndex
     , allocaPeek
     , allocaPtr
+    , allocaArrayPtr
     ) where
 
+import qualified GHC.Base
+import GHC.Exts
 import Control.Exception
 import Control.Monad (when)
 import Data.IORef
@@ -27,7 +39,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
-import GHC.Exts
+
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 
@@ -101,6 +113,19 @@ asListVK action = alloca $ \counterPtr -> do
     action counterPtr valPtr
     peekArray counter valPtr
 
+-- | Prevent earlier GC of given value
+touch :: a -> IO ()
+touch x = GHC.Base.IO $ \s -> case GHC.Base.touch# x s of s' -> (# s', () #)
+{-# INLINE touch #-}
+
+-- | This should probably be in Graphics.Vulkan.Marshal
+withVkArrayLen :: (Storable a, VulkanMarshal a) => [a] -> (Word32 -> Ptr a -> IO b) -> IO b
+withVkArrayLen xs pf = do
+  ret <- withArrayLen xs (pf . fromIntegral)
+  touch xs
+  return ret
+{-# INLINE withVkArrayLen #-}
+
 -- Any is a type to which any type can be safely unsafeCoerced to.
 aToWord# :: Any -> Word#
 aToWord# a = let !mb = a in case unsafeCoerce# mb :: Word of W# addr -> addr
@@ -117,3 +142,6 @@ allocaPeek action = alloca $ \ptr -> do
 
 allocaPtr :: Storable a => IO (Ptr a)
 allocaPtr = alloca $ \ptr -> return ptr
+
+allocaArrayPtr :: Storable a => Int -> IO (Ptr a)
+allocaArrayPtr count = allocaArray count $ \arrayPtr -> return arrayPtr

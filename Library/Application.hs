@@ -4,6 +4,7 @@
 module Library.Application
     ( glfwMainLoop
     , createGLFWWindow
+    , destroyGLFWWindow
     ) where
 
 
@@ -40,6 +41,7 @@ createGLFWWindow width height title windowSizeChanged = do
         Just (\_ _ _ -> atomicWriteIORef windowSizeChanged True)
     return maybeWindow
 
+destroyGLFWWindow :: GLFW.Window -> IO ()
 destroyGLFWWindow window = do
     GLFW.destroyWindow window >> logInfo "Closed GLFW window."
     GLFW.terminate >> logInfo "Terminated GLFW."

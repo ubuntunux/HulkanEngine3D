@@ -123,4 +123,5 @@ main = do
 
     destroyRenderer rendererData
     free imageIndexPtr
-    return ()
+
+    destroyGLFWWindow window
