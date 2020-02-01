@@ -71,9 +71,9 @@ createRenderPassData device commandBuffers renderPassCreateInfo@RenderPassCreate
 
 destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
 destroyRenderPassData device RenderPassData {..} = do
-  destroyFramebufferData device _frameBufferData
-  destroyGraphicsPipeline device _graphicsPipelineData
-  destroyRenderPass device _renderPass
+    destroyFramebufferData device _frameBufferData
+    destroyGraphicsPipeline device _graphicsPipelineData
+    destroyRenderPass device _renderPass
 
 createRenderPass :: VkDevice -> VkFormat -> IO VkRenderPass
 createRenderPass device imageFormat = do
@@ -297,9 +297,9 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
 
 destroyGraphicsPipeline :: VkDevice -> GraphicsPipelineData -> IO ()
 destroyGraphicsPipeline device graphicsPipelineData = do
-  logInfo $ "Destroy GraphicsPipeline"
-  let GraphicsPipelineData {..} = graphicsPipelineData
-  vkDestroyPipeline device _pipeline VK_NULL
-  destroyPipelineLayout device _pipelineLayout
-  destroyShaderStageCreateInfo device _vertexShaderCreateInfo
-  destroyShaderStageCreateInfo device _fragmentShaderCreateInfo
+    logInfo $ "Destroy GraphicsPipeline"
+    let GraphicsPipelineData {..} = graphicsPipelineData
+    vkDestroyPipeline device _pipeline VK_NULL
+    destroyPipelineLayout device _pipelineLayout
+    destroyShaderStageCreateInfo device _vertexShaderCreateInfo
+    destroyShaderStageCreateInfo device _fragmentShaderCreateInfo
