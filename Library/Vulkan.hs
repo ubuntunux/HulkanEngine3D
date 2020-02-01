@@ -5,25 +5,9 @@
 
 module Library.Vulkan
   ( RendererData (..)
-  , getMaxUsableSampleCount
-  , getInstanceExtensionSupport
-  , getDeviceExtensionSupport
-  , checkExtensionSupport
   , getCommandBuffers
   , getDefaultRenderPassCreateInfo
   , getDefaultRendererData
-  , createVulkanInstance
-  , destroyVulkanInstance
-  , createVkSurface
-  , destroyVkSurface
-  , selectPhysicalDevice
-  , getPhysicalDeviceProperties
-  , createDevice
-  , destroyDevice
-  , createCommandPool
-  , destroyCommandPool
-  , createCommandBuffers
-  , destroyCommandBuffers
   , drawFrame
   , createRenderer
   , destroyRenderer
@@ -33,14 +17,10 @@ module Library.Vulkan
   ) where
 
 import Control.Monad
-import Data.Bits
-import Data.List ((\\))
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
-import Foreign.Marshal.Utils
 import Foreign.Storable
 import Foreign.C.String
 import Foreign.Ptr
@@ -55,6 +35,7 @@ import qualified Library.Constants as Constants
 import Library.Utils
 import Library.Logger
 import Library.Vulkan.CommandBuffer
+import Library.Vulkan.Device
 import Library.Vulkan.FrameBuffer
 import Library.Vulkan.RenderPass
 import Library.Vulkan.Queue
@@ -78,46 +59,6 @@ data RendererData = RendererData
     , _commandBufferCount :: Word32
     , _commandBuffersPtr :: Ptr VkCommandBuffer
     } deriving (Eq, Show)
-
-
-getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)
-getExtensionNames extensionType availableExtensionArrayPtr = do
-  availableExtensionNames <- mapM getExtensionName availableExtensionArrayPtr
-  logInfo $ "Available " ++ extensionType ++ " extensions : " ++ (show (length availableExtensionNames))
-  --mapM (\extensionName -> logInfo $ "    " ++ extensionName) availableExtensionNames
-  return availableExtensionNames
-  where 
-    getExtensionName extensionPtr = 
-      let extensionNamePtr = plusPtr (unsafePtr extensionPtr) (fieldOffset @"extensionName" @VkExtensionProperties)
-      in peekCString $ castPtr extensionNamePtr
-
-getInstanceExtensionSupport :: IO [String]
-getInstanceExtensionSupport = do
-  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> do
-      result <- vkEnumerateInstanceExtensionProperties VK_NULL_HANDLE counterPtr valueArrayPtr
-      validationVK result "vkEnumerateInstanceExtensionProperties error"
-  getExtensionNames "Instance" availableExtensionArrayPtr
-
-getDeviceExtensionSupport :: VkPhysicalDevice -> IO [String]
-getDeviceExtensionSupport physicalDevice = do
-  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> do
-      result <- vkEnumerateDeviceExtensionProperties physicalDevice VK_NULL_HANDLE counterPtr valueArrayPtr
-      validationVK result "vkEnumerateInstanceExtensionProperties error"
-  getExtensionNames "Device" availableExtensionArrayPtr
-
-checkExtensionSupport :: [String] -> [CString] -> IO Bool
-checkExtensionSupport availableDeviceExtensions requireExtensions = do
-  requireExtensionNames <- mapM peekCString requireExtensions    
-  logInfo $ "Require Extensions: " ++ show (length requireExtensionNames) ++ " / " ++ show (length availableDeviceExtensions) ++ " availables."
-  isAvailable requireExtensionNames
-  return . null $ requireExtensionNames \\ availableDeviceExtensions
-  where 
-    isAvailable [] = return ()
-    isAvailable (x:xs) = do
-      if elem x availableDeviceExtensions
-        then logInfo ("    " ++ x ++ " (OK)")
-        else logInfo ("    " ++ x ++ " (Failed)")
-      isAvailable xs
 
 
 getCommandBuffers :: RendererData -> IO [VkCommandBuffer]
@@ -184,174 +125,6 @@ getDefaultRendererData = do
         , _commandBufferCount = 0
         , _commandBuffersPtr = VK_NULL }
 
-
-createVulkanInstance :: String -> String -> [String] -> [CString] -> IO VkInstance
-createVulkanInstance progName engineName layers extensions = do
-  let 
-    applicationInfo :: VkApplicationInfo
-    applicationInfo = createVk @VkApplicationInfo
-      $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
-      &* set @"pNext" VK_NULL
-      &* setStrRef @"pApplicationName" progName
-      &* set @"applicationVersion" (_VK_MAKE_VERSION 1 0 0)
-      &* setStrRef @"pEngineName" engineName
-      &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
-      &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 0)
-    instanceCreateInfo :: VkInstanceCreateInfo
-    instanceCreateInfo = createVk @VkInstanceCreateInfo
-      $ set @"sType" VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
-      &* set @"pNext" VK_NULL
-      &* set @"flags" VK_ZERO_FLAGS
-      &* setVkRef @"pApplicationInfo" applicationInfo
-      &* set @"enabledLayerCount" (fromIntegral $ length layers)
-      &* setStrListRef @"ppEnabledLayerNames" layers
-      &* set @"enabledExtensionCount" (fromIntegral $ length extensions)
-      &* setListRef @"ppEnabledExtensionNames" extensions
-  vkInstance <- alloca $ \vkInstPtr -> do
-      result <- vkCreateInstance (unsafePtr instanceCreateInfo) VK_NULL vkInstPtr
-      validationVK result "vkCreateInstance: Failed to create vkInstance."
-      peek vkInstPtr
-  touchVkData instanceCreateInfo  
-  return vkInstance
-
-destroyVulkanInstance :: VkInstance -> IO ()
-destroyVulkanInstance vkInstance = do  
-  logInfo "Destroy VulkanInstance"
-  vkDestroyInstance vkInstance VK_NULL  
-
-createVkSurface :: Ptr vkInstance -> GLFW.Window -> IO VkSurfaceKHR
-createVkSurface vkInstance window = do
-  vkSurface <- alloca $ \vkSurfacePtr -> do
-    result <- GLFW.createWindowSurface vkInstance window VK_NULL_HANDLE vkSurfacePtr
-    validationVK result "glfwCreateWindowSurface: failed to create window surface"
-    logInfo $ "Createad surface: " ++ show vkSurfacePtr
-    peek vkSurfacePtr    
-  return vkSurface
-
-destroyVkSurface :: VkInstance -> VkSurfaceKHR -> IO ()
-destroyVkSurface vkInstance vkSurface = do
-  destroySurfaceFunc <- vkGetInstanceProc @VkDestroySurfaceKHR vkInstance
-  destroySurfaceFunc vkInstance vkSurface VK_NULL_HANDLE
-  logInfo "Destroy VkSurfaceKHR"
-
-querySwapChainSupport :: VkPhysicalDevice -> VkSurfaceKHR -> IO SwapChainSupportDetails
-querySwapChainSupport physicalDevice vkSurface = do
-  capabilities <- newVkData $ \pSurfaceCapabilities -> do
-    result <- vkGetPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice vkSurface pSurfaceCapabilities
-    validationVK result "vkGetPhysicalDeviceSurfaceCapabilitiesKHR error"
-  formats <- asListVK $ \counterPtr valuePtr -> do
-    result <- vkGetPhysicalDeviceSurfaceFormatsKHR physicalDevice vkSurface counterPtr valuePtr
-    validationVK result "vkGetPhysicalDeviceSurfaceFormatsKHR error"
-  presentModes <- asListVK $ \counterPtr valuePtr -> do
-    result <- vkGetPhysicalDeviceSurfacePresentModesKHR physicalDevice vkSurface counterPtr valuePtr
-    validationVK result "vkGetPhysicalDeviceSurfacePresentModesKHR error"
-  return SwapChainSupportDetails { _capabilities = capabilities
-                                 , _formats = formats
-                                 , _presentModes = presentModes }
-
-isDeviceSuitable :: Maybe VkSurfaceKHR -> VkPhysicalDevice -> IO (Maybe SwapChainSupportDetails, Bool)
-isDeviceSuitable maybeVkSurface physicalDevice = do
-  deviceExtensionNames <- getDeviceExtensionSupport physicalDevice
-  hasExtension <- checkExtensionSupport deviceExtensionNames Constants.requireDeviceExtensions
-  (maybeSwapChainSupportDetails, result) <- case maybeVkSurface of
-    Nothing -> pure (Nothing, True)
-    Just vkSurface
-      | not hasExtension -> pure (Nothing, False)
-      | otherwise -> do
-        swapChainSupportDetails@SwapChainSupportDetails {..} <- querySwapChainSupport physicalDevice vkSurface
-        return (Just swapChainSupportDetails, not (null _formats) && not (null _presentModes))
-  pure (maybeSwapChainSupportDetails, hasExtension && result)
-
-getPhysicalDeviceProperties :: VkPhysicalDevice -> IO VkPhysicalDeviceProperties
-getPhysicalDeviceProperties physicalDevice = do
-  deviceProperties <- alloca $ \propertiesPtr -> do
-    vkGetPhysicalDeviceProperties physicalDevice propertiesPtr
-    peek propertiesPtr
-  return deviceProperties
-
-selectPhysicalDevice :: VkInstance 
-                     -> Maybe VkSurfaceKHR 
-                     -> IO (Maybe SwapChainSupportDetails, VkPhysicalDevice)
-selectPhysicalDevice vkInstance maybeVkSurface = do
-  devices <- asListVK $ \counterPtr valueArrayPtr -> do
-      result <- vkEnumeratePhysicalDevices vkInstance counterPtr valueArrayPtr
-      validationVK result "pickPhysicalDevice: Failed to enumerate physical devices."
-  when (null devices) $ throwVKMsg "Zeo device count!"
-  logInfo $ "Found " ++ show (length devices) ++ " devices."
-  selectFirstSuitable devices
-  where
-    selectFirstSuitable [] = throwVKMsg "No suitable devices!"
-    selectFirstSuitable (physicalDevice:physicalDeviceArray) = do
-      (maybeSwapChainSupportDetails, result) <- isDeviceSuitable maybeVkSurface physicalDevice
-      if result then do
-          logInfo $ "Selected physical device: " ++ show physicalDevice
-          pure (maybeSwapChainSupportDetails, physicalDevice)
-        else
-          selectFirstSuitable physicalDeviceArray
-
-createDevice :: VkPhysicalDevice -> [Word32] -> IO VkDevice
-createDevice physicalDevice queueFamilyList = do  
-  queuePrioritiesPtr <- new 1.0
-  queueCreateInfoList <- forM queueFamilyList $ \queueFamilyIndex ->
-    newVkData @VkDeviceQueueCreateInfo $ \queueCreateInfoPtr -> do
-        writeField @"sType" queueCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
-        writeField @"pNext" queueCreateInfoPtr VK_NULL_HANDLE
-        writeField @"flags" queueCreateInfoPtr VK_ZERO_FLAGS
-        writeField @"queueFamilyIndex" queueCreateInfoPtr queueFamilyIndex
-        writeField @"queueCount" queueCreateInfoPtr 1
-        writeField @"pQueuePriorities" queueCreateInfoPtr queuePrioritiesPtr
-  physicalDeviceFeatures <- newVkData @VkPhysicalDeviceFeatures clearStorable
-  queueCreateInfoArrayPtr <- newArray queueCreateInfoList
-  requireDeviceExtensionsPtr <- newArray Constants.requireDeviceExtensions
-  deviceCreateInfo <- withCStringList Constants.vulkanLayers $ \layerCount layerNames -> do
-    newVkData @VkDeviceCreateInfo $ \devCreateInfoPtr -> do
-      writeField @"sType" devCreateInfoPtr VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
-      writeField @"pNext" devCreateInfoPtr VK_NULL_HANDLE
-      writeField @"flags" devCreateInfoPtr VK_ZERO_FLAGS
-      writeField @"pQueueCreateInfos" devCreateInfoPtr queueCreateInfoArrayPtr
-      writeField @"queueCreateInfoCount" devCreateInfoPtr (fromIntegral $ length queueCreateInfoList)
-      writeField @"enabledLayerCount" devCreateInfoPtr (fromIntegral layerCount)
-      writeField @"ppEnabledLayerNames" devCreateInfoPtr layerNames
-      writeField @"enabledExtensionCount" devCreateInfoPtr (fromIntegral $ length Constants.requireDeviceExtensions)
-      writeField @"ppEnabledExtensionNames" devCreateInfoPtr requireDeviceExtensionsPtr
-      writeField @"pEnabledFeatures" devCreateInfoPtr (unsafePtr physicalDeviceFeatures)
-  device <- alloca $ \devicePtr -> do
-    result <- vkCreateDevice physicalDevice (unsafePtr deviceCreateInfo) VK_NULL_HANDLE devicePtr
-    validationVK result "vkCreateDevice: failed to create vkDevice"
-    peek devicePtr
-  logInfo $ "Created Device: " ++ show device
-  touchVkData deviceCreateInfo
-  touchVkData physicalDeviceFeatures
-  free requireDeviceExtensionsPtr
-  free queueCreateInfoArrayPtr
-  free queuePrioritiesPtr
-  return device
-
-destroyDevice :: VkDevice -> IO ()
-destroyDevice device = do
-  vkDestroyDevice device VK_NULL_HANDLE
-  logInfo "Destroy VkDevice"
-
-getMaxUsableSampleCount :: VkPhysicalDeviceProperties -> IO VkSampleCountFlagBits
-getMaxUsableSampleCount deviceProperties = do
-  let limits = getField @"limits" deviceProperties
-      colorSampleCounts = getField @"framebufferColorSampleCounts" limits
-      depthSampleCounts = getField @"framebufferDepthSampleCounts" limits
-      counts = min colorSampleCounts depthSampleCounts
-      splitCounts = filter ((/= VK_ZERO_FLAGS) . (counts .&.))
-        [ VK_SAMPLE_COUNT_64_BIT
-        , VK_SAMPLE_COUNT_32_BIT
-        , VK_SAMPLE_COUNT_16_BIT
-        , VK_SAMPLE_COUNT_8_BIT
-        , VK_SAMPLE_COUNT_4_BIT
-        , VK_SAMPLE_COUNT_2_BIT
-        , VK_SAMPLE_COUNT_1_BIT
-        ]
-      highestCount = head $ splitCounts >>= maskToBits
-  logInfo $ "MSAA Samples: " ++ show highestCount
-  return highestCount
-
-
 drawFrame :: RendererData -> Int -> Ptr Word32 -> IO VkResult
 drawFrame RendererData {..} frameIndex imageIndexPtr = do
   let SwapChainData {..} = _swapChainData
@@ -407,48 +180,47 @@ createRenderer :: RendererData
                -> [CString]
                -> IO RendererData
 createRenderer defaultRendererData window progName engineName isConcurrentMode requireExtensions = do
-  vkInstance <- createVulkanInstance progName engineName Constants.vulkanLayers requireExtensions
-  vkSurface <- createVkSurface vkInstance window
-  (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)  
-  deviceProperties <- getPhysicalDeviceProperties physicalDevice
-  msaaSamples <- getMaxUsableSampleCount deviceProperties  
-  queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
-  let graphicsQueueIndex = _graphicsQueueIndex queueFamilyIndices
-      presentQueueIndex = _presentQueueIndex queueFamilyIndices    
-      queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex, presentQueueIndex]
-  device <- createDevice physicalDevice queueFamilyIndexList
-  queueMap <- createQueues device queueFamilyIndexList  
-  let defaultQueue = (Map.elems queueMap) !! 0
-      queueFamilyDatas =
-        QueueFamilyDatas
-          { _graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex queueMap
-          , _presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
-          , _queueFamilyIndexList = queueFamilyIndexList
-          , _queueFamilyCount = fromIntegral $ length queueMap
-          , _queueFamilyIndices = queueFamilyIndices }
-  commandPool <- createCommandPool device queueFamilyDatas
-  imageAvailableSemaphores <- createSemaphores device
-  renderFinishedSemaphores <- createSemaphores device
-  frameFencesPtr <- createFrameFences device
-  swapChainData <- createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface
-  let commandBufferCount = _swapChainImageCount swapChainData
-  commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
-  let rendererData = defaultRendererData
-        { _msaaSamples = msaaSamples
-        , _imageAvailableSemaphores = imageAvailableSemaphores
-        , _renderFinishedSemaphores = renderFinishedSemaphores
-        , _vkInstance = vkInstance
-        , _vkSurface = vkSurface
-        , _device = device
-        , _physicalDevice = physicalDevice
-        , _queueFamilyDatas = queueFamilyDatas
-        , _frameFencesPtr = frameFencesPtr
-        , _commandPool = commandPool
-        , _commandBuffersPtr = commandBuffersPtr
-        , _commandBufferCount = commandBufferCount
-        , _swapChainData = swapChainData
-        , _swapChainSupportDetails = swapChainSupportDetails }
-  return rendererData
+    vkInstance <- createVulkanInstance progName engineName Constants.vulkanLayers requireExtensions
+    vkSurface <- createVkSurface vkInstance window
+    (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
+    deviceProperties <- getPhysicalDeviceProperties physicalDevice
+    msaaSamples <- getMaxUsableSampleCount deviceProperties
+    queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
+    let graphicsQueueIndex = _graphicsQueueIndex queueFamilyIndices
+        presentQueueIndex = _presentQueueIndex queueFamilyIndices
+        queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex, presentQueueIndex]
+    device <- createDevice physicalDevice queueFamilyIndexList
+    queueMap <- createQueues device queueFamilyIndexList
+    let defaultQueue = (Map.elems queueMap) !! 0
+        queueFamilyDatas = QueueFamilyDatas
+            { _graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex queueMap
+            , _presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
+            , _queueFamilyIndexList = queueFamilyIndexList
+            , _queueFamilyCount = fromIntegral $ length queueMap
+            , _queueFamilyIndices = queueFamilyIndices }
+    commandPool <- createCommandPool device queueFamilyDatas
+    imageAvailableSemaphores <- createSemaphores device
+    renderFinishedSemaphores <- createSemaphores device
+    frameFencesPtr <- createFrameFences device
+    swapChainData <- createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface
+    let commandBufferCount = _swapChainImageCount swapChainData
+    commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
+    let rendererData = defaultRendererData
+          { _msaaSamples = msaaSamples
+          , _imageAvailableSemaphores = imageAvailableSemaphores
+          , _renderFinishedSemaphores = renderFinishedSemaphores
+          , _vkInstance = vkInstance
+          , _vkSurface = vkSurface
+          , _device = device
+          , _physicalDevice = physicalDevice
+          , _queueFamilyDatas = queueFamilyDatas
+          , _frameFencesPtr = frameFencesPtr
+          , _commandPool = commandPool
+          , _commandBuffersPtr = commandBuffersPtr
+          , _commandBufferCount = commandBufferCount
+          , _swapChainData = swapChainData
+          , _swapChainSupportDetails = swapChainSupportDetails }
+    return rendererData
 
 destroyRenderer :: RendererData -> IO ()
 destroyRenderer rendererData@RendererData {..} = do

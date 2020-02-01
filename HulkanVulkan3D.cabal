@@ -28,6 +28,7 @@ executable main
                       Library.Vulkan
                       Library.Vulkan.Buffer
                       Library.Vulkan.CommandBuffer
+                      Library.Vulkan.Device
                       Library.Vulkan.Descriptor
                       Library.Vulkan.Mesh
                       Library.Vulkan.FrameBuffer

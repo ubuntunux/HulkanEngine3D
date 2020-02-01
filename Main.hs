@@ -20,6 +20,7 @@ import Library.Utils
 import Library.Application
 import Library.Logger
 import Library.Vulkan
+import Library.Vulkan.Device
 import Library.Vulkan.Mesh
 import Library.Vulkan.RenderPass
 import Library.Resource.ObjLoader

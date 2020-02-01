@@ -6,6 +6,8 @@
 module Library.Vulkan.SwapChain
   ( SwapChainSupportDetails (..)
   , SwapChainData (..)
+  , isValidSwapChainSupport
+  , querySwapChainSupport
   , createSwapChainData
   , destroySwapChainData
   ) where
@@ -85,6 +87,26 @@ chooseSwapExtent swapChainSupportDetails = do
     width = getField @"width"
     height = getField @"height"
 
+
+isValidSwapChainSupport :: SwapChainSupportDetails -> Bool
+isValidSwapChainSupport swapChainSupportDetails =
+    not (null (_formats swapChainSupportDetails)) && not (null (_presentModes swapChainSupportDetails))
+
+querySwapChainSupport :: VkPhysicalDevice -> VkSurfaceKHR -> IO SwapChainSupportDetails
+querySwapChainSupport physicalDevice vkSurface = do
+  capabilities <- newVkData $ \pSurfaceCapabilities -> do
+    result <- vkGetPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice vkSurface pSurfaceCapabilities
+    validationVK result "vkGetPhysicalDeviceSurfaceCapabilitiesKHR error"
+  formats <- asListVK $ \counterPtr valuePtr -> do
+    result <- vkGetPhysicalDeviceSurfaceFormatsKHR physicalDevice vkSurface counterPtr valuePtr
+    validationVK result "vkGetPhysicalDeviceSurfaceFormatsKHR error"
+  presentModes <- asListVK $ \counterPtr valuePtr -> do
+    result <- vkGetPhysicalDeviceSurfacePresentModesKHR physicalDevice vkSurface counterPtr valuePtr
+    validationVK result "vkGetPhysicalDeviceSurfacePresentModesKHR error"
+  return SwapChainSupportDetails { _capabilities = capabilities
+                                 , _formats = formats
+                                 , _presentModes = presentModes }
+
 createSwapChainData :: VkDevice
                     -> SwapChainSupportDetails
                     -> QueueFamilyDatas
@@ -163,11 +185,13 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = 
                                     , _swapChainExtent = swapChainExtent }
   return swapChainData
 
+
 destroySwapChainData :: VkDevice -> SwapChainData -> IO ()
 destroySwapChainData device swapChainData = do
   destroySwapChainImageViews device (_swapChainImageViews swapChainData)
   logInfo "Destroy SwapChain"
   vkDestroySwapchainKHR device (_swapChain swapChainData) VK_NULL_HANDLE
+
 
 createSwapChainImageViews :: VkDevice -> [VkImage] -> VkFormat -> IO [VkImageView]
 createSwapChainImageViews device swapChainImages swapChainImageFormat = do
@@ -201,6 +225,7 @@ createSwapChainImageViews device swapChainImages swapChainImageFormat = do
         peek imageViewPtr
   mapM_ touchVkData imageViewCreateInfos
   return imageViews
+
 
 destroySwapChainImageViews :: VkDevice -> [VkImageView] -> IO ()
 destroySwapChainImageViews device imageViews = do
