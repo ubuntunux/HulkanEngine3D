@@ -26,14 +26,16 @@ import Graphics.Vulkan.Marshal.Create
 
 import Library.Utils
 import Library.Logger
-import {-# SOURCE #-} Library.Vulkan
+import Library.Vulkan.Descriptor
 import Library.Vulkan.FrameBuffer
 import Library.Vulkan.Shader
+import {-# SOURCE #-} Library.Vulkan
 
 
 data GraphicsPipelineData = GraphicsPipelineData
     { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
     , _fragmentShaderCreateInfo :: VkPipelineShaderStageCreateInfo
+    , _descriptorSetLayout :: VkDescriptorSetLayout
     , _pipelineLayout :: VkPipelineLayout
     , _pipeline :: VkPipeline
     } deriving (Eq, Show)
@@ -132,14 +134,14 @@ destroyRenderPass device renderPass = do
     vkDestroyRenderPass device renderPass VK_NULL
 
 
-createPipelineLayout :: VkDevice -> IO VkPipelineLayout
-createPipelineLayout device = do
+createPipelineLayout :: VkDevice -> [VkDescriptorSetLayout] -> IO VkPipelineLayout
+createPipelineLayout device descriptorSetLayouts = do
     let pipelineCreateInfo = createVk @VkPipelineLayoutCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
-            &* set @"setLayoutCount" 0
-            &* set @"pSetLayouts" VK_NULL
+            &* set @"setLayoutCount" (fromIntegral . length $ descriptorSetLayouts)
+            &* setListRef @"pSetLayouts" descriptorSetLayouts
             &* set @"pushConstantRangeCount" 0
             &* set @"pPushConstantRanges" VK_NULL
     pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
@@ -166,7 +168,8 @@ createGraphicsPipeline :: VkDevice
 createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentShaderFile = do
     vertexShaderCreateInfo <- createShaderStageCreateInfo device vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
-    pipelineLayout <- createPipelineLayout device
+    descriptorSetLayout <- createDescriptorSetLayout device
+    pipelineLayout <- createPipelineLayout device [descriptorSetLayout]
 
     let shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
         shaderStageInfoCount = length shaderStageInfos
@@ -291,6 +294,7 @@ createGraphicsPipeline device renderPass imageExtent vertexShaderFile fragmentSh
     return GraphicsPipelineData
         { _vertexShaderCreateInfo = vertexShaderCreateInfo
         , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
+        , _descriptorSetLayout = descriptorSetLayout
         , _pipelineLayout = pipelineLayout
         , _pipeline = graphicsPipeline }
 
@@ -301,5 +305,6 @@ destroyGraphicsPipeline device graphicsPipelineData = do
     let GraphicsPipelineData {..} = graphicsPipelineData
     vkDestroyPipeline device _pipeline VK_NULL
     destroyPipelineLayout device _pipelineLayout
+    destroyDescriptorSetLayout device _descriptorSetLayout
     destroyShaderStageCreateInfo device _vertexShaderCreateInfo
     destroyShaderStageCreateInfo device _fragmentShaderCreateInfo

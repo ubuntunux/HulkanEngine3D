@@ -90,19 +90,18 @@ createVertexBuffer rendererData (XFrame vertices) = do
         bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
         memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 
-    -- create vertex buffer
-    (vertexBufferMemory, vertexBuffer) <- createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFlags
-
+    -- create temporary staging buffer
     let stagingBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
         stagingBufferMemoryPropertyFlags = (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-
-    -- create temporary staging buffer
     (stagingBufferMemory, stagingBuffer) <- createBuffer physicalDevice device bufferSize stagingBufferUsageFlags stagingBufferMemoryPropertyFlags
 
-    -- copy data
+    -- upload data
     stagingDataPtr <- allocaPeek $ vkMapMemory device stagingBufferMemory 0 bufferSize VK_ZERO_FLAGS
     poke (castPtr stagingDataPtr) vertices
     vkUnmapMemory device stagingBufferMemory
+
+    -- create vertex buffer & copy
+    (vertexBufferMemory, vertexBuffer) <- createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFlags
     copyBuffer device commandPool graphicsQueue stagingBuffer vertexBuffer bufferSize
 
     -- destroy temporary staging buffer

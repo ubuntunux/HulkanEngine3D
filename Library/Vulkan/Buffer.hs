@@ -19,8 +19,8 @@ import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame
 
 import Library.Utils
-import Library.Vulkan
 import Library.Logger
+import Library.Vulkan
 
 
 createBuffer :: VkPhysicalDevice
