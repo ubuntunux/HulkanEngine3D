@@ -43,6 +43,7 @@ data ImageViewData = ImageViewData
     { _imageView :: VkImageView
     , _image :: VkImage
     , _imageMemory :: VkDeviceMemory
+    , _textureSampler ::VkSampler
     , _imageMipLevels :: Word32 }
 
 data ImageLayoutTransition = Undef_TransDst | TransDst_ShaderRO | Undef_DepthStencilAtt | Undef_ColorAtt
@@ -228,8 +229,8 @@ generateMipmaps physicalDevice image format width height mipLevels commandBuffer
                     0 VK_NULL
                     1 barrierPtr
 
-createTextureSampler :: VkDevice -> Word32 -> IO VkSampler
-createTextureSampler device mipLevels = do
+createTextureSampler :: VkDevice -> Word32 -> VkBool32 -> IO VkSampler
+createTextureSampler device mipLevels anisotropyEnable = do
     let samplerCreateInfo = createVk @VkSamplerCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO
             &* set @"pNext" VK_NULL_HANDLE
@@ -238,7 +239,7 @@ createTextureSampler device mipLevels = do
             &* set @"addressModeU" VK_SAMPLER_ADDRESS_MODE_REPEAT
             &* set @"addressModeV" VK_SAMPLER_ADDRESS_MODE_REPEAT
             &* set @"addressModeW" VK_SAMPLER_ADDRESS_MODE_REPEAT
-            &* set @"anisotropyEnable" VK_TRUE
+            &* set @"anisotropyEnable" anisotropyEnable
             &* set @"maxAnisotropy" 16
             &* set @"borderColor" VK_BORDER_COLOR_INT_OPAQUE_BLACK
             &* set @"unnormalizedCoordinates" VK_FALSE
@@ -452,10 +453,13 @@ createDepthImageView physicalDevice device commandBufferPool queue extent sample
     depthImageView <- createImageView device depthImage depthFormat VK_IMAGE_ASPECT_DEPTH_BIT mipLevels
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
         transitionImageLayout depthImage depthFormat Undef_DepthStencilAtt mipLevels commandBuffer
+    let anisotropyEnable = VK_FALSE
+    textureSampler <- createTextureSampler device mipLevels anisotropyEnable
     return ImageViewData
         { _imageView = depthImageView
         , _image = depthImage
         , _imageMemory = depthImageMemory
+        , _textureSampler = textureSampler
         , _imageMipLevels = mipLevels }
     where
         findDepthFormat :: VkPhysicalDevice -> IO VkFormat
@@ -488,10 +492,13 @@ createColorImageView physicalDevice device commandBufferPool queue format extent
     colorImageView <- createImageView device colorImage format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
         transitionImageLayout colorImage format Undef_ColorAtt mipLevels commandBuffer
+    let anisotropyEnable = VK_FALSE
+    textureSampler <- createTextureSampler device mipLevels anisotropyEnable
     return ImageViewData
         { _imageView = colorImageView
         , _image = colorImage
         , _imageMemory = colorImageMemory
+        , _textureSampler = textureSampler
         , _imageMipLevels = mipLevels }
 
 
@@ -499,9 +506,10 @@ createTextureImageView :: VkPhysicalDevice
                        -> VkDevice
                        -> VkCommandPool
                        -> VkQueue
+                       -> VkBool32
                        -> FilePath
                        -> IO ImageViewData
-createTextureImageView physicalDevice device commandBufferPool commandQueue filePath = do
+createTextureImageView physicalDevice device commandBufferPool commandQueue anisotropyEnable filePath = do
     Image { imageWidth, imageHeight, imageData } <- (readImage filePath) >>= \case
         Left err -> throwVKMsg err
         Right dynamicImage -> pure $ convertRGBA8 dynamicImage
@@ -553,13 +561,18 @@ createTextureImageView physicalDevice device commandBufferPool commandQueue file
 
     -- destroy temporary staging buffer
     destroyBuffer device stagingBuffer stagingBufferMemory
+
+    textureSampler <- createTextureSampler device mipLevels anisotropyEnable
+
     return ImageViewData
         { _imageView = imageView
         , _image = image
         , _imageMemory = imageMemory
+        , _textureSampler = textureSampler
         , _imageMipLevels = mipLevels }
 
 destroyImageViewData :: VkDevice -> ImageViewData -> IO ()
 destroyImageViewData device imageViewData@ImageViewData{..} = do
+    destroyTextureSampler device _textureSampler
     destroyImageView device _imageView
     destroyImage device _image _imageMemory

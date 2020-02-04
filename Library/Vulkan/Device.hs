@@ -52,97 +52,96 @@ getExtensionNames extensionType availableExtensionArrayPtr = do
 
 getInstanceExtensionSupport :: IO [String]
 getInstanceExtensionSupport = do
-  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> do
-      result <- vkEnumerateInstanceExtensionProperties VK_NULL_HANDLE counterPtr valueArrayPtr
-      validationVK result "vkEnumerateInstanceExtensionProperties error"
-  getExtensionNames "Instance" availableExtensionArrayPtr
+    availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> do
+        result <- vkEnumerateInstanceExtensionProperties VK_NULL_HANDLE counterPtr valueArrayPtr
+        validationVK result "vkEnumerateInstanceExtensionProperties error"
+    getExtensionNames "Instance" availableExtensionArrayPtr
 
 getDeviceExtensionSupport :: VkPhysicalDevice -> IO [String]
 getDeviceExtensionSupport physicalDevice = do
-  availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> do
-      result <- vkEnumerateDeviceExtensionProperties physicalDevice VK_NULL_HANDLE counterPtr valueArrayPtr
-      validationVK result "vkEnumerateInstanceExtensionProperties error"
-  getExtensionNames "Device" availableExtensionArrayPtr
+    availableExtensionArrayPtr <- asListVK $ \counterPtr valueArrayPtr -> do
+        result <- vkEnumerateDeviceExtensionProperties physicalDevice VK_NULL_HANDLE counterPtr valueArrayPtr
+        validationVK result "vkEnumerateInstanceExtensionProperties error"
+    getExtensionNames "Device" availableExtensionArrayPtr
 
 checkExtensionSupport :: [String] -> [CString] -> IO Bool
 checkExtensionSupport availableDeviceExtensions requireExtensions = do
-  requireExtensionNames <- mapM peekCString requireExtensions
-  logInfo $ "Require Extensions: " ++ show (length requireExtensionNames) ++ " / " ++ show (length availableDeviceExtensions) ++ " availables."
-  isAvailable requireExtensionNames
-  return . null $ requireExtensionNames \\ availableDeviceExtensions
-  where
-    isAvailable [] = return ()
-    isAvailable (x:xs) = do
-      if elem x availableDeviceExtensions
-        then logInfo ("    " ++ x ++ " (OK)")
-        else logInfo ("    " ++ x ++ " (Failed)")
-      isAvailable xs
+    requireExtensionNames <- mapM peekCString requireExtensions
+    logInfo $ "Require Extensions: " ++ show (length requireExtensionNames) ++ " / " ++ show (length availableDeviceExtensions) ++ " availables."
+    isAvailable requireExtensionNames
+    return . null $ requireExtensionNames \\ availableDeviceExtensions
+    where
+        isAvailable [] = return ()
+        isAvailable (x:xs) = do
+            if elem x availableDeviceExtensions
+                then logInfo ("    " ++ x ++ " (OK)")
+                else logInfo ("    " ++ x ++ " (Failed)")
+            isAvailable xs
 
-isDeviceSuitable :: Maybe VkSurfaceKHR -> VkPhysicalDevice -> IO (Maybe SwapChainSupportDetails, Bool)
+isDeviceSuitable :: Maybe VkSurfaceKHR
+                 -> VkPhysicalDevice
+                 -> IO (Bool, Maybe SwapChainSupportDetails, VkPhysicalDeviceFeatures)
 isDeviceSuitable maybeVkSurface physicalDevice = do
     deviceExtensionNames <- getDeviceExtensionSupport physicalDevice
     hasExtension <- checkExtensionSupport deviceExtensionNames Constants.requireDeviceExtensions
+    supportedFeatures <- allocaPeek $ vkGetPhysicalDeviceFeatures physicalDevice
     (maybeSwapChainSupportDetails, result) <- case maybeVkSurface of
         Nothing -> pure (Nothing, False)
         Just vkSurface -> do
             swapChainSupportDetails <- querySwapChainSupport physicalDevice vkSurface
             let result = isValidSwapChainSupport swapChainSupportDetails
             return (Just swapChainSupportDetails, result)
-    pure (maybeSwapChainSupportDetails, hasExtension && result)
+    pure (hasExtension && result, maybeSwapChainSupportDetails, supportedFeatures)
 
 getMaxUsableSampleCount :: VkPhysicalDeviceProperties -> IO VkSampleCountFlagBits
 getMaxUsableSampleCount deviceProperties = do
-  let limits = getField @"limits" deviceProperties
-      colorSampleCounts = getField @"framebufferColorSampleCounts" limits
-      depthSampleCounts = getField @"framebufferDepthSampleCounts" limits
-      counts = min colorSampleCounts depthSampleCounts
-      splitCounts = filter ((/= VK_ZERO_FLAGS) . (counts .&.))
-        [ VK_SAMPLE_COUNT_64_BIT
-        , VK_SAMPLE_COUNT_32_BIT
-        , VK_SAMPLE_COUNT_16_BIT
-        , VK_SAMPLE_COUNT_8_BIT
-        , VK_SAMPLE_COUNT_4_BIT
-        , VK_SAMPLE_COUNT_2_BIT
-        , VK_SAMPLE_COUNT_1_BIT
-        ]
-      highestCount = head $ splitCounts >>= maskToBits
-  logInfo $ "MSAA Samples: " ++ show highestCount
-  return highestCount
+    let limits = getField @"limits" deviceProperties
+        colorSampleCounts = getField @"framebufferColorSampleCounts" limits
+        depthSampleCounts = getField @"framebufferDepthSampleCounts" limits
+        counts = min colorSampleCounts depthSampleCounts
+        splitCounts = filter ((/= VK_ZERO_FLAGS) . (counts .&.))
+            [ VK_SAMPLE_COUNT_64_BIT
+            , VK_SAMPLE_COUNT_32_BIT
+            , VK_SAMPLE_COUNT_16_BIT
+            , VK_SAMPLE_COUNT_8_BIT
+            , VK_SAMPLE_COUNT_4_BIT
+            , VK_SAMPLE_COUNT_2_BIT
+            , VK_SAMPLE_COUNT_1_BIT ]
+        highestCount = head $ splitCounts >>= maskToBits
+    logInfo $ "MSAA Samples: " ++ show highestCount
+    return highestCount
 
 
 createVulkanInstance :: String -> String -> [String] -> [CString] -> IO VkInstance
 createVulkanInstance progName engineName layers extensions = do
-  let
-    applicationInfo :: VkApplicationInfo
-    applicationInfo = createVk @VkApplicationInfo
-      $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
-      &* set @"pNext" VK_NULL
-      &* setStrRef @"pApplicationName" progName
-      &* set @"applicationVersion" (_VK_MAKE_VERSION 1 0 0)
-      &* setStrRef @"pEngineName" engineName
-      &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
-      &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 0)
-    instanceCreateInfo :: VkInstanceCreateInfo
-    instanceCreateInfo = createVk @VkInstanceCreateInfo
-      $ set @"sType" VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
-      &* set @"pNext" VK_NULL
-      &* set @"flags" VK_ZERO_FLAGS
-      &* setVkRef @"pApplicationInfo" applicationInfo
-      &* set @"enabledLayerCount" (fromIntegral $ length layers)
-      &* setStrListRef @"ppEnabledLayerNames" layers
-      &* set @"enabledExtensionCount" (fromIntegral $ length extensions)
-      &* setListRef @"ppEnabledExtensionNames" extensions
-  vkInstance <- alloca $ \vkInstPtr -> do
-      result <- vkCreateInstance (unsafePtr instanceCreateInfo) VK_NULL vkInstPtr
-      validationVK result "vkCreateInstance: Failed to create vkInstance."
-      peek vkInstPtr
-  touchVkData instanceCreateInfo
-  return vkInstance
+    let applicationInfo = createVk @VkApplicationInfo
+            $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
+            &* set @"pNext" VK_NULL
+            &* setStrRef @"pApplicationName" progName
+            &* set @"applicationVersion" (_VK_MAKE_VERSION 1 0 0)
+            &* setStrRef @"pEngineName" engineName
+            &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
+            &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 0)
+        instanceCreateInfo = createVk @VkInstanceCreateInfo
+            $ set @"sType" VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"flags" VK_ZERO_FLAGS
+            &* setVkRef @"pApplicationInfo" applicationInfo
+            &* set @"enabledLayerCount" (fromIntegral $ length layers)
+            &* setStrListRef @"ppEnabledLayerNames" layers
+            &* set @"enabledExtensionCount" (fromIntegral $ length extensions)
+            &* setListRef @"ppEnabledExtensionNames" extensions
+    vkInstance <- alloca $ \vkInstPtr -> do
+        result <- vkCreateInstance (unsafePtr instanceCreateInfo) VK_NULL vkInstPtr
+        validationVK result "vkCreateInstance: Failed to create vkInstance."
+        peek vkInstPtr
+    touchVkData instanceCreateInfo
+    return vkInstance
 
 destroyVulkanInstance :: VkInstance -> IO ()
 destroyVulkanInstance vkInstance = do
-  logInfo "Destroy VulkanInstance"
-  vkDestroyInstance vkInstance VK_NULL
+    logInfo "Destroy VulkanInstance"
+    vkDestroyInstance vkInstance VK_NULL
 
 createVkSurface :: Ptr vkInstance -> GLFW.Window -> IO VkSurfaceKHR
 createVkSurface vkInstance window = do
@@ -168,8 +167,8 @@ getPhysicalDeviceProperties physicalDevice = do
     return deviceProperties
 
 selectPhysicalDevice :: VkInstance
-                   -> Maybe VkSurfaceKHR
-                   -> IO (Maybe SwapChainSupportDetails, VkPhysicalDevice)
+                     -> Maybe VkSurfaceKHR
+                     -> IO (VkPhysicalDevice, Maybe SwapChainSupportDetails, VkPhysicalDeviceFeatures)
 selectPhysicalDevice vkInstance maybeVkSurface = do
     devices <- asListVK $ \counterPtr valueArrayPtr -> do
         result <- vkEnumeratePhysicalDevices vkInstance counterPtr valueArrayPtr
@@ -180,10 +179,11 @@ selectPhysicalDevice vkInstance maybeVkSurface = do
     where
         selectFirstSuitable [] = throwVKMsg "No suitable devices!"
         selectFirstSuitable (physicalDevice:physicalDeviceArray) = do
-            (maybeSwapChainSupportDetails, result) <- isDeviceSuitable maybeVkSurface physicalDevice
+            (result, maybeSwapChainSupportDetails, supportedFeatures) <-
+                isDeviceSuitable maybeVkSurface physicalDevice
             if result then do
                 logInfo $ "Selected physical device: " ++ show physicalDevice
-                pure (maybeSwapChainSupportDetails, physicalDevice)
+                pure (physicalDevice, maybeSwapChainSupportDetails, supportedFeatures)
             else
                 selectFirstSuitable physicalDeviceArray
 
@@ -198,7 +198,10 @@ createDevice physicalDevice queueFamilyList = do
             writeField @"queueFamilyIndex" queueCreateInfoPtr queueFamilyIndex
             writeField @"queueCount" queueCreateInfoPtr 1
             writeField @"pQueuePriorities" queueCreateInfoPtr queuePrioritiesPtr
-    physicalDeviceFeatures <- newVkData @VkPhysicalDeviceFeatures clearStorable
+    physicalDeviceFeatures <- newVkData @VkPhysicalDeviceFeatures $
+        \physicalDeviceFeaturesPtr -> do
+            clearStorable physicalDeviceFeaturesPtr
+            writeField @"samplerAnisotropy" physicalDeviceFeaturesPtr VK_TRUE
     queueCreateInfoArrayPtr <- newArray queueCreateInfoList
     requireDeviceExtensionsPtr <- newArray Constants.requireDeviceExtensions
     deviceCreateInfo <- withCStringList Constants.vulkanLayers $ \layerCount layerNames -> do

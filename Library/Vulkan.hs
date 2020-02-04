@@ -45,9 +45,13 @@ import Library.Vulkan.Sync
 import Library.Vulkan.Image
 
 
+data RenderFeatures = RenderFeatures
+    { _anisotropyEnable :: VkBool32
+    , _msaaSamples :: VkSampleCountBitmask FlagBit
+    } deriving (Eq, Show)
+
 data RendererData = RendererData
-    { _msaaSamples :: VkSampleCountBitmask FlagBit
-    , _imageAvailableSemaphores :: [VkSemaphore]
+    { _imageAvailableSemaphores :: [VkSemaphore]
     , _renderFinishedSemaphores :: [VkSemaphore]
     , _vkInstance :: VkInstance
     , _vkSurface :: VkSurfaceKHR
@@ -60,6 +64,7 @@ data RendererData = RendererData
     , _commandPool :: VkCommandPool
     , _commandBufferCount :: Word32
     , _commandBuffersPtr :: Ptr VkCommandBuffer
+    , _renderFeatures :: RenderFeatures
     } deriving (Eq, Show)
 
 
@@ -74,6 +79,7 @@ instance RendererInterface RendererData where
             (_device rendererData)
             (_commandPool rendererData)
             (_graphicsQueue (_queueFamilyDatas rendererData))
+            (_anisotropyEnable (_renderFeatures rendererData))
             filePath
     destroyTexture rendererData imageViewData =
         destroyImageViewData (_device rendererData) imageViewData
@@ -127,9 +133,11 @@ getDefaultRendererData = do
             , _queueFamilyIndexList = []
             , _queueFamilyCount = 0
             , _queueFamilyIndices = defaultQueueFamilyIndices }
+        defaultRenderFeatures = RenderFeatures
+            { _anisotropyEnable = VK_FALSE
+            , _msaaSamples = VK_SAMPLE_COUNT_4_BIT }
     return RendererData
-        { _msaaSamples = VK_SAMPLE_COUNT_4_BIT
-        , _imageAvailableSemaphores = []
+        { _imageAvailableSemaphores = []
         , _renderFinishedSemaphores = []
         , _vkInstance = VK_NULL
         , _vkSurface = VK_NULL
@@ -141,7 +149,8 @@ getDefaultRendererData = do
         , _frameFencesPtr = VK_NULL
         , _commandPool = VK_NULL
         , _commandBufferCount = 0
-        , _commandBuffersPtr = VK_NULL }
+        , _commandBuffersPtr = VK_NULL
+        , _renderFeatures = defaultRenderFeatures }
 
 drawFrame :: RendererData -> Int -> Ptr Word32 -> IO VkResult
 drawFrame RendererData {..} frameIndex imageIndexPtr = do
@@ -200,10 +209,14 @@ createRenderer :: RendererData
 createRenderer defaultRendererData window progName engineName isConcurrentMode requireExtensions = do
     vkInstance <- createVulkanInstance progName engineName Constants.vulkanLayers requireExtensions
     vkSurface <- createVkSurface vkInstance window
-    (Just swapChainSupportDetails, physicalDevice) <- selectPhysicalDevice vkInstance (Just vkSurface)
+    (physicalDevice, Just swapChainSupportDetails, supportedFeatures) <-
+        selectPhysicalDevice vkInstance (Just vkSurface)
     deviceProperties <- getPhysicalDeviceProperties physicalDevice
     msaaSamples <- getMaxUsableSampleCount deviceProperties
     queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
+    let renderFeatures = RenderFeatures
+            { _anisotropyEnable = getField @"samplerAnisotropy" supportedFeatures
+            , _msaaSamples = msaaSamples }
     let graphicsQueueIndex = _graphicsQueueIndex queueFamilyIndices
         presentQueueIndex = _presentQueueIndex queueFamilyIndices
         queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex, presentQueueIndex]
@@ -224,8 +237,7 @@ createRenderer defaultRendererData window progName engineName isConcurrentMode r
     let commandBufferCount = _swapChainImageCount swapChainData
     commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
     let rendererData = defaultRendererData
-          { _msaaSamples = msaaSamples
-          , _imageAvailableSemaphores = imageAvailableSemaphores
+          { _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
           , _vkInstance = vkInstance
           , _vkSurface = vkSurface
@@ -237,7 +249,8 @@ createRenderer defaultRendererData window progName engineName isConcurrentMode r
           , _commandBuffersPtr = commandBuffersPtr
           , _commandBufferCount = commandBufferCount
           , _swapChainData = swapChainData
-          , _swapChainSupportDetails = swapChainSupportDetails }
+          , _swapChainSupportDetails = swapChainSupportDetails
+          , _renderFeatures = renderFeatures }
     return rendererData
 
 destroyRenderer :: RendererData -> IO ()
