@@ -5,6 +5,7 @@
 
 module Library.Vulkan
   ( RendererData (..)
+  , RendererInterface (..)
   , getCommandBuffers
   , getDefaultRenderPassCreateInfo
   , getDefaultRendererData
@@ -41,6 +42,7 @@ import Library.Vulkan.RenderPass
 import Library.Vulkan.Queue
 import Library.Vulkan.SwapChain
 import Library.Vulkan.Sync
+import Library.Vulkan.Image
 
 
 data RendererData = RendererData
@@ -59,6 +61,22 @@ data RendererData = RendererData
     , _commandBufferCount :: Word32
     , _commandBuffersPtr :: Ptr VkCommandBuffer
     } deriving (Eq, Show)
+
+
+class RendererInterface a where
+    createTexture :: a -> FilePath -> IO ImageViewData
+    destroyTexture :: a -> ImageViewData -> IO ()
+
+instance RendererInterface RendererData where
+    createTexture rendererData filePath =
+        createTextureImageView
+            (_physicalDevice rendererData)
+            (_device rendererData)
+            (_commandPool rendererData)
+            (_graphicsQueue (_queueFamilyDatas rendererData))
+            filePath
+    destroyTexture rendererData imageViewData =
+        destroyImageViewData (_device rendererData) imageViewData
 
 
 getCommandBuffers :: RendererData -> IO [VkCommandBuffer]

@@ -35,8 +35,8 @@ import Graphics.Vulkan.Marshal.Create
 
 import Library.Logger
 import Library.Utils
-import Library.Vulkan
 import Library.Vulkan.Buffer
+import {-# SOURCE #-} Library.Vulkan
 
 
 data ImageViewData = ImageViewData
@@ -167,7 +167,7 @@ generateMipmaps physicalDevice image format width height mipLevels commandBuffer
         vkGetPhysicalDeviceFormatProperties physicalDevice format propsPtr
     let supported = getField @"optimalTilingFeatures" formatProps
                     .&. VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
-        in when (supported /= VK_ZERO_FLAGS) $ throwVKMsg "texture image format does not support linear blitting!"
+        in when (supported == VK_ZERO_FLAGS) $ throwVKMsg "texture image format does not support linear blitting!"
     mapM_ createMipmap
         (zip3 [1 .. mipLevels-1] (iterate nextMipmapSize (fromIntegral width)) (iterate nextMipmapSize (fromIntegral height)))
     let barrier = barrierStruct

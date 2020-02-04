@@ -56,6 +56,8 @@ main = do
     (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
     geometryBuffer <- createGeometryBuffer "test" rendererData vertices indices
     geometryBufferListRef <- newIORef (DList.singleton geometryBuffer)
+    
+    imageViewData <- createTexture rendererData "Resource/Externals/Textures/chalet.jpg"
 
     needRecreateSwapChainRef <- newIORef False
     frameIndexRef <- newIORef 0
@@ -112,6 +114,8 @@ main = do
     rendererData <- readIORef rendererDataRef
     result <- vkDeviceWaitIdle $ _device rendererData
     validationVK result "vkDeviceWaitIdle failed!"
+
+    destroyTexture rendererData imageViewData
 
     geometryBufferList <- readIORef geometryBufferListRef
     forM_ geometryBufferList $ \geometryBuffer -> do

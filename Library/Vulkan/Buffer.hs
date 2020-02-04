@@ -20,7 +20,7 @@ import Graphics.Vulkan.Marshal.Create.DataFrame
 
 import Library.Utils
 import Library.Logger
-import Library.Vulkan
+import {-# SOURCE #-} Library.Vulkan
 
 
 createBuffer :: VkPhysicalDevice
