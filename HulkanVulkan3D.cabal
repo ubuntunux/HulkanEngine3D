@@ -25,6 +25,7 @@ executable main
                       Library.Constants
                       Library.Logger
                       Library.Utils
+                      Library.Render.RenderTarget
                       Library.Vulkan
                       Library.Vulkan.Buffer
                       Library.Vulkan.CommandBuffer

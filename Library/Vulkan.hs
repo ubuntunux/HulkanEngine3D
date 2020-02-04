@@ -69,10 +69,37 @@ data RendererData = RendererData
 
 
 class RendererInterface a where
+    createRenderTargets :: a -> IO (ImageViewData, ImageViewData)
+    createRenderTarget :: a -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO ImageViewData
+    createDepthTarget :: a -> VkExtent2D -> VkSampleCountFlagBits -> IO ImageViewData
     createTexture :: a -> FilePath -> IO ImageViewData
     destroyTexture :: a -> ImageViewData -> IO ()
 
 instance RendererInterface RendererData where
+    createRenderTargets rendererData = do
+        let format = _swapChainImageFormat (_swapChainData rendererData)
+            extent = _swapChainExtent (_swapChainData rendererData)
+            samples = VK_SAMPLE_COUNT_1_BIT
+        sceneColor <- createRenderTarget rendererData format extent samples
+        sceneDepth <- createDepthTarget rendererData extent samples
+        return (sceneColor, sceneDepth)
+    createRenderTarget rendererData format extent samples =
+        createColorImageView
+            (_physicalDevice rendererData)
+            (_device rendererData)
+            (_commandPool rendererData)
+            (_graphicsQueue (_queueFamilyDatas rendererData))
+            format
+            extent
+            samples
+    createDepthTarget rendererData extent samples =
+        createDepthImageView
+            (_physicalDevice rendererData)
+            (_device rendererData)
+            (_commandPool rendererData)
+            (_graphicsQueue (_queueFamilyDatas rendererData))
+            extent
+            samples
     createTexture rendererData filePath =
         createTextureImageView
             (_physicalDevice rendererData)
