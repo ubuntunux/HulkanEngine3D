@@ -63,21 +63,21 @@ main = do
     needRecreateSwapChainRef <- newIORef False
     frameIndexRef <- newIORef 0
     imageIndexPtr <- new (0 :: Word32)
-    currentTime <- getCPUTime
+
+    currentTime <- getSystemTime
     currentTimeRef <- newIORef currentTime
     elapsedTimeRef <- newIORef (0.0 :: Double)
-    --resourceRef <- newIORef Resource
     -- Main Loop
     glfwMainLoop window $ do
-        currentTime <- getCPUTime
+        currentTime <- getSystemTime
         previousTime <- readIORef currentTimeRef
-        let deltaTime = fromIntegral (currentTime - previousTime) / Constants.convertToSecond
+        let deltaTime = currentTime - previousTime
         elapsedTime <- do
             elapsedTimePrev <- readIORef elapsedTimeRef
             return $ elapsedTimePrev + deltaTime
         writeIORef currentTimeRef currentTime
         writeIORef elapsedTimeRef elapsedTime
-        --when (0.0 < deltaTime) $ print (1.0 / deltaTime)
+        when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
 
         needRecreateSwapChain <- readIORef needRecreateSwapChainRef
         when needRecreateSwapChain $ do

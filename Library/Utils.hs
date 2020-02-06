@@ -15,6 +15,7 @@
 
 module Library.Utils
     ( VulkanException (..)
+    , getSystemTime
     , handleAllErrors
     , validationVK
     , throwingVK
@@ -33,7 +34,9 @@ import qualified GHC.Base
 import GHC.Exts
 import Control.Exception
 import Control.Monad (when)
+import Control.Monad.State.Class
 import Data.IORef
+import qualified Data.Time.Clock.System as SystemTime
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -42,7 +45,6 @@ import Foreign.Storable
 
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
-
 
 -- | Use this to throw all exceptions in this project
 data VulkanException
@@ -67,6 +69,19 @@ instance Exception VulkanException where
 
 instance Show (IORef a) where
   show _ = "<ioref>"
+
+
+-- | Low latency time in seconds since the start
+getSystemTime :: IO Double
+getSystemTime = do
+    now <- SystemTime.getSystemTime
+    let seconds = SystemTime.systemSeconds now
+        -- Have to nanoseconds convert from Word64 before subtraction to allow negative delta.
+        nanoseconds :: Int64 = fromIntegral (SystemTime.systemNanoseconds now)
+        -- Seconds in Double keep at least microsecond-precision for 285 years.
+        -- Float is not good enough even for millisecond-precision over more than a few hours.
+        result :: Double = fromIntegral seconds + fromIntegral nanoseconds / 1e9
+    return result
 
 -- | Handle any error and return default value
 handleAllErrors :: a -> SomeException -> IO a

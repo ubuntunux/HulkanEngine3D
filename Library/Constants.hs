@@ -4,7 +4,6 @@ module Library.Constants
     , invalidQueueIndex
     , imageCount
     , maxFrameCount
-    , convertToSecond
     ) where
 
 import Graphics.Vulkan
@@ -24,6 +23,3 @@ imageCount = 3 -- tripple buffering
 
 maxFrameCount :: Int
 maxFrameCount = 2
-
-convertToSecond :: Double
-convertToSecond = 10^12

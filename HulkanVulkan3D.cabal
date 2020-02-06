@@ -39,6 +39,7 @@ executable main
                       Library.Vulkan.Shader
                       Library.Vulkan.SwapChain
                       Library.Vulkan.Sync
+                      Library.Vulkan.TransformationObject
                       Library.Resource
                       Library.Resource.ObjLoader
     build-depends:    base >= 4.11 && < 5
