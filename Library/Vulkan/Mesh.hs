@@ -16,6 +16,8 @@ module Library.Vulkan.Mesh
   , dataFrameLength
   , triangleToFaceIndices
   , faceToTriangles
+  , rectVertices
+  , rectIndices
   , vertexInputBindDescription
   , vertexInputAttributeDescriptions
   , createGeometryBufferData
@@ -82,6 +84,49 @@ faceToTriangles :: Face -> [Tri]
 faceToTriangles (Face a b c []) = [Tri a b c]
 faceToTriangles (Face a b c is) = pairwise (Tri a) (b:c:is)
   where pairwise f xs = zipWith f xs (tail xs)
+
+-- | Interleaved array of vertices containing at least 3 entries.
+--
+--   Obviously, in real world vertices come from a separate file and not known at compile time.
+--   The shader pipeline requires at least 3 unique vertices (for a triangle)
+--   to render something on a screen. Setting `XN 3` here is just a handy way
+--   to statically ensure the program satisfies this requirement.
+--   This way, not-enough-vertices error occures at the moment of DataFrame initialization
+--   instead of silently failing to render something onto a screen.
+--
+--   Note: in this program, `n >= 3` requirement is also forced in `Lib/Vulkan/VertexBuffer.hs`,
+--         where it is not strictly necessary but allows to avoid specifying DataFrame constraints
+--         in function signatures (such as, e.g. `KnownDim n`).
+rectVertices :: DataFrame Vertex '[XN 3]
+rectVertices = XFrame $
+    square
+    `appendDF`
+    withPos (+ vec4 0 0 0.5 0) square
+    `appendDF`
+    withPos (\p -> p %* rotateX (pi/2) + vec4 0 0 (-0.5) 0) square
+  where
+    square :: Vector Vertex 4
+    square = fromFlatList (D4 :* U) (Vertex 0 0 0) -- default point for type safety
+      [  -- rectangle
+          --     coordinate                  color        texture coordinate
+        Vertex (vec3 (-0.5) (-0.5) 0) (vec3 1 0 0) (vec2 0 0)
+      , Vertex (vec3   0.4  (-0.5) 0) (vec3 0 1 0) (vec2 1 0)
+      , Vertex (vec3   0.4    0.4  0) (vec3 0 0 1) (vec2 1 1)
+      , Vertex (vec3 (-0.5)   0.4  0) (vec3 1 1 1) (vec2 0 1)
+      ]
+    withPos :: (Vec4f -> Vec4f) -> Vector Vertex 4 -> Vector Vertex 4
+    withPos f = ewmap (\(S v) -> S v { pos = fromHom . f . toHomPoint $ pos v })
+
+rectIndices :: DataFrame Word32 '[XN 3]
+rectIndices = atLeastThree $ fromList $
+  oneRectIndices
+  ++
+  map (+4) oneRectIndices
+  ++
+  map (+8) oneRectIndices
+  where
+    -- indices for one rectangle
+    oneRectIndices = [0, 3, 2, 2, 1, 0]
 
 vertexInputBindDescription :: VkVertexInputBindingDescription
 vertexInputBindDescription = createVk @VkVertexInputBindingDescription

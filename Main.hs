@@ -73,8 +73,8 @@ main = do
     renderPassDataListRef <- newIORef (DList.singleton renderPassData)
 
     -- create resources
-    (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-    geometryBuffer <- createGeometryBuffer rendererData "test" vertices indices
+    --(vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
+    geometryBuffer <- createGeometryBuffer rendererData "test" rectVertices rectIndices
     geometryBufferListRef <- newIORef (DList.singleton geometryBuffer)
     textureData <- createTexture rendererData "Resource/Externals/Textures/chalet.jpg"
 
