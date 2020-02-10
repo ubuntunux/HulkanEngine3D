@@ -85,18 +85,19 @@ getShaderCreateInfo stageBit shaderModule = createVk @VkPipelineShaderStageCreat
 
 createShaderStageCreateInfo :: VkDevice -> String -> VkShaderStageFlagBits -> IO VkPipelineShaderStageCreateInfo
 createShaderStageCreateInfo device shaderFilePath stageBit = do
-  logInfo $ show stageBit ++ ": " ++ shaderFilePath
-  (codeSize, codePtr) <- compileGLSL shaderFilePath
-  shaderModuleCreateInfo <- getShaderModuleCreateInfo codeSize codePtr
-  shaderModule <- alloca $ \shaderModulePtr -> do
-    result <- vkCreateShaderModule device (unsafePtr shaderModuleCreateInfo) VK_NULL shaderModulePtr
-    validationVK result "vkCreateShaderModule failed!"
-    peek shaderModulePtr
-  touchVkData shaderModuleCreateInfo
-  free codePtr
-  return $ getShaderCreateInfo stageBit shaderModule
+    logInfo $ "createShaderStageCreateInfo : " ++ show stageBit ++ ": " ++ shaderFilePath
+    (codeSize, codePtr) <- compileGLSL shaderFilePath
+    shaderModuleCreateInfo <- getShaderModuleCreateInfo codeSize codePtr
+    shaderModule <- alloca $ \shaderModulePtr -> do
+        result <- vkCreateShaderModule device (unsafePtr shaderModuleCreateInfo) VK_NULL shaderModulePtr
+        validationVK result "vkCreateShaderModule failed!"
+        peek shaderModulePtr
+    touchVkData shaderModuleCreateInfo
+    free codePtr
+    return $ getShaderCreateInfo stageBit shaderModule
 
 destroyShaderStageCreateInfo :: VkDevice -> VkPipelineShaderStageCreateInfo -> IO ()
 destroyShaderStageCreateInfo device shaderStageCreateInfo = do
-  vkDestroyShaderModule device (getField @"module" shaderStageCreateInfo) VK_NULL
-  touchVkData shaderStageCreateInfo
+    logInfo $ "destroyShaderStageCreateInfo : " ++ show shaderStageCreateInfo
+    vkDestroyShaderModule device (getField @"module" shaderStageCreateInfo) VK_NULL
+    touchVkData shaderStageCreateInfo

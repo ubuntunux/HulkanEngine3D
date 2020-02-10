@@ -520,6 +520,7 @@ createColorImageView physicalDevice device commandBufferPool queue format extent
             , _imageMipLevels = mipLevels }
     logInfo "createColorImageView"
     logInfo $ "    Format : " ++ show format
+    logInfo $ "    MultiSampleCount : " ++ show samples
     logInfo $ "    Size : " ++ show extent
     logInfo $ "    TextureData : " ++ show textureData
     return textureData

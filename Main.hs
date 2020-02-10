@@ -35,6 +35,7 @@ main = do
     windowSizeChanged <- newIORef False
     maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged
     when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
+    logInfo "                             "
     logInfo "<< Initialized GLFW window >>"
     requireExtensions <- GLFW.getRequiredInstanceExtensions
     instanceExtensionNames <- getInstanceExtensionSupport
@@ -59,6 +60,9 @@ main = do
 
     -- create render targets
     (sceneColorTexture, sceneDepthTexture) <- createRenderTargets rendererData
+
+    sceneColorTextureRef <- newIORef sceneColorTexture
+    sceneDepthTextureRef <- newIORef sceneDepthTexture
 
     -- create render pass data
     renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
@@ -116,6 +120,7 @@ main = do
         needRecreateSwapChain <- readIORef needRecreateSwapChainRef
         when needRecreateSwapChain $ do
             writeIORef needRecreateSwapChainRef False
+            logInfo "                        "
             logInfo "<< Recreate SwapChain >>"
 
             -- cleanUp swapChain
@@ -127,8 +132,19 @@ main = do
             forM_ renderPassDataList $ \renderPassData -> do
                 destroyRenderPass rendererData renderPassData
 
+            sceneColorTexture <- readIORef sceneColorTextureRef
+            sceneDepthTexture <- readIORef sceneDepthTextureRef
+            destroyTexture rendererData sceneColorTexture
+            destroyTexture rendererData sceneDepthTexture
+
             -- recreate swapChain
             rendererData <- recreateSwapChain rendererData window
+
+            -- recreate resources
+            (sceneColorTexture, sceneDepthTexture) <- createRenderTargets rendererData
+            writeIORef sceneColorTextureRef sceneColorTexture
+            writeIORef sceneDepthTextureRef sceneDepthTexture
+
             renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
                 rendererData
                 [(_imageView sceneColorTexture), (_imageView sceneDepthTexture)]
@@ -153,7 +169,9 @@ main = do
             atomicWriteIORef windowSizeChanged False
             writeIORef needRecreateSwapChainRef True
         return True
+
     -- Terminate
+    logInfo "               "
     logInfo "<< Terminate >>"
     rendererData <- readIORef rendererDataRef
     result <- vkDeviceWaitIdle $ _device rendererData
@@ -164,6 +182,8 @@ main = do
     -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
     destroyDescriptorPool (getDevice rendererData) descriptorPool
 
+    sceneColorTexture <- readIORef sceneColorTextureRef
+    sceneDepthTexture <- readIORef sceneDepthTextureRef
     destroyTexture rendererData sceneColorTexture
     destroyTexture rendererData sceneDepthTexture
 

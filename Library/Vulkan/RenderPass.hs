@@ -174,7 +174,7 @@ createRenderPass device imageFormat depthFormat samples = do
 
 destroyRenderPass :: VkDevice -> VkRenderPass -> IO ()
 destroyRenderPass device renderPass = do
-    logInfo "    Destroy RenderPass"
+    logInfo $ "Destroy RenderPass : " ++ show renderPass
     vkDestroyRenderPass device renderPass VK_NULL
 
 
@@ -199,7 +199,7 @@ createPipelineLayout device descriptorSetLayouts = do
 
 destroyPipelineLayout :: VkDevice -> VkPipelineLayout -> IO ()
 destroyPipelineLayout device pipelineLayout = do
-    logInfo "    Destroy PipelineLayout"
+    logInfo $ "Destroy PipelineLayout" ++ show pipelineLayout
     vkDestroyPipelineLayout device pipelineLayout VK_NULL
 
 

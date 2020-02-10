@@ -113,7 +113,6 @@ instance RendererInterface RendererData where
         let format = _swapChainImageFormat (_swapChainData rendererData)
             extent = _swapChainExtent (_swapChainData rendererData)
             samples = _msaaSamples (_renderFeatures rendererData)
-        logInfo $ "createRenderTargets" ++ show samples
         sceneColor <- createRenderTarget rendererData format extent samples
         sceneDepth <- createDepthTarget rendererData extent samples
         return (sceneColor, sceneDepth)
