@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Library.Logger
+module Library.Utilities.Logger
     ( logInfo
     , logDebug
     , logWarn

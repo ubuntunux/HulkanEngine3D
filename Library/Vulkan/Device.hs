@@ -34,8 +34,8 @@ import Graphics.Vulkan.Marshal.Create
 import qualified Graphics.UI.GLFW as GLFW
 
 import qualified Library.Constants as Constants
-import Library.Utils
-import Library.Logger
+import Library.Utilities.System
+import Library.Utilities.Logger
 import Library.Vulkan.SwapChain
 
 
@@ -158,7 +158,6 @@ destroyVkSurface vkInstance vkSurface = do
   destroySurfaceFunc vkInstance vkSurface VK_NULL_HANDLE
   logInfo "Destroy VkSurfaceKHR"
 
-
 getPhysicalDeviceProperties :: VkPhysicalDevice -> IO VkPhysicalDeviceProperties
 getPhysicalDeviceProperties physicalDevice = do
     deviceProperties <- alloca $ \propertiesPtr -> do
@@ -186,6 +185,7 @@ selectPhysicalDevice vkInstance maybeVkSurface = do
                 pure (physicalDevice, maybeSwapChainSupportDetails, supportedFeatures)
             else
                 selectFirstSuitable physicalDeviceArray
+
 
 createDevice :: VkPhysicalDevice -> [Word32] -> IO VkDevice
 createDevice physicalDevice queueFamilyList = do

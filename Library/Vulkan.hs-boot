@@ -6,6 +6,11 @@ import {-# SOURCE #-} Library.Vulkan.RenderPass
 
 data RendererData
 
-recordCommandBuffer :: [VkCommandBuffer] -> RenderPassData -> IO ()
+recordCommandBuffer :: RendererData
+                    -> RenderPassData
+                    -> VkBuffer -- vertex data
+                    -> (Word32, VkBuffer) -- nr of indices and index data
+                    -> [VkDescriptorSet]
+                    -> IO ()
 
 runCommandsOnce :: VkDevice -> VkCommandPool -> VkQueue -> (VkCommandBuffer -> IO ()) -> IO ()

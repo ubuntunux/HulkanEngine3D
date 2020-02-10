@@ -17,8 +17,8 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
-import Library.Utils
-import Library.Logger
+import Library.Utilities.System
+import Library.Utilities.Logger
 import Library.Vulkan.Queue
 
 

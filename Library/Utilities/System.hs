@@ -13,7 +13,7 @@
 {-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE UnboxedTuples       #-}
 
-module Library.Utils
+module Library.Utilities.System
     ( VulkanException (..)
     , getSystemTime
     , handleAllErrors
@@ -28,13 +28,13 @@ module Library.Utils
     , allocaPeek
     , allocaPtr
     , allocaArrayPtr
+    , newArrayPtr
     ) where
 
 import qualified GHC.Base
 import GHC.Exts
 import Control.Exception
 import Control.Monad (when)
-import Control.Monad.State.Class
 import Data.IORef
 import qualified Data.Time.Clock.System as SystemTime
 import Foreign.C.String
@@ -155,8 +155,14 @@ allocaPeek :: Storable a => (Ptr a -> IO b) -> IO a
 allocaPeek action = alloca $ \ptr -> do
   action ptr >> peek ptr
 
+-- | Allocate some memory for Storable and release it after continuation finishes.
 allocaPtr :: Storable a => IO (Ptr a)
 allocaPtr = alloca $ \ptr -> return ptr
 
 allocaArrayPtr :: Storable a => Int -> IO (Ptr a)
 allocaArrayPtr count = allocaArray count $ \arrayPtr -> return arrayPtr
+
+-- | Temporarily store a list of storable values in memory
+--   and release it after continuation finishes.
+newArrayPtr :: Storable a => [a] -> IO (Ptr a)
+newArrayPtr xs = withArray xs $ \arrayPtr -> return arrayPtr

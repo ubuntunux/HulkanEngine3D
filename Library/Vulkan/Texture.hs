@@ -6,9 +6,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module Library.Vulkan.Image
-    ( ImageViewData (..)
-    , textureImageInfo
+module Library.Vulkan.Texture
+    ( TextureData (..)
+    , TextureInterface (..)
+    , findDepthFormat
+    , findSupportedFormat
     , createTextureSampler
     , destroyTextureSampler
     , createImageView
@@ -16,11 +18,10 @@ module Library.Vulkan.Image
     , createImage
     , destroyImage
     , copyBufferToImage
-    , findSupportedFormat
     , createDepthImageView
     , createColorImageView
     , createTextureImageView
-    , destroyImageViewData
+    , destroyTextureData
     ) where
 
 import Control.Monad
@@ -33,18 +34,31 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
-import Library.Logger
-import Library.Utils
+import Library.Utilities.Logger
+import Library.Utilities.System
 import Library.Vulkan.Buffer
 import {-# SOURCE #-} Library.Vulkan
 
 
-data ImageViewData = ImageViewData
+data TextureData = TextureData
     { _imageView :: VkImageView
     , _image :: VkImage
     , _imageMemory :: VkDeviceMemory
     , _textureSampler ::VkSampler
     , _imageMipLevels :: Word32 }
+    deriving (Eq, Show)
+
+
+class TextureInterface a where
+    getTextureImageInfo :: a -> VkDescriptorImageInfo
+
+instance TextureInterface TextureData where
+    getTextureImageInfo textureData =
+        createVk @VkDescriptorImageInfo
+            $  set @"imageLayout" VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            &* set @"imageView" (_imageView textureData)
+            &* set @"sampler" (_textureSampler textureData)
+
 
 data ImageLayoutTransition = Undef_TransDst | TransDst_ShaderRO | Undef_DepthStencilAtt | Undef_ColorAtt
 
@@ -88,12 +102,6 @@ transitionDependent Undef_ColorAtt = TransitionDependent
 
 nextMipmapSize :: Int32 -> Int32
 nextMipmapSize n = if 1 < n then (div n 2) else 1
-
-textureImageInfo :: VkImageView -> VkSampler -> VkDescriptorImageInfo
-textureImageInfo view sampler = createVk @VkDescriptorImageInfo
-        $  set @"imageLayout" VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        &* set @"imageView" view
-        &* set @"sampler" sampler
 
 barrierStruct :: VkImage
               -> Word32
@@ -228,6 +236,33 @@ generateMipmaps physicalDevice image format width height mipLevels commandBuffer
                     0 VK_NULL
                     0 VK_NULL
                     1 barrierPtr
+
+
+findSupportedFormat :: VkPhysicalDevice
+                    -> [VkFormat]
+                    -> VkImageTiling
+                    -> VkFormatFeatureFlags
+                    -> IO VkFormat
+findSupportedFormat physicalDevice formats tiling features = do
+    goodCands <- flip filterM formats $ \format -> do
+        props <- allocaPeek $ \propsPtr ->
+            vkGetPhysicalDeviceFormatProperties physicalDevice format propsPtr
+        return $ case tiling of
+            VK_IMAGE_TILING_LINEAR -> getField @"linearTilingFeatures" props .&. features == features
+            VK_IMAGE_TILING_OPTIMAL -> getField @"optimalTilingFeatures" props .&. features == features
+            otherwise -> False
+    case goodCands of
+        x:_ -> return x
+        []  -> throwVKMsg "failed to find supported format"
+
+findDepthFormat :: VkPhysicalDevice -> IO VkFormat
+findDepthFormat physicalDevice =
+    findSupportedFormat
+        physicalDevice
+        [VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT]
+        VK_IMAGE_TILING_OPTIMAL
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+
 
 createTextureSampler :: VkDevice -> Word32 -> VkBool32 -> IO VkSampler
 createTextureSampler device mipLevels anisotropyEnable = do
@@ -412,30 +447,13 @@ copyBufferToImage device commandBufferPool commandQueue buffer image width heigh
         in withPtr region $ \regionPtr ->
             vkCmdCopyBufferToImage commandBuffer buffer image VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 1 regionPtr
 
-findSupportedFormat :: VkPhysicalDevice
-                    -> [VkFormat]
-                    -> VkImageTiling
-                    -> VkFormatFeatureFlags
-                    -> IO VkFormat
-findSupportedFormat physicalDevice formats tiling features = do
-    goodCands <- flip filterM formats $ \format -> do
-        props <- allocaPeek $ \propsPtr ->
-            vkGetPhysicalDeviceFormatProperties physicalDevice format propsPtr
-        return $ case tiling of
-            VK_IMAGE_TILING_LINEAR -> getField @"linearTilingFeatures" props .&. features == features
-            VK_IMAGE_TILING_OPTIMAL -> getField @"optimalTilingFeatures" props .&. features == features
-            otherwise -> False
-    case goodCands of
-        x:_ -> return x
-        []  -> throwVKMsg "failed to find supported format"
-
 createDepthImageView :: VkPhysicalDevice
                      -> VkDevice
                      -> VkCommandPool
                      -> VkQueue
                      -> VkExtent2D
                      -> VkSampleCountFlagBits
-                     -> IO ImageViewData
+                     -> IO TextureData
 createDepthImageView physicalDevice device commandBufferPool queue extent samples = do
     let mipLevels = 1
     depthFormat <- findDepthFormat physicalDevice
@@ -455,18 +473,18 @@ createDepthImageView physicalDevice device commandBufferPool queue extent sample
         transitionImageLayout depthImage depthFormat Undef_DepthStencilAtt mipLevels commandBuffer
     let anisotropyEnable = VK_FALSE
     textureSampler <- createTextureSampler device mipLevels anisotropyEnable
-    return ImageViewData
-        { _imageView = depthImageView
-        , _image = depthImage
-        , _imageMemory = depthImageMemory
-        , _textureSampler = textureSampler
-        , _imageMipLevels = mipLevels }
-    where
-        findDepthFormat :: VkPhysicalDevice -> IO VkFormat
-        findDepthFormat physicalDevice = findSupportedFormat physicalDevice
-            [VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT]
-            VK_IMAGE_TILING_OPTIMAL
-            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+    let textureData = TextureData
+            { _imageView = depthImageView
+            , _image = depthImage
+            , _imageMemory = depthImageMemory
+            , _textureSampler = textureSampler
+            , _imageMipLevels = mipLevels }
+    logInfo "createDepthImageView"
+    logInfo $ "    Format : " ++ show depthFormat
+    logInfo $ "    Size : " ++ show extent
+    logInfo $ "    TextureData : " ++ show textureData
+    return textureData
+
 
 createColorImageView :: VkPhysicalDevice
                      -> VkDevice
@@ -475,7 +493,7 @@ createColorImageView :: VkPhysicalDevice
                      -> VkFormat
                      -> VkExtent2D
                      -> VkSampleCountFlagBits
-                     -> IO ImageViewData
+                     -> IO TextureData
 createColorImageView physicalDevice device commandBufferPool queue format extent samples = do
     let mipLevels = 1
     (colorImageMemory, colorImage) <- createImage
@@ -494,12 +512,17 @@ createColorImageView physicalDevice device commandBufferPool queue format extent
         transitionImageLayout colorImage format Undef_ColorAtt mipLevels commandBuffer
     let anisotropyEnable = VK_FALSE
     textureSampler <- createTextureSampler device mipLevels anisotropyEnable
-    return ImageViewData
-        { _imageView = colorImageView
-        , _image = colorImage
-        , _imageMemory = colorImageMemory
-        , _textureSampler = textureSampler
-        , _imageMipLevels = mipLevels }
+    let textureData = TextureData
+            { _imageView = colorImageView
+            , _image = colorImage
+            , _imageMemory = colorImageMemory
+            , _textureSampler = textureSampler
+            , _imageMipLevels = mipLevels }
+    logInfo "createColorImageView"
+    logInfo $ "    Format : " ++ show format
+    logInfo $ "    Size : " ++ show extent
+    logInfo $ "    TextureData : " ++ show textureData
+    return textureData
 
 
 createTextureImageView :: VkPhysicalDevice
@@ -508,7 +531,7 @@ createTextureImageView :: VkPhysicalDevice
                        -> VkQueue
                        -> VkBool32
                        -> FilePath
-                       -> IO ImageViewData
+                       -> IO TextureData
 createTextureImageView physicalDevice device commandBufferPool commandQueue anisotropyEnable filePath = do
     Image { imageWidth, imageHeight, imageData } <- (readImage filePath) >>= \case
         Left err -> throwVKMsg err
@@ -516,6 +539,7 @@ createTextureImageView physicalDevice device commandBufferPool commandQueue anis
     let (imageDataForeignPtr, imageDataLen) = Vec.unsafeToForeignPtr0 imageData
         bufferSize = (fromIntegral imageDataLen)::VkDeviceSize
         mipLevels = (floor . logBase (2::Float) . fromIntegral $ max imageWidth imageHeight) + 1
+        format = VK_FORMAT_R8G8B8A8_UNORM
     -- we don't need to access the VkDeviceMemory of the image, copyBufferToImage works with the VkImage
     (imageMemory, image) <- createImage
         physicalDevice
@@ -524,12 +548,13 @@ createTextureImageView physicalDevice device commandBufferPool commandQueue anis
         (fromIntegral imageHeight)
         mipLevels
         VK_SAMPLE_COUNT_1_BIT
-        VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_TILING_OPTIMAL
+        format
+        VK_IMAGE_TILING_OPTIMAL
         (VK_IMAGE_USAGE_TRANSFER_SRC_BIT .|. VK_IMAGE_USAGE_TRANSFER_DST_BIT .|. VK_IMAGE_USAGE_SAMPLED_BIT)
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     -- run command
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
-        transitionImageLayout image VK_FORMAT_R8G8B8A8_UNORM Undef_TransDst mipLevels commandBuffer
+        transitionImageLayout image format Undef_TransDst mipLevels commandBuffer
 
     -- create temporary staging buffer
     let stagingBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
@@ -552,27 +577,37 @@ createTextureImageView physicalDevice device commandBufferPool commandQueue anis
         generateMipmaps
             physicalDevice
             image
-            VK_FORMAT_R8G8B8A8_UNORM
+            format
             (fromIntegral imageWidth)
             (fromIntegral imageHeight)
             mipLevels
             commandBuffer
-    imageView <- createImageView device image VK_FORMAT_R8G8B8A8_UNORM VK_IMAGE_ASPECT_COLOR_BIT mipLevels
+
+    imageView <- createImageView device image format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
 
     -- destroy temporary staging buffer
     destroyBuffer device stagingBuffer stagingBufferMemory
 
     textureSampler <- createTextureSampler device mipLevels anisotropyEnable
 
-    return ImageViewData
-        { _imageView = imageView
-        , _image = image
-        , _imageMemory = imageMemory
-        , _textureSampler = textureSampler
-        , _imageMipLevels = mipLevels }
+    let textureData = TextureData
+            { _imageView = imageView
+            , _image = image
+            , _imageMemory = imageMemory
+            , _textureSampler = textureSampler
+            , _imageMipLevels = mipLevels }
 
-destroyImageViewData :: VkDevice -> ImageViewData -> IO ()
-destroyImageViewData device imageViewData@ImageViewData{..} = do
+    logInfo "createTextureImageView"
+    logInfo $ "    File : " ++ filePath
+    logInfo $ "    Format : " ++ show format
+    logInfo $ "    Size : " ++ show imageWidth ++ ", " ++ show imageHeight
+    logInfo $ "    TextureData : " ++ show textureData
+
+    return textureData
+
+destroyTextureData :: VkDevice -> TextureData -> IO ()
+destroyTextureData device textureData@TextureData{..} = do
+    logInfo $ "destroyTextureData : " ++ show textureData
     destroyTextureSampler device _textureSampler
     destroyImageView device _imageView
     destroyImage device _image _imageMemory

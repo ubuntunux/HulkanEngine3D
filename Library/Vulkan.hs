@@ -6,8 +6,9 @@
 module Library.Vulkan
   ( RendererData (..)
   , RendererInterface (..)
-  , getCommandBuffers
-  , getDefaultRenderPassCreateInfo
+  , getColorClearValue
+  , getDepthStencilClearValue
+  , getDefaultRenderPassDataCreateInfo
   , getDefaultRendererData
   , drawFrame
   , createRenderer
@@ -25,24 +26,28 @@ import Foreign.Marshal.Array
 import Foreign.Storable
 import Foreign.C.String
 import Foreign.Ptr
+
+import qualified Graphics.UI.GLFW as GLFW
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
-import qualified Graphics.UI.GLFW as GLFW
+import Graphics.Vulkan.Marshal.Create.DataFrame
+import Numeric.DataFrame
 
 import qualified Library.Constants as Constants
-import Library.Utils
-import Library.Logger
+import Library.Utilities.Logger
+import Library.Utilities.System
 import Library.Vulkan.CommandBuffer
 import Library.Vulkan.Device
 import Library.Vulkan.FrameBuffer
-import Library.Vulkan.RenderPass
+import Library.Vulkan.Mesh
 import Library.Vulkan.Queue
+import Library.Vulkan.RenderPass
 import Library.Vulkan.SwapChain
 import Library.Vulkan.Sync
-import Library.Vulkan.Image
+import Library.Vulkan.Texture
 
 
 data RenderFeatures = RenderFeatures
@@ -64,25 +69,55 @@ data RendererData = RendererData
     , _commandPool :: VkCommandPool
     , _commandBufferCount :: Word32
     , _commandBuffersPtr :: Ptr VkCommandBuffer
+    , _commandBuffers :: [VkCommandBuffer]
     , _renderFeatures :: RenderFeatures
     } deriving (Eq, Show)
 
 
 class RendererInterface a where
-    createRenderTargets :: a -> IO (ImageViewData, ImageViewData)
-    createRenderTarget :: a -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO ImageViewData
-    createDepthTarget :: a -> VkExtent2D -> VkSampleCountFlagBits -> IO ImageViewData
-    createTexture :: a -> FilePath -> IO ImageViewData
-    destroyTexture :: a -> ImageViewData -> IO ()
+    getPhysicalDevice :: a -> VkPhysicalDevice
+    getDevice :: a -> VkDevice
+    getSwapChainImageCount :: a -> Int
+    getSwapChainImageViews :: a -> [VkImageView]
+    getCommandPool :: a -> VkCommandPool
+    getCommandBuffers :: a -> [VkCommandBuffer]
+    getGraphicsQueue :: a -> VkQueue
+    getPresentQueue :: a -> VkQueue
+    createRenderPass :: a -> RenderPassDataCreateInfo -> IO RenderPassData
+    destroyRenderPass :: a -> RenderPassData ->  IO ()
+    createRenderTargets :: a -> IO (TextureData, TextureData)
+    createRenderTarget :: a -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
+    createDepthTarget :: a -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
+    createTexture :: a -> FilePath -> IO TextureData
+    destroyTexture :: a -> TextureData -> IO ()
+    createGeometryBuffer :: a -> String -> DataFrame Vertex '[XN 3] -> DataFrame Word32 '[XN 3] -> IO GeometryBufferData
+    destroyGeometryBuffer :: a -> GeometryBufferData -> IO ()
 
 instance RendererInterface RendererData where
+    getPhysicalDevice rendererData = (_physicalDevice rendererData)
+    getDevice rendererData = (_device rendererData)
+    getSwapChainImageCount rendererData = (_swapChainImageCount (_swapChainData rendererData))
+    getSwapChainImageViews rendererData = (_swapChainImageViews (_swapChainData rendererData))
+    getCommandPool rendererData = (_commandPool rendererData)
+    getCommandBuffers rendererData = (_commandBuffers rendererData)
+    getGraphicsQueue rendererData = (_graphicsQueue (_queueFamilyDatas rendererData))
+    getPresentQueue rendererData = (_presentQueue (_queueFamilyDatas rendererData))
+
+    createRenderPass rendererData renderPassDataCreateInfo =
+        createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
+
+    destroyRenderPass rendererData renderPassData =
+        destroyRenderPassData (getDevice rendererData) renderPassData
+
     createRenderTargets rendererData = do
         let format = _swapChainImageFormat (_swapChainData rendererData)
             extent = _swapChainExtent (_swapChainData rendererData)
-            samples = VK_SAMPLE_COUNT_1_BIT
+            samples = _msaaSamples (_renderFeatures rendererData)
+        logInfo $ "createRenderTargets" ++ show samples
         sceneColor <- createRenderTarget rendererData format extent samples
         sceneDepth <- createDepthTarget rendererData extent samples
         return (sceneColor, sceneDepth)
+        
     createRenderTarget rendererData format extent samples =
         createColorImageView
             (_physicalDevice rendererData)
@@ -92,6 +127,7 @@ instance RendererInterface RendererData where
             format
             extent
             samples
+            
     createDepthTarget rendererData extent samples =
         createDepthImageView
             (_physicalDevice rendererData)
@@ -100,6 +136,7 @@ instance RendererInterface RendererData where
             (_graphicsQueue (_queueFamilyDatas rendererData))
             extent
             samples
+            
     createTexture rendererData filePath =
         createTextureImageView
             (_physicalDevice rendererData)
@@ -108,25 +145,51 @@ instance RendererInterface RendererData where
             (_graphicsQueue (_queueFamilyDatas rendererData))
             (_anisotropyEnable (_renderFeatures rendererData))
             filePath
-    destroyTexture rendererData imageViewData =
-        destroyImageViewData (_device rendererData) imageViewData
 
+    destroyTexture rendererData textureData =
+        destroyTextureData (_device rendererData) textureData
 
-getCommandBuffers :: RendererData -> IO [VkCommandBuffer]
-getCommandBuffers rendererData@RendererData{..} =
-    peekArray (fromIntegral _commandBufferCount) _commandBuffersPtr
+    createGeometryBuffer rendererData bufferName vertices indices = do
+        createGeometryBufferData
+            (getPhysicalDevice rendererData)
+            (getDevice rendererData)
+            (getGraphicsQueue rendererData)
+            (getCommandPool rendererData)
+            bufferName
+            vertices
+            indices
 
+    destroyGeometryBuffer rendererData geometryBuffer =
+        destroyGeometryBufferData (_device rendererData) geometryBuffer
 
-getDefaultRenderPassCreateInfo :: RendererData -> IO RenderPassCreateInfo
-getDefaultRenderPassCreateInfo rendererData = do
+getColorClearValue :: [Float] -> VkClearValue
+getColorClearValue colors = createVk @VkClearValue
+        $ setVk @"color"
+            $ setVec @"float32" (vec4 (colors !! 0) (colors !! 1) (colors !! 2) (colors !! 3))
+
+getDepthStencilClearValue :: Float -> Word32 -> VkClearValue
+getDepthStencilClearValue depthClearValue stencilClearValue = createVk @VkClearValue
+    $ setVk @"depthStencil"
+        $  set @"depth" depthClearValue
+        &* set @"stencil" stencilClearValue
+
+getDefaultRenderPassDataCreateInfo :: RendererData -> [VkImageView] -> [VkClearValue] -> IO RenderPassDataCreateInfo
+getDefaultRenderPassDataCreateInfo rendererData imageViews clearValues = do
     let swapChainData = _swapChainData rendererData
-    return RenderPassCreateInfo
+        msaaSamples = _msaaSamples (_renderFeatures rendererData)
+    depthFormat <- findDepthFormat (getPhysicalDevice rendererData)
+    return RenderPassDataCreateInfo
         { _vertexShaderFile = "Resource/Shaders/triangle.vert"
         , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
+        , _renderPassSwapChainImageCount = _swapChainImageCount swapChainData
         , _renderPassImageFormat = _swapChainImageFormat swapChainData
         , _renderPassImageExtent = _swapChainExtent swapChainData
-        , _renderPassImageViews = _swapChainImageViews swapChainData
-        , _renderPassClearValues = [0, 0, 0.2, 1]
+        , _renderPassImageViews = imageViews
+        , _renderPassResolveImageViews = _swapChainImageViews swapChainData
+        , _renderPassSampleCount = msaaSamples
+        , _renderPassClearValues = clearValues
+        , _renderPassDepthFormat = depthFormat
+        , _renderPassDepthClearValue = 1.0
         }
 
 
@@ -162,7 +225,7 @@ getDefaultRendererData = do
             , _queueFamilyIndices = defaultQueueFamilyIndices }
         defaultRenderFeatures = RenderFeatures
             { _anisotropyEnable = VK_FALSE
-            , _msaaSamples = VK_SAMPLE_COUNT_4_BIT }
+            , _msaaSamples = VK_SAMPLE_COUNT_1_BIT }
     return RendererData
         { _imageAvailableSemaphores = []
         , _renderFinishedSemaphores = []
@@ -177,6 +240,7 @@ getDefaultRendererData = do
         , _commandPool = VK_NULL
         , _commandBufferCount = 0
         , _commandBuffersPtr = VK_NULL
+        , _commandBuffers = []
         , _renderFeatures = defaultRenderFeatures }
 
 drawFrame :: RendererData -> Int -> Ptr Word32 -> IO VkResult
@@ -232,14 +296,15 @@ createRenderer :: RendererData
                -> String
                -> Bool
                -> [CString]
+               -> VkSampleCountFlagBits
                -> IO RendererData
-createRenderer defaultRendererData window progName engineName isConcurrentMode requireExtensions = do
+createRenderer defaultRendererData window progName engineName isConcurrentMode requireExtensions requireMSAASampleCount = do
     vkInstance <- createVulkanInstance progName engineName Constants.vulkanLayers requireExtensions
     vkSurface <- createVkSurface vkInstance window
     (physicalDevice, Just swapChainSupportDetails, supportedFeatures) <-
         selectPhysicalDevice vkInstance (Just vkSurface)
     deviceProperties <- getPhysicalDeviceProperties physicalDevice
-    msaaSamples <- getMaxUsableSampleCount deviceProperties
+    msaaSamples <- (min requireMSAASampleCount) <$> (getMaxUsableSampleCount deviceProperties)
     queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
     let renderFeatures = RenderFeatures
             { _anisotropyEnable = getField @"samplerAnisotropy" supportedFeatures
@@ -261,8 +326,9 @@ createRenderer defaultRendererData window progName engineName isConcurrentMode r
     renderFinishedSemaphores <- createSemaphores device
     frameFencesPtr <- createFrameFences device
     swapChainData <- createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface
-    let commandBufferCount = _swapChainImageCount swapChainData
+    let commandBufferCount = fromIntegral $ _swapChainImageCount swapChainData
     commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
+    commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
     let rendererData = defaultRendererData
           { _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
@@ -275,6 +341,7 @@ createRenderer defaultRendererData window progName engineName isConcurrentMode r
           , _commandPool = commandPool
           , _commandBuffersPtr = commandBuffersPtr
           , _commandBufferCount = commandBufferCount
+          , _commandBuffers = commandBuffers
           , _swapChainData = swapChainData
           , _swapChainSupportDetails = swapChainSupportDetails
           , _renderFeatures = renderFeatures }
@@ -300,57 +367,78 @@ recreateSwapChain rendererData@RendererData {..} window = do
 
     newSwapChainSupportDetails <- querySwapChainSupport _physicalDevice _vkSurface
     newSwapChainData <- createSwapChainData _device newSwapChainSupportDetails _queueFamilyDatas _vkSurface
-    let commandBufferCount = _swapChainImageCount newSwapChainData
+    let commandBufferCount = fromIntegral $ _swapChainImageCount newSwapChainData
     newCommandBuffersPtr <- createCommandBuffers _device _commandPool commandBufferCount
+    newCommandBuffers <- peekArray (fromIntegral _commandBufferCount) newCommandBuffersPtr
 
     return rendererData
         { _swapChainSupportDetails = newSwapChainSupportDetails
         , _swapChainData = newSwapChainData
-        , _commandBuffersPtr = newCommandBuffersPtr }
+        , _commandBuffersPtr = newCommandBuffersPtr
+        , _commandBuffers = newCommandBuffers }
 
 
-recordCommandBuffer :: [VkCommandBuffer] -> RenderPassData -> IO ()
-recordCommandBuffer commandBuffers renderPassData = do
-    let frameBufferData = _frameBufferData renderPassData
+recordCommandBuffer :: RendererData
+                    -> RenderPassData
+                    -> VkBuffer -- vertex data
+                    -> (Word32, VkBuffer) -- nr of indices and index data
+                    -> [VkDescriptorSet]
+                    -> IO ()
+recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexBuffer) descriptorSets = do
+    let commandBuffers = getCommandBuffers rendererData
+        renderPass = _renderPass renderPassData
+        graphicsPipelineData = _graphicsPipelineData renderPassData
+        descriptorSetLayout = _descriptorSetLayout graphicsPipelineData
+        pipelineLayout = _pipelineLayout graphicsPipelineData
+        pipeline = _pipeline graphicsPipelineData
+        frameBufferData = _frameBufferData renderPassData
         frameBuffers = _frameBuffers frameBufferData
         imageExtent = _frameBufferSize frameBufferData
-        graphicsPipelineData = _graphicsPipelineData renderPassData
-        graphicsPipeline = _pipeline graphicsPipelineData
-        renderPass = _renderPass renderPassData
         clearValues = _frameBufferClearValues frameBufferData
+
+    -- allocate a pointer to an array of command buffer handles
+    vertexBufferArray <- newArrayPtr [vertexBuffer]
+    vertexOffsetArray <- newArrayPtr [0]
+
     -- record command buffers
-    forM_ (zip frameBuffers commandBuffers) $ \(frameBuffer, commandBuffer) -> do
-        let commandBufferBeginInfo :: VkCommandBufferBeginInfo
-            commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
+    forM_ (zip3 commandBuffers frameBuffers descriptorSets) $ \(commandBuffer, frameBuffer, descriptorSet) -> do
+        -- begin command buffer
+        let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
                 &* set @"pNext" VK_NULL
                 &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
-            renderPassBeginInfo :: VkRenderPassBeginInfo
-            renderPassBeginInfo = createVk @VkRenderPassBeginInfo
+
+        withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
+            result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
+            validationVK result "vkBeginCommandBuffer failed!"
+
+        -- begin renderpass
+        let renderPassBeginInfo = createVk @VkRenderPassBeginInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
                 &* set @"pNext" VK_NULL
                 &* set @"renderPass" renderPass
                 &* set @"framebuffer" frameBuffer
-                &* setVk @"renderArea" (
-                    setVk @"offset" ( set @"x" 0 &* set @"y" 0 )
+                &* setVk @"renderArea"
+                    (  setVk @"offset"
+                            (  set @"x" 0
+                            &* set @"y" 0 )
                     &* set @"extent" imageExtent )
-                &* set @"clearValueCount" 1
-                &* setVkRef @"pClearValues"
-                    ( createVk $ setVk @"color"
-                        $  setAt @"float32" @0 (clearValues !! 0)
-                        &* setAt @"float32" @1 (clearValues !! 1)
-                        &* setAt @"float32" @2 (clearValues !! 2)
-                        &* setAt @"float32" @3 (clearValues !! 3) )
-        -- begin
-        withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
-            result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
-            validationVK result "vkBeginCommandBuffer failed!"
+                &* set @"clearValueCount" (fromIntegral $ length clearValues)
+                &* setListRef @"pClearValues" clearValues
+
         withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
             vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
-        vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS graphicsPipeline
-        -- draw
-        vkCmdDraw commandBuffer 3 1 0 0
-        -- end
+
+        -- drawing commands
+        descriptorSetPtr <- newArrayPtr [descriptorSet]
+        vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
+        vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferArray vertexOffsetArray
+        vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
+        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
+        vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
+        -- vkCmdDraw commandBuffer 3 1 0 0
+
+        -- end renderpass & command buffer
         vkCmdEndRenderPass commandBuffer
         vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
 
@@ -361,69 +449,69 @@ runCommandsOnce :: VkDevice
                 -> (VkCommandBuffer -> IO ())
                 -> IO ()
 runCommandsOnce device commandPool commandQueue action = do
-  let allocInfo = createVk @VkCommandBufferAllocateInfo
-          $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
-          &* set @"level" VK_COMMAND_BUFFER_LEVEL_PRIMARY
-          &* set @"commandPool" commandPool
-          &* set @"commandBufferCount" 1
-          &* set @"pNext" VK_NULL
-
-  allocaPeek $ \commandBufferPtr -> do
-    withPtr allocInfo $ \allocInfoPtr -> do
-      vkAllocateCommandBuffers device allocInfoPtr commandBufferPtr
-    commandBuffer <- peek commandBufferPtr
-
-    let beginInfo = createVk @VkCommandBufferBeginInfo
-            $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-            &* set @"flags" VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-            &* set @"pNext" VK_NULL
-
-    withPtr beginInfo $ \beginInfoPtr -> do
-      vkBeginCommandBuffer commandBuffer beginInfoPtr
-
-    -- run action
-    action commandBuffer
-
-    vkEndCommandBuffer commandBuffer
-
-    let submitInfo = createVk @VkSubmitInfo
-            $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
-            &* set @"pNext" VK_NULL
-            &* set @"waitSemaphoreCount" 0
-            &* set @"pWaitSemaphores"   VK_NULL
-            &* set @"pWaitDstStageMask" VK_NULL
+    let allocInfo = createVk @VkCommandBufferAllocateInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
+            &* set @"level" VK_COMMAND_BUFFER_LEVEL_PRIMARY
+            &* set @"commandPool" commandPool
             &* set @"commandBufferCount" 1
-            &* set @"pCommandBuffers" commandBufferPtr
-            &* set @"signalSemaphoreCount" 0
-            &* set @"pSignalSemaphores" VK_NULL
+            &* set @"pNext" VK_NULL
 
-    {- TODO: a real app would need a better logic for waiting.
+    allocaPeek $ \commandBufferPtr -> do
+        withPtr allocInfo $ \allocInfoPtr -> do
+            vkAllocateCommandBuffers device allocInfoPtr commandBufferPtr
+        commandBuffer <- peek commandBufferPtr
 
-             In the example below, we create a new fence every time we want to
-             execute a single command. Then, we attach this fence to our command.
-             vkWaitForFences makes the host (CPU) wait until the command is executed.
-             The other way to do this thing is vkQueueWaitIdle.
+        let beginInfo = createVk @VkCommandBufferBeginInfo
+                $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+                &* set @"flags" VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+                &* set @"pNext" VK_NULL
 
-             I guess, a good approach could be to pass the fence to this function
-             from the call site. The call site would decide when it wants to wait
-             for this command to finish.
+        withPtr beginInfo $ \beginInfoPtr -> do
+            vkBeginCommandBuffer commandBuffer beginInfoPtr
 
-             Even if we don't pass the fence from outside, maybe we should create
-             the fence oustise of the innermost `locally` scope. This way, the
-             fence would be shared between calls (on the other hand, a possible
-             concurrency would be hurt in this case).
-           -}
-    -- locally $ do
-    --   fence <- createFence dev False
-    --   withVkPtr submitInfo $ \siPtr ->
-    --     runVk $ vkQueueSubmit cmdQueue 1 siPtr fence
-    --   fencePtr <- newArrayRes [fence]
-    --   runVk $ vkWaitForFences dev 1 fencePtr VK_TRUE (maxBound :: Word64)
+        -- run action
+        action commandBuffer
 
-    withPtr submitInfo $ \submitInfoPtr -> do
-        result <- vkQueueSubmit commandQueue 1 submitInfoPtr VK_NULL_HANDLE
-        validationVK result "vkQueueSubmit error"
-    vkQueueWaitIdle commandQueue >>= flip validationVK "vkQueueWaitIdle error"
+        vkEndCommandBuffer commandBuffer
 
-    vkFreeCommandBuffers device commandPool 1 commandBufferPtr
-  return ()
+        let submitInfo = createVk @VkSubmitInfo
+                $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
+                &* set @"pNext" VK_NULL
+                &* set @"waitSemaphoreCount" 0
+                &* set @"pWaitSemaphores"   VK_NULL
+                &* set @"pWaitDstStageMask" VK_NULL
+                &* set @"commandBufferCount" 1
+                &* set @"pCommandBuffers" commandBufferPtr
+                &* set @"signalSemaphoreCount" 0
+                &* set @"pSignalSemaphores" VK_NULL
+
+        {- TODO: a real app would need a better logic for waiting.
+
+                 In the example below, we create a new fence every time we want to
+                 execute a single command. Then, we attach this fence to our command.
+                 vkWaitForFences makes the host (CPU) wait until the command is executed.
+                 The other way to do this thing is vkQueueWaitIdle.
+
+                 I guess, a good approach could be to pass the fence to this function
+                 from the call site. The call site would decide when it wants to wait
+                 for this command to finish.
+
+                 Even if we don't pass the fence from outside, maybe we should create
+                 the fence oustise of the innermost `locally` scope. This way, the
+                 fence would be shared between calls (on the other hand, a possible
+                 concurrency would be hurt in this case).
+               -}
+        --   fence <- createFence dev False
+        --   withVkPtr submitInfo $ \siPtr ->
+        --       vkQueueSubmit cmdQueue 1 siPtr fence
+        --   fencePtr <- newArrayPtr [fence]
+        --   vkWaitForFences dev 1 fencePtr VK_TRUE (maxBound :: Word64)
+
+        withPtr submitInfo $ \submitInfoPtr -> do
+            result <- vkQueueSubmit commandQueue 1 submitInfoPtr VK_NULL_HANDLE
+            validationVK result "vkQueueSubmit error"
+
+        vkQueueWaitIdle commandQueue >>= flip validationVK "vkQueueWaitIdle error"
+
+        vkFreeCommandBuffers device commandPool 1 commandBufferPtr
+    return ()

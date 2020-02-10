@@ -9,20 +9,23 @@ import Control.Monad
 import Data.IORef
 import Data.Maybe (isNothing)
 import qualified Data.DList as DList
-import System.CPUTime
+import System.Directory
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import qualified Graphics.UI.GLFW as GLFW
 
-import Library.Utils
+import Library.Utilities.System
 import Library.Application
-import Library.Logger
+import Library.Utilities.Logger
 import Library.Vulkan
-import Library.Vulkan.Device
 import Library.Vulkan.Mesh
+import Library.Vulkan.Device
+import Library.Vulkan.Descriptor
+import Library.Vulkan.Texture
 import Library.Vulkan.RenderPass
+import Library.Vulkan.TransformationObject
 import Library.Resource.ObjLoader
 import qualified Library.Constants as Constants
 
@@ -41,25 +44,56 @@ main = do
         progName = "Hulkan App"
         engineName = "HulkanEngine3D"
         isConcurrentMode = True
+        msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
     -- create renderer
     defaultRendererData <- getDefaultRendererData
-    rendererData <- createRenderer defaultRendererData window progName engineName isConcurrentMode requireExtensions
+    rendererData <- createRenderer
+        defaultRendererData
+            window
+            progName
+            engineName
+            isConcurrentMode
+            requireExtensions
+            msaaSampleCount
     rendererDataRef <- newIORef rendererData
 
+    -- create render targets
+    (sceneColorTexture, sceneDepthTexture) <- createRenderTargets rendererData
+
     -- create render pass data
-    commandBuffers <- getCommandBuffers rendererData
-    renderPassCreateInfo <- getDefaultRenderPassCreateInfo rendererData
-    renderPassData <- createRenderPassData (_device rendererData) commandBuffers renderPassCreateInfo
+    renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
+        rendererData
+        [(_imageView sceneColorTexture), (_imageView sceneDepthTexture)]
+        [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
+    renderPassData <- createRenderPass rendererData renderPassDataCreateInfo
     renderPassDataListRef <- newIORef (DList.singleton renderPassData)
 
     -- create resources
-    (sceneColor, sceneDepth) <- createRenderTargets rendererData
-
-    imageViewData <- createTexture rendererData "Resource/Externals/Textures/chalet.jpg"
     (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-    geometryBuffer <- createGeometryBuffer "test" rendererData vertices indices
+    geometryBuffer <- createGeometryBuffer rendererData "test" vertices indices
     geometryBufferListRef <- newIORef (DList.singleton geometryBuffer)
+    textureData <- createTexture rendererData "Resource/Externals/Textures/chalet.jpg"
 
+    let descriptorTextureInfo = getTextureImageInfo textureData
+    (transformObjectMemories, transformObjectBuffers) <- unzip <$> createTransformObjectBuffers
+        (getPhysicalDevice rendererData)
+        (getDevice rendererData)
+        (getSwapChainImageCount rendererData)
+    let descriptorBufferInfos = fmap transformObjectBufferInfo transformObjectBuffers
+    descriptorPool <- createDescriptorPool (getDevice rendererData) (getSwapChainImageCount rendererData)
+    descriptorSetLayoutsPtr <- newArrayPtr $ replicate (getSwapChainImageCount rendererData) (getDescriptorSetLayout renderPassData)
+    descriptorSetData <- createDescriptorSetData (getDevice rendererData) descriptorPool (getSwapChainImageCount rendererData) descriptorSetLayoutsPtr
+    forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
+        prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo descriptorTextureInfo descriptorSet
+    transformObjectMemoriesPtr <- newArrayPtr transformObjectMemories
+
+    -- record render commands
+    let vertexBuffer = _vertexBuffer geometryBuffer
+        vertexIndexCount = _vertexIndexCount geometryBuffer
+        indexBuffer = _indexBuffer geometryBuffer
+    recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
+
+    -- init system variables
     needRecreateSwapChainRef <- newIORef False
     frameIndexRef <- newIORef 0
     imageIndexPtr <- new (0 :: Word32)
@@ -77,7 +111,7 @@ main = do
             return $ elapsedTimePrev + deltaTime
         writeIORef currentTimeRef currentTime
         writeIORef elapsedTimeRef elapsedTime
-        when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
+        -- when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
 
         needRecreateSwapChain <- readIORef needRecreateSwapChainRef
         when needRecreateSwapChain $ do
@@ -91,13 +125,22 @@ main = do
 
             renderPassDataList <- readIORef renderPassDataListRef
             forM_ renderPassDataList $ \renderPassData -> do
-                destroyRenderPassData (_device rendererData) renderPassData
+                destroyRenderPass rendererData renderPassData
 
             -- recreate swapChain
             rendererData <- recreateSwapChain rendererData window
-            commandBuffers <- getCommandBuffers rendererData
-            renderPassCreateInfo <- getDefaultRenderPassCreateInfo rendererData
-            renderPassData <- createRenderPassData (_device rendererData) commandBuffers renderPassCreateInfo
+            renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
+                rendererData
+                [(_imageView sceneColorTexture), (_imageView sceneDepthTexture)]
+                [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
+            renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
+
+            -- record render commands
+            let vertexBuffer = _vertexBuffer geometryBuffer
+                vertexIndexCount = _vertexIndexCount geometryBuffer
+                indexBuffer = _indexBuffer geometryBuffer
+            recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
+
             writeIORef renderPassDataListRef (DList.fromList [renderPassData])
             writeIORef rendererDataRef rendererData
         frameIndex <- readIORef frameIndexRef
@@ -116,13 +159,19 @@ main = do
     result <- vkDeviceWaitIdle $ _device rendererData
     validationVK result "vkDeviceWaitIdle failed!"
 
-    destroyTexture rendererData sceneColor
-    destroyTexture rendererData sceneDepth
+    destroyTransformObjectBuffers (getDevice rendererData) transformObjectBuffers transformObjectMemories
+    -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
+    -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
+    destroyDescriptorPool (getDevice rendererData) descriptorPool
 
-    destroyTexture rendererData imageViewData
+    destroyTexture rendererData sceneColorTexture
+    destroyTexture rendererData sceneDepthTexture
+
+    destroyTexture rendererData textureData
+    
     geometryBufferList <- readIORef geometryBufferListRef
     forM_ geometryBufferList $ \geometryBuffer -> do
-        destroyGeometryBuffer (_device rendererData) geometryBuffer
+        destroyGeometryBuffer rendererData geometryBuffer
 
     renderPassDataList <- readIORef renderPassDataListRef
     forM_ renderPassDataList $ \renderPassData -> do

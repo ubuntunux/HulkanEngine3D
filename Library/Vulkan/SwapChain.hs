@@ -12,7 +12,8 @@ module Library.Vulkan.SwapChain
   , destroySwapChainData
   ) where
 
-import Control.Monad
+
+
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
@@ -22,9 +23,10 @@ import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
 import qualified Library.Constants as Constants
-import Library.Utils
-import Library.Logger
+import Library.Utilities.System
+import Library.Utilities.Logger
 import Library.Vulkan.Queue
+import Library.Vulkan.Texture
 
 
 data SwapChainSupportDetails = SwapChainSupportDetails
@@ -35,7 +37,7 @@ data SwapChainSupportDetails = SwapChainSupportDetails
 
 data SwapChainData = SwapChainData
     { _swapChain :: VkSwapchainKHR
-    , _swapChainImageCount :: Word32
+    , _swapChainImageCount :: Int
     , _swapChainImageFormat :: VkFormat
     , _swapChainImages :: [VkImage]
     , _swapChainImageViews :: [VkImageView]
@@ -178,13 +180,12 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = 
   logInfo $ "    imageSharingMode : " ++ (show $ getField @"imageSharingMode" swapChainCreateInfo)
 
   let swapChainData = SwapChainData { _swapChain = swapChain
-                                    , _swapChainImageCount = fromIntegral (length swapChainImages)
+                                    , _swapChainImageCount = length swapChainImages
                                     , _swapChainImages = swapChainImages
                                     , _swapChainImageFormat = swapChainImageFormat
                                     , _swapChainImageViews = swapChainImageViews
                                     , _swapChainExtent = swapChainExtent }
   return swapChainData
-
 
 destroySwapChainData :: VkDevice -> SwapChainData -> IO ()
 destroySwapChainData device swapChainData = do
@@ -192,41 +193,13 @@ destroySwapChainData device swapChainData = do
   logInfo "Destroy SwapChain"
   vkDestroySwapchainKHR device (_swapChain swapChainData) VK_NULL_HANDLE
 
-
 createSwapChainImageViews :: VkDevice -> [VkImage] -> VkFormat -> IO [VkImageView]
 createSwapChainImageViews device swapChainImages swapChainImageFormat = do
-  components <- (newVkData $ \componentsPtr -> do
-    writeField @"r" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-    writeField @"g" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-    writeField @"b" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY
-    writeField @"a" componentsPtr VK_COMPONENT_SWIZZLE_IDENTITY)::IO VkComponentMapping
-  subresourceRange <- (newVkData $ \subresourceRangePtr -> do
-    writeField @"aspectMask" subresourceRangePtr VK_IMAGE_ASPECT_COLOR_BIT
-    writeField @"baseMipLevel" subresourceRangePtr 0
-    writeField @"levelCount" subresourceRangePtr 1
-    writeField @"baseArrayLayer" subresourceRangePtr 0
-    writeField @"layerCount" subresourceRangePtr 1)::IO VkImageSubresourceRange
-  let
-    getImageViewCreateInfo :: VkImage -> IO VkImageViewCreateInfo
-    getImageViewCreateInfo image = newVkData @VkImageViewCreateInfo $ \viewPtr -> do
-      writeField @"sType" viewPtr VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
-      writeField @"pNext" viewPtr VK_NULL_HANDLE
-      writeField @"flags" viewPtr VK_ZERO_FLAGS
-      writeField @"image" viewPtr image
-      writeField @"viewType" viewPtr VK_IMAGE_VIEW_TYPE_2D
-      writeField @"format" viewPtr swapChainImageFormat
-      writeField @"components" viewPtr components
-      writeField @"subresourceRange" viewPtr subresourceRange
-  imageViewCreateInfos <- mapM getImageViewCreateInfo swapChainImages
-  imageViews <- forM imageViewCreateInfos $ \imageViewCreateInfo ->
-    alloca $ \imageViewPtr -> do
-        result <- vkCreateImageView device (unsafePtr imageViewCreateInfo) VK_NULL_HANDLE imageViewPtr
-        validationVK result "vkCreateImageView error"
-        peek imageViewPtr
-  mapM_ touchVkData imageViewCreateInfos
-  return imageViews
-
+    imageViews <- mapM
+        (\image -> createImageView device image swapChainImageFormat VK_IMAGE_ASPECT_COLOR_BIT 1)
+        swapChainImages
+    return imageViews
 
 destroySwapChainImageViews :: VkDevice -> [VkImageView] -> IO ()
 destroySwapChainImageViews device imageViews = do
-  mapM_ (\imageView -> vkDestroyImageView device imageView VK_NULL_HANDLE) imageViews
+  mapM_ (\imageView -> destroyImageView device imageView) imageViews

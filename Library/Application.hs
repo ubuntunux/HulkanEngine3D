@@ -12,8 +12,8 @@ import Control.Monad
 import Data.IORef
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import qualified Graphics.UI.GLFW as GLFW
-import Library.Utils
-import Library.Logger
+import Library.Utilities.System
+import Library.Utilities.Logger
 
 glfwMainLoop :: GLFW.Window -> IO Bool -> IO ()
 glfwMainLoop window mainLoop = go

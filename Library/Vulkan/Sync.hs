@@ -19,8 +19,8 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
 import qualified Library.Constants as Constants
-import Library.Utils
-import Library.Logger
+import Library.Utilities.System
+import Library.Utilities.Logger
 
 
 createSemaphores :: VkDevice -> IO [VkSemaphore]

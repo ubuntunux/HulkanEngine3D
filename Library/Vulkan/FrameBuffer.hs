@@ -16,39 +16,49 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
-import Library.Utils
-import Library.Logger
+import Library.Utilities.System
+import Library.Utilities.Logger
 
 data FrameBufferData = FrameBufferData
     { _frameBuffers :: [VkFramebuffer]
     , _frameBufferSize :: VkExtent2D
-    , _frameBufferClearValues :: [Float]
+    , _frameBufferClearValues :: [VkClearValue]
     } deriving (Eq, Show)
 
 
 createFramebufferData :: VkDevice
                       -> VkRenderPass
+                      -> Int
+                      -> [VkImageView]
                       -> [VkImageView]
                       -> VkExtent2D
-                      -> [Float]
+                      -> VkSampleCountFlagBits
+                      -> [VkClearValue]
                       -> IO FrameBufferData
-createFramebufferData device renderPass imageViews imageExtent clearValues = do
-    framebuffers <- mapM createFrameBuffer imageViews
-    logInfo $ "Create Framebuffers: " ++ show framebuffers
+createFramebufferData device renderPass swapChainImageCount imageViews resolveImageViews imageExtent msaaSampleCount clearValues = do
+    logInfo "Create Framebuffers"
+    logInfo $ "    ImageViews " ++ show imageViews
+    when (msaaSampleCount /= VK_SAMPLE_COUNT_1_BIT) $ do
+        logInfo $ "    MSAA " ++ show msaaSampleCount
+        logInfo $ "    ResolveImageViews " ++ show resolveImageViews
+    framebuffers <- mapM createFrameBuffer [0..(swapChainImageCount - 1)]
     return FrameBufferData
         { _frameBuffers = framebuffers
         , _frameBufferSize = imageExtent
         , _frameBufferClearValues = clearValues }
     where
-        createFrameBuffer :: VkImageView -> IO VkFramebuffer
-        createFrameBuffer imageView = do
-            let frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
+        createFrameBuffer :: Int -> IO VkFramebuffer
+        createFrameBuffer index = do
+            let attachements = if msaaSampleCount /= VK_SAMPLE_COUNT_1_BIT
+                    then imageViews ++ [resolveImageViews !! index]
+                    else imageViews
+                frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
                     $  set @"sType" VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
                     &* set @"pNext" VK_NULL
                     &* set @"flags" VK_ZERO_FLAGS
                     &* set @"renderPass" renderPass
-                    &* set @"attachmentCount" 1
-                    &* setListRef @"pAttachments" [imageView]
+                    &* set @"attachmentCount" (fromIntegral $ length attachements)
+                    &* setListRef @"pAttachments" attachements
                     &* set @"width" (getField @"width" imageExtent)
                     &* set @"height" (getField @"height" imageExtent)
                     &* set @"layers" 1
@@ -62,6 +72,6 @@ createFramebufferData device renderPass imageViews imageExtent clearValues = do
 
 destroyFramebufferData :: VkDevice -> FrameBufferData -> IO ()
 destroyFramebufferData device frameBufferData = do
-  logInfo $ "Destroy Framebuffers" ++ show frameBufferData
-  forM_ (_frameBuffers frameBufferData) $ \frameBuffer ->
-    vkDestroyFramebuffer device frameBuffer VK_NULL_HANDLE
+    logInfo $ "Destroy Framebuffers : " ++ show (_frameBuffers frameBufferData)
+    forM_ (_frameBuffers frameBufferData) $ \frameBuffer ->
+        vkDestroyFramebuffer device frameBuffer VK_NULL_HANDLE

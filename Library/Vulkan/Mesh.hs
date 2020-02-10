@@ -11,27 +11,37 @@
 module Library.Vulkan.Mesh
   ( Vertex (..)
   , Tri (..)
-  , GeometryBuffer(..)
-  , createGeometryBuffer
-  , destroyGeometryBuffer
+  , GeometryBufferData(..)
+  , atLeastThree
+  , dataFrameLength
+  , triangleToFaceIndices
+  , faceToTriangles
+  , vertexInputBindDescription
+  , vertexInputAttributeDescriptions
+  , createGeometryBufferData
+  , destroyGeometryBufferData
   , createVertexBuffer
   , createIndexBuffer
   ) where
 
 import GHC.Generics (Generic)
+import qualified Control.Monad.ST as ST
 import Data.Bits
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
 import Codec.Wavefront
-import Numeric.DataFrame
-import Graphics.Vulkan
+import Data.Maybe
 import Graphics.Vulkan.Core_1_0
+import Graphics.Vulkan.Marshal.Create
+import Graphics.Vulkan.Marshal.Create.DataFrame ()
+import qualified Numeric.DataFrame.ST as ST
+import Numeric.DataFrame
+import Numeric.Dimensions
 
-import Library.Utils
-import Library.Logger
-import Library.Vulkan
+import Library.Utilities.System
+import Library.Utilities.Logger
+import Library.Utilities.Math
 import Library.Vulkan.Buffer
-import Library.Vulkan.Queue
 
 
 -- | Preparing Vertex data to make an interleaved array.
@@ -47,48 +57,103 @@ data Tri = Tri {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
 
-data GeometryBuffer = GeometryBuffer
+data GeometryBufferData = GeometryBufferData
     { _bufferName :: String
     , _vertexBufferMemory :: VkDeviceMemory
     , _vertexBuffer :: VkBuffer
     , _indexBufferMemory :: VkDeviceMemory
     , _indexBuffer :: VkBuffer
+    , _vertexIndexCount :: Word32
     }  deriving (Eq, Show, Generic)
 
 
-createGeometryBuffer:: String
-                    -> RendererData
-                    -> DataFrame Vertex '[XN 3]
-                    -> DataFrame Word32 '[XN 3]
-                    -> IO GeometryBuffer
-createGeometryBuffer bufferName rendererData vertices indices = do
-    logInfo $ "createGeometryBuffer : "  ++ bufferName
-    (vertexBufferMemory, vertexBuffer) <- createVertexBuffer rendererData vertices
-    (indexBufferMemory, indexBuffer) <- createIndexBuffer rendererData indices
-    return GeometryBuffer { _bufferName = bufferName
-                          , _vertexBufferMemory = vertexBufferMemory
-                          , _vertexBuffer = vertexBuffer
-                          , _indexBufferMemory = indexBufferMemory
-                          , _indexBuffer = indexBuffer }
+-- | Check if the frame has enough elements.
+atLeastThree :: (All KnownXNatType ns, BoundedDims ns)
+             => DataFrame t (n ': ns)
+             -> DataFrame t (XN 3 ': ns)
+atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough points")
+             . constrainDF
 
-destroyGeometryBuffer :: VkDevice -> GeometryBuffer -> IO ()
-destroyGeometryBuffer device geometryBuffer = do
+-- reversal here for correct culling in combination with the (-y) below
+triangleToFaceIndices :: Tri -> [FaceIndex]
+triangleToFaceIndices (Tri a b c) = [c, b, a]
+
+faceToTriangles :: Face -> [Tri]
+faceToTriangles (Face a b c []) = [Tri a b c]
+faceToTriangles (Face a b c is) = pairwise (Tri a) (b:c:is)
+  where pairwise f xs = zipWith f xs (tail xs)
+
+vertexInputBindDescription :: VkVertexInputBindingDescription
+vertexInputBindDescription = createVk @VkVertexInputBindingDescription
+    $  set @"binding" 0
+    &* set @"stride"  (bSizeOf @Vertex undefined)
+    &* set @"inputRate" VK_VERTEX_INPUT_RATE_VERTEX
+
+-- We can use DataFrames to keep several vulkan structures in a contiguous
+-- memory areas, so that we can pass a pointer to a DataFrame directly into
+-- a vulkan function with no copy.
+--
+-- However, we must make sure the created DataFrame is pinned!
+vertexInputAttributeDescriptions :: Vector VkVertexInputAttributeDescription 3
+vertexInputAttributeDescriptions = ST.runST $ do
+    mv <- ST.newPinnedDataFrame
+    ST.writeDataFrame mv 0 . scalar $ createVk
+        $  set @"location" 0
+        &* set @"binding" 0
+        &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
+        &* set @"offset" (bFieldOffsetOf @"pos" @Vertex undefined)
+    ST.writeDataFrame mv 1 . scalar $ createVk
+        $  set @"location" 1
+        &* set @"binding" 0
+        &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
+        &* set @"offset" (bFieldOffsetOf @"color" @Vertex undefined)
+                          -- Now we can use bFieldOffsetOf derived
+                          -- in PrimBytes via Generics. How cool is that!
+    ST.writeDataFrame mv 2 . scalar $ createVk
+        $  set @"location" 2
+        &* set @"binding" 0
+        &* set @"format" VK_FORMAT_R32G32_SFLOAT
+        &* set @"offset" (bFieldOffsetOf @"texCoord" @Vertex undefined)
+    ST.unsafeFreezeDataFrame mv
+
+
+createGeometryBufferData :: VkPhysicalDevice
+                         -> VkDevice
+                         -> VkQueue
+                         -> VkCommandPool
+                         -> String
+                         -> DataFrame Vertex '[XN 3]
+                         -> DataFrame Word32 '[XN 3]
+                         -> IO GeometryBufferData
+createGeometryBufferData physicalDevice device graphicsQueue commandPool bufferName vertices indices = do
+    logInfo $ "createGeometryBuffer : "  ++ bufferName
+    (vertexBufferMemory, vertexBuffer) <- createVertexBuffer physicalDevice device graphicsQueue commandPool vertices
+    (indexBufferMemory, indexBuffer) <- createIndexBuffer physicalDevice device graphicsQueue commandPool indices
+    return GeometryBufferData { _bufferName = bufferName
+                              , _vertexBufferMemory = vertexBufferMemory
+                              , _vertexBuffer = vertexBuffer
+                              , _indexBufferMemory = indexBufferMemory
+                              , _indexBuffer = indexBuffer
+                               , _vertexIndexCount = (fromIntegral $ dataFrameLength indices) }
+
+destroyGeometryBufferData :: VkDevice -> GeometryBufferData -> IO ()
+destroyGeometryBufferData device geometryBuffer = do
     destroyBuffer device (_vertexBuffer geometryBuffer) (_vertexBufferMemory geometryBuffer)
     destroyBuffer device (_indexBuffer geometryBuffer) (_indexBufferMemory geometryBuffer)
-    return ()
 
 
-createVertexBuffer :: RendererData
+createVertexBuffer :: VkPhysicalDevice
+                   -> VkDevice
+                   -> VkQueue
+                   -> VkCommandPool
                    -> DataFrame Vertex '[XN 3]
                    -> IO (VkDeviceMemory, VkBuffer)
-createVertexBuffer rendererData (XFrame vertices) = do
-    let device = _device rendererData
-        physicalDevice = _physicalDevice rendererData
-        graphicsQueue = _graphicsQueue $ _queueFamilyDatas rendererData
-        commandPool = _commandPool rendererData
-        bufferSize = bSizeOf vertices
+createVertexBuffer physicalDevice device graphicsQueue commandPool (XFrame vertices) = do
+    let bufferSize = bSizeOf vertices
         bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
         memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+
+    logInfo $ "createVertexBuffer : bufferSize " ++ show bufferSize
 
     -- create temporary staging buffer
     let stagingBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
@@ -110,17 +175,18 @@ createVertexBuffer rendererData (XFrame vertices) = do
     return (vertexBufferMemory, vertexBuffer)
 
 
-createIndexBuffer :: RendererData
+createIndexBuffer :: VkPhysicalDevice
+                  -> VkDevice
+                  -> VkQueue
+                  -> VkCommandPool
                   -> DataFrame Word32 '[XN 3]
                   -> IO (VkDeviceMemory, VkBuffer)
-createIndexBuffer rendererData (XFrame indices) = do
-    let device = _device rendererData
-        physicalDevice = _physicalDevice rendererData
-        graphicsQueue = _graphicsQueue $ _queueFamilyDatas rendererData
-        commandPool = _commandPool rendererData
-        bufferSize = bSizeOf indices
-        bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
+createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indices) = do
+    let bufferSize = bSizeOf indices
+        bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
         memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+
+    logInfo $ "createIndexBuffer : bufferSize " ++ show bufferSize
 
     -- create index buffer
     (indexBufferMemory, indexBuffer) <- createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFlags

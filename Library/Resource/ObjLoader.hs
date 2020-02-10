@@ -9,84 +9,22 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module Library.Resource.ObjLoader
-  ( vertIBD
-  , vertIADs
-  , loadModel
-  , atLeastThree
-  , dfLen
+  ( loadModel
   ) where
 
 import Codec.Wavefront
-import qualified Control.Monad.ST as ST
 import Data.Foldable (toList)
 import Data.Maybe
 import qualified Data.Set as Set
 import Graphics.Vulkan.Core_1_0
-import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
 import Numeric.DataFrame
-import qualified Numeric.DataFrame.ST as ST
 import Numeric.Dimensions
 
-import Library.Utils
+import Library.Utilities.Logger
+import Library.Utilities.System
 import Library.Vulkan.Mesh
-import Library.Logger
 
-
--- | Check if the frame has enough elements.
-atLeastThree :: (All KnownXNatType ns, BoundedDims ns)
-             => DataFrame t (n ': ns)
-             -> DataFrame t (XN 3 ': ns)
-atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough points")
-             . constrainDF
-
--- | Get number of points in a vector
-dfLen :: DataFrame t (xns :: [XNat]) -> Word32
-dfLen (XFrame (_ :: DataFrame t ns)) = case dims @ns of
-  n :* _ -> fromIntegral $ dimVal n
-  U      -> 1
-
-vertIBD :: VkVertexInputBindingDescription
-vertIBD = createVk
-  $  set @"binding" 0
-  &* set @"stride"  (bSizeOf @Vertex undefined)
-  &* set @"inputRate" VK_VERTEX_INPUT_RATE_VERTEX
-
--- We can use DataFrames to keep several vulkan structures in a contiguous
--- memory areas, so that we can pass a pointer to a DataFrame directly into
--- a vulkan function with no copy.
---
--- However, we must make sure the created DataFrame is pinned!
-vertIADs :: Vector VkVertexInputAttributeDescription 3
-vertIADs = ST.runST $ do
-    mv <- ST.newPinnedDataFrame
-    ST.writeDataFrame mv 0 . scalar $ createVk
-        $  set @"location" 0
-        &* set @"binding" 0
-        &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"pos" @Vertex undefined)
-    ST.writeDataFrame mv 1 . scalar $ createVk
-        $  set @"location" 1
-        &* set @"binding" 0
-        &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"color" @Vertex undefined)
-                          -- Now we can use bFieldOffsetOf derived
-                          -- in PrimBytes via Generics. How cool is that!
-    ST.writeDataFrame mv 2 . scalar $ createVk
-        $  set @"location" 2
-        &* set @"binding" 0
-        &* set @"format" VK_FORMAT_R32G32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"texCoord" @Vertex undefined)
-    ST.unsafeFreezeDataFrame mv
-
--- reversal here for correct culling in combination with the (-y) below
-triangleToFaceIndices :: Tri -> [FaceIndex]
-triangleToFaceIndices (Tri a b c) = [c, b, a]
-
-faceToTriangles :: Face -> [Tri]
-faceToTriangles (Face a b c []) = [Tri a b c]
-faceToTriangles (Face a b c is) = pairwise (Tri a) (b:c:is)
-  where pairwise f xs = zipWith f xs (tail xs)
 
 loadModel :: FilePath -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])
 loadModel file = do

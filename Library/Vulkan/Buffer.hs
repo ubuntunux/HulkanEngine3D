@@ -18,8 +18,8 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame
 
-import Library.Utils
-import Library.Logger
+import Library.Utilities.System
+import Library.Utilities.Logger
 import {-# SOURCE #-} Library.Vulkan
 
 
@@ -60,10 +60,10 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
         result <- vkAllocateMemory device allocInfoPtr VK_NULL bufferMemoryPtr
         validationVK result "vkAllocateMemory failed!"
 
-    logInfo $ "Create Buffer : "  ++ show buffer ++ ", Memory : " ++ show bufferMemory
-    logInfo $ "    bufferSize : " ++ show bufferSize
-    logInfo $ "    memoryTypeIndex : " ++ show memoryTypeIndex
-    logInfo $ "    " ++ show memoryRequirements
+    logInfo $ "    Create Buffer : "  ++ show buffer ++ ", Memory : " ++ show bufferMemory
+    logInfo $ "        bufferSize : " ++ show bufferSize
+    logInfo $ "        memoryTypeIndex : " ++ show memoryTypeIndex
+    logInfo $ "        " ++ show memoryRequirements
 
     let memoryOffset = 0 :: VkDeviceSize
     vkBindBufferMemory device buffer bufferMemory memoryOffset
@@ -72,7 +72,7 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
 
 destroyBuffer :: VkDevice -> VkBuffer -> VkDeviceMemory -> IO ()
 destroyBuffer device buffer memory = do
-  logInfo $ "Destroy Buffer : "  ++ show buffer ++ ", Memory : " ++ show memory
+  logInfo $ "    Destroy Buffer : "  ++ show buffer ++ ", Memory : " ++ show memory
   vkDestroyBuffer device buffer VK_NULL
   vkFreeMemory device memory VK_NULL
 
@@ -86,7 +86,7 @@ copyBuffer :: VkDevice
            -> VkDeviceSize 
            -> IO ()
 copyBuffer device commandPool commandQueue srcBuffer dstBuffer bufferSize = do
-  logInfo $ "CopyBuffer : " ++ show srcBuffer ++ " -> " ++ show dstBuffer ++ " { size = " ++ show bufferSize ++ " }"
+  logInfo $ "    CopyBuffer : " ++ show srcBuffer ++ " -> " ++ show dstBuffer ++ " { size = " ++ show bufferSize ++ " }"
   runCommandsOnce device commandPool commandQueue $ \commandBuffer -> do
     let copyRegion = createVk @VkBufferCopy
           $  set @"srcOffset" 0

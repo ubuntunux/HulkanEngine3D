@@ -9,11 +9,12 @@
 module Library.Vulkan.TransformationObject
   ( updateTransformObject
   , createTransformObjectBuffers
+  , destroyTransformObjectBuffers
   , transformObjectBufferInfo
   ) where
 
 
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, forM_)
 import Data.Bits ((.|.))
 import Foreign.Ptr (castPtr)
 import Foreign.Storable (poke)
@@ -23,7 +24,8 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Numeric.DataFrame
 
-import Library.Utils
+import Library.Utilities.System
+import Library.Utilities.Logger
 import Library.Vulkan.Buffer
 
 {- |
@@ -88,12 +90,9 @@ updateTransformObject device extent uniformBuffer = do
     aspectRatio = fromIntegral width / fromIntegral height
 
 
-createTransformObjectBuffers
-  :: VkPhysicalDevice
-  -> VkDevice
-  -> Int
-  -> IO [(VkDeviceMemory, VkBuffer)]
-createTransformObjectBuffers physicalDevice device n =
+createTransformObjectBuffers :: VkPhysicalDevice -> VkDevice -> Int -> IO [(VkDeviceMemory, VkBuffer)]
+createTransformObjectBuffers physicalDevice device n = do
+    logInfo "createTransformObjectBuffers"
     replicateM n $ createBuffer
         physicalDevice
         device
@@ -101,9 +100,16 @@ createTransformObjectBuffers physicalDevice device n =
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
         ( VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
 
+destroyTransformObjectBuffers :: VkDevice -> [VkBuffer] -> [VkDeviceMemory] -> IO ()
+destroyTransformObjectBuffers device buffers memories = do
+    logInfo "destroyTransformObjectBuffers"
+    forM_ (zip buffers memories) $ \(buffer, memory) ->
+        destroyBuffer device buffer memory
+
 
 transformObjectBufferInfo :: VkBuffer -> VkDescriptorBufferInfo
-transformObjectBufferInfo uniformBuffer = createVk @VkDescriptorBufferInfo
+transformObjectBufferInfo uniformBuffer =
+    createVk @VkDescriptorBufferInfo
         $  set @"buffer" uniformBuffer
         &* set @"offset" 0
         &* set @"range" (bSizeOf @TransformationObject undefined)

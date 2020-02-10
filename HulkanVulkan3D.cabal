@@ -23,22 +23,23 @@ executable main
     ghc-options:      -threaded
     other-modules:    Library.Application
                       Library.Constants
-                      Library.Logger
-                      Library.Utils
                       Library.Render.RenderTarget
+                      Library.Utilities.Logger
+                      Library.Utilities.Math
+                      Library.Utilities.System
                       Library.Vulkan
                       Library.Vulkan.Buffer
                       Library.Vulkan.CommandBuffer
-                      Library.Vulkan.Device
                       Library.Vulkan.Descriptor
+                      Library.Vulkan.Device
                       Library.Vulkan.Mesh
                       Library.Vulkan.FrameBuffer
-                      Library.Vulkan.Image
                       Library.Vulkan.RenderPass
                       Library.Vulkan.Queue
                       Library.Vulkan.Shader
                       Library.Vulkan.SwapChain
                       Library.Vulkan.Sync
+                      Library.Vulkan.Texture
                       Library.Vulkan.TransformationObject
                       Library.Resource
                       Library.Resource.ObjLoader

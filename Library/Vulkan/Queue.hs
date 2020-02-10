@@ -21,8 +21,8 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_surface
 
 import qualified Library.Constants as Constants
-import Library.Utils
-import Library.Logger
+import Library.Utilities.System
+import Library.Utilities.Logger
 
 data QueueFamilyIndices = QueueFamilyIndices
     { _graphicsQueueIndex :: Word32
