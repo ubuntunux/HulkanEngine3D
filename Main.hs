@@ -16,8 +16,9 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import qualified Graphics.UI.GLFW as GLFW
 
-import Library.Utilities.System
 import Library.Application
+import Library.Resource.ObjLoader
+import Library.Utilities.System
 import Library.Utilities.Logger
 import Library.Vulkan
 import Library.Vulkan.Mesh
@@ -74,8 +75,8 @@ main = do
     renderPassDataListRef <- newIORef (DList.singleton renderPassData)
 
     -- create resources
-    --(vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-    geometryBuffer <- createGeometryBuffer rendererData "test" rectVertices rectIndices
+    (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
+    geometryBuffer <- createGeometryBuffer rendererData "test" vertices indices
     geometryBufferListRef <- newIORef (DList.singleton geometryBuffer)
     textureData <- createTexture rendererData "Resource/Externals/Textures/texture.jpg"
 

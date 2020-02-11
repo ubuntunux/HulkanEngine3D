@@ -266,8 +266,8 @@ createGraphicsPipeline device renderPass imageExtent msaaSamples vertexShaderFil
             &* set @"depthClampEnable" VK_FALSE
             &* set @"rasterizerDiscardEnable" VK_FALSE
             &* set @"polygonMode" VK_POLYGON_MODE_FILL
-            &* set @"cullMode" VK_CULL_MODE_NONE -- VK_CULL_MODE_BACK_BIT
-            &* set @"frontFace" VK_FRONT_FACE_COUNTER_CLOCKWISE
+            &* set @"cullMode" VK_CULL_MODE_BACK_BIT
+            &* set @"frontFace" VK_FRONT_FACE_CLOCKWISE
             &* set @"depthBiasEnable" VK_FALSE
             &* set @"depthBiasConstantFactor" 0
             &* set @"depthBiasClamp" 0

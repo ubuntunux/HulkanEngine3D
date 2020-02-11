@@ -257,7 +257,7 @@ drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemoriesPtr 
 
   vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
     flip validationVK "vkWaitForFences failed!"
-  
+
   --  validationVK result "vkAcquireNextImageKHR failed!"
   result <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
   if (VK_SUCCESS /= result) then 
@@ -268,7 +268,7 @@ drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemoriesPtr 
       let transformObjectMemoryPtr = ptrAtIndex transformObjectMemoriesPtr (fromIntegral imageIndex)
       transformObjectMemory <- peek transformObjectMemoryPtr
       updateTransformObject _device _swapChainExtent transformObjectMemory
-  
+
       let submitInfo = createVk @VkSubmitInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
                 &* set @"pNext" VK_NULL
@@ -279,11 +279,15 @@ drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemoriesPtr 
                 &* set @"pCommandBuffers" (ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex))
                 &* set @"signalSemaphoreCount" 1
                 &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
-  
+
+      vkResetFences _device 1 frameFencePtr
+
+      frameFence <- peek frameFencePtr
+
       withPtr submitInfo $ \submitInfoPtr ->
-          vkQueueSubmit _graphicsQueue 1 submitInfoPtr VK_NULL >>=
+          vkQueueSubmit _graphicsQueue 1 submitInfoPtr frameFence >>=
             flip validationVK "vkQueueSubmit failed!"
-  
+
       let presentInfo = createVk @VkPresentInfoKHR
             $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
             &* set @"pNext" VK_NULL
@@ -292,10 +296,10 @@ drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemoriesPtr 
             &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
             &* set @"swapchainCount" 1
             &* setListRef @"pSwapchains" [_swapChain]
-  
+
       presentResult <- withPtr presentInfo $ \presentInfoPtr -> do
         vkQueuePresentKHR _presentQueue presentInfoPtr
-      vkQueueWaitIdle _presentQueue >>= flip validationVK "vkQueueWaitIdle failed!"
+
       return presentResult
 
 
