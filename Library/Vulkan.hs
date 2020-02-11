@@ -294,11 +294,17 @@ createRenderer :: RendererData
                -> String
                -> String
                -> Bool
+               -> Bool
                -> [CString]
                -> VkSampleCountFlagBits
                -> IO RendererData
-createRenderer defaultRendererData window progName engineName isConcurrentMode requireExtensions requireMSAASampleCount = do
-    vkInstance <- createVulkanInstance progName engineName Constants.vulkanLayers requireExtensions
+createRenderer defaultRendererData window progName engineName enableValidationLayer isConcurrentMode requireExtensions requireMSAASampleCount = do
+    let validationLayers = if enableValidationLayer then Constants.vulkanLayers else []
+    if enableValidationLayer
+    then logInfo $ "Enable validation layers : " ++ show validationLayers
+    else logInfo $ "Disabled validation layers"
+
+    vkInstance <- createVulkanInstance progName engineName validationLayers requireExtensions
     vkSurface <- createVkSurface vkInstance window
     (physicalDevice, Just swapChainSupportDetails, supportedFeatures) <-
         selectPhysicalDevice vkInstance (Just vkSurface)
@@ -435,7 +441,7 @@ recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexB
         vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
         vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
         vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
-        -- vkCmdDraw commandBuffer 3 1 0 0
+        --vkCmdDraw commandBuffer 3 1 0 0
 
         -- end renderpass & command buffer
         vkCmdEndRenderPass commandBuffer

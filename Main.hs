@@ -26,7 +26,6 @@ import Library.Vulkan.Descriptor
 import Library.Vulkan.Texture
 import Library.Vulkan.RenderPass
 import Library.Vulkan.TransformationObject
-import Library.Resource.ObjLoader
 import qualified Library.Constants as Constants
 
 
@@ -44,6 +43,7 @@ main = do
     let Just window = maybeWindow
         progName = "Hulkan App"
         engineName = "HulkanEngine3D"
+        enableValidationLayer = True
         isConcurrentMode = True
         msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
     -- create renderer
@@ -53,6 +53,7 @@ main = do
             window
             progName
             engineName
+            enableValidationLayer
             isConcurrentMode
             requireExtensions
             msaaSampleCount
@@ -76,7 +77,7 @@ main = do
     --(vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
     geometryBuffer <- createGeometryBuffer rendererData "test" rectVertices rectIndices
     geometryBufferListRef <- newIORef (DList.singleton geometryBuffer)
-    textureData <- createTexture rendererData "Resource/Externals/Textures/chalet.jpg"
+    textureData <- createTexture rendererData "Resource/Externals/Textures/texture.jpg"
 
     let descriptorTextureInfo = getTextureImageInfo textureData
     (transformObjectMemories, transformObjectBuffers) <- unzip <$> createTransformObjectBuffers
