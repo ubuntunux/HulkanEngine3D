@@ -48,6 +48,7 @@ import Library.Vulkan.RenderPass
 import Library.Vulkan.SwapChain
 import Library.Vulkan.Sync
 import Library.Vulkan.Texture
+import Library.Vulkan.TransformationObject
 
 
 data RenderFeatures = RenderFeatures
@@ -242,14 +243,20 @@ getDefaultRendererData = do
         , _commandBuffers = []
         , _renderFeatures = defaultRenderFeatures }
 
-drawFrame :: RendererData -> Int -> Ptr Word32 -> IO VkResult
-drawFrame RendererData {..} frameIndex imageIndexPtr = do
+drawFrame :: RendererData
+          -> Int
+          -> Ptr Word32
+          -> Ptr VkDeviceMemory
+          -> IO VkResult
+drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemoriesPtr = do
   let SwapChainData {..} = _swapChainData
       QueueFamilyDatas {..} = _queueFamilyDatas
-      frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
+      frameFencePtr = ptrAtIndex _frameFencesPtr (fromIntegral frameIndex)
       imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
       renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
   
+  frameFence <- peek frameFencePtr
+
   vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
     flip validationVK "vkWaitForFences failed!"
   
@@ -258,7 +265,12 @@ drawFrame RendererData {..} frameIndex imageIndexPtr = do
   if (VK_SUCCESS /= result) then 
     return result
   else do
-    imageIndex <- peek imageIndexPtr  
+    imageIndex <- peek imageIndexPtr
+    let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral frameIndex)
+    let transformObjectMemoryPtr = ptrAtIndex transformObjectMemoriesPtr (fromIntegral frameIndex)
+    transformObjectMemory <- peek transformObjectMemoryPtr
+    updateTransformObject _device _swapChainExtent transformObjectMemory
+
     let submitInfo = createVk @VkSubmitInfo
           $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
           &* set @"pNext" VK_NULL
@@ -266,12 +278,14 @@ drawFrame RendererData {..} frameIndex imageIndexPtr = do
           &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
           &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
           &* set @"commandBufferCount" 1
-          &* set @"pCommandBuffers" (ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex))
+          &* set @"pCommandBuffers" commandBufferPtr
           &* set @"signalSemaphoreCount" 1
           &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
     
+    vkResetFences _device 1 frameFencePtr
+
     withPtr submitInfo $ \submitInfoPtr ->
-        vkQueueSubmit _graphicsQueue 1 submitInfoPtr VK_NULL >>=
+        vkQueueSubmit _graphicsQueue 1 submitInfoPtr frameFence >>=
           flip validationVK "vkQueueSubmit failed!"
 
     let presentInfo = createVk @VkPresentInfoKHR
@@ -285,7 +299,9 @@ drawFrame RendererData {..} frameIndex imageIndexPtr = do
 
     presentResult <- withPtr presentInfo $ \presentInfoPtr -> do
       vkQueuePresentKHR _presentQueue presentInfoPtr
-    vkQueueWaitIdle _presentQueue >>= flip validationVK "vkQueueWaitIdle failed!"
+
+    --vkQueueWaitIdle _presentQueue >>= flip validationVK "vkQueueWaitIdle failed!"
+
     return presentResult
 
 

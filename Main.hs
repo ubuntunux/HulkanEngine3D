@@ -163,7 +163,8 @@ main = do
         frameIndex <- readIORef frameIndexRef
         rendererData <- readIORef rendererDataRef
         renderPassDataList <- readIORef renderPassDataListRef
-        result <- drawFrame rendererData frameIndex imageIndexPtr
+        result <- drawFrame rendererData frameIndex imageIndexPtr transformObjectMemoriesPtr
+        vkDeviceWaitIdle (getDevice rendererData)
         writeIORef frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
         sizeChanged <- readIORef windowSizeChanged
         when (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged) $ do
