@@ -441,7 +441,6 @@ recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexB
         vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
         vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
         vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
-        --vkCmdDraw commandBuffer 3 1 0 0
 
         -- end renderpass & command buffer
         vkCmdEndRenderPass commandBuffer
