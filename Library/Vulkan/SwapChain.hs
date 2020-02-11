@@ -66,13 +66,13 @@ chooseSwapSurfaceFormat swapChainSupportDetails =
 
 chooseSwapPresentMode :: SwapChainSupportDetails -> IO VkPresentModeKHR
 chooseSwapPresentMode swapChainSupportDetails
-  | VK_PRESENT_MODE_FIFO_KHR `elem` presentModes = return VK_PRESENT_MODE_FIFO_KHR
-  | VK_PRESENT_MODE_MAILBOX_KHR `elem` presentModes = return VK_PRESENT_MODE_MAILBOX_KHR
-  | VK_PRESENT_MODE_FIFO_RELAXED_KHR `elem` presentModes = return VK_PRESENT_MODE_FIFO_RELAXED_KHR
-  | VK_PRESENT_MODE_IMMEDIATE_KHR `elem` presentModes = return VK_PRESENT_MODE_IMMEDIATE_KHR
-  | otherwise = return VK_PRESENT_MODE_FIFO_KHR
-  where
-    presentModes = _presentModes swapChainSupportDetails
+    | VK_PRESENT_MODE_MAILBOX_KHR `elem` presentModes = return VK_PRESENT_MODE_MAILBOX_KHR
+    | VK_PRESENT_MODE_FIFO_KHR `elem` presentModes = return VK_PRESENT_MODE_FIFO_KHR
+    | VK_PRESENT_MODE_FIFO_RELAXED_KHR `elem` presentModes = return VK_PRESENT_MODE_FIFO_RELAXED_KHR
+    | VK_PRESENT_MODE_IMMEDIATE_KHR `elem` presentModes = return VK_PRESENT_MODE_IMMEDIATE_KHR
+    | otherwise = return VK_PRESENT_MODE_FIFO_KHR
+    where
+        presentModes = _presentModes swapChainSupportDetails
 
 chooseSwapExtent :: SwapChainSupportDetails -> IO VkExtent2D
 chooseSwapExtent swapChainSupportDetails = do
@@ -120,12 +120,11 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = 
   imageExtent <- chooseSwapExtent swapChainSupportDetails
   queueFamilyIndicesPtr <- newArray (_queueFamilyIndexList queueFamilyDatas)
 
-  -- try tripple buffering
   let maxImageCount = getField @"maxImageCount" $ _capabilities swapChainSupportDetails
       minImageCount = getField @"minImageCount" $ _capabilities swapChainSupportDetails
       imageCount' = if maxImageCount <= 0
-                   then max minImageCount Constants.imageCount
-                   else min maxImageCount $ max minImageCount Constants.imageCount
+                   then max minImageCount Constants.swapChainImageCount
+                   else min maxImageCount $ max minImageCount Constants.swapChainImageCount
 
   -- write VkSwapchainCreateInfoKHR
   swapChainCreateInfo <- newVkData @VkSwapchainCreateInfoKHR $ \swapChainCreateInfoPtr -> do
@@ -172,6 +171,7 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = 
   swapChainImageViews <- createSwapChainImageViews device swapChainImages swapChainImageFormat
 
   logInfo $ "Create SwapChain : " ++ (show swapChain)
+  logInfo $ "    presentMode : " ++ show presentMode
   logInfo $ "    imageCount : " ++ (show imageCount') ++ " " ++ (show swapChainImages)
   logInfo $ "    imageFormat : " ++ (show $ getField @"imageFormat" swapChainCreateInfo)
   logInfo $ "    imageColorSpace : " ++ (show $ getField @"imageColorSpace" swapChainCreateInfo)

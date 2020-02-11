@@ -2,7 +2,7 @@ module Library.Constants
     ( vulkanLayers
     , requireDeviceExtensions
     , invalidQueueIndex
-    , imageCount
+    , swapChainImageCount
     , maxFrameCount
     ) where
 
@@ -18,8 +18,8 @@ requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
 invalidQueueIndex :: Word32
 invalidQueueIndex = maxBound
 
-imageCount :: Word32
-imageCount = 3 -- tripple buffering
+swapChainImageCount :: Word32
+swapChainImageCount = 3
 
 maxFrameCount :: Int
 maxFrameCount = 2
