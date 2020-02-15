@@ -17,6 +17,7 @@ import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import qualified Graphics.UI.GLFW as GLFW
 
 import Library.Application
+import Library.Application.Editor
 import Library.Resource.ObjLoader
 import Library.Utilities.System
 import Library.Utilities.Logger
@@ -32,6 +33,7 @@ import qualified Library.Constants as Constants
 
 main::IO()
 main = do
+    runEditor
     windowSizeChanged <- newIORef False
     maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged
     when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
