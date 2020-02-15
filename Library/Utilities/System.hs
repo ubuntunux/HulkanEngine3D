@@ -4,13 +4,7 @@
 {-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
-
-{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE Strict              #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE UnboxedTuples       #-}
 
 module Library.Utilities.System
@@ -24,14 +18,13 @@ module Library.Utilities.System
     , asListVK
     , withVkArrayLen
     , unsafeAddr
+    , unsafeToPtr
     , ptrAtIndex
     , allocaPeek
-    , allocaPtr
-    , allocaArrayPtr
-    , newArrayPtr
+    , allocaPeekArray
     ) where
 
-import qualified GHC.Base
+import GHC.Base
 import GHC.Exts
 import Control.Exception
 import Control.Monad (when)
@@ -148,6 +141,10 @@ aToWord# a = let !mb = a in case unsafeCoerce# mb :: Word of W# addr -> addr
 unsafeAddr :: a -> Int
 unsafeAddr a = I# (word2Int# (aToWord# (unsafeCoerce# a)))
 
+--unsafeToPtr  :: forall a. Storable a => a -> Ptr a
+unsafeToPtr a = Ptr (unsafeCoerce# a)
+{-# INLINE unsafeToPtr #-}
+
 ptrAtIndex :: forall a. Storable a => Ptr a -> Int -> Ptr a
 ptrAtIndex ptr i = ptr `plusPtr` (i * sizeOf @a undefined)
 
@@ -155,14 +152,7 @@ allocaPeek :: Storable a => (Ptr a -> IO b) -> IO a
 allocaPeek action = alloca $ \ptr -> do
   action ptr >> peek ptr
 
--- | Allocate some memory for Storable and release it after continuation finishes.
-allocaPtr :: Storable a => IO (Ptr a)
-allocaPtr = alloca $ \ptr -> return ptr
-
-allocaArrayPtr :: Storable a => Int -> IO (Ptr a)
-allocaArrayPtr count = allocaArray count $ \arrayPtr -> return arrayPtr
-
--- | Temporarily store a list of storable values in memory
---   and release it after continuation finishes.
-newArrayPtr :: Storable a => [a] -> IO (Ptr a)
-newArrayPtr xs = withArray xs $ \arrayPtr -> return arrayPtr
+allocaPeekArray :: Storable a => Int -> (Ptr a -> IO b) -> IO [a]
+allocaPeekArray count action = allocaArray count $ \arrayPtr -> do
+   action arrayPtr
+   peekArray count arrayPtr

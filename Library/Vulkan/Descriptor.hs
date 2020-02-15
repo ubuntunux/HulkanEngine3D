@@ -14,9 +14,8 @@ module Library.Vulkan.Descriptor
   , prepareDescriptorSet
   ) where
 
-import Foreign.Storable
-import Foreign.Marshal.Array
 import Foreign.Ptr
+import Foreign.Storable
 
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
@@ -83,10 +82,9 @@ createDescriptorSetLayout device = do
             &* setListCountAndRef @"bindingCount" @"pBindings"
                 [bufferlayoutBinding, imageLayoutBinding]
 
-    descriptorSetLayoutPtr <- allocaPtr
-    withPtr layoutCreateInfo $ \layoutCreateInfoPtr ->
-        vkCreateDescriptorSetLayout device layoutCreateInfoPtr VK_NULL descriptorSetLayoutPtr
-    descriptorSetLayout <- peek descriptorSetLayoutPtr
+    descriptorSetLayout <- allocaPeek $ \descriptorSetLayoutPtr ->
+        withPtr layoutCreateInfo $ \layoutCreateInfoPtr ->
+            vkCreateDescriptorSetLayout device layoutCreateInfoPtr VK_NULL descriptorSetLayoutPtr
     logInfo $ "createDescriptorSetLayout : " ++ show descriptorSetLayout
     return descriptorSetLayout
 
@@ -107,13 +105,12 @@ createDescriptorSetData device descriptorPool count layoutsPtr = do
             &* set @"descriptorPool" descriptorPool
             &* set @"descriptorSetCount" (fromIntegral count)
             &* set @"pSetLayouts" layoutsPtr
-    descriptorSetPtr <- allocaArrayPtr count
-    withPtr allocateInfo $ \allocateInfoPtr ->
-        vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
-    descriptorSets <- peekArray count descriptorSetPtr
+    descriptorSets <- allocaPeekArray count $ \descriptorSetPtr ->
+        withPtr allocateInfo $ \allocateInfoPtr ->
+            vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
     let descriptorSetData = DescriptorSetData
-            { _descriptorSetPtr = descriptorSetPtr
-            , _descriptorSets = descriptorSets
+            { _descriptorSets = descriptorSets
+            , _descriptorSetPtr = VK_NULL -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
             , _descriptorSetCount = fromIntegral count }
     logInfo $ "createDescriptorSets : " ++ show descriptorSetData
     return descriptorSetData
@@ -159,4 +156,6 @@ prepareDescriptorSet device bufferInfo imageInfo descriptorSet = do
         descriptorWrites = [bufferDescriptorSet, imageDescriptorSet]
     withVkArrayLen descriptorWrites $ \count descriptorWritesPtr ->
         vkUpdateDescriptorSets device count descriptorWritesPtr 0 VK_NULL
+
+
 

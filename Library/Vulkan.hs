@@ -276,7 +276,7 @@ drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemoriesPtr 
                 &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
                 &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
                 &* set @"commandBufferCount" 1
-                &* set @"pCommandBuffers" (ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex))
+                &* set @"pCommandBuffers" commandBufferPtr
                 &* set @"signalSemaphoreCount" 1
                 &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
 
@@ -407,17 +407,12 @@ recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexB
     let commandBuffers = getCommandBuffers rendererData
         renderPass = _renderPass renderPassData
         graphicsPipelineData = _graphicsPipelineData renderPassData
-        descriptorSetLayout = _descriptorSetLayout graphicsPipelineData
         pipelineLayout = _pipelineLayout graphicsPipelineData
         pipeline = _pipeline graphicsPipelineData
         frameBufferData = _frameBufferData renderPassData
         frameBuffers = _frameBuffers frameBufferData
         imageExtent = _frameBufferSize frameBufferData
         clearValues = _frameBufferClearValues frameBufferData
-
-    -- allocate a pointer to an array of command buffer handles
-    vertexBufferArray <- newArrayPtr [vertexBuffer]
-    vertexOffsetArray <- newArrayPtr [0]
 
     -- record command buffers
     forM_ (zip3 commandBuffers frameBuffers descriptorSets) $ \(commandBuffer, frameBuffer, descriptorSet) -> do
@@ -449,11 +444,13 @@ recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexB
             vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
 
         -- drawing commands
-        descriptorSetPtr <- newArrayPtr [descriptorSet]
         vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
-        vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferArray vertexOffsetArray
+        withArray [vertexBuffer] $ \vertexBufferPtr ->
+            withArray [0] $ \vertexOffsetPtr ->
+                vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
         vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
-        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
+        withArray [descriptorSet] $ \descriptorSetPtr ->
+            vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
         vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
 
         -- end renderpass & command buffer
