@@ -30,12 +30,12 @@ import Control.Exception
 import Control.Monad (when)
 import Data.IORef
 import qualified Data.Time.Clock.System as SystemTime
+
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
-
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 
@@ -141,7 +141,7 @@ aToWord# a = let !mb = a in case unsafeCoerce# mb :: Word of W# addr -> addr
 unsafeAddr :: a -> Int
 unsafeAddr a = I# (word2Int# (aToWord# (unsafeCoerce# a)))
 
---unsafeToPtr  :: forall a. Storable a => a -> Ptr a
+unsafeToPtr  :: forall a. Storable a => a -> Ptr a
 unsafeToPtr a = Ptr (unsafeCoerce# a)
 {-# INLINE unsafeToPtr #-}
 

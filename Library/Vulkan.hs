@@ -246,9 +246,9 @@ getDefaultRendererData = do
 drawFrame :: RendererData
           -> Int
           -> Ptr Word32
-          -> Ptr VkDeviceMemory
+          -> [VkDeviceMemory]
           -> IO VkResult
-drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemoriesPtr = do
+drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemories = do
   let SwapChainData {..} = _swapChainData
       QueueFamilyDatas {..} = _queueFamilyDatas
       frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
@@ -265,8 +265,7 @@ drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemoriesPtr 
   else do
       imageIndex <- peek imageIndexPtr
       let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
-      let transformObjectMemoryPtr = ptrAtIndex transformObjectMemoriesPtr (fromIntegral imageIndex)
-      transformObjectMemory <- peek transformObjectMemoryPtr
+      let transformObjectMemory = transformObjectMemories !! (fromIntegral imageIndex)
       updateTransformObject _device _swapChainExtent transformObjectMemory
 
       let submitInfo = createVk @VkSubmitInfo

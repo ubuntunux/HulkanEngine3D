@@ -15,7 +15,7 @@ module Library.Vulkan.Descriptor
   ) where
 
 import Foreign.Ptr
-import Foreign.Storable
+import Foreign.Marshal.Array
 
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
@@ -96,24 +96,28 @@ destroyDescriptorSetLayout device descriptorSetLayout = do
 createDescriptorSetData :: VkDevice
                         -> VkDescriptorPool
                         -> Int
-                        -> Ptr VkDescriptorSetLayout
+                        -> VkDescriptorSetLayout
                         -> IO DescriptorSetData
-createDescriptorSetData device descriptorPool count layoutsPtr = do
-    let allocateInfo = createVk @VkDescriptorSetAllocateInfo
-            $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
-            &* set @"pNext" VK_NULL
-            &* set @"descriptorPool" descriptorPool
-            &* set @"descriptorSetCount" (fromIntegral count)
-            &* set @"pSetLayouts" layoutsPtr
-    descriptorSets <- allocaPeekArray count $ \descriptorSetPtr ->
-        withPtr allocateInfo $ \allocateInfoPtr ->
-            vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
-    let descriptorSetData = DescriptorSetData
-            { _descriptorSets = descriptorSets
-            , _descriptorSetPtr = VK_NULL -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
-            , _descriptorSetCount = fromIntegral count }
-    logInfo $ "createDescriptorSets : " ++ show descriptorSetData
-    return descriptorSetData
+createDescriptorSetData device descriptorPool swapChainImageCount descriptorSetLayout = do
+    let descriptorSetLayouts = replicate swapChainImageCount descriptorSetLayout
+    allocaArray (length descriptorSetLayouts) $ \descriptorSetLayoutsPtr -> do
+        pokeArray descriptorSetLayoutsPtr descriptorSetLayouts
+
+        let allocateInfo = createVk @VkDescriptorSetAllocateInfo
+                $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
+                &* set @"pNext" VK_NULL
+                &* set @"descriptorPool" descriptorPool
+                &* set @"descriptorSetCount" (fromIntegral swapChainImageCount)
+                &* set @"pSetLayouts" descriptorSetLayoutsPtr
+        descriptorSets <- allocaPeekArray swapChainImageCount $ \descriptorSetPtr ->
+            withPtr allocateInfo $ \allocateInfoPtr ->
+                vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
+        let descriptorSetData = DescriptorSetData
+                { _descriptorSets = descriptorSets
+                , _descriptorSetPtr = VK_NULL -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
+                , _descriptorSetCount = fromIntegral swapChainImageCount }
+        logInfo $ "createDescriptorSets : " ++ show descriptorSetData
+        return descriptorSetData
 
 destroyDescriptorSetData :: VkDevice
                          -> VkDescriptorPool

@@ -10,9 +10,9 @@ import Data.IORef
 import Data.Maybe (isNothing)
 import qualified Data.DList as DList
 import System.Directory
+import Foreign.Marshal.Utils
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
-import Foreign.Marshal.Utils
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import qualified Graphics.UI.GLFW as GLFW
@@ -87,12 +87,10 @@ main = do
         (getDevice rendererData)
         (getSwapChainImageCount rendererData)
     let descriptorBufferInfos = fmap transformObjectBufferInfo transformObjectBuffers
-    descriptorPool <- createDescriptorPool (getDevice rendererData) (getSwapChainImageCount rendererData)
-    descriptorSetLayoutsPtr <- newArray $ replicate (getSwapChainImageCount rendererData) (getDescriptorSetLayout renderPassData)
-    descriptorSetData <- createDescriptorSetData (getDevice rendererData) descriptorPool (getSwapChainImageCount rendererData) descriptorSetLayoutsPtr
+    descriptorPool <- createDescriptorPool (getDevice rendererData) (getSwapChainImageCount rendererData)    
+    descriptorSetData <- createDescriptorSetData (getDevice rendererData) descriptorPool (getSwapChainImageCount rendererData) (getDescriptorSetLayout renderPassData)
     forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
         prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo descriptorTextureInfo descriptorSet
-    transformObjectMemoriesPtr <- newArray transformObjectMemories
 
     -- record render commands
     let vertexBuffer = _vertexBuffer geometryBuffer
@@ -165,7 +163,8 @@ main = do
         frameIndex <- readIORef frameIndexRef
         rendererData <- readIORef rendererDataRef
         renderPassDataList <- readIORef renderPassDataListRef
-        result <- drawFrame rendererData frameIndex imageIndexPtr transformObjectMemoriesPtr
+
+        result <- drawFrame rendererData frameIndex imageIndexPtr transformObjectMemories
         vkDeviceWaitIdle (getDevice rendererData)
         writeIORef frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
         sizeChanged <- readIORef windowSizeChanged
@@ -181,10 +180,8 @@ main = do
     result <- vkDeviceWaitIdle $ _device rendererData
     validationVK result "vkDeviceWaitIdle failed!"
 
-    free transformObjectMemoriesPtr
     destroyTransformObjectBuffers (getDevice rendererData) transformObjectBuffers transformObjectMemories
 
-    free descriptorSetLayoutsPtr
     -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
     -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
     destroyDescriptorPool (getDevice rendererData) descriptorPool
