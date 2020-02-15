@@ -5,6 +5,7 @@ module Main
   ( main
   ) where
 
+import Control.Concurrent (forkIO)
 import Control.Monad
 import Data.IORef
 import Data.Maybe (isNothing)
@@ -33,7 +34,7 @@ import qualified Library.Constants as Constants
 
 main::IO()
 main = do
-    runEditor
+    forkIO $ runEditor
     windowSizeChanged <- newIORef False
     maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged
     when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
