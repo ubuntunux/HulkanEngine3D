@@ -81,14 +81,14 @@ main = do
     geometryBufferListRef <- newIORef (DList.singleton geometryBuffer)
     textureData <- createTexture rendererData "Resource/Externals/Textures/texture.jpg"
 
-    let descriptorTextureInfo = getTextureImageInfo textureData
     (transformObjectMemories, transformObjectBuffers) <- unzip <$> createTransformObjectBuffers
         (getPhysicalDevice rendererData)
         (getDevice rendererData)
         (getSwapChainImageCount rendererData)
-    let descriptorBufferInfos = fmap transformObjectBufferInfo transformObjectBuffers
-    descriptorPool <- createDescriptorPool (getDevice rendererData) (getSwapChainImageCount rendererData)    
+    descriptorPool <- createDescriptorPool (getDevice rendererData) (getSwapChainImageCount rendererData)
     descriptorSetData <- createDescriptorSetData (getDevice rendererData) descriptorPool (getSwapChainImageCount rendererData) (getDescriptorSetLayout renderPassData)
+    let descriptorTextureInfo = getTextureImageInfo textureData
+        descriptorBufferInfos = fmap transformObjectBufferInfo transformObjectBuffers
     forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
         prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo descriptorTextureInfo descriptorSet
 
