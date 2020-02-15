@@ -12,7 +12,6 @@ import qualified Data.DList as DList
 import System.Directory
 import Foreign.Marshal.Utils
 import Foreign.Marshal.Alloc
-import Foreign.Marshal.Array
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import qualified Graphics.UI.GLFW as GLFW
@@ -87,10 +86,9 @@ main = do
         (getSwapChainImageCount rendererData)
     descriptorPool <- createDescriptorPool (getDevice rendererData) (getSwapChainImageCount rendererData)
     descriptorSetData <- createDescriptorSetData (getDevice rendererData) descriptorPool (getSwapChainImageCount rendererData) (getDescriptorSetLayout renderPassData)
-    let descriptorTextureInfo = getTextureImageInfo textureData
-        descriptorBufferInfos = fmap transformObjectBufferInfo transformObjectBuffers
+    let descriptorBufferInfos = fmap transformObjectBufferInfo transformObjectBuffers
     forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
-        prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo descriptorTextureInfo descriptorSet
+        prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo (getTextureImageInfo textureData) descriptorSet
 
     -- record render commands
     let vertexBuffer = _vertexBuffer geometryBuffer
