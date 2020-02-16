@@ -6,6 +6,7 @@ module HulkanEngine3D.Application
     , glfwMainLoop
     , createGLFWWindow
     , destroyGLFWWindow
+    , charCallBack
     ) where
 
 
@@ -46,6 +47,7 @@ createGLFWWindow width height title windowSizeChanged = do
     GLFW.setWindowSizeCallback window $
         Just (\_ _ _ -> atomicWriteIORef windowSizeChanged True)
     GLFW.setKeyCallback window $ Just keyCallBack
+    GLFW.setCharCallback window $ Just charCallBack
     return maybeWindow
 
 destroyGLFWWindow :: GLFW.Window -> IO ()
@@ -65,4 +67,8 @@ keyCallBack window key scancode state mods = do
     logInfo $ show scancode
     logInfo $ show state
     logInfo $ show mods
-    return ()
+
+charCallBack :: GLFW.Window -> Char -> IO ()
+charCallBack windows key = do
+    logInfo $ show key
+
