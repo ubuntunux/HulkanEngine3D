@@ -6,7 +6,7 @@
 {-# LANGUAGE Strict              #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module Library.Vulkan.TransformationObject
+module HulkanEngine3D.Vulkan.TransformationObject
   ( updateTransformObject
   , createTransformObjectBuffers
   , destroyTransformObjectBuffers
@@ -24,9 +24,9 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Numeric.DataFrame
 
-import Library.Utilities.System
-import Library.Utilities.Logger
-import Library.Vulkan.Buffer
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Vulkan.Buffer
 
 {- |
   Here, in the `view` matrix, we have to decide on our world coordinates.

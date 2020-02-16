@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeApplications    #-}
 
 
-module Library.Vulkan.Descriptor
+module HulkanEngine3D.Vulkan.Descriptor
   ( DescriptorSetData (..)
   , createDescriptorPool
   , destroyDescriptorPool
@@ -21,8 +21,8 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
-import Library.Utilities.System
-import Library.Utilities.Logger
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
 
 
 data DescriptorSetData = DescriptorSetData

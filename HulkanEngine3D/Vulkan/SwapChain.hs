@@ -3,7 +3,7 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Vulkan.SwapChain
+module HulkanEngine3D.Vulkan.SwapChain
   ( SwapChainSupportDetails (..)
   , SwapChainData (..)
   , isValidSwapChainSupport
@@ -22,11 +22,11 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
-import qualified Library.Constants as Constants
-import Library.Utilities.System
-import Library.Utilities.Logger
-import Library.Vulkan.Queue
-import Library.Vulkan.Texture
+import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Vulkan.Queue
+import HulkanEngine3D.Vulkan.Texture
 
 
 data SwapChainSupportDetails = SwapChainSupportDetails

@@ -3,7 +3,7 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Vulkan.Device
+module HulkanEngine3D.Vulkan.Device
   ( getMaxUsableSampleCount
   , getInstanceExtensionSupport
   , getDeviceExtensionSupport
@@ -33,10 +33,10 @@ import Graphics.Vulkan.Ext.VK_KHR_surface
 import Graphics.Vulkan.Marshal.Create
 import qualified Graphics.UI.GLFW as GLFW
 
-import qualified Library.Constants as Constants
-import Library.Utilities.System
-import Library.Utilities.Logger
-import Library.Vulkan.SwapChain
+import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Vulkan.SwapChain
 
 
 getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)

@@ -17,19 +17,19 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import qualified Graphics.UI.GLFW as GLFW
 
-import Library.Application
-import Library.Application.Editor
-import Library.Resource.ObjLoader
-import Library.Utilities.System
-import Library.Utilities.Logger
-import Library.Vulkan
-import Library.Vulkan.Mesh
-import Library.Vulkan.Device
-import Library.Vulkan.Descriptor
-import Library.Vulkan.Texture
-import Library.Vulkan.RenderPass
-import Library.Vulkan.TransformationObject
-import qualified Library.Constants as Constants
+import HulkanEngine3D.Application
+import HulkanEngine3D.Application.Editor
+import HulkanEngine3D.Resource.ObjLoader
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Vulkan
+import HulkanEngine3D.Vulkan.Mesh
+import HulkanEngine3D.Vulkan.Device
+import HulkanEngine3D.Vulkan.Descriptor
+import HulkanEngine3D.Vulkan.Texture
+import HulkanEngine3D.Vulkan.RenderPass
+import HulkanEngine3D.Vulkan.TransformationObject
+import qualified HulkanEngine3D.Constants as Constants
 
 
 main::IO()

@@ -3,7 +3,7 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Vulkan
+module HulkanEngine3D.Vulkan
   ( RendererData (..)
   , RendererInterface (..)
   , getColorClearValue
@@ -36,19 +36,19 @@ import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame
 import Numeric.DataFrame
 
-import qualified Library.Constants as Constants
-import Library.Utilities.Logger
-import Library.Utilities.System
-import Library.Vulkan.CommandBuffer
-import Library.Vulkan.Device
-import Library.Vulkan.FrameBuffer
-import Library.Vulkan.Mesh
-import Library.Vulkan.Queue
-import Library.Vulkan.RenderPass
-import Library.Vulkan.SwapChain
-import Library.Vulkan.Sync
-import Library.Vulkan.Texture
-import Library.Vulkan.TransformationObject
+import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Vulkan.CommandBuffer
+import HulkanEngine3D.Vulkan.Device
+import HulkanEngine3D.Vulkan.FrameBuffer
+import HulkanEngine3D.Vulkan.Mesh
+import HulkanEngine3D.Vulkan.Queue
+import HulkanEngine3D.Vulkan.RenderPass
+import HulkanEngine3D.Vulkan.SwapChain
+import HulkanEngine3D.Vulkan.Sync
+import HulkanEngine3D.Vulkan.Texture
+import HulkanEngine3D.Vulkan.TransformationObject
 
 
 data RenderFeatures = RenderFeatures

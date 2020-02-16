@@ -1,4 +1,4 @@
-module Library.Constants
+module HulkanEngine3D.Constants
     ( vulkanLayers
     , requireDeviceExtensions
     , invalidQueueIndex

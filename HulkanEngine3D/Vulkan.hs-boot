@@ -1,8 +1,8 @@
-module Library.Vulkan where
+module HulkanEngine3D.Vulkan where
 
 import Graphics.Vulkan
 
-import {-# SOURCE #-} Library.Vulkan.RenderPass
+import {-# SOURCE #-} HulkanEngine3D.Vulkan.RenderPass
 
 data RendererData
 

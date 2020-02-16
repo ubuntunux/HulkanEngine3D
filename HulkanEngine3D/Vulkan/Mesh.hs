@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 
-module Library.Vulkan.Mesh
+module HulkanEngine3D.Vulkan.Mesh
   ( Vertex (..)
   , Tri (..)
   , GeometryBufferData(..)
@@ -40,10 +40,10 @@ import qualified Numeric.DataFrame.ST as ST
 import Numeric.DataFrame
 import Numeric.Dimensions
 
-import Library.Utilities.System
-import Library.Utilities.Logger
-import Library.Utilities.Math
-import Library.Vulkan.Buffer
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.Math
+import HulkanEngine3D.Vulkan.Buffer
 
 
 -- | Preparing Vertex data to make an interleaved array.

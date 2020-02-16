@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE Strict           #-}
 
-module Library.Application
+module HulkanEngine3D.Application
     ( glfwMainLoop
     , createGLFWWindow
     , destroyGLFWWindow
@@ -12,8 +12,8 @@ import Control.Monad
 import Data.IORef
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import qualified Graphics.UI.GLFW as GLFW
-import Library.Utilities.System
-import Library.Utilities.Logger
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
 
 glfwMainLoop :: GLFW.Window -> IO Bool -> IO ()
 glfwMainLoop window mainLoop = go

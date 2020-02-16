@@ -3,7 +3,7 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Vulkan.FrameBuffer
+module HulkanEngine3D.Vulkan.FrameBuffer
     ( FrameBufferData (..)
     , createFramebufferData
     , destroyFramebufferData
@@ -16,8 +16,8 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
-import Library.Utilities.System
-import Library.Utilities.Logger
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
 
 data FrameBufferData = FrameBufferData
     { _frameBuffers :: [VkFramebuffer]

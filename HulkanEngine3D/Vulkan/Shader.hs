@@ -3,7 +3,7 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Vulkan.Shader
+module HulkanEngine3D.Vulkan.Shader
   ( createShaderStageCreateInfo
   , destroyShaderStageCreateInfo  
   , compileGLSL
@@ -23,8 +23,8 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
-import Library.Utilities.System
-import Library.Utilities.Logger
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
 
 
 compileGLSL :: FilePath -> IO (Int, Ptr Word32)

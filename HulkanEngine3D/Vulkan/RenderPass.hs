@@ -3,7 +3,7 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Vulkan.RenderPass
+module HulkanEngine3D.Vulkan.RenderPass
     ( GraphicsPipelineData (..)
     , RenderPassData (..)
     , RenderPassDataCreateInfo (..)
@@ -25,12 +25,12 @@ import Graphics.Vulkan.Marshal.Create.DataFrame
 import Numeric.DataFrame
 import Numeric.Dimensions
 
-import Library.Utilities.System
-import Library.Utilities.Logger
-import Library.Vulkan.Descriptor
-import Library.Vulkan.FrameBuffer
-import Library.Vulkan.Mesh
-import Library.Vulkan.Shader
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Vulkan.Descriptor
+import HulkanEngine3D.Vulkan.FrameBuffer
+import HulkanEngine3D.Vulkan.Mesh
+import HulkanEngine3D.Vulkan.Shader
 
 
 data GraphicsPipelineData = GraphicsPipelineData

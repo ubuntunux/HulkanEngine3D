@@ -4,7 +4,7 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Vulkan.Buffer
+module HulkanEngine3D.Vulkan.Buffer
   ( createBuffer
   , destroyBuffer
   , copyBuffer
@@ -18,9 +18,9 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame
 
-import Library.Utilities.System
-import Library.Utilities.Logger
-import {-# SOURCE #-} Library.Vulkan
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
+import {-# SOURCE #-} HulkanEngine3D.Vulkan
 
 
 createBuffer :: VkPhysicalDevice

@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 
-module Library.Resource.ObjLoader
+module HulkanEngine3D.Resource.ObjLoader
   ( loadModel
   ) where
 
@@ -21,9 +21,9 @@ import Graphics.Vulkan.Marshal.Create.DataFrame ()
 import Numeric.DataFrame
 import Numeric.Dimensions
 
-import Library.Utilities.Logger
-import Library.Utilities.System
-import Library.Vulkan.Mesh
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Vulkan.Mesh
 
 
 loadModel :: FilePath -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])

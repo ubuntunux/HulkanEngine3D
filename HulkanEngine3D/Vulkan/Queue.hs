@@ -3,7 +3,7 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Vulkan.Queue
+module HulkanEngine3D.Vulkan.Queue
     ( QueueFamilyIndices (..)
     , QueueFamilyDatas (..)
     , createQueues
@@ -20,9 +20,9 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_surface
 
-import qualified Library.Constants as Constants
-import Library.Utilities.System
-import Library.Utilities.Logger
+import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Logger
 
 data QueueFamilyIndices = QueueFamilyIndices
     { _graphicsQueueIndex :: Word32

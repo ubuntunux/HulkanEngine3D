@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Library.Utilities.Logger
+module HulkanEngine3D.Utilities.Logger
     ( logInfo
     , logDebug
     , logWarn

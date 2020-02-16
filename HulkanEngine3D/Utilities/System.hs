@@ -7,7 +7,7 @@
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE UnboxedTuples       #-}
 
-module Library.Utilities.System
+module HulkanEngine3D.Utilities.System
     ( VulkanException (..)
     , getSystemTime
     , handleAllErrors

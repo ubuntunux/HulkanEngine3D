@@ -6,7 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module Library.Vulkan.Texture
+module HulkanEngine3D.Vulkan.Texture
     ( TextureData (..)
     , TextureInterface (..)
     , findDepthFormat
@@ -34,10 +34,10 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
-import Library.Utilities.Logger
-import Library.Utilities.System
-import Library.Vulkan.Buffer
-import {-# SOURCE #-} Library.Vulkan
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Vulkan.Buffer
+import {-# SOURCE #-} HulkanEngine3D.Vulkan
 
 
 data TextureData = TextureData

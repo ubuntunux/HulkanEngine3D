@@ -3,4 +3,4 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Library.Render.RenderTarget where
+module HulkanEngine3D.Render.RenderTarget where
