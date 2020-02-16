@@ -23,6 +23,7 @@ executable main
     ghc-options:      -threaded
     other-modules:    HulkanEngine3D.Application
                       HulkanEngine3D.Application.Editor
+                      HulkanEngine3D.Application.SceneManager
                       HulkanEngine3D.Constants
                       HulkanEngine3D.Render.RenderTarget
                       HulkanEngine3D.Resource
