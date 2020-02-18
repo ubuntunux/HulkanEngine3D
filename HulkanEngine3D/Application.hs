@@ -81,16 +81,17 @@ charCallBack windows key = do
     logInfo $ show key
 
 
-glfwMainLoop :: GLFW.Window -> IO Bool -> IO ()
-glfwMainLoop window mainLoop = go
-  where
-    go = do
-      should <- GLFW.windowShouldClose window
-      unless should $ do
+updateLoop :: GLFW.Window -> ApplicationData -> (ApplicationData -> IO ApplicationData) -> IO ApplicationData
+updateLoop window applicationData loopFunc = do
+    exit <- GLFW.windowShouldClose window
+    if not exit then do
         GLFW.pollEvents
         updateEvent
-        result <- mainLoop
-        if result then go else return ()
+        newApplicationData <- loopFunc applicationData
+        updateLoop window newApplicationData loopFunc
+    else
+        return applicationData
+
 
 runApplication :: IO()
 runApplication = do
@@ -166,8 +167,11 @@ runApplication = do
     currentTimeRef <- newIORef currentTime
     elapsedTimeRef <- newIORef (0.0 :: Double)
 
+    let applicationData = ApplicationData
+            { _renderTargetData = renderTargetData }
+
     -- Main Loop
-    glfwMainLoop window $ do
+    applicationData <- updateLoop window applicationData $ \applicationData -> do
         currentTime <- getSystemTime
         previousTime <- readIORef currentTimeRef
         let deltaTime = currentTime - previousTime
@@ -176,50 +180,51 @@ runApplication = do
             return $ elapsedTimePrev + deltaTime
         writeIORef currentTimeRef currentTime
         writeIORef elapsedTimeRef elapsedTime
-        -- when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
+        when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
 
         needRecreateSwapChain <- readIORef needRecreateSwapChainRef
-        when needRecreateSwapChain $ do
-            writeIORef needRecreateSwapChainRef False
-            logInfo "                        "
-            logInfo "<< Recreate SwapChain >>"
+        renderTargetData <- if needRecreateSwapChain
+            then do
+                writeIORef needRecreateSwapChainRef False
+                logInfo "                        "
+                logInfo "<< Recreate SwapChain >>"
 
-            -- cleanUp swapChain
-            rendererData <- readIORef rendererDataRef
-            result <- vkDeviceWaitIdle $ _device rendererData
-            validationVK result "vkDeviceWaitIdle failed!"
+                -- cleanUp swapChain
+                rendererData <- readIORef rendererDataRef
+                result <- vkDeviceWaitIdle $ _device rendererData
+                validationVK result "vkDeviceWaitIdle failed!"
 
-            renderPassDataList <- readIORef renderPassDataListRef
-            forM_ renderPassDataList $ \renderPassData -> do
-                destroyRenderPass rendererData renderPassData
+                renderPassDataList <- readIORef renderPassDataListRef
+                forM_ renderPassDataList $ \renderPassData -> do
+                    destroyRenderPass rendererData renderPassData
 
-            sceneColorTexture <- readIORef sceneColorTextureRef
-            sceneDepthTexture <- readIORef sceneDepthTextureRef
-            destroyTexture rendererData sceneColorTexture
-            destroyTexture rendererData sceneDepthTexture
+                let renderTargetData = (_renderTargetData applicationData)
+                destroyTexture rendererData (_sceneColorTexture renderTargetData)
+                destroyTexture rendererData (_sceneDepthTexture renderTargetData)
 
-            -- recreate swapChain
-            rendererData <- recreateSwapChain rendererData window
+                -- recreate swapChain
+                rendererData <- recreateSwapChain rendererData window
 
-            -- recreate resources
-            renderTargetData <- createRenderTargets rendererData
-            writeIORef sceneColorTextureRef (_sceneColorTexture renderTargetData)
-            writeIORef sceneDepthTextureRef (_sceneDepthTexture renderTargetData)
+                -- recreate resources
+                renderTargetData <- createRenderTargets rendererData
 
-            renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
-                rendererData
-                [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
-                [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
-            renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
+                renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
+                    rendererData
+                    [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
+                    [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
+                renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
 
-            -- record render commands
-            let vertexBuffer = _vertexBuffer geometryBuffer
-                vertexIndexCount = _vertexIndexCount geometryBuffer
-                indexBuffer = _indexBuffer geometryBuffer
-            recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
+                -- record render commands
+                let vertexBuffer = _vertexBuffer geometryBuffer
+                    vertexIndexCount = _vertexIndexCount geometryBuffer
+                    indexBuffer = _indexBuffer geometryBuffer
+                recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
 
-            writeIORef renderPassDataListRef (DList.fromList [renderPassData])
-            writeIORef rendererDataRef rendererData
+                writeIORef renderPassDataListRef (DList.fromList [renderPassData])
+                writeIORef rendererDataRef rendererData
+                return renderTargetData
+            else
+                return (_renderTargetData applicationData)
         frameIndex <- readIORef frameIndexRef
         rendererData <- readIORef rendererDataRef
         renderPassDataList <- readIORef renderPassDataListRef
@@ -231,7 +236,9 @@ runApplication = do
         when (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged) $ do
             atomicWriteIORef windowSizeChanged False
             writeIORef needRecreateSwapChainRef True
-        return True
+
+        return ApplicationData
+            { _renderTargetData = renderTargetData }
 
     -- Terminate
     logInfo "               "
@@ -246,10 +253,9 @@ runApplication = do
     -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
     destroyDescriptorPool (getDevice rendererData) descriptorPool
 
-    sceneColorTexture <- readIORef sceneColorTextureRef
-    sceneDepthTexture <- readIORef sceneDepthTextureRef
-    destroyTexture rendererData sceneColorTexture
-    destroyTexture rendererData sceneDepthTexture
+    let renderTargetData = (_renderTargetData applicationData)
+    destroyTexture rendererData (_sceneColorTexture renderTargetData)
+    destroyTexture rendererData (_sceneDepthTexture renderTargetData)
 
     destroyTexture rendererData textureData
 
