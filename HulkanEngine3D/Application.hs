@@ -2,12 +2,7 @@
 {-# LANGUAGE Strict           #-}
 
 module HulkanEngine3D.Application
-    ( InputData (..)
-    , glfwMainLoop
-    , createGLFWWindow
-    , destroyGLFWWindow
-    , charCallBack
-    , runApplication
+    ( runApplication
     ) where
 
 import Control.Monad
@@ -36,13 +31,15 @@ import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.TransformationObject
 import qualified HulkanEngine3D.Constants as Constants
 
+
 data InputData = InputData
     {
     } deriving (Show)
 
-data Application = Application
+data ApplicationData = ApplicationData
     { _renderTargetData :: RenderTargetData
     } deriving (Show)
+
 
 createGLFWWindow::Int -> Int -> String -> IORef Bool -> IO (Maybe GLFW.Window)
 createGLFWWindow width height title windowSizeChanged = do
