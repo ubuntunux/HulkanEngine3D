@@ -4,7 +4,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module HulkanEngine3D.Vulkan
-  ( RendererData (..)
+  ( RenderFeatures (..)
+  , RendererData (..)
   , RendererInterface (..)
   , getColorClearValue
   , getDepthStencilClearValue
@@ -86,7 +87,6 @@ class RendererInterface a where
     getPresentQueue :: a -> VkQueue
     createRenderPass :: a -> RenderPassDataCreateInfo -> IO RenderPassData
     destroyRenderPass :: a -> RenderPassData ->  IO ()
-    createRenderTargets :: a -> IO (TextureData, TextureData)
     createRenderTarget :: a -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createDepthTarget :: a -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createTexture :: a -> FilePath -> IO TextureData
@@ -110,14 +110,6 @@ instance RendererInterface RendererData where
     destroyRenderPass rendererData renderPassData =
         destroyRenderPassData (getDevice rendererData) renderPassData
 
-    createRenderTargets rendererData = do
-        let format = _swapChainImageFormat (_swapChainData rendererData)
-            extent = _swapChainExtent (_swapChainData rendererData)
-            samples = _msaaSamples (_renderFeatures rendererData)
-        sceneColor <- createRenderTarget rendererData format extent samples
-        sceneDepth <- createDepthTarget rendererData extent samples
-        return (sceneColor, sceneDepth)
-        
     createRenderTarget rendererData format extent samples =
         createColorImageView
             (_physicalDevice rendererData)
