@@ -93,6 +93,7 @@ class RendererInterface a where
     destroyTexture :: a -> TextureData -> IO ()
     createGeometryBuffer :: a -> String -> DataFrame Vertex '[XN 3] -> DataFrame Word32 '[XN 3] -> IO GeometryBufferData
     destroyGeometryBuffer :: a -> GeometryBufferData -> IO ()
+    deviceWaitIdle :: a -> IO ()
 
 instance RendererInterface RendererData where
     getPhysicalDevice rendererData = (_physicalDevice rendererData)
@@ -153,6 +154,9 @@ instance RendererInterface RendererData where
 
     destroyGeometryBuffer rendererData geometryBuffer =
         destroyGeometryBufferData (_device rendererData) geometryBuffer
+
+    deviceWaitIdle rendererData =
+        throwingVK "vkDeviceWaitIdle failed!" (vkDeviceWaitIdle $ getDevice rendererData)
 
 getColorClearValue :: [Float] -> VkClearValue
 getColorClearValue colors = createVk @VkClearValue

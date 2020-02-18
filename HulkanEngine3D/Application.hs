@@ -37,7 +37,22 @@ data InputData = InputData
     } deriving (Show)
 
 data ApplicationData = ApplicationData
-    { _renderTargetData :: RenderTargetData
+    { _window :: GLFW.Window
+    , _needRecreateSwapChainRef :: IORef Bool
+    , _windowSizeChanged :: IORef Bool
+    , _frameIndexRef  :: IORef Int
+    , _imageIndexPtr :: Ptr Word32
+    , _currentTimeRef :: IORef Double
+    , _elapsedTimeRef :: IORef Double
+    , _renderTargetData :: RenderTargetData
+    , _rendererDataRef :: IORef RendererData
+    , _renderPassDataListRef :: IORef (DList.DList RenderPassData)
+    , _transformObjectBuffers :: [VkBuffer]
+    , _transformObjectMemories :: [VkDeviceMemory]
+    , _descriptorPool :: VkDescriptorPool
+    , _descriptorSetData :: DescriptorSetData
+    , _textureData :: TextureData
+    , _geometryBuffer :: GeometryBufferData
     } deriving (Show)
 
 
@@ -81,20 +96,8 @@ charCallBack windows key = do
     logInfo $ show key
 
 
-updateLoop :: GLFW.Window -> ApplicationData -> (ApplicationData -> IO ApplicationData) -> IO ApplicationData
-updateLoop window applicationData loopFunc = do
-    exit <- GLFW.windowShouldClose window
-    if not exit then do
-        GLFW.pollEvents
-        updateEvent
-        newApplicationData <- loopFunc applicationData
-        updateLoop window newApplicationData loopFunc
-    else
-        return applicationData
-
-
-runApplication :: IO()
-runApplication = do
+initializeApplication :: IO ApplicationData
+initializeApplication = do
     windowSizeChanged <- newIORef False
     maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged
     when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
@@ -125,8 +128,6 @@ runApplication = do
 
     -- create render targets
     renderTargetData <- createRenderTargets rendererData
-    sceneColorTextureRef <- newIORef (_sceneColorTexture renderTargetData)
-    sceneDepthTextureRef <- newIORef (_sceneDepthTexture renderTargetData)
 
     -- create render pass data
     renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
@@ -139,7 +140,6 @@ runApplication = do
     -- create resources
     (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
     geometryBuffer <- createGeometryBuffer rendererData "test" vertices indices
-    geometryBufferListRef <- newIORef (DList.singleton geometryBuffer)
     textureData <- createTexture rendererData "Resource/Externals/Textures/texture.jpg"
 
     (transformObjectMemories, transformObjectBuffers) <- unzip <$> createTransformObjectBuffers
@@ -167,43 +167,110 @@ runApplication = do
     currentTimeRef <- newIORef currentTime
     elapsedTimeRef <- newIORef (0.0 :: Double)
 
-    let applicationData = ApplicationData
-            { _renderTargetData = renderTargetData }
+    return ApplicationData
+            { _window = window
+            , _needRecreateSwapChainRef = needRecreateSwapChainRef
+            , _windowSizeChanged = windowSizeChanged
+            , _frameIndexRef = frameIndexRef
+            , _imageIndexPtr = imageIndexPtr
+            , _currentTimeRef = currentTimeRef
+            , _elapsedTimeRef = elapsedTimeRef
+            , _renderTargetData = renderTargetData
+            , _rendererDataRef = rendererDataRef
+            , _renderPassDataListRef = renderPassDataListRef
+            , _transformObjectBuffers = transformObjectBuffers
+            , _transformObjectMemories = transformObjectMemories
+            , _descriptorPool = descriptorPool
+            , _descriptorSetData = descriptorSetData
+            , _textureData = textureData
+            , _geometryBuffer = geometryBuffer
+            }
+
+
+updateLoop :: ApplicationData -> (ApplicationData -> IO ApplicationData) -> IO ApplicationData
+updateLoop applicationData loopAction = do
+    exit <- GLFW.windowShouldClose (_window applicationData)
+    if not exit then do
+        GLFW.pollEvents
+        updateEvent
+        newApplicationData <- loopAction applicationData
+        updateLoop newApplicationData loopAction
+    else
+        return applicationData
+
+terminateApplication :: ApplicationData -> IO ()
+terminateApplication applicationData = do
+    logInfo "               "
+    logInfo "<< Terminate >>"
+
+    rendererData <- readIORef (_rendererDataRef applicationData)
+
+    -- waiting
+    deviceWaitIdle rendererData
+
+    destroyTransformObjectBuffers
+        (getDevice rendererData)
+        (_transformObjectBuffers applicationData)
+        (_transformObjectMemories applicationData)
+
+    -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
+    -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
+    destroyDescriptorPool (getDevice rendererData) (_descriptorPool applicationData)
+
+    destroyTexture rendererData (_sceneColorTexture (_renderTargetData applicationData))
+    destroyTexture rendererData (_sceneDepthTexture (_renderTargetData applicationData))
+
+    destroyTexture rendererData (_textureData applicationData)
+
+    destroyGeometryBuffer rendererData (_geometryBuffer applicationData)
+
+    renderPassDataList <- readIORef (_renderPassDataListRef applicationData)
+    forM_ renderPassDataList $ \renderPassData -> do
+        destroyRenderPassData (_device rendererData) renderPassData
+
+    destroyRenderer rendererData
+    free (_imageIndexPtr applicationData)
+
+    destroyGLFWWindow (_window applicationData)
+
+runApplication :: IO()
+runApplication = do
+    initializedApplicationData <- initializeApplication
 
     -- Main Loop
-    applicationData <- updateLoop window applicationData $ \applicationData -> do
+    finalApplicationData <- updateLoop initializedApplicationData $ \applicationData -> do
         currentTime <- getSystemTime
-        previousTime <- readIORef currentTimeRef
+        previousTime <- readIORef (_currentTimeRef applicationData)
         let deltaTime = currentTime - previousTime
         elapsedTime <- do
-            elapsedTimePrev <- readIORef elapsedTimeRef
+            elapsedTimePrev <- readIORef (_elapsedTimeRef applicationData)
             return $ elapsedTimePrev + deltaTime
-        writeIORef currentTimeRef currentTime
-        writeIORef elapsedTimeRef elapsedTime
-        when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
+        writeIORef (_currentTimeRef applicationData) currentTime
+        writeIORef (_elapsedTimeRef applicationData) elapsedTime
+        --when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
 
-        needRecreateSwapChain <- readIORef needRecreateSwapChainRef
-        renderTargetData <- if needRecreateSwapChain
-            then do
-                writeIORef needRecreateSwapChainRef False
+        needRecreateSwapChain <- readIORef (_needRecreateSwapChainRef applicationData)
+        renderTargetData <-
+            if needRecreateSwapChain then do
+                atomicWriteIORef (_needRecreateSwapChainRef applicationData) False
                 logInfo "                        "
                 logInfo "<< Recreate SwapChain >>"
 
                 -- cleanUp swapChain
-                rendererData <- readIORef rendererDataRef
-                result <- vkDeviceWaitIdle $ _device rendererData
-                validationVK result "vkDeviceWaitIdle failed!"
+                rendererData <- readIORef (_rendererDataRef applicationData)
 
-                renderPassDataList <- readIORef renderPassDataListRef
+                -- waiting
+                deviceWaitIdle rendererData
+
+                renderPassDataList <- readIORef (_renderPassDataListRef applicationData)
                 forM_ renderPassDataList $ \renderPassData -> do
                     destroyRenderPass rendererData renderPassData
 
-                let renderTargetData = (_renderTargetData applicationData)
-                destroyTexture rendererData (_sceneColorTexture renderTargetData)
-                destroyTexture rendererData (_sceneDepthTexture renderTargetData)
+                destroyTexture rendererData (_sceneColorTexture (_renderTargetData applicationData))
+                destroyTexture rendererData (_sceneDepthTexture (_renderTargetData applicationData))
 
                 -- recreate swapChain
-                rendererData <- recreateSwapChain rendererData window
+                rendererData <- recreateSwapChain rendererData (_window applicationData)
 
                 -- recreate resources
                 renderTargetData <- createRenderTargets rendererData
@@ -215,59 +282,34 @@ runApplication = do
                 renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
 
                 -- record render commands
-                let vertexBuffer = _vertexBuffer geometryBuffer
-                    vertexIndexCount = _vertexIndexCount geometryBuffer
-                    indexBuffer = _indexBuffer geometryBuffer
+                let vertexBuffer = _vertexBuffer (_geometryBuffer applicationData)
+                    vertexIndexCount = _vertexIndexCount (_geometryBuffer applicationData)
+                    indexBuffer = _indexBuffer (_geometryBuffer applicationData)
+                    descriptorSetData = (_descriptorSetData applicationData)
                 recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
 
-                writeIORef renderPassDataListRef (DList.fromList [renderPassData])
-                writeIORef rendererDataRef rendererData
+                writeIORef (_renderPassDataListRef applicationData) (DList.fromList [renderPassData])
+                writeIORef (_rendererDataRef applicationData) rendererData
                 return renderTargetData
             else
                 return (_renderTargetData applicationData)
-        frameIndex <- readIORef frameIndexRef
-        rendererData <- readIORef rendererDataRef
-        renderPassDataList <- readIORef renderPassDataListRef
+        frameIndex <- readIORef (_frameIndexRef applicationData)
+        rendererData <- readIORef (_rendererDataRef applicationData)
+        renderPassDataList <- readIORef (_renderPassDataListRef applicationData)
 
-        result <- drawFrame rendererData frameIndex imageIndexPtr transformObjectMemories
-        vkDeviceWaitIdle (getDevice rendererData)
-        writeIORef frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
-        sizeChanged <- readIORef windowSizeChanged
+        result <- drawFrame rendererData frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData)
+
+        -- waiting
+        deviceWaitIdle rendererData
+
+        writeIORef (_frameIndexRef applicationData) $ mod (frameIndex + 1) Constants.maxFrameCount
+        sizeChanged <- readIORef (_windowSizeChanged applicationData)
         when (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged) $ do
-            atomicWriteIORef windowSizeChanged False
-            writeIORef needRecreateSwapChainRef True
+            atomicWriteIORef (_windowSizeChanged applicationData) False
+            atomicWriteIORef (_needRecreateSwapChainRef applicationData) True
 
-        return ApplicationData
+        return applicationData
             { _renderTargetData = renderTargetData }
 
-    -- Terminate
-    logInfo "               "
-    logInfo "<< Terminate >>"
-    rendererData <- readIORef rendererDataRef
-    result <- vkDeviceWaitIdle $ _device rendererData
-    validationVK result "vkDeviceWaitIdle failed!"
+    terminateApplication finalApplicationData
 
-    destroyTransformObjectBuffers (getDevice rendererData) transformObjectBuffers transformObjectMemories
-
-    -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
-    -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
-    destroyDescriptorPool (getDevice rendererData) descriptorPool
-
-    let renderTargetData = (_renderTargetData applicationData)
-    destroyTexture rendererData (_sceneColorTexture renderTargetData)
-    destroyTexture rendererData (_sceneDepthTexture renderTargetData)
-
-    destroyTexture rendererData textureData
-
-    geometryBufferList <- readIORef geometryBufferListRef
-    forM_ geometryBufferList $ \geometryBuffer -> do
-        destroyGeometryBuffer rendererData geometryBuffer
-
-    renderPassDataList <- readIORef renderPassDataListRef
-    forM_ renderPassDataList $ \renderPassData -> do
-        destroyRenderPassData (_device rendererData) renderPassData
-
-    destroyRenderer rendererData
-    free imageIndexPtr
-
-    destroyGLFWWindow window
