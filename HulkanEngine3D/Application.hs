@@ -1,8 +1,11 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE Strict           #-}
+{-# LANGUAGE TemplateHaskell  #-}
+
 
 module HulkanEngine3D.Application
-    ( runApplication
+    ( ApplicationData (..)
+    , runApplication
     ) where
 
 import Control.Monad
@@ -12,6 +15,7 @@ import qualified Data.DList as DList
 import System.Directory
 import Foreign.Marshal.Utils
 import Foreign.Marshal.Alloc
+import qualified Control.Lens as Lens
 
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
@@ -32,6 +36,18 @@ import HulkanEngine3D.Vulkan.TransformationObject
 import qualified HulkanEngine3D.Constants as Constants
 
 
+data TestData = TestData
+    { _list0 :: [Integer]
+    , _list1 :: [Integer]
+    , _list2 :: [Integer]
+    } deriving (Show)
+
+data TestDataRef = TestDataRef
+    { _listRef0 :: IORef [Integer]
+    , _listRef1 :: IORef [Integer]
+    , _listRef2 :: IORef [Integer]
+    } deriving (Show)
+
 data InputData = InputData
     {
     } deriving (Show)
@@ -42,8 +58,8 @@ data ApplicationData = ApplicationData
     , _windowSizeChanged :: IORef Bool
     , _frameIndexRef  :: IORef Int
     , _imageIndexPtr :: Ptr Word32
-    , _currentTimeRef :: IORef Double
-    , _elapsedTimeRef :: IORef Double
+    , _currentTime :: Double
+    , _elapsedTime :: Double
     , _renderTargetData :: RenderTargetData
     , _rendererDataRef :: IORef RendererData
     , _renderPassDataListRef :: IORef (DList.DList RenderPassData)
@@ -54,6 +70,8 @@ data ApplicationData = ApplicationData
     , _textureData :: TextureData
     , _geometryBuffer :: GeometryBufferData
     } deriving (Show)
+
+Lens.makeLenses ''ApplicationData
 
 
 createGLFWWindow::Int -> Int -> String -> IORef Bool -> IO (Maybe GLFW.Window)
@@ -107,6 +125,7 @@ initializeApplication = do
     instanceExtensionNames <- getInstanceExtensionSupport
     checkExtensionResult <- checkExtensionSupport instanceExtensionNames requireExtensions
     unless checkExtensionResult (throwVKMsg "Failed to initialize GLFW window.")
+
     let Just window = maybeWindow
         progName = "Hulkan App"
         engineName = "HulkanEngine3D"
@@ -164,8 +183,23 @@ initializeApplication = do
     imageIndexPtr <- new (0 :: Word32)
 
     currentTime <- getSystemTime
-    currentTimeRef <- newIORef currentTime
-    elapsedTimeRef <- newIORef (0.0 :: Double)
+
+    let x = [0..20000]
+        y = [9..20009]
+        z = [3..20003]
+
+    let testData = TestData
+            { _list0 = x
+            , _list1 = y
+            , _list2 = z
+            }
+
+    let testDataRef = TestDataRef
+            { _listRef0 = newIORef x
+            , _listRef1 = newIORef y
+            , _listRef2 = newIORef z
+            }
+
 
     return ApplicationData
             { _window = window
@@ -173,8 +207,8 @@ initializeApplication = do
             , _windowSizeChanged = windowSizeChanged
             , _frameIndexRef = frameIndexRef
             , _imageIndexPtr = imageIndexPtr
-            , _currentTimeRef = currentTimeRef
-            , _elapsedTimeRef = elapsedTimeRef
+            , _currentTime = currentTime
+            , _elapsedTime = 0.0
             , _renderTargetData = renderTargetData
             , _rendererDataRef = rendererDataRef
             , _renderPassDataListRef = renderPassDataListRef
@@ -185,6 +219,13 @@ initializeApplication = do
             , _textureData = textureData
             , _geometryBuffer = geometryBuffer
             }
+
+    where
+        loop :: Int -> TestData -> TestData
+        loop x testData = do
+              if (x < 1000)
+              then loop (x+1) testData
+              else testData
 
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ApplicationData) -> IO ApplicationData
@@ -240,14 +281,10 @@ runApplication = do
     -- Main Loop
     finalApplicationData <- updateLoop initializedApplicationData $ \applicationData -> do
         currentTime <- getSystemTime
-        previousTime <- readIORef (_currentTimeRef applicationData)
-        let deltaTime = currentTime - previousTime
-        elapsedTime <- do
-            elapsedTimePrev <- readIORef (_elapsedTimeRef applicationData)
-            return $ elapsedTimePrev + deltaTime
-        writeIORef (_currentTimeRef applicationData) currentTime
-        writeIORef (_elapsedTimeRef applicationData) elapsedTime
-        --when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
+        let previousTime = (_currentTime applicationData)
+            deltaTime = currentTime - previousTime
+            elapsedTime = (_elapsedTime applicationData) + deltaTime
+        when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
 
         needRecreateSwapChain <- readIORef (_needRecreateSwapChainRef applicationData)
         renderTargetData <-
@@ -309,7 +346,9 @@ runApplication = do
             atomicWriteIORef (_needRecreateSwapChainRef applicationData) True
 
         return applicationData
-            { _renderTargetData = renderTargetData }
+            { _renderTargetData = renderTargetData
+            , _currentTime = currentTime
+            , _elapsedTime = elapsedTime }
 
     terminateApplication finalApplicationData
 
