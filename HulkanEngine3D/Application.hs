@@ -36,18 +36,6 @@ import HulkanEngine3D.Vulkan.TransformationObject
 import qualified HulkanEngine3D.Constants as Constants
 
 
-data TestData = TestData
-    { _list0 :: Integer
-    , _list1 :: Integer
-    , _list2 :: Integer
-    } deriving (Show)
-
-data TestDataRef = TestDataRef
-    { _listRef0 :: IORef Integer
-    , _listRef1 :: IORef Integer
-    , _listRef2 :: IORef Integer
-    } deriving (Show)
-
 data InputData = InputData
     {
     } deriving (Show)
@@ -326,74 +314,3 @@ runApplication = do
             , _elapsedTime = elapsedTime }
 
     terminateApplication finalApplicationData
-
-    let limit = 1000000
-
-    rendererData <- readIORef (_rendererDataRef finalApplicationData)
-    testDataRef <- newIORef rendererData
-    testData <- newIORef rendererData
-    print testData
-
-    currentTime <- getSystemTime
-    newTestData <- loop limit 0 rendererData
-    print $ newTestData
-    newCurrentTime <- getSystemTime
-    print (newCurrentTime - currentTime)
-
-    currentTime <- getSystemTime
-    newTestDataRef <- loopRef limit 0 testDataRef
-    newTestData <- readIORef newTestDataRef
-    print $ newTestData
-    newCurrentTime <- getSystemTime
-    print (newCurrentTime - currentTime)
-
-     where
-        loop :: Integer -> Integer -> RendererData -> IO RendererData
-        loop limit x testData = do
-            if (x < limit)
-            then do
-                defaultRendererData <- getDefaultRendererData
-                loop limit (x+1) $  testData {
-                        _renderFinishedSemaphores = (_renderFinishedSemaphores defaultRendererData)
-                        , _vkInstance = (_vkInstance defaultRendererData)
-                        , _vkSurface = (_vkSurface defaultR
-        loopRef :: Integer -> Integer -> IORef RendererData -> IO (IORef RendererData)
-        loopRef limit x testDataRef = do
-            if (x < limit)
-            then do
-                testData <- readIORef testDataRef
-                defaultRendererData <- getDefaultRendererData
-                writeIORef testDataRef $  testData {
-                                                                  _renderFinishedSemaphores = (_renderFinishedSemaphores defaultRendererData)
-                                                                  , _vkInstance = (_vkInstance defaultRendererData)
-                                                                  , _vkSurface = (_vkSurface defaultRendererData)
-                                                                  , _device = (_device defaultRendererData)
-                                                                  , _physicalDevice = (_physicalDevice defaultRendererData)
-                                                                  , _swapChainData = (_swapChainData defaultRendererData)
-                                                                  , _swapChainSupportDetails = (_swapChainSupportDetails defaultRendererData)
-                                                                  , _queueFamilyDatas = (_queueFamilyDatas defaultRendererData)
-                                                                  , _frameFencesPtr = (_frameFencesPtr defaultRendererData)
-    endererData)
-                        , _device = (_device defaultRendererData)
-                        , _physicalDevice = (_physicalDevice defaultRendererData)
-                        , _swapChainData = (_swapChainData defaultRendererData)
-                        , _swapChainSupportDetails = (_swapChainSupportDetails defaultRendererData)
-                        , _queueFamilyDatas = (_queueFamilyDatas defaultRendererData)
-                        , _frameFencesPtr = (_frameFencesPtr defaultRendererData)
-                        , _commandPool = (_commandPool defaultRendererData)
-                        , _commandBufferCount = (_commandBufferCount defaultRendererData)
-                        , _commandBuffersPtr = (_commandBuffersPtr defaultRendererData)
-                        , _commandBuffers = (_commandBuffers defaultRendererData)
-                        , _renderFeatures = (_renderFeatures defaultRendererData)
-                    }
-            else
-                return testData                                                              , _commandPool = (_commandPool defaultRendererData)
-                                                                  , _commandBufferCount = (_commandBufferCount defaultRendererData)
-                                                                  , _commandBuffersPtr = (_commandBuffersPtr defaultRendererData)
-                                                                  , _commandBuffers = (_commandBuffers defaultRendererData)
-                                                                  , _renderFeatures = (_renderFeatures defaultRendererData)
-                                                              }
-                loopRef limit (x+1) testDataRef
-            else
-                return testDataRef
-
