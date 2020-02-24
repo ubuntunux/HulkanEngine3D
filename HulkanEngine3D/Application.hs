@@ -16,7 +16,7 @@ import System.Directory
 import Foreign.Marshal.Utils
 import Foreign.Marshal.Alloc
 import qualified Control.Lens as Lens
-
+import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import Graphics.Vulkan.Core_1_0
@@ -37,8 +37,14 @@ import qualified HulkanEngine3D.Constants as Constants
 
 
 data InputData = InputData
-    {
+    { _keyboardDown :: Bool
+    , _keyboardPressed :: Bool
+    , _keyboardUp :: Bool
+    , _keyPressed :: ()
+    , _keyReleased :: ()
     } deriving (Show)
+
+Lens.makeLenses ''InputData
 
 data ApplicationData = ApplicationData
     { _window :: GLFW.Window
@@ -48,6 +54,7 @@ data ApplicationData = ApplicationData
     , _imageIndexPtr :: Ptr Word32
     , _currentTime :: Double
     , _elapsedTime :: Double
+    , _inputData :: InputData
     , _renderTargetData :: RenderTargetData
     , _rendererData :: RendererData
     , _renderPassDataList :: (DList.DList RenderPassData)
@@ -167,6 +174,13 @@ initializeApplication = do
     -- init system variables
     imageIndexPtr <- new (0 :: Word32)
     currentTime <- getSystemTime
+    let inputData = InputData
+            { _keyboardDown = False
+            , _keyboardPressed = False
+            , _keyboardUp = False
+            , _keyPressed = ()
+            , _keyReleased = ()
+            }
 
     return ApplicationData
             { _window = window
@@ -176,6 +190,7 @@ initializeApplication = do
             , _imageIndexPtr = imageIndexPtr
             , _currentTime = currentTime
             , _elapsedTime = 0.0
+            , _inputData = inputData
             , _renderTargetData = renderTargetData
             , _rendererData = rendererData
             , _renderPassDataList = renderPassDataList
@@ -242,7 +257,7 @@ runApplication = do
         let previousTime = (_currentTime applicationData)
             deltaTime = currentTime - previousTime
             elapsedTime = (_elapsedTime applicationData) + deltaTime
-        when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
+        --when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
 
         let frameIndex = (_frameIndex applicationData)
 
