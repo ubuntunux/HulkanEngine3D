@@ -42,15 +42,15 @@ data InputData = InputData
 
 data ApplicationData = ApplicationData
     { _window :: GLFW.Window
-    , _needRecreateSwapChainRef :: IORef Bool
     , _windowSizeChanged :: IORef Bool
-    , _frameIndexRef  :: IORef Int
+    , _needRecreateSwapChain :: Bool
+    , _frameIndex  :: Int
     , _imageIndexPtr :: Ptr Word32
     , _currentTime :: Double
     , _elapsedTime :: Double
     , _renderTargetData :: RenderTargetData
-    , _rendererDataRef :: IORef RendererData
-    , _renderPassDataListRef :: IORef (DList.DList RenderPassData)
+    , _rendererData :: RendererData
+    , _renderPassDataList :: (DList.DList RenderPassData)
     , _transformObjectBuffers :: [VkBuffer]
     , _transformObjectMemories :: [VkDeviceMemory]
     , _descriptorPool :: VkDescriptorPool
@@ -131,7 +131,6 @@ initializeApplication = do
             isConcurrentMode
             requireExtensions
             msaaSampleCount
-    rendererDataRef <- newIORef rendererData
 
     -- create render targets
     renderTargetData <- createRenderTargets rendererData
@@ -142,7 +141,7 @@ initializeApplication = do
         [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
         [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
     renderPassData <- createRenderPass rendererData renderPassDataCreateInfo
-    renderPassDataListRef <- newIORef (DList.singleton renderPassData)
+    let renderPassDataList = (DList.singleton renderPassData)
 
     -- create resources
     (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
@@ -166,23 +165,20 @@ initializeApplication = do
     recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
 
     -- init system variables
-    needRecreateSwapChainRef <- newIORef False
-    frameIndexRef <- newIORef 0
     imageIndexPtr <- new (0 :: Word32)
-
     currentTime <- getSystemTime
 
     return ApplicationData
             { _window = window
-            , _needRecreateSwapChainRef = needRecreateSwapChainRef
+            , _needRecreateSwapChain = False
             , _windowSizeChanged = windowSizeChanged
-            , _frameIndexRef = frameIndexRef
+            , _frameIndex = 0
             , _imageIndexPtr = imageIndexPtr
             , _currentTime = currentTime
             , _elapsedTime = 0.0
             , _renderTargetData = renderTargetData
-            , _rendererDataRef = rendererDataRef
-            , _renderPassDataListRef = renderPassDataListRef
+            , _rendererData = rendererData
+            , _renderPassDataList = renderPassDataList
             , _transformObjectBuffers = transformObjectBuffers
             , _transformObjectMemories = transformObjectMemories
             , _descriptorPool = descriptorPool
@@ -207,7 +203,7 @@ terminateApplication applicationData = do
     logInfo "               "
     logInfo "<< Terminate >>"
 
-    rendererData <- readIORef (_rendererDataRef applicationData)
+    let rendererData = (_rendererData applicationData)
 
     -- waiting
     deviceWaitIdle rendererData
@@ -228,8 +224,7 @@ terminateApplication applicationData = do
 
     destroyGeometryBuffer rendererData (_geometryBuffer applicationData)
 
-    renderPassDataList <- readIORef (_renderPassDataListRef applicationData)
-    forM_ renderPassDataList $ \renderPassData -> do
+    forM_ (_renderPassDataList applicationData) $ \renderPassData -> do
         destroyRenderPassData (_device rendererData) renderPassData
 
     destroyRenderer rendererData
@@ -249,21 +244,20 @@ runApplication = do
             elapsedTime = (_elapsedTime applicationData) + deltaTime
         when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
 
-        needRecreateSwapChain <- readIORef (_needRecreateSwapChainRef applicationData)
-        renderTargetData <-
-            if needRecreateSwapChain then do
-                atomicWriteIORef (_needRecreateSwapChainRef applicationData) False
+        let frameIndex = (_frameIndex applicationData)
+
+        (renderTargetData, renderPassDataList, rendererData) <-
+            if (_needRecreateSwapChain applicationData) then do
                 logInfo "                        "
                 logInfo "<< Recreate SwapChain >>"
 
                 -- cleanUp swapChain
-                rendererData <- readIORef (_rendererDataRef applicationData)
+                let rendererData = (_rendererData applicationData)
 
                 -- waiting
                 deviceWaitIdle rendererData
 
-                renderPassDataList <- readIORef (_renderPassDataListRef applicationData)
-                forM_ renderPassDataList $ \renderPassData -> do
+                forM_ (_renderPassDataList applicationData) $ \renderPassData -> do
                     destroyRenderPass rendererData renderPassData
 
                 destroyTexture rendererData (_sceneColorTexture (_renderTargetData applicationData))
@@ -280,6 +274,7 @@ runApplication = do
                     [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
                     [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
                 renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
+                let renderPassDataList = (DList.fromList [renderPassData])
 
                 -- record render commands
                 let vertexBuffer = _vertexBuffer (_geometryBuffer applicationData)
@@ -288,29 +283,28 @@ runApplication = do
                     descriptorSetData = (_descriptorSetData applicationData)
                 recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
 
-                writeIORef (_renderPassDataListRef applicationData) (DList.fromList [renderPassData])
-                writeIORef (_rendererDataRef applicationData) rendererData
-                return renderTargetData
+                return (renderTargetData, renderPassDataList, rendererData)
             else
-                return (_renderTargetData applicationData)
-        frameIndex <- readIORef (_frameIndexRef applicationData)
-        rendererData <- readIORef (_rendererDataRef applicationData)
-        renderPassDataList <- readIORef (_renderPassDataListRef applicationData)
+                return (_renderTargetData applicationData, _renderPassDataList applicationData, _rendererData applicationData)
 
         result <- drawFrame rendererData frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData)
 
         -- waiting
         deviceWaitIdle rendererData
 
-        writeIORef (_frameIndexRef applicationData) $ mod (frameIndex + 1) Constants.maxFrameCount
         sizeChanged <- readIORef (_windowSizeChanged applicationData)
-        when (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged) $ do
-            atomicWriteIORef (_windowSizeChanged applicationData) False
-            atomicWriteIORef (_needRecreateSwapChainRef applicationData) True
+        let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged)
+        when needRecreateSwapChain $ atomicWriteIORef (_windowSizeChanged applicationData) False
+
+        let nextFrameIndex = mod (frameIndex + 1) Constants.maxFrameCount
 
         return applicationData
-            { _renderTargetData = renderTargetData
-            , _currentTime = currentTime
-            , _elapsedTime = elapsedTime }
+            { _currentTime = currentTime
+            , _elapsedTime = elapsedTime
+            , _needRecreateSwapChain = needRecreateSwapChain
+            , _frameIndex = nextFrameIndex
+            , _renderTargetData = renderTargetData
+            , _renderPassDataList = renderPassDataList
+            , _rendererData = rendererData }
 
     terminateApplication finalApplicationData
