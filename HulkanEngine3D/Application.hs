@@ -4,13 +4,16 @@
 
 
 module HulkanEngine3D.Application
-    ( ApplicationData (..)
+    ( InputData (..)
+    , ApplicationData (..)
     , runApplication
     ) where
 
 import Control.Monad
+import Control.Monad.ST
 import Data.IORef
-import Data.Maybe (isNothing)
+import Data.STRef
+import Data.Maybe (isNothing, fromMaybe)
 import qualified Data.DList as DList
 import System.Directory
 import Foreign.Marshal.Utils
@@ -36,12 +39,14 @@ import HulkanEngine3D.Vulkan.TransformationObject
 import qualified HulkanEngine3D.Constants as Constants
 
 
+type KeyMap = HashTable.BasicHashTable Int Bool
+
 data InputData = InputData
     { _keyboardDown :: Bool
     , _keyboardPressed :: Bool
     , _keyboardUp :: Bool
-    , _keyPressed :: ()
-    , _keyReleased :: ()
+    , _keyPressedMap :: KeyMap
+    , _keyReleasedMap :: KeyMap
     } deriving (Show)
 
 Lens.makeLenses ''InputData
@@ -52,9 +57,13 @@ data ApplicationData = ApplicationData
     , _needRecreateSwapChain :: Bool
     , _frameIndex  :: Int
     , _imageIndexPtr :: Ptr Word32
+    , _accFrameTime :: Double
+    , _accFrameCount :: Int
+    , _averageFrameTime :: Double
+    , _averageFPS :: Double
     , _currentTime :: Double
     , _elapsedTime :: Double
-    , _inputData :: InputData
+    , _inputDataRef :: IORef InputData
     , _renderTargetData :: RenderTargetData
     , _rendererData :: RendererData
     , _renderPassDataList :: (DList.DList RenderPassData)
@@ -69,8 +78,8 @@ data ApplicationData = ApplicationData
 Lens.makeLenses ''ApplicationData
 
 
-createGLFWWindow::Int -> Int -> String -> IORef Bool -> IO (Maybe GLFW.Window)
-createGLFWWindow width height title windowSizeChanged = do
+createGLFWWindow::Int -> Int -> String -> IORef Bool -> IORef InputData -> IO (Maybe GLFW.Window)
+createGLFWWindow width height title windowSizeChanged inputDataRef = do
     GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")
     logInfo "Initialized GLFW."
     version <- GLFW.getVersionString
@@ -82,7 +91,7 @@ createGLFWWindow width height title windowSizeChanged = do
     let Just window = maybeWindow
     GLFW.setWindowSizeCallback window $
         Just (\_ _ _ -> atomicWriteIORef windowSizeChanged True)
-    GLFW.setKeyCallback window $ Just keyCallBack
+    GLFW.setKeyCallback window $ Just (keyCallBack inputDataRef)
     GLFW.setCharCallback window $ Just charCallBack
     return maybeWindow
 
@@ -92,27 +101,52 @@ destroyGLFWWindow window = do
     GLFW.terminate >> logInfo "Terminated GLFW."
 
 
-updateEvent :: IO ()
-updateEvent = return ()
+updateEvent :: ApplicationData -> IO ApplicationData
+updateEvent applicationData = do
+    inputData <- readIORef (_inputDataRef applicationData)
+    writeIORef (_inputDataRef applicationData) $ inputData
+        { _keyboardDown = False
+        , _keyboardUp = False }
+    return applicationData
 
 
-keyCallBack :: GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
-keyCallBack window key scancode state mods = do
-    logInfo $ show window
-    logInfo $ show key
-    logInfo $ show scancode
-    logInfo $ show state
-    logInfo $ show mods
+keyCallBack :: IORef InputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
+keyCallBack inputDataRef window key scanCode keyState modifierKeys = do
+    inputData <- readIORef inputDataRef
+    let keyboardPressed = (GLFW.KeyState'Pressed == keyState)
+        keyboardDown = (GLFW.KeyState'Pressed == keyState)
+        keyboardUp = (GLFW.KeyState'Released == keyState)
+        keyPressedMap = (_keyPressedMap inputData)
+        keyReleasedMap = (_keyReleasedMap inputData)
+    HashTable.insert keyPressedMap scanCode keyboardPressed
+    HashTable.insert keyReleasedMap scanCode (not keyboardPressed)
+    writeIORef inputDataRef $ inputData
+        { _keyboardPressed = keyboardPressed
+        , _keyboardDown = keyboardDown
+        , _keyboardUp = keyboardUp
+        , _keyPressedMap = keyPressedMap
+        , _keyReleasedMap = keyReleasedMap }
 
 charCallBack :: GLFW.Window -> Char -> IO ()
 charCallBack windows key = do
-    logInfo $ show key
+    -- logInfo $ show key
+    return ()
 
 
 initializeApplication :: IO ApplicationData
 initializeApplication = do
     windowSizeChanged <- newIORef False
-    maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged
+    keyPressed <- HashTable.new
+    keyReleased <- HashTable.new
+    let inputData = InputData
+            { _keyboardDown = False
+            , _keyboardPressed = False
+            , _keyboardUp = False
+            , _keyPressedMap = keyPressed
+            , _keyReleasedMap = keyReleased
+            }
+    inputDataRef <- newIORef inputData
+    maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged inputDataRef
     when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
     logInfo "                             "
     logInfo "<< Initialized GLFW window >>"
@@ -174,13 +208,6 @@ initializeApplication = do
     -- init system variables
     imageIndexPtr <- new (0 :: Word32)
     currentTime <- getSystemTime
-    let inputData = InputData
-            { _keyboardDown = False
-            , _keyboardPressed = False
-            , _keyboardUp = False
-            , _keyPressed = ()
-            , _keyReleased = ()
-            }
 
     return ApplicationData
             { _window = window
@@ -188,9 +215,13 @@ initializeApplication = do
             , _windowSizeChanged = windowSizeChanged
             , _frameIndex = 0
             , _imageIndexPtr = imageIndexPtr
+            , _accFrameTime = 0.0
+            , _accFrameCount = 0
+            , _averageFrameTime = 0.0
+            , _averageFPS = 0.0
             , _currentTime = currentTime
             , _elapsedTime = 0.0
-            , _inputData = inputData
+            , _inputDataRef = inputDataRef
             , _renderTargetData = renderTargetData
             , _rendererData = rendererData
             , _renderPassDataList = renderPassDataList
@@ -204,12 +235,15 @@ initializeApplication = do
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ApplicationData) -> IO ApplicationData
 updateLoop applicationData loopAction = do
+    inpuData <- readIORef (_inputDataRef applicationData)
+    maybeEscPressed <- HashTable.lookup (_keyPressedMap inpuData) 9 -- KeyCode 9 :: ESC
+    let escPressed = fromMaybe False maybeEscPressed
     exit <- GLFW.windowShouldClose (_window applicationData)
-    if not exit then do
+    if not exit && not escPressed then do
+        applicationData <- updateEvent applicationData
         GLFW.pollEvents
-        updateEvent
-        newApplicationData <- loopAction applicationData
-        updateLoop newApplicationData loopAction
+        applicationData <- loopAction applicationData
+        updateLoop applicationData loopAction
     else
         return applicationData
 
@@ -257,11 +291,20 @@ runApplication = do
         let previousTime = (_currentTime applicationData)
             deltaTime = currentTime - previousTime
             elapsedTime = (_elapsedTime applicationData) + deltaTime
-        --when (0.0 < deltaTime) . logInfo $ show (1.0 / deltaTime) ++ "fps / " ++ show deltaTime ++ "ms"
+            accFrameTime = (_accFrameTime applicationData) + deltaTime
+            accFrameCount = (_accFrameCount applicationData) + 1
+        (accFrameTime, accFrameCount, averageFrameTime, averageFPS) <- if (1.0 < accFrameTime)
+            then do
+                let averageFrameTime = accFrameTime / (fromIntegral accFrameCount) * 1000.0
+                    averageFPS = 1000.0 / averageFrameTime
+                logInfo $ show averageFPS ++ "fps / " ++ show averageFrameTime ++ "ms"
+                return (0.0, 0, averageFrameTime, averageFPS)
+            else
+                return (accFrameTime, accFrameCount, (_averageFrameTime applicationData), (_averageFPS applicationData))
 
         let frameIndex = (_frameIndex applicationData)
 
-        (renderTargetData, renderPassDataList, rendererData) <-
+        applicationData <-
             if (_needRecreateSwapChain applicationData) then do
                 logInfo "                        "
                 logInfo "<< Recreate SwapChain >>"
@@ -298,14 +341,17 @@ runApplication = do
                     descriptorSetData = (_descriptorSetData applicationData)
                 recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
 
-                return (renderTargetData, renderPassDataList, rendererData)
+                return $ applicationData
+                    { _renderTargetData = renderTargetData
+                    , _renderPassDataList = renderPassDataList
+                    , _rendererData = rendererData }
             else
-                return (_renderTargetData applicationData, _renderPassDataList applicationData, _rendererData applicationData)
+                return applicationData
 
-        result <- drawFrame rendererData frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData)
+        result <- drawFrame (_rendererData applicationData) frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData)
 
         -- waiting
-        deviceWaitIdle rendererData
+        deviceWaitIdle (_rendererData applicationData)
 
         sizeChanged <- readIORef (_windowSizeChanged applicationData)
         let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged)
@@ -316,10 +362,11 @@ runApplication = do
         return applicationData
             { _currentTime = currentTime
             , _elapsedTime = elapsedTime
+            , _accFrameTime = accFrameTime
+            , _accFrameCount = accFrameCount
+            , _averageFrameTime = averageFrameTime
+            , _averageFPS = averageFPS
             , _needRecreateSwapChain = needRecreateSwapChain
-            , _frameIndex = nextFrameIndex
-            , _renderTargetData = renderTargetData
-            , _renderPassDataList = renderPassDataList
-            , _rendererData = rendererData }
+            , _frameIndex = nextFrameIndex }
 
     terminateApplication finalApplicationData

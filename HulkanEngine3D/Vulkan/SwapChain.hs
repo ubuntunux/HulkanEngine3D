@@ -113,10 +113,11 @@ createSwapChainData :: VkDevice
                     -> SwapChainSupportDetails
                     -> QueueFamilyDatas
                     -> VkSurfaceKHR
+                    -> Bool
                     -> IO SwapChainData
-createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface = do
+createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface immediateMode = do
   surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
-  presentMode <- chooseSwapPresentMode swapChainSupportDetails
+  presentMode <- if not immediateMode then chooseSwapPresentMode swapChainSupportDetails else return VK_PRESENT_MODE_IMMEDIATE_KHR
   imageExtent <- chooseSwapExtent swapChainSupportDetails
   queueFamilyIndicesPtr <- newArray (_queueFamilyIndexList queueFamilyDatas)
 

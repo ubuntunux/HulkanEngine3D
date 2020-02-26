@@ -343,7 +343,7 @@ createRenderer defaultRendererData window progName engineName enableValidationLa
     imageAvailableSemaphores <- createSemaphores device
     renderFinishedSemaphores <- createSemaphores device
     frameFencesPtr <- createFrameFences device
-    swapChainData <- createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface
+    swapChainData <- createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface Constants.enableImmediateMode
     let commandBufferCount = fromIntegral $ _swapChainImageCount swapChainData
     commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
     commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
@@ -384,7 +384,7 @@ recreateSwapChain rendererData@RendererData {..} window = do
     destroySwapChainData _device _swapChainData
 
     newSwapChainSupportDetails <- querySwapChainSupport _physicalDevice _vkSurface
-    newSwapChainData <- createSwapChainData _device newSwapChainSupportDetails _queueFamilyDatas _vkSurface
+    newSwapChainData <- createSwapChainData _device newSwapChainSupportDetails _queueFamilyDatas _vkSurface Constants.enableImmediateMode
     let commandBufferCount = fromIntegral $ _swapChainImageCount newSwapChainData
     newCommandBuffersPtr <- createCommandBuffers _device _commandPool commandBufferCount
     newCommandBuffers <- peekArray (fromIntegral _commandBufferCount) newCommandBuffersPtr

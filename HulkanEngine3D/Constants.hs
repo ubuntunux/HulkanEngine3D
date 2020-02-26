@@ -1,10 +1,4 @@
-module HulkanEngine3D.Constants
-    ( vulkanLayers
-    , requireDeviceExtensions
-    , invalidQueueIndex
-    , swapChainImageCount
-    , maxFrameCount
-    ) where
+module HulkanEngine3D.Constants where
 
 import Graphics.Vulkan
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
@@ -23,3 +17,6 @@ swapChainImageCount = 3
 
 maxFrameCount :: Int
 maxFrameCount = 2
+
+enableImmediateMode :: Bool
+enableImmediateMode = False
