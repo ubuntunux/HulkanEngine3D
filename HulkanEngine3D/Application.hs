@@ -5,6 +5,7 @@
 module HulkanEngine3D.Application
     ( KeyboardInputData (..)
     , KeyboardInputInterface (..)
+    , MouseInputData (..)
     , ApplicationData (..)
     , runApplication
     ) where
@@ -52,19 +53,17 @@ data KeyboardInputData = KeyboardInputData
 
 makeLenses ''KeyboardInputData
 
-class KeyboardInputInterface a where
-    getKeyPressed :: a -> GLFW.Key -> IO Bool
-    getKeyReleased :: a -> GLFW.Key -> IO Bool
+data MouseInputData = MouseInputData
+    { _mousePosX :: Int
+    , _mousePosY :: Int
+    } deriving (Show)
 
-instance KeyboardInputInterface KeyboardInputData where
-    getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (keyboardInputData^.keyPressedMap) key
-    getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (keyboardInputData^.keyReleasedMap) key
-
-
+makeLenses ''MouseInputData
 
 data ApplicationData = ApplicationData
     { _window :: GLFW.Window
-    , _windowSizeChanged :: IORef Bool
+    , _windowSizeChangedRef :: IORef Bool
+    , _windowSizeRef :: IORef (Int, Int)
     , _needRecreateSwapChain :: Bool
     , _frameIndex  :: Int
     , _imageIndexPtr :: Ptr Word32
@@ -75,6 +74,7 @@ data ApplicationData = ApplicationData
     , _currentTime :: Double
     , _elapsedTime :: Double
     , _keyboardInputDataRef :: IORef KeyboardInputData
+    , _mouseInputDataRef :: IORef MouseInputData
     , _renderTargetData :: RenderTargetData
     , _rendererData :: RendererData
     , _renderPassDataList :: (DList.DList RenderPassData)
@@ -89,37 +89,28 @@ data ApplicationData = ApplicationData
 makeLenses ''ApplicationData
 
 
-createGLFWWindow::Int -> Int -> String -> IORef Bool -> IORef KeyboardInputData -> IO (Maybe GLFW.Window)
-createGLFWWindow width height title windowSizeChanged keyboardInputDataRef = do
-    GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")
-    logInfo "Initialized GLFW."
-    version <- GLFW.getVersionString
-    mapM_ (logInfo . ("GLFW Version: " ++)) version
-    GLFW.vulkanSupported >>= flip unless (throwVKMsg "GLFW reports that vulkan is not supported!")
-    GLFW.windowHint $ WindowHint'ClientAPI ClientAPI'NoAPI
-    GLFW.windowHint $ WindowHint'Resizable True
-    maybeWindow <- GLFW.createWindow width height title Nothing Nothing
-    let Just window = maybeWindow
-    GLFW.setWindowSizeCallback window $
-        Just (\_ _ _ -> atomicWriteIORef windowSizeChanged True)
-    GLFW.setKeyCallback window $ Just (keyCallBack keyboardInputDataRef)
-    GLFW.setCharCallback window $ Just charCallBack
-    return maybeWindow
+class KeyboardInputInterface a where
+    getKeyPressed :: a -> GLFW.Key -> IO Bool
+    getKeyReleased :: a -> GLFW.Key -> IO Bool
 
-destroyGLFWWindow :: GLFW.Window -> IO ()
-destroyGLFWWindow window = do
-    GLFW.destroyWindow window >> logInfo "Closed GLFW window."
-    GLFW.terminate >> logInfo "Terminated GLFW."
+instance KeyboardInputInterface KeyboardInputData where
+    getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (keyboardInputData^.keyPressedMap) key
+    getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (keyboardInputData^.keyReleasedMap) key
 
 
-updateEvent :: ApplicationData -> IO ApplicationData
-updateEvent applicationData = do
-    keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
-    writeIORef (_keyboardInputDataRef applicationData) $ keyboardInputData
-        { _keyboardDown = False
-        , _keyboardUp = False }
-    return applicationData
+mouseButtonCallback :: IORef MouseInputData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> IO ()
+mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifierKeys = do
+    mouseInputData <- readIORef mouseInputDataRef
+    writeIORef mouseInputDataRef mouseInputData
+--    logInfo $ show mouseButton
+--    logInfo $ show mouseButtonState
+--    logInfo $ show modifierKeys
 
+cursorPosCallback :: IORef MouseInputData -> GLFW.Window -> Double -> Double -> IO ()
+cursorPosCallback mouseInputDataRef windows posX posY = do
+    mouseInputData <- readIORef mouseInputDataRef
+    writeIORef mouseInputDataRef mouseInputData
+--    logInfo $ show (posX, posY)
 
 keyCallBack :: IORef KeyboardInputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
 keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
@@ -143,21 +134,58 @@ charCallBack windows key = do
     -- logInfo $ show key
     return ()
 
+windowSizeCallback :: IORef Bool -> IORef (Int, Int) -> GLFW.Window -> Int -> Int -> IO ()
+windowSizeCallback windowSizeChangedRef windowSizeRef window sizeX sizeY = do
+    atomicWriteIORef windowSizeChangedRef True
+    atomicWriteIORef windowSizeRef (sizeX, sizeY)
+
+createGLFWWindow :: String -> IORef (Int, Int) -> IORef Bool -> IORef KeyboardInputData -> IORef MouseInputData -> IO GLFW.Window
+createGLFWWindow title windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef = do
+    GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")
+    logInfo "Initialized GLFW."
+    Just version <- GLFW.getVersionString
+    logInfo $ ("GLFW Version: " ++) version
+    (width, height) <- readIORef windowSizeRef
+    GLFW.vulkanSupported >>= flip unless (throwVKMsg "GLFW reports that vulkan is not supported!")
+    GLFW.windowHint $ WindowHint'ClientAPI ClientAPI'NoAPI
+    GLFW.windowHint $ WindowHint'Resizable True
+    Just window <- GLFW.createWindow width height title Nothing Nothing
+    GLFW.setWindowSizeCallback window $ Just (windowSizeCallback windowSizeChangedRef windowSizeRef)
+    GLFW.setKeyCallback window $ Just (keyCallBack keyboardInputDataRef)
+    GLFW.setCharCallback window $ Just charCallBack
+    GLFW.setMouseButtonCallback window $ Just (mouseButtonCallback mouseInputDataRef)
+    GLFW.setCursorPosCallback window $ Just (cursorPosCallback mouseInputDataRef)
+    return window
+
+destroyGLFWWindow :: GLFW.Window -> IO ()
+destroyGLFWWindow window = do
+    GLFW.destroyWindow window >> logInfo "Closed GLFW window."
+    GLFW.terminate >> logInfo "Terminated GLFW."
+
+updateEvent :: ApplicationData -> IO ApplicationData
+updateEvent applicationData = do
+    keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
+    writeIORef (_keyboardInputDataRef applicationData) $ keyboardInputData
+        { _keyboardDown = False
+        , _keyboardUp = False }
+    return applicationData
+
 initializeApplication :: IO ApplicationData
 initializeApplication = do
-    windowSizeChanged <- newIORef False
     keyPressed <- HashTable.new
     keyReleased <- HashTable.new
-    let keyboardInputData = KeyboardInputData
-            { _keyboardDown = False
-            , _keyboardPressed = False
-            , _keyboardUp = False
-            , _keyPressedMap = keyPressed
-            , _keyReleasedMap = keyReleased
-            }
-    keyboardInputDataRef <- newIORef keyboardInputData
-    maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged keyboardInputDataRef
-    when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
+    keyboardInputDataRef <- newIORef $ KeyboardInputData
+        { _keyboardDown = False
+        , _keyboardPressed = False
+        , _keyboardUp = False
+        , _keyPressedMap = keyPressed
+        , _keyReleasedMap = keyReleased }
+    mouseInputDataRef <- newIORef $ MouseInputData
+        { _mousePosX = 0
+        , _mousePosY = 0 }
+    windowSizeChangedRef <- newIORef False
+    windowSizeRef <- newIORef (1024, 768)
+    window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef
     logInfo "                             "
     logInfo "<< Initialized GLFW window >>"
     requireExtensions <- GLFW.getRequiredInstanceExtensions
@@ -165,8 +193,7 @@ initializeApplication = do
     checkExtensionResult <- checkExtensionSupport instanceExtensionNames requireExtensions
     unless checkExtensionResult (throwVKMsg "Failed to initialize GLFW window.")
 
-    let Just window = maybeWindow
-        progName = "Hulkan App"
+    let progName = "Hulkan App"
         engineName = "HulkanEngine3D"
         enableValidationLayer = True
         isConcurrentMode = True
@@ -221,8 +248,9 @@ initializeApplication = do
 
     return ApplicationData
             { _window = window
+            , _windowSizeChangedRef = windowSizeChangedRef
+            , _windowSizeRef = windowSizeRef
             , _needRecreateSwapChain = False
-            , _windowSizeChanged = windowSizeChanged
             , _frameIndex = 0
             , _imageIndexPtr = imageIndexPtr
             , _accFrameTime = 0.0
@@ -232,6 +260,7 @@ initializeApplication = do
             , _currentTime = currentTime
             , _elapsedTime = 0.0
             , _keyboardInputDataRef = keyboardInputDataRef
+            , _mouseInputDataRef = mouseInputDataRef
             , _renderTargetData = renderTargetData
             , _rendererData = rendererData
             , _renderPassDataList = renderPassDataList
@@ -362,9 +391,9 @@ runApplication = do
         -- waiting
         deviceWaitIdle (_rendererData applicationData)
 
-        sizeChanged <- readIORef (_windowSizeChanged applicationData)
+        sizeChanged <- readIORef (applicationData^.windowSizeChangedRef)
         let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged)
-        when needRecreateSwapChain $ atomicWriteIORef (_windowSizeChanged applicationData) False
+        when needRecreateSwapChain $ atomicWriteIORef (applicationData^.windowSizeChangedRef) False
 
         let nextFrameIndex = mod (frameIndex + 1) Constants.maxFrameCount
 

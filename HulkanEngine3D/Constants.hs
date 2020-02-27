@@ -19,4 +19,4 @@ maxFrameCount :: Int
 maxFrameCount = 2
 
 enableImmediateMode :: Bool
-enableImmediateMode = False
+enableImmediateMode = True
