@@ -60,17 +60,17 @@ rotation seconds =
   in rotate (vec3 0 0 1) (realToFrac phaseTau * 2 * pi)
 
 
-updateTransformObject :: VkDevice -> VkExtent2D -> VkDeviceMemory -> IO ()
-updateTransformObject device extent uniformBuffer = do
-      uniformBufferPtr <- allocaPeek $
-        vkMapMemory device uniformBuffer 0 (bSizeOf @TransformationObject undefined) VK_ZERO_FLAGS
-      seconds <- getSystemTime
-      let model = rotation seconds -- rotate the world and objects
-      poke (castPtr uniformBufferPtr) (scalar $ TransformationObject {..})
-      vkUnmapMemory device uniformBuffer
+updateTransformObject :: VkDevice -> VkExtent2D -> VkDeviceMemory -> (Int, Int) -> IO ()
+updateTransformObject device extent uniformBuffer mousePos = do
+  uniformBufferPtr <- allocaPeek $
+    vkMapMemory device uniformBuffer 0 (bSizeOf @TransformationObject undefined) VK_ZERO_FLAGS
+  seconds <- getSystemTime
+  let t = fromIntegral (snd mousePos) * 0.001
+  let model = rotation seconds -- rotate the world and objects
+      view2 = lookAt (vec3 0 0 1) (vec3 2 2 2) (vec3 0 t 0) -- how world is seen from camera (in camera coordinates)
+  poke (castPtr uniformBufferPtr) (scalar $ TransformationObject { model=model, view=view2, proj=proj} )
+  vkUnmapMemory device uniformBuffer
   where
-    -- how world is seen from camera (in camera coordinates)
-    view = lookAt (vec3 0 0 1) (vec3 2 2 2) (vec3 0 0 0)
     -- projection onto the screen ...
     proj = proj' %* clip
     -- ... which is a normal perspective projection matrix that maps the view space

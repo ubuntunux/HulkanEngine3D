@@ -109,7 +109,9 @@ mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifi
 cursorPosCallback :: IORef MouseInputData -> GLFW.Window -> Double -> Double -> IO ()
 cursorPosCallback mouseInputDataRef windows posX posY = do
     mouseInputData <- readIORef mouseInputDataRef
-    writeIORef mouseInputDataRef mouseInputData
+    writeIORef mouseInputDataRef $ mouseInputData
+        { _mousePosX = round posX
+        , _mousePosY = round posY }
 --    logInfo $ show (posX, posY)
 
 keyCallBack :: IORef KeyboardInputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
@@ -385,8 +387,9 @@ runApplication = do
                     , _rendererData = rendererData }
             else
                 return applicationData
-
-        result <- drawFrame (_rendererData applicationData) frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData)
+        mouseInputData <- readIORef (_mouseInputDataRef applicationData)
+        mousePos <- pure (mouseInputData^.mousePosX, mouseInputData^.mousePosY)
+        result <- drawFrame (_rendererData applicationData) frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData) mousePos
 
         -- waiting
         deviceWaitIdle (_rendererData applicationData)
