@@ -2,23 +2,23 @@
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TemplateHaskell  #-}
 
-
 module HulkanEngine3D.Application
-    ( InputData (..)
+    ( KeyboardInputData (..)
+    , KeyboardInputInterface (..)
     , ApplicationData (..)
     , runApplication
     ) where
 
+
+import Data.Hashable
 import Control.Monad
-import Control.Monad.ST
 import Data.IORef
-import Data.STRef
 import Data.Maybe (isNothing, fromMaybe)
 import qualified Data.DList as DList
 import System.Directory
 import Foreign.Marshal.Utils
 import Foreign.Marshal.Alloc
-import qualified Control.Lens as Lens
+import Control.Lens
 import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
@@ -38,10 +38,11 @@ import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.TransformationObject
 import qualified HulkanEngine3D.Constants as Constants
 
+instance Hashable GLFW.Key
 
-type KeyMap = HashTable.BasicHashTable Int Bool
+type KeyMap = HashTable.BasicHashTable GLFW.Key Bool
 
-data InputData = InputData
+data KeyboardInputData = KeyboardInputData
     { _keyboardDown :: Bool
     , _keyboardPressed :: Bool
     , _keyboardUp :: Bool
@@ -49,7 +50,17 @@ data InputData = InputData
     , _keyReleasedMap :: KeyMap
     } deriving (Show)
 
-Lens.makeLenses ''InputData
+makeLenses ''KeyboardInputData
+
+class KeyboardInputInterface a where
+    getKeyPressed :: a -> GLFW.Key -> IO Bool
+    getKeyReleased :: a -> GLFW.Key -> IO Bool
+
+instance KeyboardInputInterface KeyboardInputData where
+    getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (keyboardInputData^.keyPressedMap) key
+    getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (keyboardInputData^.keyReleasedMap) key
+
+
 
 data ApplicationData = ApplicationData
     { _window :: GLFW.Window
@@ -63,7 +74,7 @@ data ApplicationData = ApplicationData
     , _averageFPS :: Double
     , _currentTime :: Double
     , _elapsedTime :: Double
-    , _inputDataRef :: IORef InputData
+    , _keyboardInputDataRef :: IORef KeyboardInputData
     , _renderTargetData :: RenderTargetData
     , _rendererData :: RendererData
     , _renderPassDataList :: (DList.DList RenderPassData)
@@ -75,11 +86,11 @@ data ApplicationData = ApplicationData
     , _geometryBuffer :: GeometryBufferData
     } deriving (Show)
 
-Lens.makeLenses ''ApplicationData
+makeLenses ''ApplicationData
 
 
-createGLFWWindow::Int -> Int -> String -> IORef Bool -> IORef InputData -> IO (Maybe GLFW.Window)
-createGLFWWindow width height title windowSizeChanged inputDataRef = do
+createGLFWWindow::Int -> Int -> String -> IORef Bool -> IORef KeyboardInputData -> IO (Maybe GLFW.Window)
+createGLFWWindow width height title windowSizeChanged keyboardInputDataRef = do
     GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")
     logInfo "Initialized GLFW."
     version <- GLFW.getVersionString
@@ -91,7 +102,7 @@ createGLFWWindow width height title windowSizeChanged inputDataRef = do
     let Just window = maybeWindow
     GLFW.setWindowSizeCallback window $
         Just (\_ _ _ -> atomicWriteIORef windowSizeChanged True)
-    GLFW.setKeyCallback window $ Just (keyCallBack inputDataRef)
+    GLFW.setKeyCallback window $ Just (keyCallBack keyboardInputDataRef)
     GLFW.setCharCallback window $ Just charCallBack
     return maybeWindow
 
@@ -103,24 +114,24 @@ destroyGLFWWindow window = do
 
 updateEvent :: ApplicationData -> IO ApplicationData
 updateEvent applicationData = do
-    inputData <- readIORef (_inputDataRef applicationData)
-    writeIORef (_inputDataRef applicationData) $ inputData
+    keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
+    writeIORef (_keyboardInputDataRef applicationData) $ keyboardInputData
         { _keyboardDown = False
         , _keyboardUp = False }
     return applicationData
 
 
-keyCallBack :: IORef InputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
-keyCallBack inputDataRef window key scanCode keyState modifierKeys = do
-    inputData <- readIORef inputDataRef
+keyCallBack :: IORef KeyboardInputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
+keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
+    keyboardInputData <- readIORef keyboardInputDataRef
     let keyboardPressed = (GLFW.KeyState'Pressed == keyState)
         keyboardDown = (GLFW.KeyState'Pressed == keyState)
         keyboardUp = (GLFW.KeyState'Released == keyState)
-        keyPressedMap = (_keyPressedMap inputData)
-        keyReleasedMap = (_keyReleasedMap inputData)
-    HashTable.insert keyPressedMap scanCode keyboardPressed
-    HashTable.insert keyReleasedMap scanCode (not keyboardPressed)
-    writeIORef inputDataRef $ inputData
+        keyPressedMap = (_keyPressedMap keyboardInputData)
+        keyReleasedMap = (_keyReleasedMap keyboardInputData)
+    HashTable.insert keyPressedMap key keyboardPressed
+    HashTable.insert keyReleasedMap key (not keyboardPressed)
+    writeIORef keyboardInputDataRef $ keyboardInputData
         { _keyboardPressed = keyboardPressed
         , _keyboardDown = keyboardDown
         , _keyboardUp = keyboardUp
@@ -132,21 +143,20 @@ charCallBack windows key = do
     -- logInfo $ show key
     return ()
 
-
 initializeApplication :: IO ApplicationData
 initializeApplication = do
     windowSizeChanged <- newIORef False
     keyPressed <- HashTable.new
     keyReleased <- HashTable.new
-    let inputData = InputData
+    let keyboardInputData = KeyboardInputData
             { _keyboardDown = False
             , _keyboardPressed = False
             , _keyboardUp = False
             , _keyPressedMap = keyPressed
             , _keyReleasedMap = keyReleased
             }
-    inputDataRef <- newIORef inputData
-    maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged inputDataRef
+    keyboardInputDataRef <- newIORef keyboardInputData
+    maybeWindow <- createGLFWWindow 1024 768 "Vulkan Application" windowSizeChanged keyboardInputDataRef
     when (isNothing maybeWindow) (throwVKMsg "Failed to initialize GLFW window.")
     logInfo "                             "
     logInfo "<< Initialized GLFW window >>"
@@ -221,7 +231,7 @@ initializeApplication = do
             , _averageFPS = 0.0
             , _currentTime = currentTime
             , _elapsedTime = 0.0
-            , _inputDataRef = inputDataRef
+            , _keyboardInputDataRef = keyboardInputDataRef
             , _renderTargetData = renderTargetData
             , _rendererData = rendererData
             , _renderPassDataList = renderPassDataList
@@ -235,11 +245,10 @@ initializeApplication = do
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ApplicationData) -> IO ApplicationData
 updateLoop applicationData loopAction = do
-    inpuData <- readIORef (_inputDataRef applicationData)
-    maybeEscPressed <- HashTable.lookup (_keyPressedMap inpuData) 9 -- KeyCode 9 :: ESC
-    let escPressed = fromMaybe False maybeEscPressed
-    exit <- GLFW.windowShouldClose (_window applicationData)
-    if not exit && not escPressed then do
+    inpuData <- readIORef (_keyboardInputDataRef applicationData)
+    escReleased <- getKeyReleased inpuData GLFW.Key'Escape
+    exit <- GLFW.windowShouldClose (view window applicationData)
+    if not exit && not escReleased then do
         applicationData <- updateEvent applicationData
         GLFW.pollEvents
         applicationData <- loopAction applicationData
