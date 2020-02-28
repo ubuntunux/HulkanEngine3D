@@ -27,6 +27,7 @@ import Numeric.DataFrame
 
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Vulkan.Buffer
 
 {- |
@@ -66,11 +67,12 @@ updateTransformObject device extent uniformBuffer mousePos = do
     uniformBufferPtr <- allocaPeek $
         vkMapMemory device uniformBuffer 0 (bSizeOf @TransformationObject undefined) VK_ZERO_FLAGS
     seconds <- getSystemTime
-    let x = fromIntegral (fst mousePos) * 0.001
-        y = fromIntegral (snd mousePos) * 0.001
+    let x = fromIntegral (fst mousePos) * 0.002
+        y = fromIntegral (snd mousePos) * -0.01
         model = rotation seconds -- rotate the world and objects
-        view2 = lookAt (vec3 0 1 0) (vec3 0 0 -5) (vec3 x y 0) -- how world is seen from camera (in camera coordinates)
-    poke (castPtr uniformBufferPtr) (scalar $ TransformationObject { model=model, view=view2, proj=proj} )
+        p = update (2:*U) (scalar y) $ update (0:*U) (scalar x) (matrix4_indentity ! 3 :* U)
+        view = update (3:*U) p matrix4_indentity
+    poke (castPtr uniformBufferPtr) (scalar $ TransformationObject { model=model, view=view, proj=proj} )
     vkUnmapMemory device uniformBuffer
     where
         width = getField @"width" extent
