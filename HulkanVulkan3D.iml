@@ -117,6 +117,7 @@
     <orderEntry type="library" name="call-stack-0.1.0" level="project" />
     <orderEntry type="library" name="regex-base-0.93.2" level="project" />
     <orderEntry type="library" name="parsec-3.1.13.0" level="project" />
+    <orderEntry type="library" name="hashtables-1.2.3.1" level="project" />
     <orderEntry type="library" name="lens-4.16.1" level="project" />
     <orderEntry type="library" name="profunctors-5.2.2" level="project" />
     <orderEntry type="library" name="bifunctors-5.5.3" level="project" />
@@ -132,6 +133,5 @@
     <orderEntry type="library" name="StateVar-1.1.1.1" level="project" />
     <orderEntry type="library" name="adjunctions-4.4" level="project" />
     <orderEntry type="library" name="invariant-0.5.1" level="project" />
-    <orderEntry type="library" name="hashtables-1.2.3.1" level="project" />
   </component>
 </module>

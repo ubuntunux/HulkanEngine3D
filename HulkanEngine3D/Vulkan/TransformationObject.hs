@@ -1,3 +1,4 @@
+{-# LANGUAGE NegativeLiterals    #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE RankNTypes          #-}
@@ -57,37 +58,36 @@ rotation :: Double -> Mat44f
 rotation seconds =
   let rate = 1/16 -- rotations per second
       (_::Int, phaseTau) = properFraction $ seconds * rate
-  in rotate (vec3 0 0 1) (realToFrac phaseTau * 2 * pi)
+  in rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
 
 
 updateTransformObject :: VkDevice -> VkExtent2D -> VkDeviceMemory -> (Int, Int) -> IO ()
 updateTransformObject device extent uniformBuffer mousePos = do
-  uniformBufferPtr <- allocaPeek $
-    vkMapMemory device uniformBuffer 0 (bSizeOf @TransformationObject undefined) VK_ZERO_FLAGS
-  seconds <- getSystemTime
-  let t = fromIntegral (snd mousePos) * 0.001
-  let model = rotation seconds -- rotate the world and objects
-      view2 = lookAt (vec3 0 0 1) (vec3 2 2 2) (vec3 0 t 0) -- how world is seen from camera (in camera coordinates)
-  poke (castPtr uniformBufferPtr) (scalar $ TransformationObject { model=model, view=view2, proj=proj} )
-  vkUnmapMemory device uniformBuffer
-  where
-    -- projection onto the screen ...
-    proj = proj' %* clip
-    -- ... which is a normal perspective projection matrix that maps the view space
-    --     onto the clip space cube {x: -1..1, y: -1..1, z: -1..1}
-    proj' = perspective 0.1 20 (45/360*2*pi) aspectRatio
-    -- ... and a {clip space -> screen space} matrix that converts points into
-    --     the vulkan screen space {x: -1..1, y: 1..-1, z: 0..1}
-    clip = DF4
-      (DF4 1   0   0   0)
-      (DF4 0 (-1)  0   0)
-      (DF4 0   0  0.5  0)
-      (DF4 0   0  0.5  1)
-
-    -- calculate aspect ratio for the
-    width = getField @"width" extent
-    height = getField @"height" extent
-    aspectRatio = fromIntegral width / fromIntegral height
+    uniformBufferPtr <- allocaPeek $
+        vkMapMemory device uniformBuffer 0 (bSizeOf @TransformationObject undefined) VK_ZERO_FLAGS
+    seconds <- getSystemTime
+    let x = fromIntegral (fst mousePos) * 0.001
+        y = fromIntegral (snd mousePos) * 0.001
+        model = rotation seconds -- rotate the world and objects
+        view2 = lookAt (vec3 0 1 0) (vec3 0 0 -5) (vec3 x y 0) -- how world is seen from camera (in camera coordinates)
+    poke (castPtr uniformBufferPtr) (scalar $ TransformationObject { model=model, view=view2, proj=proj} )
+    vkUnmapMemory device uniformBuffer
+    where
+        width = getField @"width" extent
+        height = getField @"height" extent
+        aspectRatio = fromIntegral width / fromIntegral height
+        -- projection onto the screen ...
+        proj = proj' %* clip
+        -- ... which is a normal perspective projection matrix that maps the view space
+        --     onto the clip space cube {x: -1..1, y: -1..1, z: -1..1}
+        proj' = perspective 0.1 20 (45/360*2*pi) aspectRatio
+        -- ... and a {clip space -> screen space} matrix that converts points into
+        --     the vulkan screen space {x: -1..1, y: 1..-1, z: 0..1}
+        clip = DF4
+            (DF4 1   0   0   0)
+            (DF4 0 (-1)  0   0)
+            (DF4 0   0  0.5  0)
+            (DF4 0   0  0.5  1)
 
 
 createTransformObjectBuffers :: VkPhysicalDevice -> VkDevice -> Int -> IO [(VkDeviceMemory, VkBuffer)]
