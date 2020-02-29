@@ -4,7 +4,7 @@
 
 
 module HulkanEngine3D.Render.TransformObject
-  ( TransformObject (..)
+  ( TransformObjectData (..)
   , TransformObjectInterface (..)
   ) where
 
@@ -15,7 +15,7 @@ import Numeric.DataFrame
 import HulkanEngine3D.Utilities.Math
 
 
-data TransformObject = TransformObject
+data TransformObjectData = TransformObjectData
     { _position :: Vec3f
     , _rotation :: Vec3f
     , _scale :: Vec3f
@@ -23,15 +23,15 @@ data TransformObject = TransformObject
     , _invMatrix :: Mat44f
     } deriving (Show, Generic)
 
-instance PrimBytes TransformObject
+instance PrimBytes TransformObjectData
 
 
 class TransformObjectInterface a where
-    getDefailtTransformObject :: a -> a
+    getDefaultTransformObjectData :: a
 
 
-instance TransformObjectInterface TransformObject where
-    getDefailtTransformObject transformObject = TransformObject
+instance TransformObjectInterface TransformObjectData where
+    getDefaultTransformObjectData = TransformObjectData
         { _position = float3_zero
         , _rotation = float3_zero
         , _scale = fromScalar 1

@@ -14,9 +14,8 @@ module HulkanEngine3D.Application
 import Data.Hashable
 import Control.Monad
 import Data.IORef
-import Data.Maybe (isNothing, fromMaybe)
+import Data.Maybe (fromMaybe)
 import qualified Data.DList as DList
-import System.Directory
 import Foreign.Marshal.Utils
 import Foreign.Marshal.Alloc
 import Control.Lens
@@ -26,10 +25,14 @@ import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
+
+import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Application.SceneManager
+import HulkanEngine3D.Render.Camera
+import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Resource.ObjLoader
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
-import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Mesh
 import HulkanEngine3D.Vulkan.Device
@@ -37,7 +40,6 @@ import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.TransformationObject
-import qualified HulkanEngine3D.Constants as Constants
 
 instance Hashable GLFW.Key
 
@@ -76,6 +78,7 @@ data ApplicationData = ApplicationData
     , _keyboardInputDataRef :: IORef KeyboardInputData
     , _mouseInputDataRef :: IORef MouseInputData
     , _renderTargetData :: RenderTargetData
+    , _sceneManagerData :: SceneManagerData
     , _rendererData :: RendererData
     , _renderPassDataList :: (DList.DList RenderPassData)
     , _transformObjectBuffers :: [VkBuffer]
@@ -185,6 +188,7 @@ initializeApplication = do
     mouseInputDataRef <- newIORef $ MouseInputData
         { _mousePosX = 0
         , _mousePosY = 0 }
+    let (width, height) = (1024, 768)
     windowSizeChangedRef <- newIORef False
     windowSizeRef <- newIORef (1024, 768)
     window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef
@@ -244,6 +248,12 @@ initializeApplication = do
         indexBuffer = _indexBuffer geometryBuffer
     recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
 
+    -- SceneManagerDatas
+    (width, height) <- readIORef windowSizeRef
+    let aspect = if 0 /= height then (((fromIntegral width)::Float) / ((fromIntegral height)::Float)) else 1.0
+        cameraData = getDefaultCameraData Constants.near Constants.far Constants.fov aspect
+        sceneManagerData = getDefaultSceneManagerData cameraData
+
     -- init system variables
     imageIndexPtr <- new (0 :: Word32)
     currentTime <- getSystemTime
@@ -264,6 +274,7 @@ initializeApplication = do
             , _keyboardInputDataRef = keyboardInputDataRef
             , _mouseInputDataRef = mouseInputDataRef
             , _renderTargetData = renderTargetData
+            , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
             , _renderPassDataList = renderPassDataList
             , _transformObjectBuffers = transformObjectBuffers

@@ -20,3 +20,12 @@ maxFrameCount = 2
 
 enableImmediateMode :: Bool
 enableImmediateMode = True
+
+near :: Float
+near = 0.1
+
+far :: Float
+far = 2000.0
+
+fov :: Float
+fov = 60.0
