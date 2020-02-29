@@ -247,9 +247,9 @@ drawFrame :: RendererData
           -> Int
           -> Ptr Word32
           -> [VkDeviceMemory]
-          -> (Int, Int)
+          -> Vec3f
           -> IO VkResult
-drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemories mousePos = do
+drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemories cameraPosition = do
   let SwapChainData {..} = _swapChainData
       QueueFamilyDatas {..} = _queueFamilyDatas
       frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
@@ -267,7 +267,7 @@ drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemories mou
       imageIndex <- peek imageIndexPtr
       let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
       let transformObjectMemory = transformObjectMemories !! (fromIntegral imageIndex)
-      updateTransformObject _device _swapChainExtent transformObjectMemory mousePos
+      updateTransformObject _device _swapChainExtent transformObjectMemory cameraPosition
 
       let submitInfo = createVk @VkSubmitInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO

@@ -29,3 +29,6 @@ far = 2000.0
 
 fov :: Float
 fov = 60.0
+
+cameraMoveSpeed :: Float
+cameraMoveSpeed = 1.0

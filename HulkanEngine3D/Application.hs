@@ -1,6 +1,14 @@
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE Strict           #-}
-{-# LANGUAGE TemplateHaskell  #-}
+{-# LANGUAGE NegativeLiterals    #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE Strict              #-}
+{-# LANGUAGE TemplateHaskell     #-}
+
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module HulkanEngine3D.Application
     ( KeyboardInputData (..)
@@ -24,12 +32,13 @@ import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
-
+import Numeric.DataFrame
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.RenderTarget
+import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Resource.ObjLoader
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
@@ -75,6 +84,7 @@ data ApplicationData = ApplicationData
     , _averageFPS :: Double
     , _currentTime :: Double
     , _elapsedTime :: Double
+    , _deltaTime :: Double
     , _keyboardInputDataRef :: IORef KeyboardInputData
     , _mouseInputDataRef :: IORef MouseInputData
     , _renderTargetData :: RenderTargetData
@@ -120,17 +130,17 @@ cursorPosCallback mouseInputDataRef windows posX posY = do
 keyCallBack :: IORef KeyboardInputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
 keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
     keyboardInputData <- readIORef keyboardInputDataRef
-    let keyboardPressed = (GLFW.KeyState'Pressed == keyState)
-        keyboardDown = (GLFW.KeyState'Pressed == keyState)
-        keyboardUp = (GLFW.KeyState'Released == keyState)
+    let keyboardPressed = (GLFW.KeyState'Pressed == keyState || GLFW.KeyState'Repeating == keyState)
+        keyboardReleased = (GLFW.KeyState'Released == keyState)
         keyPressedMap = (_keyPressedMap keyboardInputData)
         keyReleasedMap = (_keyReleasedMap keyboardInputData)
+    logInfo $ show (key, keyboardPressed, keyState)
     HashTable.insert keyPressedMap key keyboardPressed
     HashTable.insert keyReleasedMap key (not keyboardPressed)
     writeIORef keyboardInputDataRef $ keyboardInputData
         { _keyboardPressed = keyboardPressed
-        , _keyboardDown = keyboardDown
-        , _keyboardUp = keyboardUp
+        , _keyboardDown = keyboardPressed
+        , _keyboardUp = keyboardReleased
         , _keyPressedMap = keyPressedMap
         , _keyReleasedMap = keyReleasedMap }
 
@@ -170,9 +180,31 @@ destroyGLFWWindow window = do
 updateEvent :: ApplicationData -> IO ApplicationData
 updateEvent applicationData = do
     keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
-    writeIORef (_keyboardInputDataRef applicationData) $ keyboardInputData
-        { _keyboardDown = False
-        , _keyboardUp = False }
+    pressed_key_A <- getKeyPressed keyboardInputData GLFW.Key'A
+    pressed_key_D <- getKeyPressed keyboardInputData GLFW.Key'D
+    pressed_key_W <- getKeyPressed keyboardInputData GLFW.Key'W
+    pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
+
+    let deltaTime = (realToFrac._deltaTime $ applicationData)::Float
+        cameraTransform = (_transformObject._camera._sceneManagerData $ applicationData)
+        move_speed_side = case (pressed_key_A, pressed_key_D) of
+            (True, False) -> Constants.cameraMoveSpeed * deltaTime
+            (False, True) -> -Constants.cameraMoveSpeed * deltaTime
+            otherwise -> 0.0
+        move_speed_forward = case (pressed_key_W, pressed_key_S) of
+            (True, False) -> Constants.cameraMoveSpeed * deltaTime
+            (False, True) -> -Constants.cameraMoveSpeed * deltaTime
+            otherwise -> 0.0
+        cameraPosition = ewmap (\(Vec3 x y z) -> vec3 (x + move_speed_side) y (z + move_speed_forward)) $ _position cameraTransform
+    applicationData <- pure $ applicationData
+        { _sceneManagerData = (_sceneManagerData applicationData)
+            { _camera = (_camera._sceneManagerData $ applicationData)
+                { _transformObject = (_transformObject._camera._sceneManagerData $ applicationData)
+                    { _position = cameraPosition
+                    }
+                }
+            }
+        }
     return applicationData
 
 initializeApplication :: IO ApplicationData
@@ -188,7 +220,6 @@ initializeApplication = do
     mouseInputDataRef <- newIORef $ MouseInputData
         { _mousePosX = 0
         , _mousePosY = 0 }
-    let (width, height) = (1024, 768)
     windowSizeChangedRef <- newIORef False
     windowSizeRef <- newIORef (1024, 768)
     window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef
@@ -250,7 +281,7 @@ initializeApplication = do
 
     -- SceneManagerDatas
     (width, height) <- readIORef windowSizeRef
-    let aspect = if 0 /= height then (((fromIntegral width)::Float) / ((fromIntegral height)::Float)) else 1.0
+    let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
         cameraData = getDefaultCameraData Constants.near Constants.far Constants.fov aspect
         sceneManagerData = getDefaultSceneManagerData cameraData
 
@@ -271,6 +302,7 @@ initializeApplication = do
             , _averageFPS = 0.0
             , _currentTime = currentTime
             , _elapsedTime = 0.0
+            , _deltaTime = 0.0
             , _keyboardInputDataRef = keyboardInputDataRef
             , _mouseInputDataRef = mouseInputDataRef
             , _renderTargetData = renderTargetData
@@ -291,8 +323,15 @@ updateLoop applicationData loopAction = do
     escReleased <- getKeyReleased inpuData GLFW.Key'Escape
     exit <- GLFW.windowShouldClose (view window applicationData)
     if not exit && not escReleased then do
-        applicationData <- updateEvent applicationData
+        -- reset input
+        keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
+        writeIORef (_keyboardInputDataRef applicationData) $ keyboardInputData
+            { _keyboardDown = False
+            , _keyboardUp = False }
+
         GLFW.pollEvents
+
+        applicationData <- updateEvent applicationData
         applicationData <- loopAction applicationData
         updateLoop applicationData loopAction
     else
@@ -398,9 +437,8 @@ runApplication = do
                     , _rendererData = rendererData }
             else
                 return applicationData
-        mouseInputData <- readIORef (_mouseInputDataRef applicationData)
-        mousePos <- pure (mouseInputData^.mousePosX, mouseInputData^.mousePosY)
-        result <- drawFrame (_rendererData applicationData) frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData) mousePos
+        cameraPosition <- pure (_position._transformObject._camera._sceneManagerData $ applicationData)
+        result <- drawFrame (_rendererData applicationData) frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData) cameraPosition
 
         -- waiting
         deviceWaitIdle (_rendererData applicationData)
@@ -412,7 +450,8 @@ runApplication = do
         let nextFrameIndex = mod (frameIndex + 1) Constants.maxFrameCount
 
         return applicationData
-            { _currentTime = currentTime
+            { _deltaTime = deltaTime
+            , _currentTime = currentTime
             , _elapsedTime = elapsedTime
             , _accFrameTime = accFrameTime
             , _accFrameCount = accFrameCount

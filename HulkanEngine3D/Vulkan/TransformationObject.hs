@@ -24,6 +24,7 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Numeric.DataFrame
+import Numeric.Dimensions
 
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
@@ -62,16 +63,14 @@ rotation seconds =
   in rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
 
 
-updateTransformObject :: VkDevice -> VkExtent2D -> VkDeviceMemory -> (Int, Int) -> IO ()
-updateTransformObject device extent uniformBuffer mousePos = do
+updateTransformObject :: VkDevice -> VkExtent2D -> VkDeviceMemory -> Vec3f -> IO ()
+updateTransformObject device extent uniformBuffer cameraPosition = do
     uniformBufferPtr <- allocaPeek $
         vkMapMemory device uniformBuffer 0 (bSizeOf @TransformationObject undefined) VK_ZERO_FLAGS
     seconds <- getSystemTime
-    let x = fromIntegral (fst mousePos) * 0.002
-        y = fromIntegral (snd mousePos) * -0.01
+    let pos = ewmap (\v@(Vec3 x y z) -> vec4 x y z 1.0) cameraPosition
+        view = update (3:*U) pos matrix4_indentity
         model = rotation seconds -- rotate the world and objects
-        p = update (2:*U) (scalar y) $ update (0:*U) (scalar x) (matrix4_indentity ! 3 :* U)
-        view = update (3:*U) p matrix4_indentity
     poke (castPtr uniformBufferPtr) (scalar $ TransformationObject { model=model, view=view, proj=proj} )
     vkUnmapMemory device uniformBuffer
     where
