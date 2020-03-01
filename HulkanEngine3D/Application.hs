@@ -72,6 +72,18 @@ data MouseInputData = MouseInputData
 
 makeLenses ''MouseInputData
 
+data TimeData = TimeData
+    { _accFrameTime :: Double
+    , _accFrameCount :: Int
+    , _averageFrameTime :: Double
+    , _averageFPS :: Double
+    , _currentTime :: Double
+    , _elapsedTime :: Double
+    , _deltaTime :: Double
+    } deriving (Show)
+
+makeLenses ''TimeData
+
 data ApplicationData = ApplicationData
     { _window :: GLFW.Window
     , _windowSizeChangedRef :: IORef Bool
@@ -79,13 +91,7 @@ data ApplicationData = ApplicationData
     , _needRecreateSwapChain :: Bool
     , _frameIndex  :: Int
     , _imageIndexPtr :: Ptr Word32
-    , _accFrameTime :: Double
-    , _accFrameCount :: Int
-    , _averageFrameTime :: Double
-    , _averageFPS :: Double
-    , _currentTime :: Double
-    , _elapsedTime :: Double
-    , _deltaTime :: Double
+    , _timeDataRef :: IORef TimeData
     , _keyboardInputDataRef :: IORef KeyboardInputData
     , _mouseInputDataRef :: IORef MouseInputData
     , _renderTargetData :: RenderTargetData
@@ -135,7 +141,6 @@ keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
         keyboardReleased = (GLFW.KeyState'Released == keyState)
         keyPressedMap = (_keyPressedMap keyboardInputData)
         keyReleasedMap = (_keyReleasedMap keyboardInputData)
-    logInfo $ show (key, keyboardPressed, keyState)
     HashTable.insert keyPressedMap key keyboardPressed
     HashTable.insert keyReleasedMap key (not keyboardPressed)
     writeIORef keyboardInputDataRef $ keyboardInputData
@@ -186,8 +191,9 @@ updateEvent applicationData = do
     pressed_key_D <- getKeyPressed keyboardInputData GLFW.Key'D
     pressed_key_W <- getKeyPressed keyboardInputData GLFW.Key'W
     pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
+    timeData <- readIORef (_timeDataRef applicationData)
 
-    let deltaTime = (realToFrac._deltaTime $ applicationData)::Float
+    let deltaTime = (realToFrac._deltaTime $ timeData)::Float
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         move_speed = deltaTime * if modifierKeysShift then 2.0 else 1.0
         move_speed_side = (* move_speed) $ case (pressed_key_A, pressed_key_D) of
@@ -299,6 +305,15 @@ initializeApplication = do
     -- init system variables
     imageIndexPtr <- new (0 :: Word32)
     currentTime <- getSystemTime
+    timeDataRef <- newIORef TimeData
+        { _accFrameTime = 0.0
+        , _accFrameCount = 0
+        , _averageFrameTime = 0.0
+        , _averageFPS = 0.0
+        , _currentTime = currentTime
+        , _elapsedTime = 0.0
+        , _deltaTime = 0.0
+        }
 
     return ApplicationData
             { _window = window
@@ -307,13 +322,7 @@ initializeApplication = do
             , _needRecreateSwapChain = False
             , _frameIndex = 0
             , _imageIndexPtr = imageIndexPtr
-            , _accFrameTime = 0.0
-            , _accFrameCount = 0
-            , _averageFrameTime = 0.0
-            , _averageFPS = 0.0
-            , _currentTime = currentTime
-            , _elapsedTime = 0.0
-            , _deltaTime = 0.0
+            , _timeDataRef = timeDataRef
             , _keyboardInputDataRef = keyboardInputDataRef
             , _mouseInputDataRef = mouseInputDataRef
             , _renderTargetData = renderTargetData
@@ -382,26 +391,41 @@ terminateApplication applicationData = do
 
     destroyGLFWWindow (_window applicationData)
 
-runApplication :: IO()
+
+updateTimeData :: IORef TimeData -> IO ()
+updateTimeData timeDataRef = do
+    currentTime <- getSystemTime
+    timeData <- readIORef timeDataRef
+    let previousTime = _currentTime timeData
+        deltaTime = currentTime - previousTime
+        elapsedTime = (_elapsedTime timeData) + deltaTime
+        accFrameTime = (_accFrameTime timeData) + deltaTime
+        accFrameCount = (_accFrameCount timeData) + 1
+    (accFrameTime, accFrameCount, averageFrameTime, averageFPS) <- if (1.0 < accFrameTime)
+        then do
+            let averageFrameTime = accFrameTime / (fromIntegral accFrameCount) * 1000.0
+                averageFPS = 1000.0 / averageFrameTime
+            logInfo $ show averageFPS ++ "fps / " ++ show averageFrameTime ++ "ms"
+            return (0.0, 0, averageFrameTime, averageFPS)
+        else
+            return (accFrameTime, accFrameCount, (_averageFrameTime timeData), (_averageFPS timeData))
+    writeIORef timeDataRef TimeData
+        { _deltaTime = deltaTime
+        , _currentTime = currentTime
+        , _elapsedTime = elapsedTime
+        , _accFrameTime = accFrameTime
+        , _accFrameCount = accFrameCount
+        , _averageFrameTime = averageFrameTime
+        , _averageFPS = averageFPS
+        }
+
+runApplication :: IO ()
 runApplication = do
     initializedApplicationData <- initializeApplication
 
     -- Main Loop
     finalApplicationData <- updateLoop initializedApplicationData $ \applicationData -> do
-        currentTime <- getSystemTime
-        let previousTime = (_currentTime applicationData)
-            deltaTime = currentTime - previousTime
-            elapsedTime = (_elapsedTime applicationData) + deltaTime
-            accFrameTime = (_accFrameTime applicationData) + deltaTime
-            accFrameCount = (_accFrameCount applicationData) + 1
-        (accFrameTime, accFrameCount, averageFrameTime, averageFPS) <- if (1.0 < accFrameTime)
-            then do
-                let averageFrameTime = accFrameTime / (fromIntegral accFrameCount) * 1000.0
-                    averageFPS = 1000.0 / averageFrameTime
-                logInfo $ show averageFPS ++ "fps / " ++ show averageFrameTime ++ "ms"
-                return (0.0, 0, averageFrameTime, averageFPS)
-            else
-                return (accFrameTime, accFrameCount, (_averageFrameTime applicationData), (_averageFPS applicationData))
+        updateTimeData $ _timeDataRef applicationData
 
         let frameIndex = (_frameIndex applicationData)
 
@@ -461,14 +485,7 @@ runApplication = do
         let nextFrameIndex = mod (frameIndex + 1) Constants.maxFrameCount
 
         return applicationData
-            { _deltaTime = deltaTime
-            , _currentTime = currentTime
-            , _elapsedTime = elapsedTime
-            , _accFrameTime = accFrameTime
-            , _accFrameCount = accFrameCount
-            , _averageFrameTime = averageFrameTime
-            , _averageFPS = averageFPS
-            , _needRecreateSwapChain = needRecreateSwapChain
+            { _needRecreateSwapChain = needRecreateSwapChain
             , _frameIndex = nextFrameIndex }
 
     terminateApplication finalApplicationData
