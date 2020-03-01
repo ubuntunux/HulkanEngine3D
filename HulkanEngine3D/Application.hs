@@ -60,6 +60,7 @@ data KeyboardInputData = KeyboardInputData
     , _keyboardUp :: Bool
     , _keyPressedMap :: KeyMap
     , _keyReleasedMap :: KeyMap
+    , _modifierKeys :: GLFW.ModifierKeys
     } deriving (Show)
 
 makeLenses ''KeyboardInputData
@@ -142,7 +143,8 @@ keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
         , _keyboardDown = keyboardPressed
         , _keyboardUp = keyboardReleased
         , _keyPressedMap = keyPressedMap
-        , _keyReleasedMap = keyReleasedMap }
+        , _keyReleasedMap = keyReleasedMap
+        , _modifierKeys = modifierKeys }
 
 charCallBack :: GLFW.Window -> Char -> IO ()
 charCallBack windows key = do
@@ -186,15 +188,17 @@ updateEvent applicationData = do
     pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
 
     let deltaTime = (realToFrac._deltaTime $ applicationData)::Float
+        modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
+        move_speed = deltaTime * if modifierKeysShift then 2.0 else 1.0
+        move_speed_side = (* move_speed) $ case (pressed_key_A, pressed_key_D) of
+            (True, False) -> Constants.cameraMoveSpeed
+            (False, True) -> -Constants.cameraMoveSpeed
+            otherwise -> 0.0
+        move_speed_forward = (* move_speed) $ case (pressed_key_W, pressed_key_S) of
+            (True, False) -> Constants.cameraMoveSpeed
+            (False, True) -> -Constants.cameraMoveSpeed
+            otherwise -> 0.0
         cameraTransform = (_transformObject._camera._sceneManagerData $ applicationData)
-        move_speed_side = case (pressed_key_A, pressed_key_D) of
-            (True, False) -> Constants.cameraMoveSpeed * deltaTime
-            (False, True) -> -Constants.cameraMoveSpeed * deltaTime
-            otherwise -> 0.0
-        move_speed_forward = case (pressed_key_W, pressed_key_S) of
-            (True, False) -> Constants.cameraMoveSpeed * deltaTime
-            (False, True) -> -Constants.cameraMoveSpeed * deltaTime
-            otherwise -> 0.0
         cameraPosition = ewmap (\(Vec3 x y z) -> vec3 (x + move_speed_side) y (z + move_speed_forward)) $ _position cameraTransform
     applicationData <- pure $ applicationData
         { _sceneManagerData = (_sceneManagerData applicationData)
@@ -216,7 +220,14 @@ initializeApplication = do
         , _keyboardPressed = False
         , _keyboardUp = False
         , _keyPressedMap = keyPressed
-        , _keyReleasedMap = keyReleased }
+        , _keyReleasedMap = keyReleased
+        , _modifierKeys = GLFW.ModifierKeys
+            { GLFW.modifierKeysShift = False
+            , GLFW.modifierKeysControl = False
+            , GLFW.modifierKeysAlt = False
+            , GLFW.modifierKeysSuper = False
+            }
+        }
     mouseInputDataRef <- newIORef $ MouseInputData
         { _mousePosX = 0
         , _mousePosY = 0 }
