@@ -204,17 +204,9 @@ updateEvent applicationData = do
             (True, False) -> Constants.cameraMoveSpeed
             (False, True) -> -Constants.cameraMoveSpeed
             otherwise -> 0.0
-        cameraTransform = (_transformObject._camera._sceneManagerData $ applicationData)
-        cameraPosition = ewmap (\(Vec3 x y z) -> vec3 (x + move_speed_side) y (z + move_speed_forward)) $ _position cameraTransform
-    applicationData <- pure $ applicationData
-        { _sceneManagerData = (_sceneManagerData applicationData)
-            { _camera = (_camera._sceneManagerData $ applicationData)
-                { _transformObject = (_transformObject._camera._sceneManagerData $ applicationData)
-                    { _position = cameraPosition
-                    }
-                }
-            }
-        }
+        cameraPositionRef = (_position._transformObject._camera._sceneManagerData $ applicationData)
+    cameraPosition <- readIORef cameraPositionRef
+    writeIORef cameraPositionRef $ ewmap (\(Vec3 x y z) -> vec3 (x + move_speed_side) y (z + move_speed_forward)) cameraPosition
     return applicationData
 
 initializeApplication :: IO ApplicationData
@@ -299,8 +291,8 @@ initializeApplication = do
     -- SceneManagerDatas
     (width, height) <- readIORef windowSizeRef
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
-        cameraData = getDefaultCameraData Constants.near Constants.far Constants.fov aspect
-        sceneManagerData = getDefaultSceneManagerData cameraData
+    cameraData <- getDefaultCameraData Constants.near Constants.far Constants.fov aspect
+    let sceneManagerData = getDefaultSceneManagerData cameraData
 
     -- init system variables
     imageIndexPtr <- new (0 :: Word32)
@@ -472,7 +464,7 @@ runApplication = do
                     , _rendererData = rendererData }
             else
                 return applicationData
-        cameraPosition <- pure (_position._transformObject._camera._sceneManagerData $ applicationData)
+        cameraPosition <- readIORef (_position._transformObject._camera._sceneManagerData $ applicationData)
         result <- drawFrame (_rendererData applicationData) frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData) cameraPosition
 
         -- waiting

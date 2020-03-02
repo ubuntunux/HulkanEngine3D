@@ -21,18 +21,20 @@ data CameraData = CameraData
 
 
 class CameraInterface a where
-    getDefaultCameraData :: Float -> Float -> Float -> Float-> a
+    getDefaultCameraData :: Float -> Float -> Float -> Float-> IO a
     updateCameraData :: a -> a
 
 instance CameraInterface CameraData where
-    getDefaultCameraData near far fov aspect = CameraData
-        { _meterPerUnit = 1.0
-        , _near = near
-        , _far = far
-        , _fov = fov
-        , _aspect = aspect
-        , _transformObject =  getDefaultTransformObjectData
-        }
+    getDefaultCameraData near far fov aspect = do
+        defaultTransformObjectData <- getDefaultTransformObjectData
+        return CameraData
+            { _meterPerUnit = 1.0
+            , _near = near
+            , _far = far
+            , _fov = fov
+            , _aspect = aspect
+            , _transformObject = defaultTransformObjectData
+            }
 
     updateCameraData cameraData = cameraData
 
