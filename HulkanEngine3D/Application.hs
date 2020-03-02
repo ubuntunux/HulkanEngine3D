@@ -88,8 +88,8 @@ data ApplicationData = ApplicationData
     { _window :: GLFW.Window
     , _windowSizeChangedRef :: IORef Bool
     , _windowSizeRef :: IORef (Int, Int)
-    , _needRecreateSwapChain :: Bool
-    , _frameIndex  :: Int
+    , _needRecreateSwapChainRef :: IORef Bool
+    , _frameIndexRef  :: IORef Int
     , _imageIndexPtr :: Ptr Word32
     , _timeDataRef :: IORef TimeData
     , _keyboardInputDataRef :: IORef KeyboardInputData
@@ -184,7 +184,7 @@ destroyGLFWWindow window = do
     GLFW.destroyWindow window >> logInfo "Closed GLFW window."
     GLFW.terminate >> logInfo "Terminated GLFW."
 
-updateEvent :: ApplicationData -> IO ApplicationData
+updateEvent :: ApplicationData -> IO ()
 updateEvent applicationData = do
     keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
     pressed_key_A <- getKeyPressed keyboardInputData GLFW.Key'A
@@ -207,7 +207,6 @@ updateEvent applicationData = do
         cameraPositionRef = (_position._transformObject._camera._sceneManagerData $ applicationData)
     cameraPosition <- readIORef cameraPositionRef
     writeIORef cameraPositionRef $ ewmap (\(Vec3 x y z) -> vec3 (x + move_speed_side) y (z + move_speed_forward)) cameraPosition
-    return applicationData
 
 initializeApplication :: IO ApplicationData
 initializeApplication = do
@@ -295,6 +294,8 @@ initializeApplication = do
     let sceneManagerData = getDefaultSceneManagerData cameraData
 
     -- init system variables
+    needRecreateSwapChainRef <- newIORef False
+    frameIndexRef <- newIORef (0::Int)
     imageIndexPtr <- new (0 :: Word32)
     currentTime <- getSystemTime
     timeDataRef <- newIORef TimeData
@@ -311,8 +312,8 @@ initializeApplication = do
             { _window = window
             , _windowSizeChangedRef = windowSizeChangedRef
             , _windowSizeRef = windowSizeRef
-            , _needRecreateSwapChain = False
-            , _frameIndex = 0
+            , _needRecreateSwapChainRef = needRecreateSwapChainRef
+            , _frameIndexRef = frameIndexRef
             , _imageIndexPtr = imageIndexPtr
             , _timeDataRef = timeDataRef
             , _keyboardInputDataRef = keyboardInputDataRef
@@ -331,19 +332,18 @@ initializeApplication = do
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ApplicationData) -> IO ApplicationData
 updateLoop applicationData loopAction = do
-    inpuData <- readIORef (_keyboardInputDataRef applicationData)
-    escReleased <- getKeyReleased inpuData GLFW.Key'Escape
-    exit <- GLFW.windowShouldClose (view window applicationData)
+    keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
+    escReleased <- getKeyReleased keyboardInputData GLFW.Key'Escape
+    exit <- GLFW.windowShouldClose (_window applicationData)
     if not exit && not escReleased then do
-        -- reset input
-        keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
-        writeIORef (_keyboardInputDataRef applicationData) $ keyboardInputData
+        -- reset input flags
+        writeIORef (_keyboardInputDataRef applicationData) keyboardInputData
             { _keyboardDown = False
             , _keyboardUp = False }
 
         GLFW.pollEvents
 
-        applicationData <- updateEvent applicationData
+        updateEvent applicationData
         applicationData <- loopAction applicationData
         updateLoop applicationData loopAction
     else
@@ -419,10 +419,11 @@ runApplication = do
     finalApplicationData <- updateLoop initializedApplicationData $ \applicationData -> do
         updateTimeData $ _timeDataRef applicationData
 
-        let frameIndex = (_frameIndex applicationData)
+        frameIndex <- readIORef (_frameIndexRef applicationData)
+        needRecreateSwapChain <- readIORef (_needRecreateSwapChainRef applicationData)
 
         applicationData <-
-            if (_needRecreateSwapChain applicationData) then do
+            if needRecreateSwapChain then do
                 logInfo "                        "
                 logInfo "<< Recreate SwapChain >>"
 
@@ -474,10 +475,9 @@ runApplication = do
         let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged)
         when needRecreateSwapChain $ atomicWriteIORef (applicationData^.windowSizeChangedRef) False
 
-        let nextFrameIndex = mod (frameIndex + 1) Constants.maxFrameCount
+        writeIORef (_frameIndexRef applicationData) $ mod (frameIndex + 1) Constants.maxFrameCount
+        writeIORef (_needRecreateSwapChainRef applicationData) needRecreateSwapChain
 
         return applicationData
-            { _needRecreateSwapChain = needRecreateSwapChain
-            , _frameIndex = nextFrameIndex }
 
     terminateApplication finalApplicationData
