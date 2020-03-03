@@ -24,8 +24,6 @@ import Control.Monad
 import Data.IORef
 import Data.Maybe (fromMaybe)
 import qualified Data.DList as DList
-import Foreign.Marshal.Utils
-import Control.Lens
 import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
@@ -62,14 +60,10 @@ data KeyboardInputData = KeyboardInputData
     , _modifierKeys :: GLFW.ModifierKeys
     } deriving (Show)
 
-makeLenses ''KeyboardInputData
-
 data MouseInputData = MouseInputData
     { _mousePosX :: Int
     , _mousePosY :: Int
     } deriving (Show)
-
-makeLenses ''MouseInputData
 
 data TimeData = TimeData
     { _accFrameTime :: Double
@@ -80,8 +74,6 @@ data TimeData = TimeData
     , _elapsedTime :: Double
     , _deltaTime :: Double
     } deriving (Show)
-
-makeLenses ''TimeData
 
 data ApplicationData = ApplicationData
     { _window :: GLFW.Window
@@ -103,16 +95,14 @@ data ApplicationData = ApplicationData
     , _geometryBuffer :: GeometryBufferData
     } deriving (Show)
 
-makeLenses ''ApplicationData
-
 
 class KeyboardInputInterface a where
     getKeyPressed :: a -> GLFW.Key -> IO Bool
     getKeyReleased :: a -> GLFW.Key -> IO Bool
 
 instance KeyboardInputInterface KeyboardInputData where
-    getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (keyboardInputData^.keyPressedMap) key
-    getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (keyboardInputData^.keyReleasedMap) key
+    getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyPressedMap keyboardInputData) key
+    getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyReleasedMap keyboardInputData) key
 
 
 mouseButtonCallback :: IORef MouseInputData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> IO ()
@@ -459,9 +449,9 @@ runApplication = do
         -- waiting
         deviceWaitIdle rendererData
 
-        sizeChanged <- readIORef (applicationData^.windowSizeChangedRef)
+        sizeChanged <- readIORef (_windowSizeChangedRef applicationData)
         let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged)
-        when needRecreateSwapChain $ atomicWriteIORef (applicationData^.windowSizeChangedRef) False
+        when needRecreateSwapChain $ atomicWriteIORef (_windowSizeChangedRef applicationData) False
 
         writeIORef (_frameIndexRef rendererData) $ mod (frameIndex + 1) Constants.maxFrameCount
         writeIORef (_needRecreateSwapChainRef applicationData) needRecreateSwapChain

@@ -32,7 +32,6 @@ import Foreign.Storable
 import Foreign.C.String
 import Foreign.Ptr
 
-import qualified Control.Lens as Lens
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
@@ -81,8 +80,6 @@ data RendererData = RendererData
     , _commandBuffers :: [VkCommandBuffer]
     , _renderFeatures :: RenderFeatures
     } deriving (Eq, Show)
-
-Lens.makeLenses ''RendererData
 
 
 class RendererInterface a where
