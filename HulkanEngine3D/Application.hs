@@ -365,6 +365,7 @@ runApplication = do
     updateLoop applicationData $ \applicationData -> do
         updateTimeData $ _timeDataRef applicationData
 
+        -- TODO : convert rendererDataRef -> rendererData
         rendererData <- readIORef (_rendererDataRef applicationData)
 
         -- resize window
