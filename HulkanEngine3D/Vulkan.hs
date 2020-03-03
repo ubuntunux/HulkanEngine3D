@@ -15,15 +15,20 @@ module HulkanEngine3D.Vulkan
   , drawFrame
   , createRenderer
   , destroyRenderer
+  , initializeRenderer
+  , resizeWindow
   , recreateSwapChain
   , runCommandsOnce
   , recordCommandBuffer
+  , updateRendererData
   ) where
 
 import Control.Monad
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Data.DList as DList
+import qualified Data.HashTable.IO as HashTable
 import Data.IORef
 import Foreign.Marshal.Array
 import Foreign.Marshal.Alloc
@@ -44,8 +49,10 @@ import Numeric.DataFrame
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
+import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Vulkan.CommandBuffer
 import HulkanEngine3D.Vulkan.Device
+import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.Mesh
 import HulkanEngine3D.Vulkan.Queue
@@ -64,6 +71,8 @@ data RenderFeatures = RenderFeatures
 data RendererData = RendererData
     { _frameIndexRef :: IORef Int
     , _imageIndexPtr :: Ptr Word32
+    , _needRecreateSwapChainRef :: IORef Bool
+    , _needRecordCommandBufferRef :: IORef Bool
     , _imageAvailableSemaphores :: [VkSemaphore]
     , _renderFinishedSemaphores :: [VkSemaphore]
     , _vkInstance :: VkInstance
@@ -79,6 +88,9 @@ data RendererData = RendererData
     , _commandBuffersPtr :: Ptr VkCommandBuffer
     , _commandBuffers :: [VkCommandBuffer]
     , _renderFeatures :: RenderFeatures
+    , _renderTargetDataRef :: IORef RenderTargetData
+    , _renderPassDataListRef :: IORef (DList.DList RenderPassData)
+    , _descriptorPool :: VkDescriptorPool
     } deriving (Eq, Show)
 
 
@@ -91,8 +103,10 @@ class RendererInterface a where
     getCommandBuffers :: a -> [VkCommandBuffer]
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
+    getDescriptorPool :: a -> VkDescriptorPool
+    getRenderPassData :: a -> IO RenderPassData
     createRenderPass :: a -> RenderPassDataCreateInfo -> IO RenderPassData
-    destroyRenderPass :: a -> RenderPassData ->  IO ()
+    destroyRenderPass :: a -> RenderPassData -> IO ()
     createRenderTarget :: a -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createDepthTarget :: a -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createTexture :: a -> FilePath -> IO TextureData
@@ -110,6 +124,10 @@ instance RendererInterface RendererData where
     getCommandBuffers rendererData = (_commandBuffers rendererData)
     getGraphicsQueue rendererData = (_graphicsQueue (_queueFamilyDatas rendererData))
     getPresentQueue rendererData = (_presentQueue (_queueFamilyDatas rendererData))
+    getDescriptorPool rendererData = _descriptorPool rendererData
+    getRenderPassData rendererData = do
+        renderPassDataList <- readIORef (_renderPassDataListRef rendererData)
+        return $ (DList.toList renderPassDataList) !! 0
 
     createRenderPass rendererData renderPassDataCreateInfo =
         createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
@@ -194,7 +212,6 @@ getDefaultRenderPassDataCreateInfo rendererData imageViews clearValues = do
         , _renderPassDepthClearValue = 1.0
         }
 
-
 getDefaultRendererData :: IO RendererData
 getDefaultRendererData = do
     imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
@@ -228,12 +245,21 @@ getDefaultRendererData = do
         defaultRenderFeatures = RenderFeatures
             { _anisotropyEnable = VK_FALSE
             , _msaaSamples = VK_SAMPLE_COUNT_1_BIT }
+
+    imageIndexPtr <- new (0 :: Word32)
     frameIndexRef <- newIORef (0::Int)
+    needRecreateSwapChainRef <- newIORef False
+    needRecordCommandBufferRef <- newIORef True
+    renderTargetDataRef <- newIORef (undefined::RenderTargetData)
+    renderPassDataListRef <- newIORef (DList.fromList [])
+
     return RendererData
-        { _imageAvailableSemaphores = []
+        { _frameIndexRef = frameIndexRef
+        , _imageIndexPtr = imageIndexPtr
+        , _needRecreateSwapChainRef = needRecreateSwapChainRef
+        , _needRecordCommandBufferRef = needRecordCommandBufferRef
+        , _imageAvailableSemaphores = []
         , _renderFinishedSemaphores = []
-        , _frameIndexRef = frameIndexRef
-        , _imageIndexPtr = nullPtr
         , _vkInstance = VK_NULL
         , _vkSurface = VK_NULL
         , _device = VK_NULL
@@ -246,7 +272,12 @@ getDefaultRendererData = do
         , _commandBufferCount = 0
         , _commandBuffersPtr = VK_NULL
         , _commandBuffers = []
-        , _renderFeatures = defaultRenderFeatures }
+        , _renderFeatures = defaultRenderFeatures
+        , _renderTargetDataRef = renderTargetDataRef
+        , _renderPassDataListRef = renderPassDataListRef
+        , _descriptorPool = VK_NULL
+        }
+
 
 drawFrame :: RendererData
           -> Int
@@ -307,8 +338,27 @@ drawFrame RendererData {..} frameIndex transformObjectMemories cameraPosition = 
       return presentResult
 
 
-createRenderer :: RendererData
-               -> GLFW.Window
+initializeRenderer :: RendererData -> IO ()
+initializeRenderer rendererData@RendererData {..} = do
+    poke _imageIndexPtr 0
+    writeIORef _frameIndexRef (0::Int)
+    writeIORef _needRecreateSwapChainRef False
+    writeIORef _needRecordCommandBufferRef True
+
+    -- create render targets
+    renderTargetData <- createRenderTargets rendererData
+    writeIORef _renderTargetDataRef renderTargetData
+
+    -- create render pass data
+    renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
+        rendererData
+        [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
+        [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
+    renderPassData <- createRenderPass rendererData renderPassDataCreateInfo
+    writeIORef _renderPassDataListRef (DList.fromList [renderPassData])
+
+
+createRenderer :: GLFW.Window
                -> String
                -> String
                -> Bool
@@ -316,11 +366,13 @@ createRenderer :: RendererData
                -> [CString]
                -> VkSampleCountFlagBits
                -> IO RendererData
-createRenderer defaultRendererData window progName engineName enableValidationLayer isConcurrentMode requireExtensions requireMSAASampleCount = do
+createRenderer window progName engineName enableValidationLayer isConcurrentMode requireExtensions requireMSAASampleCount = do
     let validationLayers = if enableValidationLayer then Constants.vulkanLayers else []
     if enableValidationLayer
     then logInfo $ "Enable validation layers : " ++ show validationLayers
     else logInfo $ "Disabled validation layers"
+
+    defaultRendererData <- getDefaultRendererData
 
     vkInstance <- createVulkanInstance progName engineName validationLayers requireExtensions
     vkSurface <- createVkSurface vkInstance window
@@ -352,11 +404,11 @@ createRenderer defaultRendererData window progName engineName enableValidationLa
     let commandBufferCount = fromIntegral $ _swapChainImageCount swapChainData
     commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
     commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
-    imageIndexPtr <- new (0 :: Word32)
-    writeIORef (_frameIndexRef defaultRendererData) (0::Int)
+
+    descriptorPool <- createDescriptorPool device (_swapChainImageCount swapChainData)
+
     let rendererData = defaultRendererData
-          { _imageIndexPtr = imageIndexPtr
-          , _imageAvailableSemaphores = imageAvailableSemaphores
+          { _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
           , _vkInstance = vkInstance
           , _vkSurface = vkSurface
@@ -370,11 +422,23 @@ createRenderer defaultRendererData window progName engineName enableValidationLa
           , _commandBuffers = commandBuffers
           , _swapChainData = swapChainData
           , _swapChainSupportDetails = swapChainSupportDetails
-          , _renderFeatures = renderFeatures }
+          , _renderFeatures = renderFeatures
+          , _descriptorPool = descriptorPool }
     return rendererData
 
 destroyRenderer :: RendererData -> IO ()
 destroyRenderer rendererData@RendererData {..} = do
+    -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
+    -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
+    destroyDescriptorPool _device _descriptorPool
+    renderTargetData <- readIORef _renderTargetDataRef
+    destroyTexture rendererData (_sceneColorTexture renderTargetData)
+    destroyTexture rendererData (_sceneDepthTexture renderTargetData)
+
+    renderPassDataList <- readIORef _renderPassDataListRef
+    forM_ renderPassDataList $ \renderPassData -> do
+        destroyRenderPassData _device renderPassData
+
     destroySemaphores _device _renderFinishedSemaphores
     destroySemaphores _device _imageAvailableSemaphores
     destroyFrameFences _device _frameFencesPtr
@@ -385,6 +449,65 @@ destroyRenderer rendererData@RendererData {..} = do
     destroyVkSurface _vkInstance _vkSurface
     destroyVulkanInstance _vkInstance
     free _imageIndexPtr
+
+
+resizeWindow :: GLFW.Window -> RendererData -> IO RendererData
+resizeWindow window rendererData@RendererData {..} = do
+    logInfo "                        "
+    logInfo "<< Recreate SwapChain >>"
+
+    deviceWaitIdle rendererData
+
+    renderPassDataList <- readIORef _renderPassDataListRef
+    forM_ renderPassDataList $ \renderPassData -> do
+        destroyRenderPass rendererData renderPassData
+
+    renderTargetData <- readIORef _renderTargetDataRef
+    destroyTexture rendererData (_sceneColorTexture renderTargetData)
+    destroyTexture rendererData (_sceneDepthTexture renderTargetData)
+
+    -- recreate swapChain
+    rendererData <- recreateSwapChain rendererData window
+
+    -- recreate resources
+    renderTargetData <- createRenderTargets rendererData
+    writeIORef _renderTargetDataRef renderTargetData
+
+    renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
+        rendererData
+        [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
+        [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
+    renderPassData <- createRenderPassData _device renderPassDataCreateInfo
+    writeIORef _renderPassDataListRef (DList.fromList [renderPassData])
+
+    --
+    writeIORef _needRecordCommandBufferRef True
+
+    return rendererData
+
+
+updateRendererData :: RendererData -> Vec3f -> GeometryBufferData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
+updateRendererData rendererData@RendererData{..} cameraPosition geometryBufferData descriptorSets transformObjectMemories = do
+    -- record render commands
+    needRecordCommandBuffer <- readIORef _needRecordCommandBufferRef
+    when needRecordCommandBuffer $ do
+        let vertexBuffer = _vertexBuffer geometryBufferData
+            vertexIndexCount = _vertexIndexCount geometryBufferData
+            indexBuffer = _indexBuffer geometryBufferData
+        renderPassData <- getRenderPassData rendererData
+        recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) descriptorSets
+        writeIORef _needRecordCommandBufferRef False
+
+    frameIndex <- readIORef _frameIndexRef
+    result <- drawFrame rendererData frameIndex transformObjectMemories cameraPosition
+
+    -- waiting
+    deviceWaitIdle rendererData
+
+    let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result)
+
+    writeIORef _frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
+    writeIORef _needRecreateSwapChainRef needRecreateSwapChain
 
 
 recreateSwapChain :: RendererData -> GLFW.Window -> IO RendererData
@@ -538,3 +661,4 @@ runCommandsOnce device commandPool commandQueue action = do
 
         vkFreeCommandBuffers device commandPool 1 commandBufferPtr
     return ()
+

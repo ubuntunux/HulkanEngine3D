@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE Strict           #-}
-
 module Main
   ( main
   ) where

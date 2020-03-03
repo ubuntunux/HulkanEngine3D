@@ -1,14 +1,12 @@
 {-# LANGUAGE NegativeLiterals    #-}
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE Strict              #-}
 {-# LANGUAGE TemplateHaskell     #-}
-
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 
 module HulkanEngine3D.Application
     ( KeyboardInputData (..)
@@ -79,20 +77,16 @@ data ApplicationData = ApplicationData
     { _window :: GLFW.Window
     , _windowSizeChangedRef :: IORef Bool
     , _windowSizeRef :: IORef (Int, Int)
-    , _needRecreateSwapChainRef :: IORef Bool
     , _timeDataRef :: IORef TimeData
     , _keyboardInputDataRef :: IORef KeyboardInputData
     , _mouseInputDataRef :: IORef MouseInputData
-    , _renderTargetDataRef :: IORef RenderTargetData
     , _sceneManagerData :: SceneManagerData
     , _rendererDataRef :: IORef RendererData
-    , _renderPassDataListRef :: IORef (DList.DList RenderPassData)
     , _transformObjectBuffers :: [VkBuffer]
     , _transformObjectMemories :: [VkDeviceMemory]
-    , _descriptorPool :: VkDescriptorPool
     , _descriptorSetData :: DescriptorSetData
     , _textureData :: TextureData
-    , _geometryBuffer :: GeometryBufferData
+    , _geometryBufferData :: GeometryBufferData
     } deriving (Show)
 
 
@@ -212,9 +206,7 @@ initializeApplication = do
             , GLFW.modifierKeysSuper = False
             }
         }
-    mouseInputDataRef <- newIORef $ MouseInputData
-        { _mousePosX = 0
-        , _mousePosY = 0 }
+    mouseInputDataRef <- newIORef $ MouseInputData { _mousePosX = 0, _mousePosY = 0 }
     windowSizeChangedRef <- newIORef False
     windowSizeRef <- newIORef (1024, 768)
     window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef
@@ -230,51 +222,39 @@ initializeApplication = do
         enableValidationLayer = True
         isConcurrentMode = True
         msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
+
     -- create renderer
-    defaultRendererData <- getDefaultRendererData
     rendererData <- createRenderer
-        defaultRendererData
-            window
-            progName
-            engineName
-            enableValidationLayer
-            isConcurrentMode
-            requireExtensions
-            msaaSampleCount
+        window
+        progName
+        engineName
+        enableValidationLayer
+        isConcurrentMode
+        requireExtensions
+        msaaSampleCount
+
+    initializeRenderer rendererData
+
     rendererDataRef <- newIORef rendererData
-
-    -- create render targets
-    renderTargetData <- createRenderTargets rendererData
-    renderTargetDataRef <- newIORef renderTargetData
-
-    -- create render pass data
-    renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
-        rendererData
-        [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
-        [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
-    renderPassData <- createRenderPass rendererData renderPassDataCreateInfo
-    renderPassDataListRef <- newIORef (DList.singleton renderPassData)
 
     -- create resources
     (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-    geometryBuffer <- createGeometryBuffer rendererData "test" vertices indices
+    geometryBufferData <- createGeometryBuffer rendererData "test" vertices indices
     textureData <- createTexture rendererData "Resource/Externals/Textures/texture.jpg"
 
     (transformObjectMemories, transformObjectBuffers) <- unzip <$> createTransformObjectBuffers
         (getPhysicalDevice rendererData)
         (getDevice rendererData)
         (getSwapChainImageCount rendererData)
-    descriptorPool <- createDescriptorPool (getDevice rendererData) (getSwapChainImageCount rendererData)
-    descriptorSetData <- createDescriptorSetData (getDevice rendererData) descriptorPool (getSwapChainImageCount rendererData) (getDescriptorSetLayout renderPassData)
+    renderPassData <- getRenderPassData $ rendererData
+    descriptorSetData <- createDescriptorSetData
+        (getDevice rendererData)
+        (getDescriptorPool rendererData)
+        (getSwapChainImageCount rendererData)
+        (getDescriptorSetLayout renderPassData)
     let descriptorBufferInfos = fmap transformObjectBufferInfo transformObjectBuffers
     forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
         prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo (getTextureImageInfo textureData) descriptorSet
-
-    -- record render commands
-    let vertexBuffer = _vertexBuffer geometryBuffer
-        vertexIndexCount = _vertexIndexCount geometryBuffer
-        indexBuffer = _indexBuffer geometryBuffer
-    recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
 
     -- SceneManagerDatas
     (width, height) <- readIORef windowSizeRef
@@ -283,7 +263,6 @@ initializeApplication = do
     let sceneManagerData = getDefaultSceneManagerData cameraData
 
     -- init system variables
-    needRecreateSwapChainRef <- newIORef False
     currentTime <- getSystemTime
     timeDataRef <- newIORef TimeData
         { _accFrameTime = 0.0
@@ -299,20 +278,16 @@ initializeApplication = do
             { _window = window
             , _windowSizeChangedRef = windowSizeChangedRef
             , _windowSizeRef = windowSizeRef
-            , _needRecreateSwapChainRef = needRecreateSwapChainRef
             , _timeDataRef = timeDataRef
             , _keyboardInputDataRef = keyboardInputDataRef
             , _mouseInputDataRef = mouseInputDataRef
-            , _renderTargetDataRef = renderTargetDataRef
             , _sceneManagerData = sceneManagerData
             , _rendererDataRef = rendererDataRef
-            , _renderPassDataListRef = renderPassDataListRef
             , _transformObjectBuffers = transformObjectBuffers
             , _transformObjectMemories = transformObjectMemories
-            , _descriptorPool = descriptorPool
             , _descriptorSetData = descriptorSetData
             , _textureData = textureData
-            , _geometryBuffer = geometryBuffer
+            , _geometryBufferData = geometryBufferData
             }
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ()) -> IO ()
@@ -347,21 +322,8 @@ terminateApplication applicationData = do
         (_transformObjectBuffers applicationData)
         (_transformObjectMemories applicationData)
 
-    -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
-    -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
-    destroyDescriptorPool (getDevice rendererData) (_descriptorPool applicationData)
-
-    renderTargetData <- readIORef (_renderTargetDataRef applicationData)
-    destroyTexture rendererData (_sceneColorTexture renderTargetData)
-    destroyTexture rendererData (_sceneDepthTexture renderTargetData)
-
     destroyTexture rendererData (_textureData applicationData)
-
-    destroyGeometryBuffer rendererData (_geometryBuffer applicationData)
-
-    renderPassDataList <- readIORef (_renderPassDataListRef applicationData)
-    forM_ renderPassDataList $ \renderPassData -> do
-        destroyRenderPassData (_device rendererData) renderPassData
+    destroyGeometryBuffer rendererData (_geometryBufferData applicationData)
 
     destroyRenderer rendererData
 
@@ -404,56 +366,26 @@ runApplication = do
         updateTimeData $ _timeDataRef applicationData
 
         rendererData <- readIORef (_rendererDataRef applicationData)
-        frameIndex <- readIORef (_frameIndexRef rendererData)
-        needRecreateSwapChain <- readIORef (_needRecreateSwapChainRef applicationData)
-        when needRecreateSwapChain $ do
-            logInfo "                        "
-            logInfo "<< Recreate SwapChain >>"
 
-            deviceWaitIdle rendererData
-
-            renderPassDataList <- readIORef (_renderPassDataListRef applicationData)
-            forM_ renderPassDataList $ \renderPassData -> do
-                destroyRenderPass rendererData renderPassData
-
-            renderTargetData <- readIORef (_renderTargetDataRef applicationData)
-            destroyTexture rendererData (_sceneColorTexture renderTargetData)
-            destroyTexture rendererData (_sceneDepthTexture renderTargetData)
-
-            -- recreate swapChain
-            rendererData <- recreateSwapChain rendererData (_window applicationData)
-            writeIORef (_rendererDataRef applicationData) rendererData
-
-            -- recreate resources
-            renderTargetData <- createRenderTargets rendererData
-            writeIORef (_renderTargetDataRef applicationData) renderTargetData
-
-            renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
-                rendererData
-                [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
-                [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
-            renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
-            writeIORef (_renderPassDataListRef applicationData) (DList.fromList [renderPassData])
-
-            -- record render commands
-            let vertexBuffer = _vertexBuffer (_geometryBuffer applicationData)
-                vertexIndexCount = _vertexIndexCount (_geometryBuffer applicationData)
-                indexBuffer = _indexBuffer (_geometryBuffer applicationData)
-                descriptorSetData = (_descriptorSetData applicationData)
-            recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) (_descriptorSets descriptorSetData)
+        -- resize window
+        needRecreateSwapChain <- readIORef (_needRecreateSwapChainRef rendererData)
+        windowSizeChanged <- readIORef (_windowSizeChangedRef applicationData)
+        when (windowSizeChanged || needRecreateSwapChain) $ do
+            newRenderData <- resizeWindow (_window applicationData) rendererData
+            writeIORef (_rendererDataRef applicationData) newRenderData
+            writeIORef (_windowSizeChangedRef applicationData) False
+            writeIORef (_needRecreateSwapChainRef rendererData) False
 
         rendererData <- readIORef (_rendererDataRef applicationData)
+
+        -- update renderer data
         cameraPosition <- readIORef (_position._transformObject._camera._sceneManagerData $ applicationData)
-        result <- drawFrame rendererData frameIndex (_transformObjectMemories applicationData) cameraPosition
 
-        -- waiting
-        deviceWaitIdle rendererData
-
-        sizeChanged <- readIORef (_windowSizeChangedRef applicationData)
-        let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged)
-        when needRecreateSwapChain $ atomicWriteIORef (_windowSizeChangedRef applicationData) False
-
-        writeIORef (_frameIndexRef rendererData) $ mod (frameIndex + 1) Constants.maxFrameCount
-        writeIORef (_needRecreateSwapChainRef applicationData) needRecreateSwapChain
+        updateRendererData
+            rendererData
+            cameraPosition
+            (_geometryBufferData applicationData)
+            (_descriptorSets._descriptorSetData $ applicationData)
+            (_transformObjectMemories applicationData)
 
     terminateApplication applicationData
