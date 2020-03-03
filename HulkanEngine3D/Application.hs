@@ -25,7 +25,6 @@ import Data.IORef
 import Data.Maybe (fromMaybe)
 import qualified Data.DList as DList
 import Foreign.Marshal.Utils
-import Foreign.Marshal.Alloc
 import Control.Lens
 import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
@@ -90,7 +89,6 @@ data ApplicationData = ApplicationData
     , _windowSizeRef :: IORef (Int, Int)
     , _needRecreateSwapChainRef :: IORef Bool
     , _frameIndexRef  :: IORef Int
-    , _imageIndexPtr :: Ptr Word32
     , _timeDataRef :: IORef TimeData
     , _keyboardInputDataRef :: IORef KeyboardInputData
     , _mouseInputDataRef :: IORef MouseInputData
@@ -298,7 +296,6 @@ initializeApplication = do
     -- init system variables
     needRecreateSwapChainRef <- newIORef False
     frameIndexRef <- newIORef (0::Int)
-    imageIndexPtr <- new (0 :: Word32)
     currentTime <- getSystemTime
     timeDataRef <- newIORef TimeData
         { _accFrameTime = 0.0
@@ -316,7 +313,6 @@ initializeApplication = do
             , _windowSizeRef = windowSizeRef
             , _needRecreateSwapChainRef = needRecreateSwapChainRef
             , _frameIndexRef = frameIndexRef
-            , _imageIndexPtr = imageIndexPtr
             , _timeDataRef = timeDataRef
             , _keyboardInputDataRef = keyboardInputDataRef
             , _mouseInputDataRef = mouseInputDataRef
@@ -381,7 +377,6 @@ terminateApplication applicationData = do
         destroyRenderPassData (_device rendererData) renderPassData
 
     destroyRenderer rendererData
-    free (_imageIndexPtr applicationData)
 
     destroyGLFWWindow (_window applicationData)
 
@@ -465,7 +460,7 @@ runApplication = do
 
         rendererData <- readIORef (_rendererDataRef applicationData)
         cameraPosition <- readIORef (_position._transformObject._camera._sceneManagerData $ applicationData)
-        result <- drawFrame rendererData frameIndex (_imageIndexPtr applicationData) (_transformObjectMemories applicationData) cameraPosition
+        result <- drawFrame rendererData frameIndex (_transformObjectMemories applicationData) cameraPosition
 
         -- waiting
         deviceWaitIdle rendererData

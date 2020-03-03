@@ -25,6 +25,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Foreign.Marshal.Array
+import Foreign.Marshal.Alloc
+import Foreign.Marshal.Utils
 import Foreign.Storable
 import Foreign.C.String
 import Foreign.Ptr
@@ -60,7 +62,8 @@ data RenderFeatures = RenderFeatures
     } deriving (Eq, Show)
 
 data RendererData = RendererData
-    { _imageAvailableSemaphores :: [VkSemaphore]
+    { _imageIndexPtr :: Ptr Word32
+    , _imageAvailableSemaphores :: [VkSemaphore]
     , _renderFinishedSemaphores :: [VkSemaphore]
     , _vkInstance :: VkInstance
     , _vkSurface :: VkSurfaceKHR
@@ -229,6 +232,7 @@ getDefaultRendererData = do
     return RendererData
         { _imageAvailableSemaphores = []
         , _renderFinishedSemaphores = []
+        , _imageIndexPtr = nullPtr
         , _vkInstance = VK_NULL
         , _vkSurface = VK_NULL
         , _device = VK_NULL
@@ -245,11 +249,10 @@ getDefaultRendererData = do
 
 drawFrame :: RendererData
           -> Int
-          -> Ptr Word32
           -> [VkDeviceMemory]
           -> Vec3f
           -> IO VkResult
-drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemories cameraPosition = do
+drawFrame RendererData {..} frameIndex transformObjectMemories cameraPosition = do
   let SwapChainData {..} = _swapChainData
       QueueFamilyDatas {..} = _queueFamilyDatas
       frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
@@ -260,11 +263,11 @@ drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemories cam
     flip validationVK "vkWaitForFences failed!"
 
   --  validationVK result "vkAcquireNextImageKHR failed!"
-  result <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE imageIndexPtr
+  result <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
   if (VK_SUCCESS /= result) then 
       return result
   else do
-      imageIndex <- peek imageIndexPtr
+      imageIndex <- peek _imageIndexPtr
       let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
       let transformObjectMemory = transformObjectMemories !! (fromIntegral imageIndex)
       updateTransformObject _device _swapChainExtent transformObjectMemory cameraPosition
@@ -291,7 +294,7 @@ drawFrame RendererData {..} frameIndex imageIndexPtr transformObjectMemories cam
       let presentInfo = createVk @VkPresentInfoKHR
             $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
             &* set @"pNext" VK_NULL
-            &* set @"pImageIndices" imageIndexPtr
+            &* set @"pImageIndices" _imageIndexPtr
             &* set @"waitSemaphoreCount" 1
             &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
             &* set @"swapchainCount" 1
@@ -348,8 +351,10 @@ createRenderer defaultRendererData window progName engineName enableValidationLa
     let commandBufferCount = fromIntegral $ _swapChainImageCount swapChainData
     commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
     commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
+    imageIndexPtr <- new (0 :: Word32)
     let rendererData = defaultRendererData
-          { _imageAvailableSemaphores = imageAvailableSemaphores
+          { _imageIndexPtr = imageIndexPtr
+          , _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
           , _vkInstance = vkInstance
           , _vkSurface = vkSurface
@@ -377,6 +382,7 @@ destroyRenderer rendererData@RendererData {..} = do
     destroyDevice _device
     destroyVkSurface _vkInstance _vkSurface
     destroyVulkanInstance _vkInstance
+    free _imageIndexPtr
 
 
 recreateSwapChain :: RendererData -> GLFW.Window -> IO RendererData
