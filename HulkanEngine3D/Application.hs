@@ -88,7 +88,6 @@ data ApplicationData = ApplicationData
     , _windowSizeChangedRef :: IORef Bool
     , _windowSizeRef :: IORef (Int, Int)
     , _needRecreateSwapChainRef :: IORef Bool
-    , _frameIndexRef  :: IORef Int
     , _timeDataRef :: IORef TimeData
     , _keyboardInputDataRef :: IORef KeyboardInputData
     , _mouseInputDataRef :: IORef MouseInputData
@@ -295,7 +294,6 @@ initializeApplication = do
 
     -- init system variables
     needRecreateSwapChainRef <- newIORef False
-    frameIndexRef <- newIORef (0::Int)
     currentTime <- getSystemTime
     timeDataRef <- newIORef TimeData
         { _accFrameTime = 0.0
@@ -312,7 +310,6 @@ initializeApplication = do
             , _windowSizeChangedRef = windowSizeChangedRef
             , _windowSizeRef = windowSizeRef
             , _needRecreateSwapChainRef = needRecreateSwapChainRef
-            , _frameIndexRef = frameIndexRef
             , _timeDataRef = timeDataRef
             , _keyboardInputDataRef = keyboardInputDataRef
             , _mouseInputDataRef = mouseInputDataRef
@@ -416,16 +413,13 @@ runApplication = do
     updateLoop applicationData $ \applicationData -> do
         updateTimeData $ _timeDataRef applicationData
 
-        frameIndex <- readIORef (_frameIndexRef applicationData)
+        rendererData <- readIORef (_rendererDataRef applicationData)
+        frameIndex <- readIORef (_frameIndexRef rendererData)
         needRecreateSwapChain <- readIORef (_needRecreateSwapChainRef applicationData)
         when needRecreateSwapChain $ do
             logInfo "                        "
             logInfo "<< Recreate SwapChain >>"
 
-            -- cleanUp swapChain
-            rendererData <- readIORef (_rendererDataRef applicationData)
-
-            -- waiting
             deviceWaitIdle rendererData
 
             renderPassDataList <- readIORef (_renderPassDataListRef applicationData)
@@ -469,7 +463,7 @@ runApplication = do
         let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result || sizeChanged)
         when needRecreateSwapChain $ atomicWriteIORef (applicationData^.windowSizeChangedRef) False
 
-        writeIORef (_frameIndexRef applicationData) $ mod (frameIndex + 1) Constants.maxFrameCount
+        writeIORef (_frameIndexRef rendererData) $ mod (frameIndex + 1) Constants.maxFrameCount
         writeIORef (_needRecreateSwapChainRef applicationData) needRecreateSwapChain
 
     terminateApplication applicationData

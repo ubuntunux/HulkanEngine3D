@@ -24,6 +24,7 @@ import Control.Monad
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import Data.IORef
 import Foreign.Marshal.Array
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
@@ -62,7 +63,8 @@ data RenderFeatures = RenderFeatures
     } deriving (Eq, Show)
 
 data RendererData = RendererData
-    { _imageIndexPtr :: Ptr Word32
+    { _frameIndexRef :: IORef Int
+    , _imageIndexPtr :: Ptr Word32
     , _imageAvailableSemaphores :: [VkSemaphore]
     , _renderFinishedSemaphores :: [VkSemaphore]
     , _vkInstance :: VkInstance
@@ -229,9 +231,11 @@ getDefaultRendererData = do
         defaultRenderFeatures = RenderFeatures
             { _anisotropyEnable = VK_FALSE
             , _msaaSamples = VK_SAMPLE_COUNT_1_BIT }
+    frameIndexRef <- newIORef (0::Int)
     return RendererData
         { _imageAvailableSemaphores = []
         , _renderFinishedSemaphores = []
+        , _frameIndexRef = frameIndexRef
         , _imageIndexPtr = nullPtr
         , _vkInstance = VK_NULL
         , _vkSurface = VK_NULL
@@ -352,6 +356,7 @@ createRenderer defaultRendererData window progName engineName enableValidationLa
     commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
     commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
     imageIndexPtr <- new (0 :: Word32)
+    writeIORef (_frameIndexRef defaultRendererData) (0::Int)
     let rendererData = defaultRendererData
           { _imageIndexPtr = imageIndexPtr
           , _imageAvailableSemaphores = imageAvailableSemaphores
