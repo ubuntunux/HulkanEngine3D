@@ -21,8 +21,9 @@ data RenderTargetData = RenderTargetData
 
 createRenderTargets :: RendererData -> IO RenderTargetData
 createRenderTargets rendererData = do
-        let format = _swapChainImageFormat (_swapChainData rendererData)
-            extent = _swapChainExtent (_swapChainData rendererData)
+        swapChainData <- getSwapChainData rendererData
+        let format = _swapChainImageFormat swapChainData
+            extent = _swapChainExtent swapChainData
             samples = _msaaSamples (_renderFeatures rendererData)
         sceneColor <- createRenderTarget rendererData format extent samples
         sceneDepth <- createDepthTarget rendererData extent samples

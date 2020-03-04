@@ -45,9 +45,9 @@ destroyCommandPool device commandPool = do
 createCommandBuffers :: VkDevice
                      -> VkCommandPool
                      -> Word32
-                     -> IO (Ptr VkCommandBuffer)
-createCommandBuffers device commandPool commandBufferCount = do
-    commandBuffersPtr <- mallocArray (fromIntegral commandBufferCount)::IO (Ptr VkCommandBuffer)
+                     -> Ptr VkCommandBuffer
+                     -> IO ()
+createCommandBuffers device commandPool commandBufferCount commandBuffersPtr = do
     let allocationInfo = createVk @VkCommandBufferAllocateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
             &* set @"pNext" VK_NULL
@@ -58,10 +58,8 @@ createCommandBuffers device commandPool commandBufferCount = do
         result <- vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr
         validationVK result "vkAllocateCommandBuffers failed!"
     logInfo $ "Create Command Buffer: "  ++ show commandBufferCount ++ " " ++ (show commandBuffersPtr)
-    return commandBuffersPtr
 
 
 destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuffer -> IO ()
 destroyCommandBuffers device commandPool bufferCount commandBuffersPtr = do
   vkFreeCommandBuffers device commandPool bufferCount commandBuffersPtr
-  free commandBuffersPtr

@@ -79,8 +79,8 @@ data RendererData = RendererData
     , _vkSurface :: VkSurfaceKHR
     , _device :: VkDevice
     , _physicalDevice :: VkPhysicalDevice
-    , _swapChainData :: SwapChainData
-    , _swapChainSupportDetails :: SwapChainSupportDetails
+    , _swapChainDataRef :: IORef SwapChainData
+    , _swapChainSupportDetailsRef :: IORef SwapChainSupportDetails
     , _queueFamilyDatas :: QueueFamilyDatas
     , _frameFencesPtr :: Ptr VkFence
     , _commandPool :: VkCommandPool
@@ -97,10 +97,12 @@ data RendererData = RendererData
 class RendererInterface a where
     getPhysicalDevice :: a -> VkPhysicalDevice
     getDevice :: a -> VkDevice
-    getSwapChainImageCount :: a -> Int
-    getSwapChainImageViews :: a -> [VkImageView]
+    getSwapChainData :: a -> IO SwapChainData
+    getSwapChainImageCount :: a -> IO Int
+    getSwapChainImageViews :: a -> IO [VkImageView]
+    getSwapChainSupportDetails :: a -> IO SwapChainSupportDetails
     getCommandPool :: a -> VkCommandPool
-    getCommandBuffers :: a -> [VkCommandBuffer]
+    getCommandBuffers :: a -> IO [VkCommandBuffer]
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
     getDescriptorPool :: a -> VkDescriptorPool
@@ -118,10 +120,12 @@ class RendererInterface a where
 instance RendererInterface RendererData where
     getPhysicalDevice rendererData = (_physicalDevice rendererData)
     getDevice rendererData = (_device rendererData)
-    getSwapChainImageCount rendererData = (_swapChainImageCount (_swapChainData rendererData))
-    getSwapChainImageViews rendererData = (_swapChainImageViews (_swapChainData rendererData))
+    getSwapChainData rendererData = readIORef $ _swapChainDataRef rendererData
+    getSwapChainImageCount rendererData = _swapChainImageCount <$> getSwapChainData rendererData
+    getSwapChainImageViews rendererData = _swapChainImageViews <$> getSwapChainData rendererData
+    getSwapChainSupportDetails rendererData = readIORef $ _swapChainSupportDetailsRef rendererData
     getCommandPool rendererData = (_commandPool rendererData)
-    getCommandBuffers rendererData = (_commandBuffers rendererData)
+    getCommandBuffers rendererData = peekArray (fromIntegral . _commandBufferCount $ rendererData) (_commandBuffersPtr rendererData)
     getGraphicsQueue rendererData = (_graphicsQueue (_queueFamilyDatas rendererData))
     getPresentQueue rendererData = (_presentQueue (_queueFamilyDatas rendererData))
     getDescriptorPool rendererData = _descriptorPool rendererData
@@ -195,8 +199,8 @@ getDepthStencilClearValue depthClearValue stencilClearValue = createVk @VkClearV
 
 getDefaultRenderPassDataCreateInfo :: RendererData -> [VkImageView] -> [VkClearValue] -> IO RenderPassDataCreateInfo
 getDefaultRenderPassDataCreateInfo rendererData imageViews clearValues = do
-    let swapChainData = _swapChainData rendererData
-        msaaSamples = _msaaSamples (_renderFeatures rendererData)
+    let msaaSamples = _msaaSamples (_renderFeatures rendererData)
+    swapChainData <- getSwapChainData rendererData
     depthFormat <- findDepthFormat (getPhysicalDevice rendererData)
     return RenderPassDataCreateInfo
         { _vertexShaderFile = "Resource/Shaders/triangle.vert"
@@ -252,6 +256,8 @@ getDefaultRendererData = do
     needRecordCommandBufferRef <- newIORef True
     renderTargetDataRef <- newIORef (undefined::RenderTargetData)
     renderPassDataListRef <- newIORef (DList.fromList [])
+    swapChainDataRef <- newIORef defaultSwapChainData
+    swapChainSupportDetailsRef <- newIORef defaultSwapChainSupportDetails
 
     return RendererData
         { _frameIndexRef = frameIndexRef
@@ -264,8 +270,8 @@ getDefaultRendererData = do
         , _vkSurface = VK_NULL
         , _device = VK_NULL
         , _physicalDevice = VK_NULL
-        , _swapChainData = defaultSwapChainData
-        , _swapChainSupportDetails = defaultSwapChainSupportDetails
+        , _swapChainDataRef = swapChainDataRef
+        , _swapChainSupportDetailsRef = swapChainSupportDetailsRef
         , _queueFamilyDatas = defaultQueueFamilyDatas
         , _frameFencesPtr = VK_NULL
         , _commandPool = VK_NULL
@@ -284,12 +290,12 @@ drawFrame :: RendererData
           -> [VkDeviceMemory]
           -> Vec3f
           -> IO VkResult
-drawFrame RendererData {..} frameIndex transformObjectMemories cameraPosition = do
-  let SwapChainData {..} = _swapChainData
-      QueueFamilyDatas {..} = _queueFamilyDatas
+drawFrame rendererData@RendererData {..} frameIndex transformObjectMemories cameraPosition = do
+  let QueueFamilyDatas {..} = _queueFamilyDatas
       frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
       imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
       renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
+  swapChainData@SwapChainData {..} <- getSwapChainData rendererData
 
   vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
     flip validationVK "vkWaitForFences failed!"
@@ -400,9 +406,14 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     imageAvailableSemaphores <- createSemaphores device
     renderFinishedSemaphores <- createSemaphores device
     frameFencesPtr <- createFrameFences device
+
     swapChainData <- createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface Constants.enableImmediateMode
+    swapChainDataRef <- newIORef swapChainData
+    swapChainSupportDetailsRef <- newIORef swapChainSupportDetails
+
     let commandBufferCount = fromIntegral $ _swapChainImageCount swapChainData
-    commandBuffersPtr <- createCommandBuffers device commandPool commandBufferCount
+    commandBuffersPtr <- mallocArray (fromIntegral commandBufferCount)::IO (Ptr VkCommandBuffer)
+    createCommandBuffers device commandPool commandBufferCount commandBuffersPtr
     commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
 
     descriptorPool <- createDescriptorPool device (_swapChainImageCount swapChainData)
@@ -419,9 +430,8 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
           , _commandPool = commandPool
           , _commandBuffersPtr = commandBuffersPtr
           , _commandBufferCount = commandBufferCount
-          , _commandBuffers = commandBuffers
-          , _swapChainData = swapChainData
-          , _swapChainSupportDetails = swapChainSupportDetails
+          , _swapChainDataRef = swapChainDataRef
+          , _swapChainSupportDetailsRef = swapChainSupportDetailsRef
           , _renderFeatures = renderFeatures
           , _descriptorPool = descriptorPool }
     return rendererData
@@ -444,17 +454,19 @@ destroyRenderer rendererData@RendererData {..} = do
     destroyFrameFences _device _frameFencesPtr
     destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
     destroyCommandPool _device _commandPool
-    destroySwapChainData _device _swapChainData
+    swapChainData <- (getSwapChainData rendererData)
+    destroySwapChainData _device swapChainData
     destroyDevice _device
     destroyVkSurface _vkInstance _vkSurface
     destroyVulkanInstance _vkInstance
+    free _commandBuffersPtr
     free _imageIndexPtr
 
 
-resizeWindow :: GLFW.Window -> RendererData -> IO RendererData
+resizeWindow :: GLFW.Window -> RendererData -> IO ()
 resizeWindow window rendererData@RendererData {..} = do
-    logInfo "                        "
-    logInfo "<< Recreate SwapChain >>"
+    logInfo "                  "
+    logInfo "<< resizeWindow >>"
 
     deviceWaitIdle rendererData
 
@@ -467,7 +479,7 @@ resizeWindow window rendererData@RendererData {..} = do
     destroyTexture rendererData (_sceneDepthTexture renderTargetData)
 
     -- recreate swapChain
-    rendererData <- recreateSwapChain rendererData window
+    recreateSwapChain rendererData window
 
     -- recreate resources
     renderTargetData <- createRenderTargets rendererData
@@ -480,10 +492,7 @@ resizeWindow window rendererData@RendererData {..} = do
     renderPassData <- createRenderPassData _device renderPassDataCreateInfo
     writeIORef _renderPassDataListRef (DList.fromList [renderPassData])
 
-    --
     writeIORef _needRecordCommandBufferRef True
-
-    return rendererData
 
 
 updateRendererData :: RendererData -> Vec3f -> GeometryBufferData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
@@ -505,27 +514,24 @@ updateRendererData rendererData@RendererData{..} cameraPosition geometryBufferDa
     deviceWaitIdle rendererData
 
     let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result)
-
-    writeIORef _frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
     writeIORef _needRecreateSwapChainRef needRecreateSwapChain
 
+    writeIORef _frameIndexRef $ mod (frameIndex + 1) Constants.maxFrameCount
 
-recreateSwapChain :: RendererData -> GLFW.Window -> IO RendererData
+
+recreateSwapChain :: RendererData -> GLFW.Window -> IO ()
 recreateSwapChain rendererData@RendererData {..} window = do
+    logInfo "<< recreateSwapChain >>"
     destroyCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
-    destroySwapChainData _device _swapChainData
+    swapChainData <- getSwapChainData rendererData
+    destroySwapChainData _device swapChainData
 
     newSwapChainSupportDetails <- querySwapChainSupport _physicalDevice _vkSurface
     newSwapChainData <- createSwapChainData _device newSwapChainSupportDetails _queueFamilyDatas _vkSurface Constants.enableImmediateMode
-    let commandBufferCount = fromIntegral $ _swapChainImageCount newSwapChainData
-    newCommandBuffersPtr <- createCommandBuffers _device _commandPool commandBufferCount
-    newCommandBuffers <- peekArray (fromIntegral _commandBufferCount) newCommandBuffersPtr
+    writeIORef _swapChainDataRef newSwapChainData
+    writeIORef _swapChainSupportDetailsRef newSwapChainSupportDetails
 
-    return rendererData
-        { _swapChainSupportDetails = newSwapChainSupportDetails
-        , _swapChainData = newSwapChainData
-        , _commandBuffersPtr = newCommandBuffersPtr
-        , _commandBuffers = newCommandBuffers }
+    createCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
 
 
 recordCommandBuffer :: RendererData
@@ -535,8 +541,7 @@ recordCommandBuffer :: RendererData
                     -> [VkDescriptorSet]
                     -> IO ()
 recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexBuffer) descriptorSets = do
-    let commandBuffers = getCommandBuffers rendererData
-        renderPass = _renderPass renderPassData
+    let renderPass = _renderPass renderPassData
         graphicsPipelineData = _graphicsPipelineData renderPassData
         pipelineLayout = _pipelineLayout graphicsPipelineData
         pipeline = _pipeline graphicsPipelineData
@@ -544,6 +549,7 @@ recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexB
         frameBuffers = _frameBuffers frameBufferData
         imageExtent = _frameBufferSize frameBufferData
         clearValues = _frameBufferClearValues frameBufferData
+    commandBuffers <- getCommandBuffers rendererData
 
     -- record command buffers
     forM_ (zip3 commandBuffers frameBuffers descriptorSets) $ \(commandBuffer, frameBuffer, descriptorSet) -> do

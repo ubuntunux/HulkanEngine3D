@@ -21,18 +21,15 @@ import Data.Hashable
 import Control.Monad
 import Data.IORef
 import Data.Maybe (fromMaybe)
-import qualified Data.DList as DList
 import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import Graphics.Vulkan.Core_1_0
-import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Numeric.DataFrame
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Camera
-import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Resource.ObjLoader
 import HulkanEngine3D.Utilities.System
@@ -81,7 +78,7 @@ data ApplicationData = ApplicationData
     , _keyboardInputDataRef :: IORef KeyboardInputData
     , _mouseInputDataRef :: IORef MouseInputData
     , _sceneManagerData :: SceneManagerData
-    , _rendererDataRef :: IORef RendererData
+    , _rendererData :: RendererData
     , _transformObjectBuffers :: [VkBuffer]
     , _transformObjectMemories :: [VkDeviceMemory]
     , _descriptorSetData :: DescriptorSetData
@@ -232,10 +229,9 @@ initializeApplication = do
         isConcurrentMode
         requireExtensions
         msaaSampleCount
-
     initializeRenderer rendererData
 
-    rendererDataRef <- newIORef rendererData
+    swapChainImageCount <- getSwapChainImageCount rendererData
 
     -- create resources
     (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
@@ -245,12 +241,12 @@ initializeApplication = do
     (transformObjectMemories, transformObjectBuffers) <- unzip <$> createTransformObjectBuffers
         (getPhysicalDevice rendererData)
         (getDevice rendererData)
-        (getSwapChainImageCount rendererData)
+        swapChainImageCount
     renderPassData <- getRenderPassData $ rendererData
     descriptorSetData <- createDescriptorSetData
         (getDevice rendererData)
         (getDescriptorPool rendererData)
-        (getSwapChainImageCount rendererData)
+        swapChainImageCount
         (getDescriptorSetLayout renderPassData)
     let descriptorBufferInfos = fmap transformObjectBufferInfo transformObjectBuffers
     forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
@@ -282,7 +278,7 @@ initializeApplication = do
             , _keyboardInputDataRef = keyboardInputDataRef
             , _mouseInputDataRef = mouseInputDataRef
             , _sceneManagerData = sceneManagerData
-            , _rendererDataRef = rendererDataRef
+            , _rendererData = rendererData
             , _transformObjectBuffers = transformObjectBuffers
             , _transformObjectMemories = transformObjectMemories
             , _descriptorSetData = descriptorSetData
@@ -312,7 +308,7 @@ terminateApplication applicationData = do
     logInfo "               "
     logInfo "<< Terminate >>"
 
-    rendererData <- readIORef (_rendererDataRef applicationData)
+    let rendererData = (_rendererData applicationData)
 
     -- waiting
     deviceWaitIdle rendererData
@@ -339,14 +335,15 @@ updateTimeData timeDataRef = do
         elapsedTime = (_elapsedTime timeData) + deltaTime
         accFrameTime = (_accFrameTime timeData) + deltaTime
         accFrameCount = (_accFrameCount timeData) + 1
-    (accFrameTime, accFrameCount, averageFrameTime, averageFPS) <- if (1.0 < accFrameTime)
-        then do
+    (accFrameTime, accFrameCount, averageFrameTime, averageFPS) <-
+        if (1.0 < accFrameTime) then do
             let averageFrameTime = accFrameTime / (fromIntegral accFrameCount) * 1000.0
                 averageFPS = 1000.0 / averageFrameTime
             logInfo $ show averageFPS ++ "fps / " ++ show averageFrameTime ++ "ms"
             return (0.0, 0, averageFrameTime, averageFPS)
         else
             return (accFrameTime, accFrameCount, (_averageFrameTime timeData), (_averageFPS timeData))
+
     writeIORef timeDataRef TimeData
         { _deltaTime = deltaTime
         , _currentTime = currentTime
@@ -365,19 +362,17 @@ runApplication = do
     updateLoop applicationData $ \applicationData -> do
         updateTimeData $ _timeDataRef applicationData
 
-        -- TODO : convert rendererDataRef -> rendererData
-        rendererData <- readIORef (_rendererDataRef applicationData)
+        let rendererData = _rendererData applicationData
 
         -- resize window
         needRecreateSwapChain <- readIORef (_needRecreateSwapChainRef rendererData)
         windowSizeChanged <- readIORef (_windowSizeChangedRef applicationData)
         when (windowSizeChanged || needRecreateSwapChain) $ do
-            newRenderData <- resizeWindow (_window applicationData) rendererData
-            writeIORef (_rendererDataRef applicationData) newRenderData
+            resizeWindow (_window applicationData) rendererData
             writeIORef (_windowSizeChangedRef applicationData) False
             writeIORef (_needRecreateSwapChainRef rendererData) False
-
-        rendererData <- readIORef (_rendererDataRef applicationData)
+            
+        let rendererData = _rendererData applicationData    
 
         -- update renderer data
         cameraPosition <- readIORef (_position._transformObject._camera._sceneManagerData $ applicationData)
