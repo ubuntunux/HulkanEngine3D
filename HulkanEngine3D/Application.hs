@@ -186,11 +186,11 @@ updateEvent applicationData = do
     let deltaTime = (realToFrac._deltaTime $ timeData)::Float
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         move_speed = deltaTime * if modifierKeysShift then 2.0 else 1.0
-        move_speed_side = (* move_speed) $ case (pressed_key_A, pressed_key_D) of
+        move_speed_side = move_speed * case (pressed_key_A, pressed_key_D) of
             (True, False) -> Constants.cameraMoveSpeed
             (False, True) -> -Constants.cameraMoveSpeed
             otherwise -> 0.0
-        move_speed_forward = (* move_speed) $ case (pressed_key_W, pressed_key_S) of
+        move_speed_forward = move_speed * case (pressed_key_W, pressed_key_S) of
             (True, False) -> Constants.cameraMoveSpeed
             (False, True) -> -Constants.cameraMoveSpeed
             otherwise -> 0.0
