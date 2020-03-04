@@ -370,9 +370,7 @@ runApplication = do
         when (windowSizeChanged || needRecreateSwapChain) $ do
             resizeWindow (_window applicationData) rendererData
             writeIORef (_windowSizeChangedRef applicationData) False
-            writeIORef (_needRecreateSwapChainRef rendererData) False
-            
-        let rendererData = _rendererData applicationData    
+            writeIORef (_needRecreateSwapChainRef rendererData) False    
 
         -- update renderer data
         cameraPosition <- readIORef (_position._transformObject._camera._sceneManagerData $ applicationData)
