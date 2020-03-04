@@ -55,6 +55,15 @@ data KeyboardInputData = KeyboardInputData
     , _modifierKeys :: GLFW.ModifierKeys
     } deriving (Show)
 
+class KeyboardInputInterface a where
+    getKeyPressed :: a -> GLFW.Key -> IO Bool
+    getKeyReleased :: a -> GLFW.Key -> IO Bool
+
+instance KeyboardInputInterface KeyboardInputData where
+    getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyPressedMap keyboardInputData) key
+    getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyReleasedMap keyboardInputData) key
+
+
 data MouseInputData = MouseInputData
     { _mousePosX :: Int
     , _mousePosY :: Int
@@ -93,13 +102,13 @@ data ApplicationData = ApplicationData
     } deriving (Show)
 
 
-class KeyboardInputInterface a where
-    getKeyPressed :: a -> GLFW.Key -> IO Bool
-    getKeyReleased :: a -> GLFW.Key -> IO Bool
+class ApplicationInterface a where
+    getDeltaTime :: a -> IO Float
 
-instance KeyboardInputInterface KeyboardInputData where
-    getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyPressedMap keyboardInputData) key
-    getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyReleasedMap keyboardInputData) key
+instance ApplicationInterface ApplicationData where
+    getDeltaTime applicationData = do
+        timeData <- readIORef (_timeDataRef applicationData)
+        return . realToFrac . _deltaTime $ timeData
 
 
 mouseButtonCallback :: IORef MouseInputData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> IO ()
@@ -181,10 +190,9 @@ updateEvent applicationData = do
     pressed_key_D <- getKeyPressed keyboardInputData GLFW.Key'D
     pressed_key_W <- getKeyPressed keyboardInputData GLFW.Key'W
     pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
-    timeData <- readIORef (_timeDataRef applicationData)
+    deltaTime <- getDeltaTime applicationData
 
-    let deltaTime = (realToFrac._deltaTime $ timeData)::Float
-        modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
+    let modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         move_speed = deltaTime * if modifierKeysShift then 2.0 else 1.0
         move_speed_side = getCameraMoveSpeed (pressed_key_A, pressed_key_D) move_speed
         move_speed_forward = getCameraMoveSpeed (pressed_key_W, pressed_key_S) move_speed
