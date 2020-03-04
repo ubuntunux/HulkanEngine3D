@@ -58,6 +58,12 @@ data KeyboardInputData = KeyboardInputData
 data MouseInputData = MouseInputData
     { _mousePosX :: Int
     , _mousePosY :: Int
+    , _btn_l_down :: Bool
+    , _btn_m_down :: Bool
+    , _btn_r_down :: Bool
+    , _btn_l_up :: Bool
+    , _btn_m_up :: Bool
+    , _btn_r_up :: Bool
     } deriving (Show)
 
 data TimeData = TimeData
@@ -99,18 +105,24 @@ instance KeyboardInputInterface KeyboardInputData where
 mouseButtonCallback :: IORef MouseInputData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> IO ()
 mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifierKeys = do
     mouseInputData <- readIORef mouseInputDataRef
-    writeIORef mouseInputDataRef mouseInputData
---    logInfo $ show mouseButton
---    logInfo $ show mouseButtonState
---    logInfo $ show modifierKeys
+    let (down, up) = if GLFW.MouseButtonState'Pressed == mouseButtonState
+        then (True, False)
+        else (False, True)
+    writeIORef mouseInputDataRef $ getMouseInputData mouseInputData mouseButton (down, up)
+    where
+        getMouseInputData :: MouseInputData -> GLFW.MouseButton -> (Bool, Bool) -> MouseInputData
+        getMouseInputData mouseInputData GLFW.MouseButton'1 (down, up) = mouseInputData { _btn_l_down = down, _btn_l_up = up }
+        getMouseInputData mouseInputData GLFW.MouseButton'2 (down, up) = mouseInputData { _btn_r_down = down, _btn_r_up = up }
+        getMouseInputData mouseInputData GLFW.MouseButton'3 (down, up) = mouseInputData { _btn_m_down = down, _btn_m_up = up }
+        getMouseInputData mouseInputData _ (down, up) = mouseInputData
 
 cursorPosCallback :: IORef MouseInputData -> GLFW.Window -> Double -> Double -> IO ()
 cursorPosCallback mouseInputDataRef windows posX posY = do
     mouseInputData <- readIORef mouseInputDataRef
     writeIORef mouseInputDataRef $ mouseInputData
         { _mousePosX = round posX
-        , _mousePosY = round posY }
---    logInfo $ show (posX, posY)
+        , _mousePosY = round posY
+        }
 
 keyCallBack :: IORef KeyboardInputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
 keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
@@ -188,6 +200,7 @@ updateEvent applicationData = do
 
 initializeApplication :: IO ApplicationData
 initializeApplication = do
+    let (width, height) = (1024 :: Int, 786)
     keyPressed <- HashTable.new
     keyReleased <- HashTable.new
     keyboardInputDataRef <- newIORef $ KeyboardInputData
@@ -203,9 +216,18 @@ initializeApplication = do
             , GLFW.modifierKeysSuper = False
             }
         }
-    mouseInputDataRef <- newIORef $ MouseInputData { _mousePosX = 0, _mousePosY = 0 }
+    mouseInputDataRef <- newIORef MouseInputData
+        { _mousePosX = div width 2
+        , _mousePosY = div height 2
+        , _btn_l_down = False
+        , _btn_m_down = False
+        , _btn_r_down = False
+        , _btn_l_up = False
+        , _btn_m_up = False
+        , _btn_r_up = False
+        }
     windowSizeChangedRef <- newIORef False
-    windowSizeRef <- newIORef (1024, 768)
+    windowSizeRef <- newIORef (width, height)
     window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef
     logInfo "                             "
     logInfo "<< Initialized GLFW window >>"
@@ -253,7 +275,6 @@ initializeApplication = do
         prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo (getTextureImageInfo textureData) descriptorSet
 
     -- SceneManagerDatas
-    (width, height) <- readIORef windowSizeRef
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
     cameraData <- getDefaultCameraData Constants.near Constants.far Constants.fov aspect
     let sceneManagerData = getDefaultSceneManagerData cameraData
@@ -370,7 +391,7 @@ runApplication = do
         when (windowSizeChanged || needRecreateSwapChain) $ do
             resizeWindow (_window applicationData) rendererData
             writeIORef (_windowSizeChangedRef applicationData) False
-            writeIORef (_needRecreateSwapChainRef rendererData) False    
+            writeIORef (_needRecreateSwapChainRef rendererData) False
 
         -- update renderer data
         cameraPosition <- readIORef (_position._transformObject._camera._sceneManagerData $ applicationData)
