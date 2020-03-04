@@ -186,17 +186,15 @@ updateEvent applicationData = do
     let deltaTime = (realToFrac._deltaTime $ timeData)::Float
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         move_speed = deltaTime * if modifierKeysShift then 2.0 else 1.0
-        move_speed_side = move_speed * case (pressed_key_A, pressed_key_D) of
-            (True, False) -> Constants.cameraMoveSpeed
-            (False, True) -> -Constants.cameraMoveSpeed
-            otherwise -> 0.0
-        move_speed_forward = move_speed * case (pressed_key_W, pressed_key_S) of
-            (True, False) -> Constants.cameraMoveSpeed
-            (False, True) -> -Constants.cameraMoveSpeed
-            otherwise -> 0.0
+        move_speed_side = getCameraMoveSpeed (pressed_key_A, pressed_key_D) move_speed
+        move_speed_forward = getCameraMoveSpeed (pressed_key_W, pressed_key_S) move_speed
         cameraPositionRef = (_position._transformObject._camera._sceneManagerData $ applicationData)
     cameraPosition <- readIORef cameraPositionRef
     writeIORef cameraPositionRef $ ewmap (\(Vec3 x y z) -> vec3 (x + move_speed_side) y (z + move_speed_forward)) cameraPosition
+    where
+        getCameraMoveSpeed (True, False) move_speed = Constants.cameraMoveSpeed * move_speed
+        getCameraMoveSpeed (False, True) move_speed = -Constants.cameraMoveSpeed * move_speed
+        getCameraMoveSpeed _ _ = 0.0
 
 initializeApplication :: IO ApplicationData
 initializeApplication = do
