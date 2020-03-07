@@ -15,7 +15,7 @@ module HulkanEngine3D.Application
 
 import Control.Monad
 import Data.IORef
-import Data.Maybe (fromMaybe)
+import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import Graphics.Vulkan.Core_1_0
@@ -92,12 +92,12 @@ mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifi
 
 cursorPosCallback :: IORef MouseMoveData -> GLFW.Window -> Double -> Double -> IO ()
 cursorPosCallback mouseMoveDataRef windows posX posY = do
-    mouseMoveData <- readIORef mouseInputDataRef
-    let newPos = Vec2 Integer (round posX) (round posY)
+    mouseMoveData <- readIORef mouseMoveDataRef
+    let newPos = vec2 (round posX) (round posY)
         posDelta = newPos - (_mousePos mouseMoveData)
-    writeIORef mouseInputDataRef $ mouseMoveData
-        { _mousePosPrev = _mousePos
-        , _mousePos = Vec2 Integer (round posX) (round posY)
+    writeIORef mouseMoveDataRef $ mouseMoveData
+        { _mousePosPrev = (_mousePos mouseMoveData)
+        , _mousePos = vec2 (round posX) (round posY)
         , _mousePosDelta = posDelta
         }
 
@@ -181,13 +181,14 @@ updateEvent applicationData = do
 initializeApplication :: IO ApplicationData
 initializeApplication = do
     let (width, height) = (1024 :: Int, 786)
-        mousePos = Vector Integer (div width 2) (div height 2)
-    keyboardInputDataRef <- newIORef <$> getDefaultKeyboardInputData
-    mouseMoveDataRef <- newIORef getDefaultMouseMoveData
+        mousePos = vec2 (div width 2) (div height 2)
+    keyboardInputData <- getDefaultKeyboardInputData
+    keyboardInputDataRef <- newIORef keyboardInputData
+    mouseMoveDataRef <- newIORef $ getDefaultMouseMoveData mousePos
     mouseInputDataRef <- newIORef getDefaultMouseInputData
     windowSizeChangedRef <- newIORef False
     windowSizeRef <- newIORef (width, height)
-    window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef
+    window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef mouseMoveDataRef
     logInfo "                             "
     logInfo "<< Initialized GLFW window >>"
     requireExtensions <- GLFW.getRequiredInstanceExtensions
