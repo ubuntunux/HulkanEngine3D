@@ -288,9 +288,9 @@ getDefaultRendererData = do
 drawFrame :: RendererData
           -> Int
           -> [VkDeviceMemory]
-          -> Vec3f
+          -> Mat44f
           -> IO VkResult
-drawFrame rendererData@RendererData {..} frameIndex transformObjectMemories cameraPosition = do
+drawFrame rendererData@RendererData {..} frameIndex transformObjectMemories transformMatrix = do
   let QueueFamilyDatas {..} = _queueFamilyDatas
       frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
       imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
@@ -308,7 +308,7 @@ drawFrame rendererData@RendererData {..} frameIndex transformObjectMemories came
       imageIndex <- peek _imageIndexPtr
       let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
       let transformObjectMemory = transformObjectMemories !! (fromIntegral imageIndex)
-      updateTransformObject _device _swapChainExtent transformObjectMemory cameraPosition
+      updateTransformationObject _device _swapChainExtent transformObjectMemory transformMatrix
 
       let submitInfo = createVk @VkSubmitInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
@@ -495,8 +495,8 @@ resizeWindow window rendererData@RendererData {..} = do
     writeIORef _needRecordCommandBufferRef True
 
 
-updateRendererData :: RendererData -> Vec3f -> GeometryBufferData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
-updateRendererData rendererData@RendererData{..} cameraPosition geometryBufferData descriptorSets transformObjectMemories = do
+updateRendererData :: RendererData -> Mat44f -> GeometryBufferData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
+updateRendererData rendererData@RendererData{..} transformMatrix geometryBufferData descriptorSets transformObjectMemories = do
     -- record render commands
     needRecordCommandBuffer <- readIORef _needRecordCommandBufferRef
     when needRecordCommandBuffer $ do
@@ -508,7 +508,7 @@ updateRendererData rendererData@RendererData{..} cameraPosition geometryBufferDa
         writeIORef _needRecordCommandBufferRef False
 
     frameIndex <- readIORef _frameIndexRef
-    result <- drawFrame rendererData frameIndex transformObjectMemories cameraPosition
+    result <- drawFrame rendererData frameIndex transformObjectMemories transformMatrix
 
     -- waiting
     deviceWaitIdle rendererData

@@ -159,20 +159,32 @@ destroyGLFWWindow window = do
 
 updateEvent :: ApplicationData -> IO ()
 updateEvent applicationData = do
+    deltaTime <- getDeltaTime applicationData
     keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
+    mouseInputData <- readIORef (_mouseInputDataRef applicationData)
+    mouseMoveData <- readIORef (_mouseMoveDataRef applicationData)
     pressed_key_A <- getKeyPressed keyboardInputData GLFW.Key'A
     pressed_key_D <- getKeyPressed keyboardInputData GLFW.Key'D
     pressed_key_W <- getKeyPressed keyboardInputData GLFW.Key'W
     pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
-    deltaTime <- getDeltaTime applicationData
-
-    let modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
+    let mousePosDelta = (_mousePosDelta mouseMoveData)
+        (btn_left, btn_middle, btn_right, wheel_up, wheel_down) = (_btn_l_down mouseInputData, _btn_m_down mouseInputData, _btn_r_down mouseInputData, _wheel_up mouseInputData, _wheel_down mouseInputData)
+        modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         move_speed = deltaTime * if modifierKeysShift then 2.0 else 1.0
         move_speed_side = getCameraMoveSpeed (pressed_key_A, pressed_key_D) move_speed
         move_speed_forward = getCameraMoveSpeed (pressed_key_W, pressed_key_S) move_speed
-        cameraPositionRef = (_position._transformObject._camera._sceneManagerData $ applicationData)
-    cameraPosition <- readIORef cameraPositionRef
-    writeIORef cameraPositionRef $ ewmap (\(Vec3 x y z) -> vec3 (x + move_speed_side) y (z + move_speed_forward)) cameraPosition
+        cameraTransformObject = (_transformObject._camera._sceneManagerData $ applicationData)
+
+    if pressed_key_W then
+        moveFront cameraTransformObject (-move_speed)
+    else when pressed_key_S $
+        moveFront cameraTransformObject move_speed
+
+    if pressed_key_A then
+        moveLeft cameraTransformObject (-move_speed)
+    else when pressed_key_D $
+        moveLeft cameraTransformObject move_speed
+
     where
         getCameraMoveSpeed (True, False) move_speed = Constants.cameraMoveSpeed * move_speed
         getCameraMoveSpeed (False, True) move_speed = -Constants.cameraMoveSpeed * move_speed
@@ -355,11 +367,12 @@ runApplication = do
             writeIORef (_needRecreateSwapChainRef rendererData) False
 
         -- update renderer data
-        cameraPosition <- readIORef (_position._transformObject._camera._sceneManagerData $ applicationData)
+        updateTransformObject (_transformObject._camera._sceneManagerData $ applicationData)
+        transformMatrix <- readIORef (_matrix._transformObject._camera._sceneManagerData $ applicationData)
 
         updateRendererData
             rendererData
-            cameraPosition
+            transformMatrix
             (_geometryBufferData applicationData)
             (_descriptorSets._descriptorSetData $ applicationData)
             (_transformObjectMemories applicationData)
