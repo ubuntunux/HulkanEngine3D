@@ -22,6 +22,7 @@ executable main
     main-is:          Main.hs
     ghc-options:      -threaded
     other-modules:    HulkanEngine3D.Application
+                      HulkanEngine3D.Application.Input
                       HulkanEngine3D.Application.Editor
                       HulkanEngine3D.Application.SceneManager
                       HulkanEngine3D.Constants

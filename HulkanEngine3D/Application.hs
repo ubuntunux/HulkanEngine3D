@@ -9,15 +9,10 @@
 
 
 module HulkanEngine3D.Application
-    ( KeyboardInputData (..)
-    , KeyboardInputInterface (..)
-    , MouseInputData (..)
-    , ApplicationData (..)
+    ( ApplicationData (..)
     , runApplication
     ) where
 
-
-import Data.Hashable
 import Control.Monad
 import Data.IORef
 import Data.Maybe (fromMaybe)
@@ -28,6 +23,7 @@ import Graphics.Vulkan.Core_1_0
 import Numeric.DataFrame
 
 import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Application.Input
 import HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.TransformObject
@@ -42,38 +38,6 @@ import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.TransformationObject
 
-instance Hashable GLFW.Key
-
-type KeyMap = HashTable.BasicHashTable GLFW.Key Bool
-
-data KeyboardInputData = KeyboardInputData
-    { _keyboardDown :: Bool
-    , _keyboardPressed :: Bool
-    , _keyboardUp :: Bool
-    , _keyPressedMap :: KeyMap
-    , _keyReleasedMap :: KeyMap
-    , _modifierKeys :: GLFW.ModifierKeys
-    } deriving (Show)
-
-class KeyboardInputInterface a where
-    getKeyPressed :: a -> GLFW.Key -> IO Bool
-    getKeyReleased :: a -> GLFW.Key -> IO Bool
-
-instance KeyboardInputInterface KeyboardInputData where
-    getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyPressedMap keyboardInputData) key
-    getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyReleasedMap keyboardInputData) key
-
-
-data MouseInputData = MouseInputData
-    { _mousePosX :: Int
-    , _mousePosY :: Int
-    , _btn_l_down :: Bool
-    , _btn_m_down :: Bool
-    , _btn_r_down :: Bool
-    , _btn_l_up :: Bool
-    , _btn_m_up :: Bool
-    , _btn_r_up :: Bool
-    } deriving (Show)
 
 data TimeData = TimeData
     { _accFrameTime :: Double
@@ -91,6 +55,7 @@ data ApplicationData = ApplicationData
     , _windowSizeRef :: IORef (Int, Int)
     , _timeDataRef :: IORef TimeData
     , _keyboardInputDataRef :: IORef KeyboardInputData
+    , _mouseMoveDataRef :: IORef MouseMoveData
     , _mouseInputDataRef :: IORef MouseInputData
     , _sceneManagerData :: SceneManagerData
     , _rendererData :: RendererData
@@ -113,6 +78,7 @@ instance ApplicationInterface ApplicationData where
 
 mouseButtonCallback :: IORef MouseInputData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> IO ()
 mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifierKeys = do
+    logInfo $ show mouseButton ++ show mouseButtonState
     mouseInputData <- readIORef mouseInputDataRef
     let (down, up) = if GLFW.MouseButtonState'Pressed == mouseButtonState
         then (True, False)
@@ -125,12 +91,15 @@ mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifi
         getMouseInputData mouseInputData GLFW.MouseButton'3 (down, up) = mouseInputData { _btn_m_down = down, _btn_m_up = up }
         getMouseInputData mouseInputData _ (down, up) = mouseInputData
 
-cursorPosCallback :: IORef MouseInputData -> GLFW.Window -> Double -> Double -> IO ()
-cursorPosCallback mouseInputDataRef windows posX posY = do
-    mouseInputData <- readIORef mouseInputDataRef
-    writeIORef mouseInputDataRef $ mouseInputData
-        { _mousePosX = round posX
-        , _mousePosY = round posY
+cursorPosCallback :: IORef MouseMoveData -> GLFW.Window -> Double -> Double -> IO ()
+cursorPosCallback mouseMoveDataRef windows posX posY = do
+    mouseMoveData <- readIORef mouseInputDataRef
+    let newPos = Vec2 Integer (round posX) (round posY)
+        posDelta = newPos - (_mousePos mouseMoveData)
+    writeIORef mouseInputDataRef $ mouseMoveData
+        { _mousePosPrev = _mousePos
+        , _mousePos = Vec2 Integer (round posX) (round posY)
+        , _mousePosDelta = posDelta
         }
 
 keyCallBack :: IORef KeyboardInputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
@@ -160,8 +129,14 @@ windowSizeCallback windowSizeChangedRef windowSizeRef window sizeX sizeY = do
     atomicWriteIORef windowSizeChangedRef True
     atomicWriteIORef windowSizeRef (sizeX, sizeY)
 
-createGLFWWindow :: String -> IORef (Int, Int) -> IORef Bool -> IORef KeyboardInputData -> IORef MouseInputData -> IO GLFW.Window
-createGLFWWindow title windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef = do
+createGLFWWindow :: String
+                 -> IORef (Int, Int)
+                 -> IORef Bool
+                 -> IORef KeyboardInputData
+                 -> IORef MouseInputData
+                 -> IORef MouseMoveData
+                 -> IO GLFW.Window
+createGLFWWindow title windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef mouseMoveDataRef = do
     GLFW.init >>= flip unless (throwVKMsg "Failed to initialize GLFW.")
     logInfo "Initialized GLFW."
     Just version <- GLFW.getVersionString
@@ -175,7 +150,7 @@ createGLFWWindow title windowSizeRef windowSizeChangedRef keyboardInputDataRef m
     GLFW.setKeyCallback window $ Just (keyCallBack keyboardInputDataRef)
     GLFW.setCharCallback window $ Just charCallBack
     GLFW.setMouseButtonCallback window $ Just (mouseButtonCallback mouseInputDataRef)
-    GLFW.setCursorPosCallback window $ Just (cursorPosCallback mouseInputDataRef)
+    GLFW.setCursorPosCallback window $ Just (cursorPosCallback mouseMoveDataRef)
     return window
 
 destroyGLFWWindow :: GLFW.Window -> IO ()
@@ -207,31 +182,10 @@ updateEvent applicationData = do
 initializeApplication :: IO ApplicationData
 initializeApplication = do
     let (width, height) = (1024 :: Int, 786)
-    keyPressed <- HashTable.new
-    keyReleased <- HashTable.new
-    keyboardInputDataRef <- newIORef $ KeyboardInputData
-        { _keyboardDown = False
-        , _keyboardPressed = False
-        , _keyboardUp = False
-        , _keyPressedMap = keyPressed
-        , _keyReleasedMap = keyReleased
-        , _modifierKeys = GLFW.ModifierKeys
-            { GLFW.modifierKeysShift = False
-            , GLFW.modifierKeysControl = False
-            , GLFW.modifierKeysAlt = False
-            , GLFW.modifierKeysSuper = False
-            }
-        }
-    mouseInputDataRef <- newIORef MouseInputData
-        { _mousePosX = div width 2
-        , _mousePosY = div height 2
-        , _btn_l_down = False
-        , _btn_m_down = False
-        , _btn_r_down = False
-        , _btn_l_up = False
-        , _btn_m_up = False
-        , _btn_r_up = False
-        }
+        mousePos = Vector Integer (div width 2) (div height 2)
+    keyboardInputDataRef <- newIORef <$> getDefaultKeyboardInputData
+    mouseMoveDataRef <- newIORef getDefaultMouseMoveData
+    mouseInputDataRef <- newIORef getDefaultMouseInputData
     windowSizeChangedRef <- newIORef False
     windowSizeRef <- newIORef (width, height)
     window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef
@@ -303,6 +257,7 @@ initializeApplication = do
             , _windowSizeRef = windowSizeRef
             , _timeDataRef = timeDataRef
             , _keyboardInputDataRef = keyboardInputDataRef
+            , _mouseMoveDataRef = mouseMoveDataRef
             , _mouseInputDataRef = mouseInputDataRef
             , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
