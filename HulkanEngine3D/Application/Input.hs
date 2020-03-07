@@ -16,14 +16,9 @@ module HulkanEngine3D.Application.Input
     , getDefaultMouseMoveData
     ) where
 
-import Control.Monad
-import Data.IORef
-import Data.Maybe (fromMaybe)
 import Data.Hashable
 import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
-import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
-import Graphics.Vulkan.Core_1_0
 import Numeric.DataFrame
 
 instance Hashable GLFW.Key
@@ -96,10 +91,10 @@ getDefaultMouseInputData =
         , _btn_r_up = False
         }
 
-getDefaultMouseMoveData :: MouseMoveData
+getDefaultMouseMoveData :: Vec2i -> MouseMoveData
 getDefaultMouseMoveData mousepos =
     MouseMoveData
         { _mousePos = mousepos
         , _mousePosPrev = mousepos
-        , _mousePosDelta = Vector Integer 0 0
+        , _mousePosDelta = (vec2 0 0 :: Vec2i)
         }

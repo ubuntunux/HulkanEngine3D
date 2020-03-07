@@ -16,7 +16,6 @@ module HulkanEngine3D.Application
 import Control.Monad
 import Data.IORef
 import Data.Maybe (fromMaybe)
-import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import Graphics.Vulkan.Core_1_0
