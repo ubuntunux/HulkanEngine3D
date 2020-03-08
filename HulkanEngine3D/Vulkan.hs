@@ -290,7 +290,7 @@ drawFrame :: RendererData
           -> [VkDeviceMemory]
           -> Mat44f
           -> IO VkResult
-drawFrame rendererData@RendererData {..} frameIndex transformObjectMemories transformMatrix = do
+drawFrame rendererData@RendererData {..} frameIndex transformObjectMemories viewMatrix = do
   let QueueFamilyDatas {..} = _queueFamilyDatas
       frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
       imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
@@ -308,7 +308,7 @@ drawFrame rendererData@RendererData {..} frameIndex transformObjectMemories tran
       imageIndex <- peek _imageIndexPtr
       let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
       let transformObjectMemory = transformObjectMemories !! (fromIntegral imageIndex)
-      updateTransformationObject _device _swapChainExtent transformObjectMemory transformMatrix
+      updateTransformationObject _device _swapChainExtent transformObjectMemory viewMatrix
 
       let submitInfo = createVk @VkSubmitInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
@@ -496,7 +496,7 @@ resizeWindow window rendererData@RendererData {..} = do
 
 
 updateRendererData :: RendererData -> Mat44f -> GeometryBufferData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
-updateRendererData rendererData@RendererData{..} transformMatrix geometryBufferData descriptorSets transformObjectMemories = do
+updateRendererData rendererData@RendererData{..} viewMatrix geometryBufferData descriptorSets transformObjectMemories = do
     -- record render commands
     needRecordCommandBuffer <- readIORef _needRecordCommandBufferRef
     when needRecordCommandBuffer $ do
@@ -508,7 +508,7 @@ updateRendererData rendererData@RendererData{..} transformMatrix geometryBufferD
         writeIORef _needRecordCommandBufferRef False
 
     frameIndex <- readIORef _frameIndexRef
-    result <- drawFrame rendererData frameIndex transformObjectMemories transformMatrix
+    result <- drawFrame rendererData frameIndex transformObjectMemories viewMatrix
 
     -- waiting
     deviceWaitIdle rendererData

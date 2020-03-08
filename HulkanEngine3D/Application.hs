@@ -167,13 +167,23 @@ updateEvent applicationData = do
     pressed_key_D <- getKeyPressed keyboardInputData GLFW.Key'D
     pressed_key_W <- getKeyPressed keyboardInputData GLFW.Key'W
     pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
+    pressed_key_Q <- getKeyPressed keyboardInputData GLFW.Key'Q
+    pressed_key_E <- getKeyPressed keyboardInputData GLFW.Key'E
     let mousePosDelta = (_mousePosDelta mouseMoveData)
+        mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta ! (0:*U)) :: Float
+        mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta ! (1:*U)) :: Float
         (btn_left, btn_middle, btn_right, wheel_up, wheel_down) = (_btn_l_down mouseInputData, _btn_m_down mouseInputData, _btn_r_down mouseInputData, _wheel_up mouseInputData, _wheel_down mouseInputData)
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         move_speed = deltaTime * if modifierKeysShift then 2.0 else 1.0
-        move_speed_side = getCameraMoveSpeed (pressed_key_A, pressed_key_D) move_speed
-        move_speed_forward = getCameraMoveSpeed (pressed_key_W, pressed_key_S) move_speed
         cameraTransformObject = (_transformObject._camera._sceneManagerData $ applicationData)
+
+    if btn_middle then do
+        moveLeft cameraTransformObject (move_speed * mousePosDeltaX)
+        moveUp cameraTransformObject (-move_speed * mousePosDeltaY)
+    else when btn_right $ do
+        return ()
+--        camera_transform.rotation_pitch(mouse_delta[1] * camera.rotation_speed)
+--        camera_transform.rotation_yaw(-mouse_delta[0] * camera.rotation_speed)
 
     if pressed_key_W then
         moveFront cameraTransformObject (-move_speed)
@@ -185,10 +195,11 @@ updateEvent applicationData = do
     else when pressed_key_D $
         moveLeft cameraTransformObject move_speed
 
-    where
-        getCameraMoveSpeed (True, False) move_speed = Constants.cameraMoveSpeed * move_speed
-        getCameraMoveSpeed (False, True) move_speed = -Constants.cameraMoveSpeed * move_speed
-        getCameraMoveSpeed _ _ = 0.0
+    if pressed_key_Q then
+        moveUp cameraTransformObject (-move_speed)
+    else when pressed_key_E $
+        moveUp cameraTransformObject move_speed
+
 
 initializeApplication :: IO ApplicationData
 initializeApplication = do
@@ -368,11 +379,11 @@ runApplication = do
 
         -- update renderer data
         updateTransformObject (_transformObject._camera._sceneManagerData $ applicationData)
-        transformMatrix <- readIORef (_matrix._transformObject._camera._sceneManagerData $ applicationData)
+        viewMatrix <- readIORef (_inverseMatrix._transformObject._camera._sceneManagerData $ applicationData)
 
         updateRendererData
             rendererData
-            transformMatrix
+            viewMatrix
             (_geometryBufferData applicationData)
             (_descriptorSets._descriptorSetData $ applicationData)
             (_transformObjectMemories applicationData)

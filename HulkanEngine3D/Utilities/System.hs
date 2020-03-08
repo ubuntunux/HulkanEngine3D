@@ -1,9 +1,9 @@
-{-# LANGUAGE Strict               #-}
-{-# LANGUAGE MagicHash            #-}
-{-# LANGUAGE BangPatterns         #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE Strict              #-}
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE UnboxedTuples       #-}
 
@@ -39,6 +39,9 @@ import Foreign.Storable
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 
+instance Show (IORef a) where
+  show _ = "<ioref>"
+
 -- | Use this to throw all exceptions in this project
 data VulkanException
   = VulkanException
@@ -59,10 +62,6 @@ instance Exception VulkanException where
     , "Vulkan error: " ++ show c
     , "*** " ++ msg
     ]
-
-instance Show (IORef a) where
-  show _ = "<ioref>"
-
 
 -- | Low latency time in seconds since the start
 getSystemTime :: IO Double

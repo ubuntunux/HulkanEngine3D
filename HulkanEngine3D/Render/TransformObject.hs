@@ -53,9 +53,12 @@ data TransformObjectData = TransformObjectData
 
 class TransformObjectInterface a where
     getDefaultTransformObjectData :: IO a
-    moveFront :: a -> Float -> IO ()
+    move :: a -> Vec3f -> Float -> IO ()
     moveLeft :: a -> Float -> IO ()
+    moveUp :: a -> Float -> IO ()
+    moveFront :: a -> Float -> IO ()
     updateTransformObject :: a -> IO ()
+
 
 instance TransformObjectInterface TransformObjectData where
     getDefaultTransformObjectData = do
@@ -120,18 +123,24 @@ instance TransformObjectInterface TransformObjectData where
             , _prevInverseMatrix = prevInverseMatrix
             }
 
-    moveFront transformObjectData@TransformObjectData {..} moveSpeed = do
-        position <- readIORef _position
-        front <- readIORef _front
-        writeIORef _position $ position + front * (fromScalar . scalar $ moveSpeed)
+    move transformObjectData vector moveSpeed = do
+         position <- readIORef (_position transformObjectData)
+         writeIORef (_position transformObjectData) $ position + vector * (fromScalar . scalar $ moveSpeed)
 
-    moveLeft transformObjectData@TransformObjectData {..} moveSpeed = do
-        position <- readIORef _position
-        left <- readIORef _left
-        writeIORef _position $ position + left * (fromScalar . scalar $ moveSpeed)
+    moveLeft transformObjectData moveSpeed = do
+        leftVector <- readIORef (_left transformObjectData)
+        move transformObjectData leftVector moveSpeed
+
+    moveUp transformObjectData moveSpeed = do
+        upVector <- readIORef (_up transformObjectData)
+        move transformObjectData upVector moveSpeed
+
+    moveFront transformObjectData moveSpeed = do
+        frontVector <- readIORef (_front transformObjectData)
+        move transformObjectData frontVector moveSpeed
 
     updateTransformObject transformObjectData@TransformObjectData {..} = do
-        updateInverseMatrix <- pure False
+        updateInverseMatrix <- pure True
         forceUpdate <- pure False
 
         prevUpdated <- readIORef _updated
@@ -163,11 +172,8 @@ instance TransformObjectInterface TransformObjectData where
 
         rotationMatrix <- readIORef _rotationMatrix
 
-        when updated $
+        when updated $ do
             writeIORef _matrix $ transform_matrix position rotationMatrix scale
---
---            if update_inverse_matrix:
---                # self.inverse_matrix[...] = np.linalg.inv(self.matrix)
---                self.inverse_matrix[...] = self.local
---                inverse_transform_matrix(self.inverse_matrix, self.pos, self.rotationMatrix, self.scale)
+            when updateInverseMatrix $ do
+                writeIORef _inverseMatrix $ inverse_transform_matrix position rotationMatrix scale
         return ()

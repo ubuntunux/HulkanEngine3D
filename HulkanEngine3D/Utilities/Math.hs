@@ -72,3 +72,12 @@ transform_matrix translation rotation_matrix scale =
         row2 = ((index (2:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (2:*U) scale))
         row3 = ewmap (\(Vec3 x y z) -> vec4 x y z 1.0) translation
     in DF4 row0 row1 row2 row3
+
+inverse_transform_matrix :: Vec3f -> Mat44f -> Vec3f -> Mat44f
+inverse_transform_matrix translation rotation_matrix scale =
+    let rotation_matrix_T = transpose rotation_matrix
+        row0 = ((index (0:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (0:*U) scale))
+        row1 = ((index (1:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (1:*U) scale))
+        row2 = ((index (2:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (2:*U) scale))
+        row3 = ewmap (\(Vec3 x y z) -> vec4 x y z 1.0) (-translation)
+    in DF4 row0 row1 row2 row3

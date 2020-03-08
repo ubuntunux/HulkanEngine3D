@@ -64,15 +64,12 @@ rotation seconds =
 
 
 updateTransformationObject :: VkDevice -> VkExtent2D -> VkDeviceMemory -> Mat44f -> IO ()
-updateTransformationObject device extent uniformBuffer transformMatrix = do
+updateTransformationObject device extent uniformBuffer viewMatrix = do
     uniformBufferPtr <- allocaPeek $
         vkMapMemory device uniformBuffer 0 (bSizeOf @TransformationObject undefined) VK_ZERO_FLAGS
     seconds <- getSystemTime
-    let --pos = ewmap (\v@(Vec3 x y z) -> vec4 x y z 1.0) cameraPosition
-        --view = update (3:*U) pos matrix4x4_indentity
-        view = transformMatrix
-        model = rotation seconds -- rotate the world and objects
-    poke (castPtr uniformBufferPtr) (scalar $ TransformationObject { model=model, view=view, proj=proj } )
+    let model = rotation seconds -- rotate the world and objects
+    poke (castPtr uniformBufferPtr) (scalar $ TransformationObject { model=model, view=viewMatrix, proj=proj } )
     vkUnmapMemory device uniformBuffer
     where
         width = getField @"width" extent
