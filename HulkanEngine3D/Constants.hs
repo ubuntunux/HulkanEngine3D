@@ -31,4 +31,7 @@ fov :: Float
 fov = 60.0
 
 cameraMoveSpeed :: Float
-cameraMoveSpeed = 1.0
+cameraMoveSpeed = 2.0
+
+cameraRotationSpeed :: Float
+cameraRotationSpeed = 3.0

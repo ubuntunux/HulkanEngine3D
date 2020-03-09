@@ -1,3 +1,4 @@
+{-# LANGUAGE NegativeLiterals    #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
@@ -12,7 +13,10 @@ module HulkanEngine3D.Utilities.Math where
 import Numeric.DataFrame
 import Numeric.Dimensions
 import Numeric.Quaternion
+import Data.Fixed
 
+twoPI :: Floating a => a
+twoPI = pi * 2.0
 
 -- | Get number of points in a vector
 dataFrameLength :: DataFrame t (xns :: [XNat]) -> Word
@@ -54,8 +58,6 @@ matrix4x4_indentity =
 quaternion_identity :: Quater Float
 quaternion_identity = Quater 0 0 0 1
 
-
-
 world_left :: Vec3f
 world_left = vec3 1 0 0
 
@@ -65,19 +67,28 @@ world_up = vec3 0 1 0
 world_front :: Vec3f
 world_front = vec3 0 0 1
 
+wrap_rotation :: Float -> Float
+wrap_rotation rotation
+    | twoPI < rotation || rotation < 0.0 = mod' rotation twoPI
+    | otherwise = rotation
+
 transform_matrix :: Vec3f -> Mat44f -> Vec3f -> Mat44f
 transform_matrix translation rotation_matrix scale =
-    let row0 = ((index (0:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (0:*U) scale))
-        row1 = ((index (1:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (1:*U) scale))
-        row2 = ((index (2:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (2:*U) scale))
+    let row0 = ((index (Idx 0:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (Idx 0:*U) scale))
+        row1 = ((index (Idx 1:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (Idx 1:*U) scale))
+        row2 = ((index (Idx 2:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (Idx 2:*U) scale))
         row3 = ewmap (\(Vec3 x y z) -> vec4 x y z 1.0) translation
     in DF4 row0 row1 row2 row3
 
 inverse_transform_matrix :: Vec3f -> Mat44f -> Vec3f -> Mat44f
 inverse_transform_matrix translation rotation_matrix scale =
     let rotation_matrix_T = transpose rotation_matrix
-        row0 = ((index (0:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (0:*U) scale))
-        row1 = ((index (1:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (1:*U) scale))
-        row2 = ((index (2:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (2:*U) scale))
-        row3 = ewmap (\(Vec3 x y z) -> vec4 x y z 1.0) (-translation)
+        row0 = ((index (Idx 0:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (Idx 0:*U) scale))
+        row1 = ((index (Idx 1:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (Idx 1:*U) scale))
+        row2 = ((index (Idx 2:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (Idx 2:*U) scale))
+        p = (\(Vec3 x y z) -> vec4 x y z 0.0) (-translation)
+        x = (index (Idx 0:*U) rotation_matrix) %* p
+        y = (index (Idx 1:*U) rotation_matrix) %* p
+        z = (index (Idx 2:*U) rotation_matrix) %* p
+        row3 = DF4 x y z (1.0::Scf)
     in DF4 row0 row1 row2 row3

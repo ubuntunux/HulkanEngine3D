@@ -1,21 +1,23 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE RecordWildCards     #-}
-
+{-# LANGUAGE NegativeLiterals    #-}
 
 module HulkanEngine3D.Render.Camera
     ( CameraData (..)
     , CameraInterface (..)
     ) where
 
+import Data.IORef
+import Numeric.DataFrame
 import HulkanEngine3D.Render.TransformObject
 
 
 data CameraData = CameraData
-    { _meterPerUnit :: Float
-    , _near :: Float
-    , _far :: Float
-    , _fov :: Float
-    , _aspect :: Float
+    { _meterPerUnit :: IORef Float
+    , _near :: IORef Float
+    , _far :: IORef Float
+    , _fov :: IORef Float
+    , _aspect :: IORef Float
     , _transformObject :: TransformObjectData
     } deriving (Show)
 
@@ -26,14 +28,20 @@ class CameraInterface a where
 
 instance CameraInterface CameraData where
     getDefaultCameraData near far fov aspect = do
-        defaultTransformObjectData <- getDefaultTransformObjectData
+        meterPerUnitRef <- newIORef 1.0
+        nearRef <- newIORef near
+        farRef <- newIORef far
+        fovRef <- newIORef fov
+        aspectRef <- newIORef aspect
+        transformObjectData <- getDefaultTransformObjectData
+        setPosition transformObjectData (vec3 0 0 10)
         return CameraData
-            { _meterPerUnit = 1.0
-            , _near = near
-            , _far = far
-            , _fov = fov
-            , _aspect = aspect
-            , _transformObject = defaultTransformObjectData
+            { _meterPerUnit = meterPerUnitRef
+            , _near = nearRef
+            , _far = farRef
+            , _fov = fovRef
+            , _aspect = aspectRef
+            , _transformObject = transformObjectData
             }
 
     updateCameraData cameraData = cameraData

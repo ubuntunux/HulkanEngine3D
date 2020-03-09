@@ -12,6 +12,7 @@ import Control.Monad (when)
 import Data.IORef
 import GHC.Generics (Generic)
 import Numeric.DataFrame
+import Numeric.Dimensions
 import Numeric.Quaternion
 
 import HulkanEngine3D.Utilities.Math
@@ -53,10 +54,15 @@ data TransformObjectData = TransformObjectData
 
 class TransformObjectInterface a where
     getDefaultTransformObjectData :: IO a
-    move :: a -> Vec3f -> Float -> IO ()
+    setPosition :: a -> Vec3f -> IO ()
+    moveFunc :: a -> Vec3f -> Float -> IO ()
     moveLeft :: a -> Float -> IO ()
     moveUp :: a -> Float -> IO ()
     moveFront :: a -> Float -> IO ()
+    rotationFunc :: a -> Word -> Float -> IO ()
+    rotationPitch :: a -> Float -> IO ()
+    rotationYaw :: a -> Float -> IO ()
+    rotationRoll :: a -> Float -> IO ()
     updateTransformObject :: a -> IO ()
 
 
@@ -123,29 +129,44 @@ instance TransformObjectInterface TransformObjectData where
             , _prevInverseMatrix = prevInverseMatrix
             }
 
-    move transformObjectData vector moveSpeed = do
+    setPosition transformObjectData vector = do
+        writeIORef (_position transformObjectData) vector
+
+    moveFunc transformObjectData vector moveSpeed = do
          position <- readIORef (_position transformObjectData)
          writeIORef (_position transformObjectData) $ position + vector * (fromScalar . scalar $ moveSpeed)
 
     moveLeft transformObjectData moveSpeed = do
         leftVector <- readIORef (_left transformObjectData)
-        move transformObjectData leftVector moveSpeed
+        moveFunc transformObjectData leftVector moveSpeed
 
     moveUp transformObjectData moveSpeed = do
         upVector <- readIORef (_up transformObjectData)
-        move transformObjectData upVector moveSpeed
+        moveFunc transformObjectData upVector moveSpeed
 
     moveFront transformObjectData moveSpeed = do
         frontVector <- readIORef (_front transformObjectData)
-        move transformObjectData frontVector moveSpeed
+        moveFunc transformObjectData frontVector moveSpeed
+
+    rotationFunc transformObjectData index rotationSpeed = do
+        rotation <- readIORef (_rotation transformObjectData)
+        let pitch = scalar . wrap_rotation $ (unScalar $ rotation ! (Idx index:*U)) + rotationSpeed
+        writeIORef (_rotation transformObjectData) $ update (Idx index:*U) pitch rotation
+
+    rotationPitch transformObjectData rotationSpeed = do
+        rotationFunc transformObjectData 0 rotationSpeed
+
+    rotationYaw transformObjectData rotationSpeed = do
+        rotationFunc transformObjectData 1 rotationSpeed
+
+    rotationRoll transformObjectData rotationSpeed = do
+        rotationFunc transformObjectData 2 rotationSpeed
 
     updateTransformObject transformObjectData@TransformObjectData {..} = do
         updateInverseMatrix <- pure True
         forceUpdate <- pure False
 
         prevUpdated <- readIORef _updated
-        updated <- pure False
-        rotationUpdate <- pure False
 
         position <- readIORef _position
         rotation <- readIORef _rotation
@@ -155,13 +176,21 @@ instance TransformObjectInterface TransformObjectData where
         prevRotation <- readIORef _prevRotation
         prevScale <- readIORef _prevScale
 
-        updated <- if (forceUpdate || (position /= prevPosition))
-            then do
+        updatedPosition <- let updated = (forceUpdate || (position /= prevPosition)) in do
+            when updated $ do
                 writeIORef _prevPositionStore prevPosition
                 writeIORef _prevPosition position
-                return True
-            else
-                return False
+            return updated
+
+        updatedRotation <- let updated = (forceUpdate || (rotation /= prevRotation)) in do
+            when updated $ writeIORef _prevPosition position
+            return updated
+
+        updatedScale <- let updated = (forceUpdate || (scale /= prevScale)) in do
+            when updated $ writeIORef _prevScale scale
+            return updated
+
+        let updated = updatedPosition || updatedRotation || updatedScale
 
         when (prevUpdated || updated) $ do
             matrix <- readIORef _matrix
@@ -170,10 +199,21 @@ instance TransformObjectInterface TransformObjectData where
                 inverseMatrix <- readIORef _inverseMatrix
                 writeIORef _prevInverseMatrix inverseMatrix
 
-        rotationMatrix <- readIORef _rotationMatrix
+        when updatedRotation $ do
+            let rotationMatrix = (\(Vec3 x y z) -> rotateEuler x y z) rotation
+                left = (\(Vec4 x y z w) -> normalized $ vec3 x y z) (rotationMatrix ! (Idx 0:*U) :: Vec4f)
+                up = (\(Vec4 x y z w) -> normalized $ vec3 x y z) (rotationMatrix ! (Idx 1:*U) :: Vec4f)
+                front = (\(Vec4 x y z w) -> normalized $ vec3 x y z) (rotationMatrix ! (Idx 2:*U) :: Vec4f)
+            writeIORef _rotationMatrix rotationMatrix
+            writeIORef _left left
+            writeIORef _up up
+            writeIORef _front front
 
         when updated $ do
+            rotationMatrix <- readIORef _rotationMatrix
             writeIORef _matrix $ transform_matrix position rotationMatrix scale
             when updateInverseMatrix $ do
-                writeIORef _inverseMatrix $ inverse_transform_matrix position rotationMatrix scale
+                  writeIORef _inverseMatrix $ inverse_transform_matrix position rotationMatrix scale
+--                matrix <- readIORef _matrix
+--                writeIORef _inverseMatrix $ inverse matrix
         return ()

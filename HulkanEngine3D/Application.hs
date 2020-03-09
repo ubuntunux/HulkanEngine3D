@@ -20,6 +20,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import Graphics.Vulkan.Core_1_0
 import Numeric.DataFrame
+import Numeric.Dimensions
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Application.Input
@@ -77,7 +78,6 @@ instance ApplicationInterface ApplicationData where
 
 mouseButtonCallback :: IORef MouseInputData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> IO ()
 mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifierKeys = do
-    logInfo $ show mouseButton ++ show mouseButtonState
     mouseInputData <- readIORef mouseInputDataRef
     let (down, up) = if GLFW.MouseButtonState'Pressed == mouseButtonState
         then (True, False)
@@ -94,10 +94,9 @@ cursorPosCallback :: IORef MouseMoveData -> GLFW.Window -> Double -> Double -> I
 cursorPosCallback mouseMoveDataRef windows posX posY = do
     mouseMoveData <- readIORef mouseMoveDataRef
     let newPos = vec2 (round posX) (round posY)
-        posDelta = newPos - (_mousePos mouseMoveData)
+        posDelta = newPos - (_mousePosPrev mouseMoveData)
     writeIORef mouseMoveDataRef $ mouseMoveData
-        { _mousePosPrev = (_mousePos mouseMoveData)
-        , _mousePos = vec2 (round posX) (round posY)
+        { _mousePos = newPos
         , _mousePosDelta = posDelta
         }
 
@@ -127,6 +126,7 @@ windowSizeCallback :: IORef Bool -> IORef (Int, Int) -> GLFW.Window -> Int -> In
 windowSizeCallback windowSizeChangedRef windowSizeRef window sizeX sizeY = do
     atomicWriteIORef windowSizeChangedRef True
     atomicWriteIORef windowSizeRef (sizeX, sizeY)
+
 
 createGLFWWindow :: String
                  -> IORef (Int, Int)
@@ -170,35 +170,36 @@ updateEvent applicationData = do
     pressed_key_Q <- getKeyPressed keyboardInputData GLFW.Key'Q
     pressed_key_E <- getKeyPressed keyboardInputData GLFW.Key'E
     let mousePosDelta = (_mousePosDelta mouseMoveData)
-        mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta ! (0:*U)) :: Float
-        mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta ! (1:*U)) :: Float
+        mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta ! (Idx 0:*U)) :: Float
+        mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta ! (Idx 1:*U)) :: Float
         (btn_left, btn_middle, btn_right, wheel_up, wheel_down) = (_btn_l_down mouseInputData, _btn_m_down mouseInputData, _btn_r_down mouseInputData, _wheel_up mouseInputData, _wheel_down mouseInputData)
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
-        move_speed = deltaTime * if modifierKeysShift then 2.0 else 1.0
+        moveSpeed = Constants.cameraMoveSpeed * deltaTime * if modifierKeysShift then 2.0 else 1.0
+        panSpeed = moveSpeed * 2.0
+        rotationSpeed = Constants.cameraRotationSpeed * deltaTime
         cameraTransformObject = (_transformObject._camera._sceneManagerData $ applicationData)
 
     if btn_middle then do
-        moveLeft cameraTransformObject (move_speed * mousePosDeltaX)
-        moveUp cameraTransformObject (-move_speed * mousePosDeltaY)
+        moveLeft cameraTransformObject (-panSpeed * mousePosDeltaX)
+        moveUp cameraTransformObject (panSpeed * mousePosDeltaY)
     else when btn_right $ do
-        return ()
---        camera_transform.rotation_pitch(mouse_delta[1] * camera.rotation_speed)
---        camera_transform.rotation_yaw(-mouse_delta[0] * camera.rotation_speed)
+        rotationPitch cameraTransformObject (-rotationSpeed * mousePosDeltaY)
+        rotationYaw cameraTransformObject (-rotationSpeed * mousePosDeltaX)
 
     if pressed_key_W then
-        moveFront cameraTransformObject (-move_speed)
+        moveFront cameraTransformObject (-moveSpeed)
     else when pressed_key_S $
-        moveFront cameraTransformObject move_speed
+        moveFront cameraTransformObject moveSpeed
 
     if pressed_key_A then
-        moveLeft cameraTransformObject (-move_speed)
+        moveLeft cameraTransformObject (-moveSpeed)
     else when pressed_key_D $
-        moveLeft cameraTransformObject move_speed
+        moveLeft cameraTransformObject moveSpeed
 
     if pressed_key_Q then
-        moveUp cameraTransformObject (-move_speed)
+        moveUp cameraTransformObject (-moveSpeed)
     else when pressed_key_E $
-        moveUp cameraTransformObject move_speed
+        moveUp cameraTransformObject moveSpeed
 
 
 initializeApplication :: IO ApplicationData
@@ -293,6 +294,7 @@ initializeApplication = do
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ()) -> IO ()
 updateLoop applicationData loopAction = do
+    moveMoveData <- readIORef (_mouseMoveDataRef applicationData)
     keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
     escReleased <- getKeyReleased keyboardInputData GLFW.Key'Escape
     exit <- GLFW.windowShouldClose (_window applicationData)
@@ -300,7 +302,12 @@ updateLoop applicationData loopAction = do
         -- reset input flags
         writeIORef (_keyboardInputDataRef applicationData) keyboardInputData
             { _keyboardDown = False
-            , _keyboardUp = False }
+            , _keyboardUp = False
+            }
+        writeIORef (_mouseMoveDataRef applicationData) moveMoveData
+            { _mousePosDelta = vec2 0 0
+            , _mousePosPrev = _mousePos moveMoveData
+            }
 
         GLFW.pollEvents
 
