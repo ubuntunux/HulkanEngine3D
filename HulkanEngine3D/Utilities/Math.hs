@@ -1,3 +1,5 @@
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE UnboxedTuples       #-}
 {-# LANGUAGE NegativeLiterals    #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
@@ -5,7 +7,6 @@
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE Strict              #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 
@@ -74,21 +75,23 @@ wrap_rotation rotation
 
 transform_matrix :: Vec3f -> Mat44f -> Vec3f -> Mat44f
 transform_matrix translation rotation_matrix scale =
-    let row0 = ((index (Idx 0:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (Idx 0:*U) scale))
-        row1 = ((index (Idx 1:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (Idx 1:*U) scale))
-        row2 = ((index (Idx 2:*U) rotation_matrix) :: Vec4f) * (fromScalar (index (Idx 2:*U) scale))
-        row3 = ewmap (\(Vec3 x y z) -> vec4 x y z 1.0) translation
+    let (# sx, sy, sz #) = unpackV3# scale
+        row0 = ((index (Idx 0:*U) rotation_matrix) :: Vec4f) * (fromScalar . scalar $ sx)
+        row1 = ((index (Idx 1:*U) rotation_matrix) :: Vec4f) * (fromScalar . scalar $ sy)
+        row2 = ((index (Idx 2:*U) rotation_matrix) :: Vec4f) * (fromScalar . scalar $ sz)
+        row3 = toHomPoint translation
     in DF4 row0 row1 row2 row3
 
 inverse_transform_matrix :: Vec3f -> Mat44f -> Vec3f -> Mat44f
 inverse_transform_matrix translation rotation_matrix scale =
     let rotation_matrix_T = transpose rotation_matrix
-        row0 = ((index (Idx 0:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (Idx 0:*U) scale))
-        row1 = ((index (Idx 1:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (Idx 1:*U) scale))
-        row2 = ((index (Idx 2:*U) rotation_matrix_T) :: Vec4f) / (fromScalar (index (Idx 2:*U) scale))
-        p = (\(Vec3 x y z) -> vec4 x y z 0.0) (-translation)
+        (# sx, sy, sz #) = unpackV3# scale
+        row0 = ((index (Idx 0:*U) rotation_matrix_T) :: Vec4f) / (fromScalar . scalar $ sx)
+        row1 = ((index (Idx 1:*U) rotation_matrix_T) :: Vec4f) / (fromScalar . scalar $ sy)
+        row2 = ((index (Idx 2:*U) rotation_matrix_T) :: Vec4f) / (fromScalar . scalar $ sz)
+        p = toHomVector (-translation)
         x = (index (Idx 0:*U) rotation_matrix) %* p
         y = (index (Idx 1:*U) rotation_matrix) %* p
         z = (index (Idx 2:*U) rotation_matrix) %* p
-        row3 = DF4 x y z (1.0::Scf)
+        row3 = DF4 x y z (scalar 1.0)
     in DF4 row0 row1 row2 row3
