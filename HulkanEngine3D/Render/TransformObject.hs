@@ -1,3 +1,6 @@
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE UnboxedTuples       #-}
+{-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE NegativeLiterals    #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -8,7 +11,8 @@ module HulkanEngine3D.Render.TransformObject
   , TransformObjectInterface (..)
   ) where
 
-import Control.Monad (when)
+import Control.Monad
+import Data.Foldable
 import Data.IORef
 import GHC.Generics (Generic)
 import Numeric.DataFrame
@@ -165,7 +169,6 @@ instance TransformObjectInterface TransformObjectData where
     updateTransformObject transformObjectData@TransformObjectData {..} = do
         updateInverseMatrix <- pure True
         forceUpdate <- pure False
-
         prevUpdated <- readIORef _updated
 
         position <- readIORef _position
@@ -183,7 +186,7 @@ instance TransformObjectInterface TransformObjectData where
             return updated
 
         updatedRotation <- let updated = (forceUpdate || (rotation /= prevRotation)) in do
-            when updated $ writeIORef _prevPosition position
+            when updated $ writeIORef _prevRotation rotation
             return updated
 
         updatedScale <- let updated = (forceUpdate || (scale /= prevScale)) in do
@@ -200,10 +203,20 @@ instance TransformObjectInterface TransformObjectData where
                 writeIORef _prevInverseMatrix inverseMatrix
 
         when updatedRotation $ do
-            let rotationMatrix = (\(Vec3 x y z) -> rotateEuler x y z) rotation
-                left = (\(Vec4 x y z w) -> normalized $ vec3 x y z) (rotationMatrix ! (Idx 0:*U) :: Vec4f)
-                up = (\(Vec4 x y z w) -> normalized $ vec3 x y z) (rotationMatrix ! (Idx 1:*U) :: Vec4f)
-                front = (\(Vec4 x y z w) -> normalized $ vec3 x y z) (rotationMatrix ! (Idx 2:*U) :: Vec4f)
+            let (# pitch, yaw, roll #) = unpackV3# rotation
+                (sin_pitch, cos_pitch) = (sin pitch, cos pitch)
+                (sin_yaw, cos_yaw) = (sin yaw, cos yaw)
+                front = normalized $ vec3 (cos_pitch * sin_yaw) (-sin_pitch) (cos_pitch * cos_yaw)
+                left = normalized $ cross (vec3 0 1 0) front
+                up = normalized $ cross front left
+                (# lX, lY, lZ #) = unpackV3# left
+                (# uX, uY, uZ #) = unpackV3# up
+                (# fX, fY, fZ #) = unpackV3# front
+                rotationMatrix = DF4
+                    (vec4 lX lY lZ 0)
+                    (vec4 uX uY uZ 0)
+                    (vec4 fX fY fZ 0)
+                    (vec4 0  0  0  1)
             writeIORef _rotationMatrix rotationMatrix
             writeIORef _left left
             writeIORef _up up
@@ -213,7 +226,7 @@ instance TransformObjectInterface TransformObjectData where
             rotationMatrix <- readIORef _rotationMatrix
             writeIORef _matrix $ transform_matrix position rotationMatrix scale
             when updateInverseMatrix $ do
-                  writeIORef _inverseMatrix $ inverse_transform_matrix position rotationMatrix scale
+                writeIORef _inverseMatrix $ inverse_transform_matrix position rotationMatrix scale
 --                matrix <- readIORef _matrix
 --                writeIORef _inverseMatrix $ inverse matrix
-        return ()
+        writeIORef _updated updated
