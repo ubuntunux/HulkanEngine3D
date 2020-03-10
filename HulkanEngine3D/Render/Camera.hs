@@ -23,17 +23,17 @@ data CameraData = CameraData
 
 
 class CameraInterface a where
-    getDefaultCameraData :: Float -> Float -> Float -> Float-> IO a
+    newCameraData :: Float -> Float -> Float -> Float-> IO a
     updateCameraData :: a -> a
 
 instance CameraInterface CameraData where
-    getDefaultCameraData near far fov aspect = do
+    newCameraData near far fov aspect = do
         meterPerUnitRef <- newIORef 1.0
         nearRef <- newIORef near
         farRef <- newIORef far
         fovRef <- newIORef fov
         aspectRef <- newIORef aspect
-        transformObjectData <- getDefaultTransformObjectData
+        transformObjectData <- newTransformObjectData
         setPosition transformObjectData (vec3 0 0 10)
         return CameraData
             { _meterPerUnit = meterPerUnitRef

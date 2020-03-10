@@ -57,7 +57,7 @@ data TransformObjectData = TransformObjectData
 
 
 class TransformObjectInterface a where
-    getDefaultTransformObjectData :: IO a
+    newTransformObjectData :: IO a
     setPosition :: a -> Vec3f -> IO ()
     moveFunc :: a -> Vec3f -> Float -> IO ()
     moveLeft :: a -> Float -> IO ()
@@ -71,7 +71,7 @@ class TransformObjectInterface a where
 
 
 instance TransformObjectInterface TransformObjectData where
-    getDefaultTransformObjectData = do
+    newTransformObjectData = do
         updated <- newIORef True
         front <- newIORef world_front
         left <- newIORef world_left

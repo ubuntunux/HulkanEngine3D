@@ -10,11 +10,11 @@ data SceneManagerData = SceneManagerData
     } deriving (Show)
 
 class SceneManagerInterface a where
-    getDefaultSceneManagerData :: CameraData -> a
+    newSceneManagerData :: CameraData -> a
     updateSceneManagerData :: a -> a
 
 instance SceneManagerInterface SceneManagerData where
-    getDefaultSceneManagerData cameraData = SceneManagerData {
+    newSceneManagerData cameraData = SceneManagerData {
             _camera = cameraData
         }
 

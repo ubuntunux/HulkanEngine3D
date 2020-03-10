@@ -10,8 +10,8 @@ module HulkanEngine3D.Vulkan
   , RendererInterface (..)
   , getColorClearValue
   , getDepthStencilClearValue
-  , getDefaultRenderPassDataCreateInfo
-  , getDefaultRendererData
+  , newRenderPassDataCreateInfo
+  , newRendererData
   , drawFrame
   , createRenderer
   , destroyRenderer
@@ -197,8 +197,8 @@ getDepthStencilClearValue depthClearValue stencilClearValue = createVk @VkClearV
         $  set @"depth" depthClearValue
         &* set @"stencil" stencilClearValue
 
-getDefaultRenderPassDataCreateInfo :: RendererData -> [VkImageView] -> [VkClearValue] -> IO RenderPassDataCreateInfo
-getDefaultRenderPassDataCreateInfo rendererData imageViews clearValues = do
+newRenderPassDataCreateInfo :: RendererData -> [VkImageView] -> [VkClearValue] -> IO RenderPassDataCreateInfo
+newRenderPassDataCreateInfo rendererData imageViews clearValues = do
     let msaaSamples = _msaaSamples (_renderFeatures rendererData)
     swapChainData <- getSwapChainData rendererData
     depthFormat <- findDepthFormat (getPhysicalDevice rendererData)
@@ -216,8 +216,8 @@ getDefaultRenderPassDataCreateInfo rendererData imageViews clearValues = do
         , _renderPassDepthClearValue = 1.0
         }
 
-getDefaultRendererData :: IO RendererData
-getDefaultRendererData = do
+newRendererData :: IO RendererData
+newRendererData = do
     imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
         writeField @"width" extentPtr $ 0
         writeField @"height" extentPtr $ 0
@@ -356,7 +356,7 @@ initializeRenderer rendererData@RendererData {..} = do
     writeIORef _renderTargetDataRef renderTargetData
 
     -- create render pass data
-    renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
+    renderPassDataCreateInfo <- newRenderPassDataCreateInfo
         rendererData
         [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
         [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
@@ -378,7 +378,7 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     then logInfo $ "Enable validation layers : " ++ show validationLayers
     else logInfo $ "Disabled validation layers"
 
-    defaultRendererData <- getDefaultRendererData
+    defaultRendererData <- newRendererData
 
     vkInstance <- createVulkanInstance progName engineName validationLayers requireExtensions
     vkSurface <- createVkSurface vkInstance window
@@ -485,7 +485,7 @@ resizeWindow window rendererData@RendererData {..} = do
     renderTargetData <- createRenderTargets rendererData
     writeIORef _renderTargetDataRef renderTargetData
 
-    renderPassDataCreateInfo <- getDefaultRenderPassDataCreateInfo
+    renderPassDataCreateInfo <- newRenderPassDataCreateInfo
         rendererData
         [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
         [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]

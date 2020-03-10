@@ -206,10 +206,10 @@ initializeApplication :: IO ApplicationData
 initializeApplication = do
     let (width, height) = (1024 :: Int, 786)
         mousePos = vec2 (div width 2) (div height 2)
-    keyboardInputData <- getDefaultKeyboardInputData
+    keyboardInputData <- newKeyboardInputData
     keyboardInputDataRef <- newIORef keyboardInputData
-    mouseMoveDataRef <- newIORef $ getDefaultMouseMoveData mousePos
-    mouseInputDataRef <- newIORef getDefaultMouseInputData
+    mouseMoveDataRef <- newIORef $ newMouseMoveData mousePos
+    mouseInputDataRef <- newIORef newMouseInputData
     windowSizeChangedRef <- newIORef False
     windowSizeRef <- newIORef (width, height)
     window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef mouseMoveDataRef
@@ -260,8 +260,8 @@ initializeApplication = do
 
     -- SceneManagerDatas
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
-    cameraData <- getDefaultCameraData Constants.near Constants.far Constants.fov aspect
-    let sceneManagerData = getDefaultSceneManagerData cameraData
+    cameraData <- newCameraData Constants.near Constants.far Constants.fov aspect
+    let sceneManagerData = newSceneManagerData cameraData
 
     -- init system variables
     currentTime <- getSystemTime

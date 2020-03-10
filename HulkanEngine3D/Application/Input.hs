@@ -12,9 +12,9 @@ module HulkanEngine3D.Application.Input
     , KeyboardInputInterface (..)
     , MouseInputData (..)
     , MouseMoveData (..)
-    , getDefaultKeyboardInputData
-    , getDefaultMouseInputData
-    , getDefaultMouseMoveData
+    , newKeyboardInputData
+    , newMouseInputData
+    , newMouseMoveData
     ) where
 
 import Data.Hashable
@@ -62,8 +62,8 @@ instance KeyboardInputInterface KeyboardInputData where
     getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyPressedMap keyboardInputData) key
     getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyReleasedMap keyboardInputData) key
 
-getDefaultKeyboardInputData :: IO KeyboardInputData
-getDefaultKeyboardInputData = do
+newKeyboardInputData :: IO KeyboardInputData
+newKeyboardInputData = do
     keyPressed <- HashTable.new
     keyReleased <- HashTable.new
     return KeyboardInputData
@@ -80,8 +80,8 @@ getDefaultKeyboardInputData = do
                 }
             }
 
-getDefaultMouseInputData :: MouseInputData
-getDefaultMouseInputData =
+newMouseInputData :: MouseInputData
+newMouseInputData =
     MouseInputData
         { _wheel_up = False
         , _wheel_down = False
@@ -93,8 +93,8 @@ getDefaultMouseInputData =
         , _btn_r_up = False
         }
 
-getDefaultMouseMoveData :: Vec2i -> MouseMoveData
-getDefaultMouseMoveData mousepos =
+newMouseMoveData :: Vec2i -> MouseMoveData
+newMouseMoveData mousepos =
     MouseMoveData
         { _mousePos = mousepos
         , _mousePosPrev = mousepos
