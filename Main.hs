@@ -9,5 +9,5 @@ import HulkanEngine3D.Application.Editor
 
 main::IO()
 main = do
-    forkIO $ runEditor
+    forkIO runEditor
     runApplication

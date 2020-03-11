@@ -1,10 +1,7 @@
 {-# LANGUAGE NegativeLiterals    #-}
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE GADTs               #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 
@@ -94,7 +91,7 @@ cursorPosCallback :: IORef MouseMoveData -> GLFW.Window -> Double -> Double -> I
 cursorPosCallback mouseMoveDataRef windows posX posY = do
     mouseMoveData <- readIORef mouseMoveDataRef
     let newPos = vec2 (round posX) (round posY)
-        posDelta = newPos - (_mousePosPrev mouseMoveData)
+        posDelta = newPos - _mousePosPrev mouseMoveData
     writeIORef mouseMoveDataRef $ mouseMoveData
         { _mousePos = newPos
         , _mousePosDelta = posDelta
@@ -103,10 +100,10 @@ cursorPosCallback mouseMoveDataRef windows posX posY = do
 keyCallBack :: IORef KeyboardInputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
 keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
     keyboardInputData <- readIORef keyboardInputDataRef
-    let keyboardPressed = (GLFW.KeyState'Pressed == keyState || GLFW.KeyState'Repeating == keyState)
-        keyboardReleased = (GLFW.KeyState'Released == keyState)
-        keyPressedMap = (_keyPressedMap keyboardInputData)
-        keyReleasedMap = (_keyReleasedMap keyboardInputData)
+    let keyboardPressed = GLFW.KeyState'Pressed == keyState || GLFW.KeyState'Repeating == keyState
+        keyboardReleased = GLFW.KeyState'Released == keyState
+        keyPressedMap = _keyPressedMap keyboardInputData
+        keyReleasedMap = _keyReleasedMap keyboardInputData
     HashTable.insert keyPressedMap key keyboardPressed
     HashTable.insert keyReleasedMap key (not keyboardPressed)
     writeIORef keyboardInputDataRef $ keyboardInputData
@@ -169,7 +166,7 @@ updateEvent applicationData = do
     pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
     pressed_key_Q <- getKeyPressed keyboardInputData GLFW.Key'Q
     pressed_key_E <- getKeyPressed keyboardInputData GLFW.Key'E
-    let mousePosDelta = (_mousePosDelta mouseMoveData)
+    let mousePosDelta = _mousePosDelta mouseMoveData
         mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta ! (Idx 0:*U)) :: Float
         mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta ! (Idx 1:*U)) :: Float
         (btn_left, btn_middle, btn_right, wheel_up, wheel_down) = (_btn_l_down mouseInputData, _btn_m_down mouseInputData, _btn_r_down mouseInputData, _wheel_up mouseInputData, _wheel_down mouseInputData)
