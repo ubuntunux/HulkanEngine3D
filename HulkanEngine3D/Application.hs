@@ -110,8 +110,6 @@ keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
         { _keyboardPressed = keyboardPressed
         , _keyboardDown = keyboardPressed
         , _keyboardUp = keyboardReleased
-        , _keyPressedMap = keyPressedMap
-        , _keyReleasedMap = keyReleasedMap
         , _modifierKeys = modifierKeys }
 
 charCallBack :: GLFW.Window -> Char -> IO ()
@@ -258,7 +256,7 @@ initializeApplication = do
     -- SceneManagerDatas
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
     cameraData <- newCameraData Constants.near Constants.far Constants.fov aspect
-    let sceneManagerData = newSceneManagerData cameraData
+    sceneManagerData <- newSceneManagerData cameraData
 
     -- init system variables
     currentTime <- getSystemTime

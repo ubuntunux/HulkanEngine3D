@@ -24,7 +24,7 @@ data CameraData = CameraData
 
 class CameraInterface a where
     newCameraData :: Float -> Float -> Float -> Float-> IO a
-    updateCameraData :: a -> a
+    updateCameraData :: a -> IO ()
 
 instance CameraInterface CameraData where
     newCameraData near far fov aspect = do
@@ -44,5 +44,5 @@ instance CameraInterface CameraData where
             , _transformObject = transformObjectData
             }
 
-    updateCameraData cameraData = cameraData
+    updateCameraData cameraData = return ()
 

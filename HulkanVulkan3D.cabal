@@ -26,7 +26,10 @@ executable main
                       HulkanEngine3D.Application.Editor
                       HulkanEngine3D.Application.SceneManager
                       HulkanEngine3D.Constants
+                      HulkanEngine3D.Render.Actor
                       HulkanEngine3D.Render.Camera
+                      HulkanEngine3D.Render.Mesh
+                      HulkanEngine3D.Render.Model
                       HulkanEngine3D.Render.RenderTarget
                       HulkanEngine3D.Render.TransformObject
                       HulkanEngine3D.Resource
@@ -49,6 +52,7 @@ executable main
                       HulkanEngine3D.Vulkan.Texture
                       HulkanEngine3D.Vulkan.TransformationObject
     build-depends:    base >= 4.11 && < 5
+                      , array
                       , text
                       , vulkan-api >= 1.3.0.0
                       , GLFW-b >= 3.2.1
