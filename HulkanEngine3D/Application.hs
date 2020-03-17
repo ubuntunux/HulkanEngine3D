@@ -24,11 +24,12 @@ import HulkanEngine3D.Application.Input
 import HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.TransformObject
+import HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Resource.ObjLoader
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan
-import HulkanEngine3D.Vulkan.Mesh
+import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Device
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.Texture
@@ -56,6 +57,7 @@ data ApplicationData = ApplicationData
     , _mouseInputDataRef :: IORef MouseInputData
     , _sceneManagerData :: SceneManagerData
     , _rendererData :: RendererData
+    , _resourceData :: ResourceData
     , _transformObjectBuffers :: [VkBuffer]
     , _transformObjectMemories :: [VkDeviceMemory]
     , _descriptorSetData :: DescriptorSetData
@@ -234,6 +236,8 @@ initializeApplication = do
 
     swapChainImageCount <- getSwapChainImageCount rendererData
 
+    resourceData <- createNewResourceData
+
     -- create resources
     (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
     geometryBufferData <- createGeometryBuffer rendererData "test" vertices indices
@@ -280,6 +284,7 @@ initializeApplication = do
             , _mouseInputDataRef = mouseInputDataRef
             , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
+            , _resourceData = resourceData
             , _transformObjectBuffers = transformObjectBuffers
             , _transformObjectMemories = transformObjectMemories
             , _descriptorSetData = descriptorSetData

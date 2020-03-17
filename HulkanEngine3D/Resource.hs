@@ -17,7 +17,7 @@ import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
 import Numeric.DataFrame
 
-import HulkanEngine3D.Vulkan.Mesh
+import HulkanEngine3D.Vulkan.GeometryBuffer
 
 class Resource a where
 

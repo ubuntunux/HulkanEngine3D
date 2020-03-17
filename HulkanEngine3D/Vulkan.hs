@@ -54,7 +54,7 @@ import HulkanEngine3D.Vulkan.CommandBuffer
 import HulkanEngine3D.Vulkan.Device
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
-import HulkanEngine3D.Vulkan.Mesh
+import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Queue
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.SwapChain

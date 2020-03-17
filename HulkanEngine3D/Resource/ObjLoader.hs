@@ -23,7 +23,7 @@ import Numeric.Dimensions
 
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
-import HulkanEngine3D.Vulkan.Mesh
+import HulkanEngine3D.Vulkan.GeometryBuffer
 
 
 loadModel :: FilePath -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])

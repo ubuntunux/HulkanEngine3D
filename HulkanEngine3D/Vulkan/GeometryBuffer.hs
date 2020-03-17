@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 
-module HulkanEngine3D.Vulkan.Mesh
+module HulkanEngine3D.Vulkan.GeometryBuffer
   ( Vertex (..)
   , Tri (..)
   , GeometryBufferData(..)

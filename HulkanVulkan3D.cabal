@@ -34,6 +34,7 @@ executable main
                       HulkanEngine3D.Render.TransformObject
                       HulkanEngine3D.Resource
                       HulkanEngine3D.Resource.ObjLoader
+                      HulkanEngine3D.Resource.Resource
                       HulkanEngine3D.Utilities.Logger
                       HulkanEngine3D.Utilities.Math
                       HulkanEngine3D.Utilities.System
@@ -42,8 +43,8 @@ executable main
                       HulkanEngine3D.Vulkan.CommandBuffer
                       HulkanEngine3D.Vulkan.Descriptor
                       HulkanEngine3D.Vulkan.Device
-                      HulkanEngine3D.Vulkan.Mesh
                       HulkanEngine3D.Vulkan.FrameBuffer
+                      HulkanEngine3D.Vulkan.GeometryBuffer
                       HulkanEngine3D.Vulkan.RenderPass
                       HulkanEngine3D.Vulkan.Queue
                       HulkanEngine3D.Vulkan.Shader

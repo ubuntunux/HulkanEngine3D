@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE NegativeLiterals    #-}
@@ -10,16 +11,20 @@ module HulkanEngine3D.Render.Mesh
 
 import Data.IORef
 import Data.Text
+import qualified Data.Vector as Vector
+import qualified Data.Vector.Mutable as MVector
+
+import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Utilities.System
+
 
 data MeshData = MeshData
     { _name :: IORef Text
     , _boundBox :: Bool
     , _skeletonDatas :: [Bool]
     , _animationDatas :: [Bool]
-    , _geometryDatas :: [Bool]
+    --, _geometryBufferDatas :: MVector.MVector () GeometryBufferData
     } deriving (Show)
-
 
 class MeshInterface a where
     newMeshData :: Text -> IO a
@@ -33,7 +38,6 @@ instance MeshInterface MeshData where
             , _boundBox = False
             , _skeletonDatas = []
             , _animationDatas = []
-            , _geometryDatas = []
             }
 
     updateMeshData meshData = return ()
