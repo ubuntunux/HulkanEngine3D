@@ -75,7 +75,6 @@ instance ResourceInterface ResourceData where
                 let count = MVector.length (_geometryBufferDatas meshData)
                     loop x
                         | x < count = do
-                            print name
                             geometryBufferData <- MVector.unsafeRead (_geometryBufferDatas meshData) x
                             destroyGeometryBuffer rendererData geometryBufferData
                             loop (x+1)
@@ -93,9 +92,7 @@ instance ResourceInterface ResourceData where
 
     unloadTextureDatas :: ResourceData -> RendererData -> IO ()
     unloadTextureDatas resourceData rendererData = do
-        HashTable.mapM_ (\(k, v) -> do
-            print k
-            (destroyTexture rendererData v)) (_textureDataMap resourceData)
+        HashTable.mapM_ (\(k, v) -> destroyTexture rendererData v) (_textureDataMap resourceData)
 
     getTextureData :: ResourceData -> Text.Text -> IO (Maybe TextureData)
     getTextureData resourceData resourceName = do
