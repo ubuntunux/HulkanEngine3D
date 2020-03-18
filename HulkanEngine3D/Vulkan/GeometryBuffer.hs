@@ -7,6 +7,7 @@
 {-# LANGUAGE Strict              #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE OverloadedStrings   #-}
 
 module HulkanEngine3D.Vulkan.GeometryBuffer
   ( Vertex (..)
@@ -29,6 +30,7 @@ module HulkanEngine3D.Vulkan.GeometryBuffer
 import GHC.Generics (Generic)
 import qualified Control.Monad.ST as ST
 import Data.Bits
+import qualified Data.Text as Text
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
 import Codec.Wavefront
@@ -60,7 +62,7 @@ data Tri = Tri {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
 
 data GeometryBufferData = GeometryBufferData
-    { _bufferName :: String
+    { _bufferName :: Text.Text
     , _vertexBufferMemory :: VkDeviceMemory
     , _vertexBuffer :: VkBuffer
     , _indexBufferMemory :: VkDeviceMemory
@@ -166,12 +168,12 @@ createGeometryBufferData :: VkPhysicalDevice
                          -> VkDevice
                          -> VkQueue
                          -> VkCommandPool
-                         -> String
+                         -> Text.Text
                          -> DataFrame Vertex '[XN 3]
                          -> DataFrame Word32 '[XN 3]
                          -> IO GeometryBufferData
 createGeometryBufferData physicalDevice device graphicsQueue commandPool bufferName vertices indices = do
-    logInfo $ "createGeometryBuffer : "  ++ bufferName
+    logInfo $ "createGeometryBuffer : " ++ (Text.unpack bufferName)
     (vertexBufferMemory, vertexBuffer) <- createVertexBuffer physicalDevice device graphicsQueue commandPool vertices
     (indexBufferMemory, indexBuffer) <- createIndexBuffer physicalDevice device graphicsQueue commandPool indices
     return GeometryBufferData { _bufferName = bufferName

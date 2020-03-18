@@ -1,8 +1,9 @@
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE Strict           #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TemplateHaskell  #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE Strict            #-}
+{-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module HulkanEngine3D.Vulkan
   ( RenderFeatures (..)
@@ -29,6 +30,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.DList as DList
 import qualified Data.HashTable.IO as HashTable
+import qualified Data.Text as Text
 import Data.IORef
 import Foreign.Marshal.Array
 import Foreign.Marshal.Alloc
@@ -113,7 +115,7 @@ class RendererInterface a where
     createDepthTarget :: a -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createTexture :: a -> FilePath -> IO TextureData
     destroyTexture :: a -> TextureData -> IO ()
-    createGeometryBuffer :: a -> String -> DataFrame Vertex '[XN 3] -> DataFrame Word32 '[XN 3] -> IO GeometryBufferData
+    createGeometryBuffer :: a -> Text.Text -> DataFrame Vertex '[XN 3] -> DataFrame Word32 '[XN 3] -> IO GeometryBufferData
     destroyGeometryBuffer :: a -> GeometryBufferData -> IO ()
     deviceWaitIdle :: a -> IO ()
 

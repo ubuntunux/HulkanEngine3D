@@ -37,6 +37,7 @@ data MeshData = MeshData
 
 class MeshInterface a where
     newMeshData :: Text.Text -> [GeometryBufferData] -> IO a
+    getGeometryBufferData :: a -> Int -> IO GeometryBufferData
     updateMeshData :: a -> IO ()
 
 instance MeshInterface MeshData where
@@ -53,6 +54,9 @@ instance MeshInterface MeshData where
             , _animationDatas = []
             , _geometryBufferDatas = geometryBufferDataList
             }
+
+    getGeometryBufferData :: MeshData -> Int -> IO GeometryBufferData
+    getGeometryBufferData meshData n = MVector.read (_geometryBufferDatas meshData) n
 
     updateMeshData :: MeshData -> IO ()
     updateMeshData meshData = return ()

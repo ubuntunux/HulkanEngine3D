@@ -3,7 +3,7 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
+{-# LANGUAGE OverloadedStrings   #-}
 
 module HulkanEngine3D.Application
     ( ApplicationData (..)
@@ -12,6 +12,7 @@ module HulkanEngine3D.Application
 
 import Control.Monad
 import Data.IORef
+import qualified Data.Text as Text
 import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
@@ -23,6 +24,7 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Application.Input
 import HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Camera
+import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Resource.ObjLoader
@@ -61,8 +63,6 @@ data ApplicationData = ApplicationData
     , _transformObjectBuffers :: [VkBuffer]
     , _transformObjectMemories :: [VkDeviceMemory]
     , _descriptorSetData :: DescriptorSetData
-    , _textureData :: TextureData
-    , _geometryBufferData :: GeometryBufferData
     } deriving (Show)
 
 
@@ -237,11 +237,9 @@ initializeApplication = do
     swapChainImageCount <- getSwapChainImageCount rendererData
 
     resourceData <- createNewResourceData
+    initializeResourceData resourceData rendererData
 
-    -- create resources
-    (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-    geometryBufferData <- createGeometryBuffer rendererData "test" vertices indices
-    textureData <- createTexture rendererData "Resource/Externals/Textures/texture.jpg"
+    (Just textureData) <- getTextureData resourceData "texture"
 
     (transformObjectMemories, transformObjectBuffers) <- unzip <$> createTransformObjectBuffers
         (getPhysicalDevice rendererData)
@@ -288,8 +286,6 @@ initializeApplication = do
             , _transformObjectBuffers = transformObjectBuffers
             , _transformObjectMemories = transformObjectMemories
             , _descriptorSetData = descriptorSetData
-            , _textureData = textureData
-            , _geometryBufferData = geometryBufferData
             }
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ()) -> IO ()
@@ -330,11 +326,8 @@ terminateApplication applicationData = do
         (_transformObjectBuffers applicationData)
         (_transformObjectMemories applicationData)
 
-    destroyTexture rendererData (_textureData applicationData)
-    destroyGeometryBuffer rendererData (_geometryBufferData applicationData)
-
+    destroyResourceData (_resourceData applicationData) rendererData
     destroyRenderer rendererData
-
     destroyGLFWWindow (_window applicationData)
 
 
@@ -387,11 +380,13 @@ runApplication = do
         -- update renderer data
         updateTransformObject (_transformObject._camera._sceneManagerData $ applicationData)
         viewMatrix <- readIORef (_inverseMatrix._transformObject._camera._sceneManagerData $ applicationData)
+        (Just meshData) <- getMeshData (_resourceData applicationData) "suzan"
+        geometryBufferData <- (getGeometryBufferData meshData 0)
 
         updateRendererData
             rendererData
             viewMatrix
-            (_geometryBufferData applicationData)
+            geometryBufferData
             (_descriptorSets._descriptorSetData $ applicationData)
             (_transformObjectMemories applicationData)
 
