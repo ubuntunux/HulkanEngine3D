@@ -54,6 +54,7 @@ executable main
                       HulkanEngine3D.Vulkan.TransformationObject
     build-depends:    base >= 4.11 && < 5
                       , array
+                      , primitive
                       , text
                       , vulkan-api >= 1.3.0.0
                       , GLFW-b >= 3.2.1
