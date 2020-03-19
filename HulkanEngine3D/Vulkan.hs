@@ -308,11 +308,12 @@ drawFrame rendererData@RendererData {..} frameIndex transformObjectMemories view
       return result
   else do
       imageIndex <- peek _imageIndexPtr
-      let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
+
       let transformObjectMemory = transformObjectMemories !! (fromIntegral imageIndex)
       updateTransformationObject _device _swapChainExtent transformObjectMemory viewMatrix
 
-      let submitInfo = createVk @VkSubmitInfo
+      let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
+          submitInfo = createVk @VkSubmitInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
                 &* set @"pNext" VK_NULL
                 &* set @"waitSemaphoreCount" 1
