@@ -21,6 +21,9 @@ maxFrameCount = 2
 enableImmediateMode :: Bool
 enableImmediateMode = True
 
+meterPerUnit :: Float
+meterPerUnit = 1.0::Float
+
 near :: Float
 near = 0.1
 

@@ -4,8 +4,8 @@
 {-# LANGUAGE OverloadedStrings   #-}
 
 module HulkanEngine3D.Render.Actor
-    ( ActorData (..)
-    , ActorInterface (..)
+    ( StaticObjectData (..)
+    , StaticObjectInterface (..)
     ) where
 
 import Data.IORef
@@ -16,23 +16,23 @@ import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Utilities.System
 
 
-data ActorData = ActorData
+data StaticObjectData = StaticObjectData
     { _name :: IORef Text
     , _modelData :: ModelData
     , _transformObject :: TransformObjectData
     } deriving (Show)
 
 
-class ActorInterface a where
+class StaticObjectInterface a where
     newActorData :: Text -> ModelData -> IO a
     updateActorData :: a -> IO ()
 
-instance ActorInterface ActorData where
+instance StaticObjectInterface StaticObjectData where
     newActorData name modelData = do
         nameRef <- newIORef name
         transformObjectData <- newTransformObjectData
         setPosition transformObjectData (vec3 0 0 0)
-        return ActorData
+        return StaticObjectData
             { _name = nameRef
             , _modelData = modelData
             , _transformObject = transformObjectData

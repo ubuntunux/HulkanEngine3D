@@ -166,6 +166,7 @@ updateEvent applicationData = do
     pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
     pressed_key_Q <- getKeyPressed keyboardInputData GLFW.Key'Q
     pressed_key_E <- getKeyPressed keyboardInputData GLFW.Key'E
+    mainCamera <- readIORef . _mainCamera . _sceneManagerData $ applicationData
     let mousePosDelta = _mousePosDelta mouseMoveData
         mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta ! (Idx 0:*U)) :: Float
         mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta ! (Idx 1:*U)) :: Float
@@ -174,7 +175,7 @@ updateEvent applicationData = do
         moveSpeed = Constants.cameraMoveSpeed * deltaTime * if modifierKeysShift then 2.0 else 1.0
         panSpeed = Constants.cameraMoveSpeed * (if modifierKeysShift then 2.0 else 1.0) * 0.005
         rotationSpeed = Constants.cameraRotationSpeed * 0.002
-        cameraTransformObject = (_transformObject._camera._sceneManagerData $ applicationData)
+        cameraTransformObject = _transformObject mainCamera
 
     if btn_middle then do
         moveLeft cameraTransformObject (-panSpeed * mousePosDeltaX)
@@ -256,9 +257,11 @@ initializeApplication = do
         prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo (getTextureImageInfo textureData) descriptorSet
 
     -- SceneManagerDatas
+    sceneManagerData <- newSceneManagerData
+
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
-    cameraData <- newCameraData Constants.near Constants.far Constants.fov aspect
-    sceneManagerData <- newSceneManagerData cameraData
+        cameraCreateData = getDefaultCameraCreateData { aspect = aspect, position = vec3 0 0 10 }
+    initializeSceneManagerData sceneManagerData cameraCreateData
 
     -- init system variables
     currentTime <- getSystemTime
@@ -378,8 +381,9 @@ runApplication = do
             writeIORef (_needRecreateSwapChainRef rendererData) False
 
         -- update renderer data
-        updateTransformObject (_transformObject._camera._sceneManagerData $ applicationData)
-        viewMatrix <- readIORef (_inverseMatrix._transformObject._camera._sceneManagerData $ applicationData)
+        mainCamera <- readIORef . _mainCamera . _sceneManagerData $ applicationData
+        updateTransformObject (_transformObject mainCamera)
+        viewMatrix <- readIORef (_inverseMatrix._transformObject $ mainCamera)
         (Just meshData) <- getMeshData (_resourceData applicationData) "suzan"
         geometryBufferData <- (getGeometryBufferData meshData 0)
 

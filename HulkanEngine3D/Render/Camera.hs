@@ -1,19 +1,39 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE NegativeLiterals    #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE NegativeLiterals       #-}
+{-# LANGUAGE DuplicateRecordFields  #-}
 
-module HulkanEngine3D.Render.Camera
-    ( CameraData (..)
-    , CameraInterface (..)
-    ) where
+module HulkanEngine3D.Render.Camera where
 
 import Data.IORef
+import qualified Data.Text as T
 import Numeric.DataFrame
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.TransformObject
+import HulkanEngine3D.Utilities.Logger
 
 
-data CameraData = CameraData
-    { _meterPerUnit :: IORef Float
+data CameraCreateData = CameraCreateData
+    { meterPerUnit :: Float
+    , near :: Float
+    , far :: Float
+    , fov :: Float
+    , aspect :: Float
+    , position :: Vec3f
+    } deriving (Show)
+
+getDefaultCameraCreateData = CameraCreateData
+    { meterPerUnit = Constants.meterPerUnit
+    , near = Constants.near
+    , far = Constants.far
+    , fov = Constants.fov
+    , aspect = 1.0
+    , position = vec3 0 0 0
+    }
+
+data CameraObjectData = CameraObjectData
+    { _name :: IORef T.Text
+    , _meterPerUnit :: IORef Float
     , _near :: IORef Float
     , _far :: IORef Float
     , _fov :: IORef Float
@@ -21,28 +41,27 @@ data CameraData = CameraData
     , _transformObject :: TransformObjectData
     } deriving (Show)
 
+createCameraObjectData :: T.Text -> CameraCreateData -> IO CameraObjectData
+createCameraObjectData name cameraCreateData = do
+    logInfo $ "createCameraObjectData :: " ++ show name
+    nameRef <- newIORef name
+    meterPerUnitRef <- newIORef (meterPerUnit cameraCreateData)
+    nearRef <- newIORef (near cameraCreateData)
+    farRef <- newIORef (far cameraCreateData)
+    fovRef <- newIORef (fov cameraCreateData)
+    aspectRef <- newIORef (aspect cameraCreateData)
+    transformObjectData <- newTransformObjectData
+    setPosition transformObjectData (position cameraCreateData)
+    return CameraObjectData
+        { _name = nameRef
+        , _meterPerUnit = meterPerUnitRef
+        , _near = nearRef
+        , _far = farRef
+        , _fov = fovRef
+        , _aspect = aspectRef
+        , _transformObject = transformObjectData
+        }
 
-class CameraInterface a where
-    newCameraData :: Float -> Float -> Float -> Float-> IO a
-    updateCameraData :: a -> IO ()
-
-instance CameraInterface CameraData where
-    newCameraData near far fov aspect = do
-        meterPerUnitRef <- newIORef 1.0
-        nearRef <- newIORef near
-        farRef <- newIORef far
-        fovRef <- newIORef fov
-        aspectRef <- newIORef aspect
-        transformObjectData <- newTransformObjectData
-        setPosition transformObjectData (vec3 0 0 10)
-        return CameraData
-            { _meterPerUnit = meterPerUnitRef
-            , _near = nearRef
-            , _far = farRef
-            , _fov = fovRef
-            , _aspect = aspectRef
-            , _transformObject = transformObjectData
-            }
-
-    updateCameraData cameraData = return ()
+updateCameraObjectData :: CameraObjectData -> IO ()
+updateCameraObjectData cameraObjectData = return ()
 

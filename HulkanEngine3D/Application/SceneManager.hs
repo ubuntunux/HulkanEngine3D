@@ -2,37 +2,66 @@
 {-# LANGUAGE DefaultSignatures  #-}
 {-# LANGUAGE OverloadedStrings  #-}
 
-module HulkanEngine3D.Application.SceneManager
-    ( SceneManagerData (..)
-    , SceneManagerInterface (..)
-    ) where
+module HulkanEngine3D.Application.SceneManager where
 
 import qualified Data.HashTable.IO as HashTable
-import Data.Text
+import qualified Data.Text as T
+import Data.IORef
+
 import HulkanEngine3D.Render.Actor
 import HulkanEngine3D.Render.Camera
+import HulkanEngine3D.Utilities.Logger
 
-type ObjectMap = HashTable.BasicHashTable Text Bool
+
+type CameraObjectMap = HashTable.BasicHashTable T.Text CameraObjectData
+type StaticObjectMap = HashTable.BasicHashTable T.Text StaticObjectData
 
 data SceneManagerData = SceneManagerData
-    { _camera :: CameraData
-    , _objectMap :: ObjectMap
+    { _mainCamera :: IORef CameraObjectData
+    , _cameraObjectMap :: CameraObjectMap
+    , _staticObjectMap :: StaticObjectMap
     } deriving (Show)
 
-class SceneManagerInterface a where
-    newSceneManagerData :: CameraData -> IO a
-    updateSceneManagerData :: a -> a
-    
 
-instance SceneManagerInterface SceneManagerData where
-    newSceneManagerData :: CameraData -> IO SceneManagerData
-    newSceneManagerData cameraData = do
-        objectMap <- HashTable.new
-        return SceneManagerData
-            { _camera = cameraData
-            , _objectMap = objectMap
-            }
+newSceneManagerData :: IO SceneManagerData
+newSceneManagerData = do
+    mainCameraRef <- newIORef (undefined::CameraObjectData)
+    cameraObjectMap <- HashTable.new
+    staticObjectMap <- HashTable.new
+    return SceneManagerData
+        { _mainCamera = mainCameraRef
+        , _cameraObjectMap = cameraObjectMap
+        , _staticObjectMap = staticObjectMap
+        }
 
-    updateSceneManagerData :: SceneManagerData -> SceneManagerData
-    updateSceneManagerData sceneManagerData = sceneManagerData
+initializeSceneManagerData :: SceneManagerData -> CameraCreateData -> IO ()
+initializeSceneManagerData sceneManagerData cameraCreateData = do
+    mainCamera <- addCameraObject sceneManagerData "MainCamera" cameraCreateData
+    writeIORef (_mainCamera sceneManagerData) mainCamera
+
+generateObjectName :: HashTable.BasicHashTable T.Text v -> T.Text -> IO T.Text
+generateObjectName objectMap objectName = do
+    objectData <- HashTable.lookup objectMap objectName
+    case objectData of
+        Nothing -> return objectName
+        otherwise -> generator objectMap objectName 0
+    where
+        generator sceneManagerData objectName index = do
+            objectData <- HashTable.lookup objectMap objectName
+            case objectData of
+                Nothing -> pure $ T.append objectName $ T.append (T.pack "_") (T.pack . show $ index)
+                otherwise -> generator objectMap objectName (index + 1)
+
+getObject :: HashTable.BasicHashTable T.Text v -> T.Text -> IO (Maybe v)
+getObject objectMap objectName = HashTable.lookup objectMap objectName
+
+addCameraObject :: SceneManagerData -> T.Text -> CameraCreateData -> IO CameraObjectData
+addCameraObject sceneManagerData objectName cameraCreateData = do
+    objectName <- generateObjectName (_cameraObjectMap sceneManagerData) objectName
+    cameraObjectData <- createCameraObjectData objectName cameraCreateData
+    HashTable.insert (_cameraObjectMap sceneManagerData) objectName cameraObjectData
+    return cameraObjectData
+
+updateSceneManagerData :: SceneManagerData -> SceneManagerData
+updateSceneManagerData sceneManagerData = sceneManagerData
 
