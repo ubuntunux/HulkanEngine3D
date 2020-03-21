@@ -38,12 +38,11 @@ compileGLSL filePath = do
   tmpDir <- getTemporaryDirectory
   curDir <- getCurrentDirectory
   createDirectoryIfMissing True tmpDir
-  let spirvCodeFile = tmpDir </> "haskell-spirv2.tmp"
+  let shaderFName = takeFileName shaderFile
       shaderFile = curDir </> filePath
       shaderDir = takeDirectory shaderFile
-      shaderFName = takeFileName shaderFile
+      spirvCodeFile = shaderFile ++ ".spirv"
   doesFileExist shaderFile >>= flip unless (error $ "compileGLSL: " ++ shaderFile ++ " does not exist.")
-  doesFileExist spirvCodeFile >>= flip when (removeFile spirvCodeFile)
 
   (exitCode, stdo, stde) <- readCreateProcessWithExitCode
       ((shell $ validatorExe ++ " -V -o " ++ spirvCodeFile ++ " " ++ shaderFName) { cwd = Just shaderDir }) ""
