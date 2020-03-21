@@ -173,8 +173,8 @@ updateEvent applicationData = do
         (btn_left, btn_middle, btn_right, wheel_up, wheel_down) = (_btn_l_down mouseInputData, _btn_m_down mouseInputData, _btn_r_down mouseInputData, _wheel_up mouseInputData, _wheel_down mouseInputData)
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         moveSpeed = Constants.cameraMoveSpeed * deltaTime * if modifierKeysShift then 2.0 else 1.0
-        panSpeed = Constants.cameraMoveSpeed * (if modifierKeysShift then 2.0 else 1.0) * 0.005
-        rotationSpeed = Constants.cameraRotationSpeed * 0.002
+        panSpeed = Constants.cameraPanSpeed * (if modifierKeysShift then 2.0 else 1.0)
+        rotationSpeed = Constants.cameraRotationSpeed
         cameraTransformObject = _transformObject mainCamera
 
     if btn_middle then do

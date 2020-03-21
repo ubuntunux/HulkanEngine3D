@@ -1,13 +1,12 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : enable
 
-// see https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL) for
-// difference between block name and instance name
-layout(binding = 0) uniform TransformationObject {
-  mat4 model;
-  mat4 view;
-  mat4 proj;
-} trans;
+#include "SceneConstants.glsl"
+
+/*layout( push_constant ) uniform PushConstant {
+  vec4 model;
+} pushConstant;*/
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor;
@@ -21,7 +20,7 @@ out gl_PerVertex {
 };
 
 void main() {
-    gl_Position = trans.proj * trans.view * trans.model * vec4(inPosition, 1.0);
+    gl_Position = sceneConstants.PROJECTION * sceneConstants.VIEW * sceneConstants.model * vec4(inPosition, 1.0);
     fragColor = inColor;
     fragTexCoord = inTexCoord;
 }

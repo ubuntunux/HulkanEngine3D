@@ -30,6 +30,7 @@ import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.GeometryBuffer
+import HulkanEngine3D.Vulkan.PushConstant
 import HulkanEngine3D.Vulkan.Shader
 
 
@@ -178,16 +179,16 @@ destroyRenderPass device renderPass = do
     vkDestroyRenderPass device renderPass VK_NULL
 
 
-createPipelineLayout :: VkDevice -> [VkDescriptorSetLayout] -> IO VkPipelineLayout
-createPipelineLayout device descriptorSetLayouts = do
+createPipelineLayout :: VkDevice -> [VkPushConstantRange] -> [VkDescriptorSetLayout] -> IO VkPipelineLayout
+createPipelineLayout device pushConstantRanges descriptorSetLayouts = do
     let pipelineCreateInfo = createVk @VkPipelineLayoutCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"setLayoutCount" (fromIntegral . length $ descriptorSetLayouts)
             &* setListRef @"pSetLayouts" descriptorSetLayouts
-            &* set @"pushConstantRangeCount" 0
-            &* set @"pPushConstantRanges" VK_NULL
+            &* set @"pushConstantRangeCount" (fromIntegral . length $ pushConstantRanges)
+            &* setListRef @"pPushConstantRanges" pushConstantRanges
     pipelineLayout <- alloca $ \pipelineLayoutPtr -> do
         result <- vkCreatePipelineLayout device (unsafePtr pipelineCreateInfo) VK_NULL pipelineLayoutPtr
         validationVK result "vkCreatePipelineLayout failed!"
@@ -214,7 +215,7 @@ createGraphicsPipeline device renderPass imageExtent msaaSamples vertexShaderFil
     vertexShaderCreateInfo <- createShaderStageCreateInfo device vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
     descriptorSetLayout <- createDescriptorSetLayout device
-    pipelineLayout <- createPipelineLayout device [descriptorSetLayout]
+    pipelineLayout <- createPipelineLayout device [pushConstantRange] [descriptorSetLayout]
 
     let shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
         shaderStageInfoCount = length shaderStageInfos

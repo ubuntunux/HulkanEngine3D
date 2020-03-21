@@ -45,6 +45,7 @@ executable main
                       HulkanEngine3D.Vulkan.Device
                       HulkanEngine3D.Vulkan.FrameBuffer
                       HulkanEngine3D.Vulkan.GeometryBuffer
+                      HulkanEngine3D.Vulkan.PushConstant
                       HulkanEngine3D.Vulkan.RenderPass
                       HulkanEngine3D.Vulkan.Queue
                       HulkanEngine3D.Vulkan.Shader
