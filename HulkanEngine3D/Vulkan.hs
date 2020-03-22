@@ -258,7 +258,6 @@ newRendererData = do
     imageIndexPtr <- new (0 :: Word32)
     frameIndexRef <- newIORef (0::Int)
     needRecreateSwapChainRef <- newIORef False
-    needRecordCommandBufferRef <- newIORef True
     renderTargetDataRef <- newIORef (undefined::RenderTargetData)
     renderPassDataListRef <- newIORef (DList.fromList [])
     swapChainDataRef <- newIORef defaultSwapChainData
@@ -620,56 +619,56 @@ drawFrame :: RendererData
           -> Mat44f
           -> IO VkResult
 drawFrame rendererData@RendererData {..} frameIndex transformObjectMemories viewMatrix = do
-  let QueueFamilyDatas {..} = _queueFamilyDatas
-      frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
-      imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
-      renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
-  swapChainData@SwapChainData {..} <- getSwapChainData rendererData
-
-  vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
-    flip validationVK "vkWaitForFences failed!"
-
-  --  validationVK result "vkAcquireNextImageKHR failed!"
-  result <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
-  imageIndex <- peek _imageIndexPtr
-
-  if (VK_SUCCESS /= result) then
-      return result
-  else do
-      let transformObjectMemory = transformObjectMemories !! (fromIntegral imageIndex)
-      transformationObject <- updateTransformationObject _swapChainExtent viewMatrix
-      updateUniformBuffer _device transformObjectMemory transformationObject
-
-      let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
-          submitInfo = createVk @VkSubmitInfo
-                $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
-                &* set @"pNext" VK_NULL
-                &* set @"waitSemaphoreCount" 1
-                &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
-                &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-                &* set @"commandBufferCount" 1
-                &* set @"pCommandBuffers" commandBufferPtr
-                &* set @"signalSemaphoreCount" 1
-                &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
-
-      vkResetFences _device 1 frameFencePtr
-
-      frameFence <- peek frameFencePtr
-
-      withPtr submitInfo $ \submitInfoPtr ->
-          vkQueueSubmit _graphicsQueue 1 submitInfoPtr frameFence >>=
-            flip validationVK "vkQueueSubmit failed!"
-
-      let presentInfo = createVk @VkPresentInfoKHR
-            $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
-            &* set @"pNext" VK_NULL
-            &* set @"pImageIndices" _imageIndexPtr
-            &* set @"waitSemaphoreCount" 1
-            &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
-            &* set @"swapchainCount" 1
-            &* setListRef @"pSwapchains" [_swapChain]
-
-      presentResult <- withPtr presentInfo $ \presentInfoPtr -> do
-        vkQueuePresentKHR _presentQueue presentInfoPtr
-
-      return presentResult
+    let QueueFamilyDatas {..} = _queueFamilyDatas
+        frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
+        imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
+        renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
+    swapChainData@SwapChainData {..} <- getSwapChainData rendererData
+  
+    vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
+        flip validationVK "vkWaitForFences failed!"
+  
+    --  validationVK result "vkAcquireNextImageKHR failed!"
+    result <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
+    imageIndex <- peek _imageIndexPtr
+  
+    if (VK_SUCCESS /= result) then
+        return result
+    else do
+        let transformObjectMemory = transformObjectMemories !! (fromIntegral imageIndex)
+        transformationObject <- updateTransformationObject _swapChainExtent viewMatrix
+        updateUniformBuffer _device transformObjectMemory transformationObject
+  
+        let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
+            submitInfo = createVk @VkSubmitInfo
+                  $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
+                  &* set @"pNext" VK_NULL
+                  &* set @"waitSemaphoreCount" 1
+                  &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
+                  &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+                  &* set @"commandBufferCount" 1
+                  &* set @"pCommandBuffers" commandBufferPtr
+                  &* set @"signalSemaphoreCount" 1
+                  &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
+  
+        vkResetFences _device 1 frameFencePtr
+  
+        frameFence <- peek frameFencePtr
+  
+        withPtr submitInfo $ \submitInfoPtr ->
+            vkQueueSubmit _graphicsQueue 1 submitInfoPtr frameFence >>=
+              flip validationVK "vkQueueSubmit failed!"
+  
+        let presentInfo = createVk @VkPresentInfoKHR
+              $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
+              &* set @"pNext" VK_NULL
+              &* set @"pImageIndices" _imageIndexPtr
+              &* set @"waitSemaphoreCount" 1
+              &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
+              &* set @"swapchainCount" 1
+              &* setListRef @"pSwapchains" [_swapChain]
+  
+        presentResult <- withPtr presentInfo $ \presentInfoPtr -> do
+          vkQueuePresentKHR _presentQueue presentInfoPtr
+  
+        return presentResult
