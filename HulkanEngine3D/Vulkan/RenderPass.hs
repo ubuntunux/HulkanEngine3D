@@ -25,8 +25,9 @@ import Graphics.Vulkan.Marshal.Create.DataFrame
 import Numeric.DataFrame
 import Numeric.Dimensions
 
-import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.Math
+import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.GeometryBuffer
@@ -215,6 +216,8 @@ createGraphicsPipeline device renderPass imageExtent msaaSamples vertexShaderFil
     vertexShaderCreateInfo <- createShaderStageCreateInfo device vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
     descriptorSetLayout <- createDescriptorSetLayout device
+    let pushConstantData = PushConstantData { modelMatrix = matrix4x4_indentity }
+        pushConstantRange = getPushConstantRange pushConstantData
     pipelineLayout <- createPipelineLayout device [pushConstantRange] [descriptorSetLayout]
 
     let shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]

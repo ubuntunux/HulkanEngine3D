@@ -12,7 +12,7 @@
 module HulkanEngine3D.Vulkan.GeometryBuffer
   ( Vertex (..)
   , Tri (..)
-  , GeometryBufferData(..)
+  , GeometryData(..)
   , atLeastThree
   , dataFrameLength
   , triangleToFaceIndices
@@ -21,8 +21,8 @@ module HulkanEngine3D.Vulkan.GeometryBuffer
   , rectIndices
   , vertexInputBindDescription
   , vertexInputAttributeDescriptions
-  , createGeometryBufferData
-  , destroyGeometryBufferData
+  , createGeometryData
+  , destroyGeometryData
   , createVertexBuffer
   , createIndexBuffer
   ) where
@@ -61,8 +61,8 @@ data Tri = Tri {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
 
-data GeometryBufferData = GeometryBufferData
-    { _bufferName :: Text.Text
+data GeometryData = GeometryData
+    { _geometryName :: Text.Text
     , _vertexBufferMemory :: VkDeviceMemory
     , _vertexBuffer :: VkBuffer
     , _indexBufferMemory :: VkDeviceMemory
@@ -164,27 +164,27 @@ vertexInputAttributeDescriptions = ST.runST $ do
     ST.unsafeFreezeDataFrame mv
 
 
-createGeometryBufferData :: VkPhysicalDevice
+createGeometryData :: VkPhysicalDevice
                          -> VkDevice
                          -> VkQueue
                          -> VkCommandPool
                          -> Text.Text
                          -> DataFrame Vertex '[XN 3]
                          -> DataFrame Word32 '[XN 3]
-                         -> IO GeometryBufferData
-createGeometryBufferData physicalDevice device graphicsQueue commandPool bufferName vertices indices = do
-    logInfo $ "createGeometryBuffer : " ++ (Text.unpack bufferName)
+                         -> IO GeometryData
+createGeometryData physicalDevice device graphicsQueue commandPool geometryName vertices indices = do
+    logInfo $ "createGeometryBuffer : " ++ (Text.unpack geometryName)
     (vertexBufferMemory, vertexBuffer) <- createVertexBuffer physicalDevice device graphicsQueue commandPool vertices
     (indexBufferMemory, indexBuffer) <- createIndexBuffer physicalDevice device graphicsQueue commandPool indices
-    return GeometryBufferData { _bufferName = bufferName
+    return GeometryData { _geometryName = geometryName
                               , _vertexBufferMemory = vertexBufferMemory
                               , _vertexBuffer = vertexBuffer
                               , _indexBufferMemory = indexBufferMemory
                               , _indexBuffer = indexBuffer
-                               , _vertexIndexCount = (fromIntegral $ dataFrameLength indices) }
+                              , _vertexIndexCount = (fromIntegral $ dataFrameLength indices) }
 
-destroyGeometryBufferData :: VkDevice -> GeometryBufferData -> IO ()
-destroyGeometryBufferData device geometryBuffer = do
+destroyGeometryData :: VkDevice -> GeometryData -> IO ()
+destroyGeometryData device geometryBuffer = do
     destroyBuffer device (_vertexBuffer geometryBuffer) (_vertexBufferMemory geometryBuffer)
     destroyBuffer device (_indexBuffer geometryBuffer) (_indexBufferMemory geometryBuffer)
 

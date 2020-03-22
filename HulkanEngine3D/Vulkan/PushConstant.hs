@@ -5,8 +5,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module HulkanEngine3D.Vulkan.PushConstant
-    ( PushConstantData
-    , pushConstantRange
+    ( PushConstantData (..)
+    , getPushConstantRange
     ) where
 
 import GHC.Generics (Generic)
@@ -24,8 +24,8 @@ data PushConstantData = PushConstantData
 instance PrimBytes PushConstantData
 
 
-pushConstantRange :: VkPushConstantRange
-pushConstantRange = createVk @VkPushConstantRange
+getPushConstantRange :: PushConstantData -> VkPushConstantRange
+getPushConstantRange pushConstantData = createVk @VkPushConstantRange
     $ set @"stageFlags" VK_SHADER_STAGE_VERTEX_BIT
-    &* set @"size" (bSizeOf @PushConstantData undefined)
+    &* set @"size" (bSizeOf @PushConstantData pushConstantData)
     &* set @"offset" 0

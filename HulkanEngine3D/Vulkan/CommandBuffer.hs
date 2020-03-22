@@ -26,7 +26,7 @@ createCommandPool device QueueFamilyDatas {..} = do
         commandPoolCreateInfo = createVk @VkCommandPoolCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
             &* set @"pNext" VK_NULL
-            &* set @"flags" VK_ZERO_FLAGS
+            &* set @"flags" VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
             &* set @"queueFamilyIndex" graphicsQueueIndex
     logInfo $ "Create Command Pool: graphicsFamilyIndex(" ++ show graphicsQueueIndex ++ ")"
     allocaPeek $ \commandPoolPtr -> do

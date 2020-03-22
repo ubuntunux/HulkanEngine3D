@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module HulkanEngine3D.Resource
-  ( GeometryData(..)
+  ( GeometryResourceData(..)
   ) where
 
 
@@ -19,11 +19,11 @@ import Numeric.DataFrame
 
 import HulkanEngine3D.Vulkan.GeometryBuffer
 
-class Resource a where
+class ResourceInterface a where
 
-data GeometryData = GeometryData {
+data GeometryResourceData = GeometryResourceData {
   vertices :: DataFrame Vertex '[XN 3],
   indices :: DataFrame Word32 '[XN 3]
 } deriving Show
 
-instance Resource GeometryData
+instance ResourceInterface GeometryResourceData

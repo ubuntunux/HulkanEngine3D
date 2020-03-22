@@ -9,7 +9,7 @@
 module HulkanEngine3D.Render.Mesh
     ( MeshData (..)
     , MeshInterface (..)
-    , GeometryBufferDataList
+    , GeometryDataList
     ) where
 
 import Control.Monad
@@ -22,9 +22,9 @@ import qualified Data.Vector.Mutable as MVector
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Utilities.System
 
-type GeometryBufferDataList = MVector.IOVector GeometryBufferData
+type GeometryDataList = MVector.IOVector GeometryData
 
-instance Show GeometryBufferDataList where
+instance Show GeometryDataList where
     show a = show . MVector.length $ a
 
 data MeshData = MeshData
@@ -32,16 +32,16 @@ data MeshData = MeshData
     , _boundBox :: Bool
     , _skeletonDatas :: [Bool]
     , _animationDatas :: [Bool]
-    , _geometryBufferDatas :: GeometryBufferDataList
+    , _geometryBufferDatas :: GeometryDataList
     } deriving (Show)
 
 class MeshInterface a where
-    newMeshData :: Text.Text -> [GeometryBufferData] -> IO a
-    getGeometryBufferData :: a -> Int -> IO GeometryBufferData
+    newMeshData :: Text.Text -> [GeometryData] -> IO a
+    getGeometryData :: a -> Int -> IO GeometryData
     updateMeshData :: a -> IO ()
 
 instance MeshInterface MeshData where
-    newMeshData :: Text.Text -> [GeometryBufferData] -> IO MeshData
+    newMeshData :: Text.Text -> [GeometryData] -> IO MeshData
     newMeshData meshName geometryBufferDatas = do
         nameRef <- newIORef meshName
         geometryBufferDataList <- MVector.new (length geometryBufferDatas)
@@ -55,8 +55,8 @@ instance MeshInterface MeshData where
             , _geometryBufferDatas = geometryBufferDataList
             }
 
-    getGeometryBufferData :: MeshData -> Int -> IO GeometryBufferData
-    getGeometryBufferData meshData n = MVector.read (_geometryBufferDatas meshData) n
+    getGeometryData :: MeshData -> Int -> IO GeometryData
+    getGeometryData meshData n = MVector.read (_geometryBufferDatas meshData) n
 
     updateMeshData :: MeshData -> IO ()
     updateMeshData meshData = return ()

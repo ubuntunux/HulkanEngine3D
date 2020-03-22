@@ -385,7 +385,7 @@ runApplication = do
         updateTransformObject (_transformObject mainCamera)
         viewMatrix <- readIORef (_inverseMatrix._transformObject $ mainCamera)
         (Just meshData) <- getMeshData (_resourceData applicationData) "suzan"
-        geometryBufferData <- (getGeometryBufferData meshData 0)
+        geometryBufferData <- (getGeometryData meshData 0)
 
         updateRendererData
             rendererData

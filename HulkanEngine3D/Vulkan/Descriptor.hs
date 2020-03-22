@@ -20,7 +20,10 @@ import Foreign.Marshal.Array
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
+import Numeric.DataFrame
+import Numeric.Dimensions
 
+import HulkanEngine3D.Vulkan.Buffer
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 
@@ -160,6 +163,3 @@ prepareDescriptorSet device bufferInfo imageInfo descriptorSet = do
         descriptorWrites = [bufferDescriptorSet, imageDescriptorSet]
     withVkArrayLen descriptorWrites $ \count descriptorWritesPtr ->
         vkUpdateDescriptorSets device count descriptorWritesPtr 0 VK_NULL
-
-
-

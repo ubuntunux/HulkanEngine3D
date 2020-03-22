@@ -8,7 +8,9 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module HulkanEngine3D.Vulkan.TransformationObject
-  ( updateTransformationObject
+  ( TransformationObject (..)
+  , rotationMatrix
+  , updateTransformationObject
   , createTransformObjectBuffers
   , destroyTransformObjectBuffers
   , transformObjectBufferInfo
@@ -56,21 +58,17 @@ data TransformationObject = TransformationObject
 instance PrimBytes TransformationObject
 
 
-rotation :: Double -> Mat44f
-rotation seconds =
+rotationMatrix :: Double -> Mat44f
+rotationMatrix seconds =
   let rate = 1/16 -- rotations per second
       (_::Int, phaseTau) = properFraction $ seconds * rate
   in rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
 
 
-updateTransformationObject :: VkDevice -> VkExtent2D -> VkDeviceMemory -> Mat44f -> IO ()
-updateTransformationObject device extent uniformBuffer viewMatrix = do
-    uniformBufferDataPtr <- allocaPeek $ \dataPtr ->
-        vkMapMemory device uniformBuffer 0 (bSizeOf @TransformationObject undefined) VK_ZERO_FLAGS dataPtr
+updateTransformationObject :: VkExtent2D -> Mat44f -> IO TransformationObject
+updateTransformationObject extent viewMatrix = do
     seconds <- getSystemTime
-    let model = rotation seconds -- rotate the world and objects
-    poke (castPtr uniformBufferDataPtr) (scalar $ TransformationObject { model=model, view=viewMatrix, proj=proj } )
-    vkUnmapMemory device uniformBuffer
+    return TransformationObject { model=rotationMatrix seconds, view=viewMatrix, proj=proj }
     where
         width = getField @"width" extent
         height = getField @"height" extent
