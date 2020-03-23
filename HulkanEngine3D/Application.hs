@@ -380,8 +380,8 @@ runApplication = do
             writeIORef (_needRecreateSwapChainRef rendererData) False
 
         -- update renderer data
-        mainCamera <- readIORef (_mainCamera . _sceneManagerData $ applicationData)
-        updateCameraObjectData mainCamera
+        updateSceneManagerData (_sceneManagerData applicationData)
+        mainCamera <- getMainCamera (_sceneManagerData applicationData)
         viewMatrix <- readIORef (_viewMatrix mainCamera)
         projectionMatrix <- readIORef (_projectionMatrix mainCamera)
         (Just meshData) <- getMeshData (_resourceData applicationData) "suzan"

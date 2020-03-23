@@ -21,6 +21,26 @@ data SceneManagerData = SceneManagerData
     , _staticObjectMap :: StaticObjectMap
     } deriving (Show)
 
+class SceneManagerInterface a where
+    getMainCamera :: a -> IO CameraObjectData
+    addCameraObject :: a -> T.Text -> CameraCreateData -> IO CameraObjectData
+    updateSceneManagerData :: a -> IO ()
+
+instance SceneManagerInterface SceneManagerData where
+    getMainCamera :: SceneManagerData -> IO CameraObjectData
+    getMainCamera sceneManagerData = readIORef (_mainCamera sceneManagerData)
+    
+    addCameraObject :: SceneManagerData -> T.Text -> CameraCreateData -> IO CameraObjectData
+    addCameraObject sceneManagerData objectName cameraCreateData = do
+        objectName <- generateObjectName (_cameraObjectMap sceneManagerData) objectName
+        cameraObjectData <- createCameraObjectData objectName cameraCreateData
+        HashTable.insert (_cameraObjectMap sceneManagerData) objectName cameraObjectData
+        return cameraObjectData
+    
+    updateSceneManagerData :: SceneManagerData -> IO ()
+    updateSceneManagerData sceneManagerData = do
+        mainCamera <- getMainCamera sceneManagerData
+        updateCameraObjectData mainCamera
 
 newSceneManagerData :: IO SceneManagerData
 newSceneManagerData = do
@@ -54,13 +74,5 @@ generateObjectName objectMap objectName = do
 getObject :: HashTable.BasicHashTable T.Text v -> T.Text -> IO (Maybe v)
 getObject objectMap objectName = HashTable.lookup objectMap objectName
 
-addCameraObject :: SceneManagerData -> T.Text -> CameraCreateData -> IO CameraObjectData
-addCameraObject sceneManagerData objectName cameraCreateData = do
-    objectName <- generateObjectName (_cameraObjectMap sceneManagerData) objectName
-    cameraObjectData <- createCameraObjectData objectName cameraCreateData
-    HashTable.insert (_cameraObjectMap sceneManagerData) objectName cameraObjectData
-    return cameraObjectData
 
-updateSceneManagerData :: SceneManagerData -> SceneManagerData
-updateSceneManagerData sceneManagerData = sceneManagerData
 

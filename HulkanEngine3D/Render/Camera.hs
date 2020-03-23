@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs           #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE NegativeLiterals       #-}
@@ -48,58 +49,71 @@ data CameraObjectData = CameraObjectData
     } deriving (Show)
 
 
-createCameraObjectData :: T.Text -> CameraCreateData -> IO CameraObjectData
-createCameraObjectData name cameraCreateData = do
-    logInfo $ "createCameraObjectData :: " ++ show name
-    nameRef <- newIORef name
-    meterPerUnitRef <- newIORef (meterPerUnit cameraCreateData)
-    nearRef <- newIORef (near cameraCreateData)
-    farRef <- newIORef (far cameraCreateData)
-    fovRef <- newIORef (fov cameraCreateData)
-    aspectRef <- newIORef (aspect cameraCreateData)
-    projectionMatrixRef <- newIORef matrix4x4_indentity
-    viewMatrixRef <- newIORef matrix4x4_indentity
-    transformObjectData <- newTransformObjectData
-    let cameraObjectData = CameraObjectData
-            { _name = nameRef
-            , _meterPerUnit = meterPerUnitRef
-            , _near = nearRef
-            , _far = farRef
-            , _fov = fovRef
-            , _aspect = aspectRef
-            , _projectionMatrix = projectionMatrixRef
-            , _viewMatrix = viewMatrixRef
-            , _transformObject = transformObjectData
-            }
+class CameraObjectInterface a where
+    createCameraObjectData :: T.Text -> CameraCreateData -> IO a
+    getViewMatrix :: a -> IO Mat44f
+    getProjectionMatrix :: a -> IO Mat44f
+    updateCameraObjectData :: a -> IO ()
+    updateProjectionMatrix :: a -> IO ()
 
-    -- initialize
-    setPosition transformObjectData (position cameraCreateData)
-    updateProjectionMatrix cameraObjectData
-    return cameraObjectData
+instance CameraObjectInterface CameraObjectData where
+    createCameraObjectData :: T.Text -> CameraCreateData -> IO CameraObjectData
+    createCameraObjectData name cameraCreateData = do
+        logInfo $ "createCameraObjectData :: " ++ show name
+        nameRef <- newIORef name
+        meterPerUnitRef <- newIORef (meterPerUnit cameraCreateData)
+        nearRef <- newIORef (near cameraCreateData)
+        farRef <- newIORef (far cameraCreateData)
+        fovRef <- newIORef (fov cameraCreateData)
+        aspectRef <- newIORef (aspect cameraCreateData)
+        projectionMatrixRef <- newIORef matrix4x4_indentity
+        viewMatrixRef <- newIORef matrix4x4_indentity
+        transformObjectData <- newTransformObjectData
+        let cameraObjectData = CameraObjectData
+                { _name = nameRef
+                , _meterPerUnit = meterPerUnitRef
+                , _near = nearRef
+                , _far = farRef
+                , _fov = fovRef
+                , _aspect = aspectRef
+                , _projectionMatrix = projectionMatrixRef
+                , _viewMatrix = viewMatrixRef
+                , _transformObject = transformObjectData
+                }
+
+        -- initialize
+        setPosition transformObjectData (position cameraCreateData)
+        updateProjectionMatrix cameraObjectData
+        return cameraObjectData
+
+    getViewMatrix :: CameraObjectData -> IO Mat44f
+    getViewMatrix cameraObjectData = readIORef (_viewMatrix cameraObjectData)
+
+    getProjectionMatrix :: CameraObjectData -> IO Mat44f
+    getProjectionMatrix cameraObjectData = readIORef (_projectionMatrix cameraObjectData)
+
+    updateCameraObjectData :: CameraObjectData -> IO ()
+    updateCameraObjectData cameraObjectData = do
+        updateTransformObject (_transformObject cameraObjectData)
+        viewMatrix <- readIORef (_inverseMatrix._transformObject $ cameraObjectData)
+        writeIORef (_viewMatrix cameraObjectData) viewMatrix
 
 
-updateCameraObjectData :: CameraObjectData -> IO ()
-updateCameraObjectData cameraObjectData = do
-    updateTransformObject (_transformObject cameraObjectData)
-    viewMatrix <- readIORef (_inverseMatrix._transformObject $ cameraObjectData)
-    writeIORef (_viewMatrix cameraObjectData) viewMatrix
-
-
-updateProjectionMatrix :: CameraObjectData -> IO ()
-updateProjectionMatrix cameraObjectData = do
-    fov <- readIORef $ _fov cameraObjectData
-    aspect <- readIORef $ _aspect cameraObjectData
-    near <- readIORef $ _near cameraObjectData
-    far <- readIORef $ _far cameraObjectData
-    writeIORef (_projectionMatrix cameraObjectData) (projectionMatrix fov aspect near far)
-    where
-        -- ... which is a normal perspective projection matrix that maps the view space
-        --     onto the clip space cube {x: -1..1, y: -1..1, z: -1..1}
-        projectionMatrix fov aspect near far = (perspective near far (fov/360.0 * 2.0 * pi) aspect) %* clipSpace
-        -- ... and a {clip space -> screen space} matrix that converts points into
-        --     the vulkan screen space {x: -1..1, y: 1..-1, z: 0..1}
-        clipSpace = DF4
-            (DF4 1   0   0   0)
-            (DF4 0 (-1)  0   0)
-            (DF4 0   0  0.5  0)
-            (DF4 0   0  0.5  1)
+    updateProjectionMatrix :: CameraObjectData -> IO ()
+    updateProjectionMatrix cameraObjectData = do
+        fov <- readIORef $ _fov cameraObjectData
+        aspect <- readIORef $ _aspect cameraObjectData
+        near <- readIORef $ _near cameraObjectData
+        far <- readIORef $ _far cameraObjectData
+        writeIORef (_projectionMatrix cameraObjectData) (projectionMatrix fov aspect near far)
+        where
+            -- ... which is a normal perspective projection matrix that maps the view space
+            --     onto the clip space cube {x: -1..1, y: -1..1, z: -1..1}
+            projectionMatrix fov aspect near far = (perspective near far (fov/360.0 * 2.0 * pi) aspect) %* clipSpace
+            -- ... and a {clip space -> screen space} matrix that converts points into
+            --     the vulkan screen space {x: -1..1, y: 1..-1, z: 0..1}
+            clipSpace = DF4
+                (DF4 1   0   0   0)
+                (DF4 0 (-1)  0   0)
+                (DF4 0   0  0.5  0)
+                (DF4 0   0  0.5  1)
