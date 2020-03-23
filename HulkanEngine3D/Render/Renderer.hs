@@ -413,25 +413,41 @@ resizeWindow window rendererData@RendererData {..} = do
 
 updateRendererData :: RendererData -> Mat44f -> Mat44f -> GeometryData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
 updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geometryBufferData descriptorSets sceneConstantsMemories = do
+    -- frame index
     frameIndex <- readIORef _frameIndexRef
-    imageIndex <- peek _imageIndexPtr
-    let vertexBuffer = _vertexBuffer geometryBufferData
-        vertexIndexCount = _vertexIndexCount geometryBufferData
-        indexBuffer = _indexBuffer geometryBufferData
-    renderPassData <- getRenderPassData rendererData
-    swapChainData <- getSwapChainData rendererData
+    let frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
+        imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
+        renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
+    frameFence <- peek frameFencePtr
+    swapChainData@SwapChainData {..} <- getSwapChainData rendererData
 
-    let sceneConstantsMemory = sceneConstantsMemories !! (fromIntegral imageIndex)
-        sceneConstantsData = SceneConstantsData
-            { _VIEW = viewMatrix
-            , _PROJECTION = projectionMatrix
-            }
+    vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
+        flip validationVK "vkWaitForFences failed!"
 
-    updateUniformBuffer _device sceneConstantsMemory sceneConstantsData
+    -- swapchain image index
+    acquireNextImageResult <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
+    imageIndexValue <- peek _imageIndexPtr
+    commandBuffers <- getCommandBuffers rendererData
+    let imageIndex = fromIntegral imageIndexValue
+        commandBufferPtr = ptrAtIndex _commandBuffersPtr imageIndex
+        commandBuffer = commandBuffers !! imageIndex
 
-    recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) descriptorSets
-
-    result <- present rendererData frameIndex
+    -- render
+    result <- case acquireNextImageResult of
+        VK_SUCCESS -> do
+            let vertexBuffer = _vertexBuffer geometryBufferData
+                vertexIndexCount = _vertexIndexCount geometryBufferData
+                indexBuffer = _indexBuffer geometryBufferData
+                sceneConstantsMemory = sceneConstantsMemories !! imageIndex
+                sceneConstantsData = SceneConstantsData
+                    { _VIEW = viewMatrix
+                    , _PROJECTION = projectionMatrix
+                    }
+            updateUniformBuffer _device sceneConstantsMemory sceneConstantsData
+            recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (vertexIndexCount, indexBuffer) descriptorSets
+            presentResult <- present rendererData commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore
+            return presentResult
+        otherwise -> return acquireNextImageResult
 
     let needRecreateSwapChain = (VK_ERROR_OUT_OF_DATE_KHR == result || VK_SUBOPTIMAL_KHR == result)
     writeIORef _needRecreateSwapChainRef needRecreateSwapChain
@@ -454,12 +470,14 @@ recreateSwapChain rendererData@RendererData {..} window = do
 
 
 recordCommandBuffer :: RendererData
-                    -> RenderPassData
+                    -> VkCommandBuffer
+                    -> Int
                     -> VkBuffer -- vertex data
                     -> (Word32, VkBuffer) -- nr of indices and index data
                     -> [VkDescriptorSet]
                     -> IO ()
-recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexBuffer) descriptorSets = do
+recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCount, indexBuffer) descriptorSets = do
+    renderPassData <- getRenderPassData rendererData
     let renderPass = _renderPass renderPassData
         graphicsPipelineData = _graphicsPipelineData renderPassData
         pipelineLayout = _pipelineLayout graphicsPipelineData
@@ -468,57 +486,56 @@ recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexB
         frameBuffers = _frameBuffers frameBufferData
         imageExtent = _frameBufferSize frameBufferData
         clearValues = _frameBufferClearValues frameBufferData
-    commandBuffers <- getCommandBuffers rendererData
+        frameBuffer = frameBuffers !! fromIntegral imageIndex
+        descriptorSet = descriptorSets !! fromIntegral imageIndex
 
-    -- record command buffers
-    forM_ (zip3 commandBuffers frameBuffers descriptorSets) $ \(commandBuffer, frameBuffer, descriptorSet) -> do
-        -- begin command buffer
-        let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
-                $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-                &* set @"pNext" VK_NULL
-                &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
+    -- begin command buffer
+    let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
 
-        withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
-            result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
-            validationVK result "vkBeginCommandBuffer failed!"
+    withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
+        result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
+        validationVK result "vkBeginCommandBuffer failed!"
 
-        seconds <- getSystemTime
-        let phaseTau = snd (properFraction $ seconds * 0.0625::(Int, Double))
-            modelMatrix = rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
-            pushConstantData = PushConstantData { modelMatrix = modelMatrix }
-        with modelMatrix $ \modelMatrixPtr ->
-            vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
+    seconds <- getSystemTime
+    let phaseTau = snd (properFraction $ seconds * 0.0625::(Int, Double))
+        modelMatrix = rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
+        pushConstantData = PushConstantData { modelMatrix = modelMatrix }
+    with modelMatrix $ \modelMatrixPtr ->
+        vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
 
-        -- begin renderpass
-        let renderPassBeginInfo = createVk @VkRenderPassBeginInfo
-                $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
-                &* set @"pNext" VK_NULL
-                &* set @"renderPass" renderPass
-                &* set @"framebuffer" frameBuffer
-                &* setVk @"renderArea"
-                    (  setVk @"offset"
-                            (  set @"x" 0
-                            &* set @"y" 0 )
-                    &* set @"extent" imageExtent )
-                &* set @"clearValueCount" (fromIntegral $ length clearValues)
-                &* setListRef @"pClearValues" clearValues
+    -- begin renderpass
+    let renderPassBeginInfo = createVk @VkRenderPassBeginInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"renderPass" renderPass
+            &* set @"framebuffer" frameBuffer
+            &* setVk @"renderArea"
+                (  setVk @"offset"
+                        (  set @"x" 0
+                        &* set @"y" 0 )
+                &* set @"extent" imageExtent )
+            &* set @"clearValueCount" (fromIntegral $ length clearValues)
+            &* setListRef @"pClearValues" clearValues
 
-        withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
-            vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
+    withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
+        vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
 
-        -- drawing commands
-        vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
-        withArray [vertexBuffer] $ \vertexBufferPtr ->
-            withArray [0] $ \vertexOffsetPtr ->
-                vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
-        vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
-        withArray [descriptorSet] $ \descriptorSetPtr ->
-            vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
-        vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
+    -- drawing commands
+    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
+    withArray [vertexBuffer] $ \vertexBufferPtr ->
+        withArray [0] $ \vertexOffsetPtr ->
+            vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
+    vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
+    withArray [descriptorSet] $ \descriptorSetPtr ->
+        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
+    vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
 
-        -- end renderpass & command buffer
-        vkCmdEndRenderPass commandBuffer
-        vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
+    -- end renderpass & command buffer
+    vkCmdEndRenderPass commandBuffer
+    vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
 
 updateUniformBuffer :: (PrimBytes a) => VkDevice -> VkDeviceMemory -> a -> IO ()
 updateUniformBuffer device uniformBuffer uniformBufferData = do
@@ -527,57 +544,41 @@ updateUniformBuffer device uniformBuffer uniformBufferData = do
       poke (castPtr uniformBufferDataPtr) (scalar uniformBufferData)
       vkUnmapMemory device uniformBuffer
 
-present :: RendererData -> Int -> IO VkResult
-present rendererData@RendererData {..} frameIndex = do
+present :: RendererData -> Ptr VkCommandBuffer -> Ptr VkFence -> VkSemaphore -> VkSemaphore -> IO VkResult
+present rendererData@RendererData {..} commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore = do
     let QueueFamilyDatas {..} = _queueFamilyDatas
-        frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
-        imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
-        renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
     swapChainData@SwapChainData {..} <- getSwapChainData rendererData
 
-    vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
-        flip validationVK "vkWaitForFences failed!"
+    let submitInfo = createVk @VkSubmitInfo
+              $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
+              &* set @"pNext" VK_NULL
+              &* set @"waitSemaphoreCount" 1
+              &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
+              &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+              &* set @"commandBufferCount" 1
+              &* set @"pCommandBuffers" commandBufferPtr
+              &* set @"signalSemaphoreCount" 1
+              &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
 
-    acquireNextImageResult <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
-    imageIndex <- peek _imageIndexPtr
+    vkResetFences _device 1 frameFencePtr
 
-    result <- if (VK_SUCCESS /= acquireNextImageResult)
-        then
-            return acquireNextImageResult
-        else do
-            let commandBufferPtr = ptrAtIndex _commandBuffersPtr (fromIntegral imageIndex)
-                submitInfo = createVk @VkSubmitInfo
-                      $  set @"sType" VK_STRUCTURE_TYPE_SUBMIT_INFO
-                      &* set @"pNext" VK_NULL
-                      &* set @"waitSemaphoreCount" 1
-                      &* setListRef @"pWaitSemaphores" [imageAvailableSemaphore]
-                      &* setListRef @"pWaitDstStageMask" [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-                      &* set @"commandBufferCount" 1
-                      &* set @"pCommandBuffers" commandBufferPtr
-                      &* set @"signalSemaphoreCount" 1
-                      &* setListRef @"pSignalSemaphores" [renderFinishedSemaphore]
+    frameFence <- peek frameFencePtr
 
-            vkResetFences _device 1 frameFencePtr
+    withPtr submitInfo $ \submitInfoPtr ->
+        vkQueueSubmit _graphicsQueue 1 submitInfoPtr frameFence >>=
+          flip validationVK "vkQueueSubmit failed!"
 
-            frameFence <- peek frameFencePtr
+    let presentInfo = createVk @VkPresentInfoKHR
+          $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
+          &* set @"pNext" VK_NULL
+          &* set @"pImageIndices" _imageIndexPtr
+          &* set @"waitSemaphoreCount" 1
+          &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
+          &* set @"swapchainCount" 1
+          &* setListRef @"pSwapchains" [_swapChain]
 
-            withPtr submitInfo $ \submitInfoPtr ->
-                vkQueueSubmit _graphicsQueue 1 submitInfoPtr frameFence >>=
-                  flip validationVK "vkQueueSubmit failed!"
-
-            let presentInfo = createVk @VkPresentInfoKHR
-                  $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
-                  &* set @"pNext" VK_NULL
-                  &* set @"pImageIndices" _imageIndexPtr
-                  &* set @"waitSemaphoreCount" 1
-                  &* setListRef @"pWaitSemaphores" [renderFinishedSemaphore]
-                  &* set @"swapchainCount" 1
-                  &* setListRef @"pSwapchains" [_swapChain]
-
-            presentResult <- withPtr presentInfo $ \presentInfoPtr -> do
-                vkQueuePresentKHR _presentQueue presentInfoPtr
-
-            return presentResult
+    result <- withPtr presentInfo $ \presentInfoPtr -> do
+        vkQueuePresentKHR _presentQueue presentInfoPtr
 
     -- waiting
     deviceWaitIdle rendererData
