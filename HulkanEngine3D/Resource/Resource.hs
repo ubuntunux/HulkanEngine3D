@@ -6,7 +6,6 @@ module HulkanEngine3D.Resource.Resource
     , ResourceInterface (..)
     ) where
 
-import Control.Monad
 import qualified Data.HashTable.IO as HashTable
 import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
@@ -14,9 +13,7 @@ import qualified Data.Vector.Mutable as MVector
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Resource.ObjLoader
 import HulkanEngine3D.Vulkan
-import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Texture
-import HulkanEngine3D.Utilities.System
 
 type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
 type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData

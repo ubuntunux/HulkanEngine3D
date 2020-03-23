@@ -1,9 +1,10 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE Strict            #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE Strict                 #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE TemplateHaskell        #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
 
 module HulkanEngine3D.Vulkan
   ( RenderFeatures (..)
@@ -28,7 +29,6 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.DList as DList
-import qualified Data.HashTable.IO as HashTable
 import qualified Data.Text as Text
 import Data.IORef
 import Foreign.Marshal.Array
@@ -59,10 +59,10 @@ import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Queue
 import HulkanEngine3D.Vulkan.PushConstant
 import HulkanEngine3D.Vulkan.RenderPass
+import HulkanEngine3D.Vulkan.SceneConstants
 import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Sync
 import HulkanEngine3D.Vulkan.Texture
-import HulkanEngine3D.Vulkan.TransformationObject
 
 
 data RenderFeatures = RenderFeatures
@@ -432,8 +432,8 @@ resizeWindow window rendererData@RendererData {..} = do
     renderPassData <- createRenderPassData _device renderPassDataCreateInfo
     writeIORef _renderPassDataListRef (DList.fromList [renderPassData])
 
-updateRendererData :: RendererData -> Mat44f -> GeometryData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
-updateRendererData rendererData@RendererData{..} viewMatrix geometryBufferData descriptorSets transformObjectMemories = do
+updateRendererData :: RendererData -> Mat44f -> Mat44f -> GeometryData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
+updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geometryBufferData descriptorSets sceneConstantsMemories = do
     frameIndex <- readIORef _frameIndexRef
     imageIndex <- peek _imageIndexPtr
     let vertexBuffer = _vertexBuffer geometryBufferData
@@ -442,9 +442,13 @@ updateRendererData rendererData@RendererData{..} viewMatrix geometryBufferData d
     renderPassData <- getRenderPassData rendererData
     swapChainData <- getSwapChainData rendererData
 
-    let transformObjectMemory = transformObjectMemories !! (fromIntegral imageIndex)
-    transformationObject <- updateTransformationObject (_swapChainExtent swapChainData) viewMatrix
-    updateUniformBuffer _device transformObjectMemory transformationObject
+    let sceneConstantsMemory = sceneConstantsMemories !! (fromIntegral imageIndex)
+        sceneConstantsData = SceneConstantsData
+            { _VIEW = viewMatrix
+            , _PROJECTION = projectionMatrix
+            }
+
+    updateUniformBuffer _device sceneConstantsMemory sceneConstantsData
 
     recordCommandBuffer rendererData renderPassData vertexBuffer (vertexIndexCount, indexBuffer) descriptorSets
 
@@ -500,9 +504,10 @@ recordCommandBuffer rendererData renderPassData vertexBuffer (indexCount, indexB
             validationVK result "vkBeginCommandBuffer failed!"
 
         seconds <- getSystemTime
-        let modelMatrix = rotationMatrix seconds
+        let phaseTau = snd (properFraction $ seconds * 0.0625::(Int, Double))
+            modelMatrix = rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
             pushConstantData = PushConstantData { modelMatrix = modelMatrix }
-        withArray [modelMatrix] $ \modelMatrixPtr ->
+        with modelMatrix $ \modelMatrixPtr ->
             vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
 
         -- begin renderpass

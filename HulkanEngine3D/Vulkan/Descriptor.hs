@@ -12,6 +12,7 @@ module HulkanEngine3D.Vulkan.Descriptor
   , createDescriptorSetData
   , destroyDescriptorSetData
   , prepareDescriptorSet
+  , createDescriptorBufferInfo
   ) where
 
 import Foreign.Ptr
@@ -91,10 +92,12 @@ createDescriptorSetLayout device = do
     logInfo $ "createDescriptorSetLayout : " ++ show descriptorSetLayout
     return descriptorSetLayout
 
+
 destroyDescriptorSetLayout :: VkDevice -> VkDescriptorSetLayout -> IO ()
 destroyDescriptorSetLayout device descriptorSetLayout = do
     logInfo $ "destroyDescriptorSetLayout : " ++ show descriptorSetLayout
     vkDestroyDescriptorSetLayout device descriptorSetLayout VK_NULL
+
 
 createDescriptorSetData :: VkDevice
                         -> VkDescriptorPool
@@ -122,6 +125,7 @@ createDescriptorSetData device descriptorPool swapChainImageCount descriptorSetL
         logInfo $ "createDescriptorSets : " ++ show descriptorSetData
         return descriptorSetData
 
+
 destroyDescriptorSetData :: VkDevice
                          -> VkDescriptorPool
                          -> DescriptorSetData
@@ -131,6 +135,7 @@ destroyDescriptorSetData device descriptorPool descriptorSetData@DescriptorSetDa
     logInfo $ "destroyDescriptorSetData : " ++ show descriptorSetData
     vkFreeDescriptorSets device descriptorPool _descriptorSetCount _descriptorSetPtr
         >>= flip validationVK "destroyDescriptorSetData failed!"
+
 
 prepareDescriptorSet :: VkDevice
                      -> VkDescriptorBufferInfo
@@ -163,3 +168,11 @@ prepareDescriptorSet device bufferInfo imageInfo descriptorSet = do
         descriptorWrites = [bufferDescriptorSet, imageDescriptorSet]
     withVkArrayLen descriptorWrites $ \count descriptorWritesPtr ->
         vkUpdateDescriptorSets device count descriptorWritesPtr 0 VK_NULL
+
+
+createDescriptorBufferInfo :: VkBuffer -> VkDeviceSize -> VkDescriptorBufferInfo
+createDescriptorBufferInfo uniformBuffer size =
+    createVk @VkDescriptorBufferInfo
+        $  set @"buffer" uniformBuffer
+        &* set @"offset" 0
+        &* set @"range" size

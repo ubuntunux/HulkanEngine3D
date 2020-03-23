@@ -12,7 +12,6 @@ module HulkanEngine3D.Application
 
 import Control.Monad
 import Data.IORef
-import qualified Data.Text as Text
 import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
@@ -27,16 +26,14 @@ import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Resource.Resource
-import HulkanEngine3D.Resource.ObjLoader
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan
-import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Device
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
-import HulkanEngine3D.Vulkan.TransformationObject
+import HulkanEngine3D.Vulkan.SceneConstants
 
 
 data TimeData = TimeData
@@ -60,8 +57,8 @@ data ApplicationData = ApplicationData
     , _sceneManagerData :: SceneManagerData
     , _rendererData :: RendererData
     , _resourceData :: ResourceData
-    , _transformObjectBuffers :: [VkBuffer]
-    , _transformObjectMemories :: [VkDeviceMemory]
+    , _sceneConstantsBuffers :: [VkBuffer]
+    , _sceneConstantsMemories :: [VkDeviceMemory]
     , _descriptorSetData :: DescriptorSetData
     } deriving (Show)
 
@@ -170,7 +167,7 @@ updateEvent applicationData = do
     let mousePosDelta = _mousePosDelta mouseMoveData
         mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta ! (Idx 0:*U)) :: Float
         mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta ! (Idx 1:*U)) :: Float
-        (btn_left, btn_middle, btn_right, wheel_up, wheel_down) = (_btn_l_down mouseInputData, _btn_m_down mouseInputData, _btn_r_down mouseInputData, _wheel_up mouseInputData, _wheel_down mouseInputData)
+        (_, btn_middle, btn_right, _, _) = (_btn_l_down mouseInputData, _btn_m_down mouseInputData, _btn_r_down mouseInputData, _wheel_up mouseInputData, _wheel_down mouseInputData)
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         moveSpeed = Constants.cameraMoveSpeed * deltaTime * if modifierKeysShift then 2.0 else 1.0
         panSpeed = Constants.cameraPanSpeed * (if modifierKeysShift then 2.0 else 1.0)
@@ -242,7 +239,7 @@ initializeApplication = do
 
     (Just textureData) <- getTextureData resourceData "texture"
 
-    (transformObjectMemories, transformObjectBuffers) <- unzip <$> createTransformObjectBuffers
+    (sceneConstantsMemories, sceneConstantsBuffers) <- unzip <$> createSceneConstantsBuffers
         (getPhysicalDevice rendererData)
         (getDevice rendererData)
         swapChainImageCount
@@ -252,7 +249,9 @@ initializeApplication = do
         (getDescriptorPool rendererData)
         swapChainImageCount
         (getDescriptorSetLayout renderPassData)
-    let descriptorBufferInfos = fmap transformObjectBufferInfo transformObjectBuffers
+
+    let descriptorBufferInfos = fmap (\buffer -> createDescriptorBufferInfo buffer sceneConstantsBufferSize) sceneConstantsBuffers
+
     forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
         prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo (getTextureImageInfo textureData) descriptorSet
 
@@ -286,8 +285,8 @@ initializeApplication = do
             , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
             , _resourceData = resourceData
-            , _transformObjectBuffers = transformObjectBuffers
-            , _transformObjectMemories = transformObjectMemories
+            , _sceneConstantsBuffers = sceneConstantsBuffers
+            , _sceneConstantsMemories = sceneConstantsMemories
             , _descriptorSetData = descriptorSetData
             }
 
@@ -324,10 +323,10 @@ terminateApplication applicationData = do
     -- waiting
     deviceWaitIdle rendererData
 
-    destroyTransformObjectBuffers
+    destroySceneConstantsBuffers
         (getDevice rendererData)
-        (_transformObjectBuffers applicationData)
-        (_transformObjectMemories applicationData)
+        (_sceneConstantsBuffers applicationData)
+        (_sceneConstantsMemories applicationData)
 
     destroyResourceData (_resourceData applicationData) rendererData
     destroyRenderer rendererData
@@ -381,17 +380,19 @@ runApplication = do
             writeIORef (_needRecreateSwapChainRef rendererData) False
 
         -- update renderer data
-        mainCamera <- readIORef . _mainCamera . _sceneManagerData $ applicationData
-        updateTransformObject (_transformObject mainCamera)
-        viewMatrix <- readIORef (_inverseMatrix._transformObject $ mainCamera)
+        mainCamera <- readIORef (_mainCamera . _sceneManagerData $ applicationData)
+        updateCameraObjectData mainCamera
+        viewMatrix <- readIORef (_viewMatrix mainCamera)
+        projectionMatrix <- readIORef (_projectionMatrix mainCamera)
         (Just meshData) <- getMeshData (_resourceData applicationData) "suzan"
         geometryBufferData <- (getGeometryData meshData 0)
 
         updateRendererData
             rendererData
             viewMatrix
+            projectionMatrix
             geometryBufferData
             (_descriptorSets._descriptorSetData $ applicationData)
-            (_transformObjectMemories applicationData)
+            (_sceneConstantsMemories applicationData)
 
     terminateApplication applicationData
