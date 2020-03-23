@@ -22,41 +22,43 @@ data SceneManagerData = SceneManagerData
     } deriving (Show)
 
 class SceneManagerInterface a where
+    newSceneManagerData :: IO a
+    initializeSceneManagerData :: a -> CameraCreateData -> IO ()
     getMainCamera :: a -> IO CameraObjectData
     addCameraObject :: a -> T.Text -> CameraCreateData -> IO CameraObjectData
     updateSceneManagerData :: a -> IO ()
 
 instance SceneManagerInterface SceneManagerData where
+    newSceneManagerData :: IO SceneManagerData
+    newSceneManagerData = do
+        mainCameraRef <- newIORef (undefined::CameraObjectData)
+        cameraObjectMap <- HashTable.new
+        staticObjectMap <- HashTable.new
+        return SceneManagerData
+            { _mainCamera = mainCameraRef
+            , _cameraObjectMap = cameraObjectMap
+            , _staticObjectMap = staticObjectMap
+            }
+
+    initializeSceneManagerData :: SceneManagerData -> CameraCreateData -> IO ()
+    initializeSceneManagerData sceneManagerData cameraCreateData = do
+        mainCamera <- addCameraObject sceneManagerData "MainCamera" cameraCreateData
+        writeIORef (_mainCamera sceneManagerData) mainCamera
+
     getMainCamera :: SceneManagerData -> IO CameraObjectData
     getMainCamera sceneManagerData = readIORef (_mainCamera sceneManagerData)
-    
+
     addCameraObject :: SceneManagerData -> T.Text -> CameraCreateData -> IO CameraObjectData
     addCameraObject sceneManagerData objectName cameraCreateData = do
         objectName <- generateObjectName (_cameraObjectMap sceneManagerData) objectName
         cameraObjectData <- createCameraObjectData objectName cameraCreateData
         HashTable.insert (_cameraObjectMap sceneManagerData) objectName cameraObjectData
         return cameraObjectData
-    
+
     updateSceneManagerData :: SceneManagerData -> IO ()
     updateSceneManagerData sceneManagerData = do
         mainCamera <- getMainCamera sceneManagerData
         updateCameraObjectData mainCamera
-
-newSceneManagerData :: IO SceneManagerData
-newSceneManagerData = do
-    mainCameraRef <- newIORef (undefined::CameraObjectData)
-    cameraObjectMap <- HashTable.new
-    staticObjectMap <- HashTable.new
-    return SceneManagerData
-        { _mainCamera = mainCameraRef
-        , _cameraObjectMap = cameraObjectMap
-        , _staticObjectMap = staticObjectMap
-        }
-
-initializeSceneManagerData :: SceneManagerData -> CameraCreateData -> IO ()
-initializeSceneManagerData sceneManagerData cameraCreateData = do
-    mainCamera <- addCameraObject sceneManagerData "MainCamera" cameraCreateData
-    writeIORef (_mainCamera sceneManagerData) mainCamera
 
 generateObjectName :: HashTable.BasicHashTable T.Text v -> T.Text -> IO T.Text
 generateObjectName objectMap objectName = do
@@ -70,9 +72,9 @@ generateObjectName objectMap objectName = do
             case objectData of
                 Nothing -> pure $ T.append objectName $ T.append (T.pack "_") (T.pack . show $ index)
                 otherwise -> generator objectMap objectName (index + 1)
-
-getObject :: HashTable.BasicHashTable T.Text v -> T.Text -> IO (Maybe v)
-getObject objectMap objectName = HashTable.lookup objectMap objectName
+                    
+getSceneObject :: HashTable.BasicHashTable T.Text v -> T.Text -> IO (Maybe v)
+getSceneObject objectMap objectName = HashTable.lookup objectMap objectName
 
 
 
