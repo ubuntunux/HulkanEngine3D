@@ -13,7 +13,7 @@ import Data.Text
 import Numeric.DataFrame
 import HulkanEngine3D.Render.Model
 import HulkanEngine3D.Render.TransformObject
-import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.System()
 
 
 data StaticObjectData = StaticObjectData

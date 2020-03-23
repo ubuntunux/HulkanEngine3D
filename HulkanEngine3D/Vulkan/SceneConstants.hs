@@ -17,18 +17,13 @@ module HulkanEngine3D.Vulkan.SceneConstants
 
 import Control.Monad (replicateM, forM_)
 import Data.Bits ((.|.))
-import Foreign.Ptr (castPtr)
-import Foreign.Storable (poke)
 import GHC.Generics (Generic)
+
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
-import Graphics.Vulkan.Marshal.Create
 import Numeric.DataFrame
-import Numeric.Dimensions
 
-import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
-import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Vulkan.Buffer
 
 {- |

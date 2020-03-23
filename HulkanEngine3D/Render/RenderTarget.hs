@@ -7,7 +7,7 @@ module HulkanEngine3D.Render.RenderTarget
     , createRenderTargets
     ) where
 
-
+import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Texture

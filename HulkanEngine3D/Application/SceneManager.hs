@@ -10,7 +10,6 @@ import Data.IORef
 
 import HulkanEngine3D.Render.Actor
 import HulkanEngine3D.Render.Camera
-import HulkanEngine3D.Utilities.Logger
 
 
 type CameraObjectMap = HashTable.BasicHashTable T.Text CameraObjectData
@@ -44,7 +43,7 @@ generateObjectName objectMap objectName = do
     objectData <- HashTable.lookup objectMap objectName
     case objectData of
         Nothing -> return objectName
-        otherwise -> generator objectMap objectName 0
+        otherwise -> generator objectMap objectName (0::Int)
     where
         generator sceneManagerData objectName index = do
             objectData <- HashTable.lookup objectMap objectName

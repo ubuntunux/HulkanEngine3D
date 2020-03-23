@@ -12,7 +12,6 @@ module HulkanEngine3D.Render.TransformObject
   ) where
 
 import Control.Monad
-import Data.Foldable
 import Data.IORef
 import GHC.Generics (Generic)
 import Numeric.DataFrame
@@ -20,8 +19,7 @@ import Numeric.Dimensions
 import Numeric.Quaternion
 
 import HulkanEngine3D.Utilities.Math
-import HulkanEngine3D.Utilities.Logger
-import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.System()
 
 data TransformObjectData = TransformObjectData
     { _updated :: IORef Bool

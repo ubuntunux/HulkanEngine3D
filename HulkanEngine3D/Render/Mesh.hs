@@ -15,12 +15,10 @@ module HulkanEngine3D.Render.Mesh
 import Control.Monad
 import Data.IORef
 import qualified Data.Text as Text
-import Control.Monad.Primitive
-import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MVector
 
 import HulkanEngine3D.Vulkan.GeometryBuffer
-import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.System()
 
 type GeometryDataList = MVector.IOVector GeometryData
 

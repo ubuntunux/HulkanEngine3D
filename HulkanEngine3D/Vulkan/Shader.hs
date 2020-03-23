@@ -9,7 +9,7 @@ module HulkanEngine3D.Vulkan.Shader
   , compileGLSL
   )  where
 
-import Control.Monad (unless, when)
+import Control.Monad
 import Data.Maybe (fromMaybe)
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array

@@ -78,4 +78,6 @@ instance Num Number where
 
 readNumber :: String -> Number
 readNumber s = listToMaybe [x | (x,"") <- reads s]
-showNumber   = maybe "--" show
+
+showNumber :: Number -> String
+showNumber maybeNumber = maybe "--" show maybeNumber

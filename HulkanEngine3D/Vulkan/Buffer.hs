@@ -5,13 +5,17 @@
 {-# LANGUAGE TypeApplications #-}
 
 module HulkanEngine3D.Vulkan.Buffer
-  ( createBuffer
+  ( findMemoryType
+  , createBuffer
   , destroyBuffer
   , copyBuffer
-  , findMemoryType
+  , updateUniformBuffer
   ) where
 
 import Data.Bits
+import Foreign.Storable
+import Foreign.Ptr
+
 import Numeric.DataFrame
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
@@ -20,7 +24,26 @@ import Graphics.Vulkan.Marshal.Create.DataFrame
 
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
-import {-# SOURCE #-} HulkanEngine3D.Vulkan
+import HulkanEngine3D.Vulkan
+
+
+-- | Return an index of a memory type for a device
+findMemoryType :: VkPhysicalDevice
+               -> Word32 -- ^ type filter bitfield
+               -> VkMemoryPropertyFlags -- ^ desired memory properties
+               -> IO Word32
+findMemoryType physicalDevice typeFilter propertyFlags = do
+  memProps <- allocaPeek $ \ptr -> vkGetPhysicalDeviceMemoryProperties physicalDevice ptr
+  let mtCount = getField @"memoryTypeCount" memProps
+      memTypes = getVec @"memoryTypes" memProps
+      flags index = getField @"propertyFlags" (ixOff (fromIntegral index) memTypes)
+      go i | i == mtCount = return i
+           | otherwise = if testBit typeFilter (fromIntegral i) &&
+                            (propertyFlags == (flags i .&. propertyFlags))
+                         then return i
+                         else go (i + 1)
+  go 0
+
 
 
 createBuffer :: VkPhysicalDevice
@@ -96,19 +119,9 @@ copyBuffer device commandPool commandQueue srcBuffer dstBuffer bufferSize = do
       vkCmdCopyBuffer commandBuffer srcBuffer dstBuffer 1 copyRegionPtr
 
 
--- | Return an index of a memory type for a device
-findMemoryType :: VkPhysicalDevice
-               -> Word32 -- ^ type filter bitfield
-               -> VkMemoryPropertyFlags -- ^ desired memory properties                  
-               -> IO Word32
-findMemoryType physicalDevice typeFilter propertyFlags = do
-  memProps <- allocaPeek $ \ptr -> vkGetPhysicalDeviceMemoryProperties physicalDevice ptr
-  let mtCount = getField @"memoryTypeCount" memProps
-      memTypes = getVec @"memoryTypes" memProps
-      flags index = getField @"propertyFlags" (ixOff (fromIntegral index) memTypes)
-      go i | i == mtCount = return i
-           | otherwise = if testBit typeFilter (fromIntegral i) && 
-                            (propertyFlags == (flags i .&. propertyFlags))
-                         then return i
-                         else go (i + 1)
-  go 0
+updateUniformBuffer :: (PrimBytes a) => VkDevice -> VkDeviceMemory -> a -> IO ()
+updateUniformBuffer device uniformBuffer uniformBufferData = do
+      uniformBufferDataPtr <- allocaPeek $ \dataPtr ->
+          vkMapMemory device uniformBuffer 0 (bSizeOf uniformBufferData) VK_ZERO_FLAGS dataPtr
+      poke (castPtr uniformBufferDataPtr) (scalar uniformBufferData)
+      vkUnmapMemory device uniformBuffer

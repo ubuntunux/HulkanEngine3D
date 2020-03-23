@@ -10,10 +10,8 @@ module HulkanEngine3D.Vulkan.PushConstant
     ) where
 
 import GHC.Generics (Generic)
-import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
-import Graphics.Vulkan.Marshal.Create.DataFrame
 import Numeric.DataFrame
 
 

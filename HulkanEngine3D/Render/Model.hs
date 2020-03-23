@@ -10,10 +10,9 @@ module HulkanEngine3D.Render.Model
 
 import Data.IORef
 import Data.Text
-import Data.Array.IO
 
 import HulkanEngine3D.Render.Mesh
-import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.System()
 
 
 data ModelData = ModelData

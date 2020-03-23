@@ -36,9 +36,8 @@ import Graphics.Vulkan.Marshal.Create
 
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
-import {-# SOURCE #-} HulkanEngine3D.Vulkan
-
 
 data TextureData = TextureData
     { _imageView :: VkImageView

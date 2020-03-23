@@ -24,11 +24,11 @@ import HulkanEngine3D.Application.Input
 import HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.Mesh
+import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
-import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Device
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.Texture

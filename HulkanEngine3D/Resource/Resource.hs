@@ -11,8 +11,8 @@ import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
 
 import HulkanEngine3D.Render.Mesh
+import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Resource.ObjLoader
-import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Texture
 
 type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData

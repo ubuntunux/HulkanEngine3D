@@ -1,7 +1,7 @@
 module HulkanEngine3D.Render.RenderTarget where
 
+import {-# SOURCE #-} HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Vulkan.Texture
-import {-# SOURCE #-} HulkanEngine3D.Vulkan
 
 data RenderTargetData = RenderTargetData
     { _sceneColorTexture :: TextureData
