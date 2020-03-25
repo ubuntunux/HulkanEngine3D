@@ -75,7 +75,7 @@ data RendererData = RendererData
     , _queueFamilyDatas :: QueueFamilyDatas
     , _frameFencesPtr :: Ptr VkFence
     , _commandPool :: VkCommandPool
-    , _commandBufferCount :: Word32
+    , _commandBufferCount :: Int
     , _commandBuffersPtr :: Ptr VkCommandBuffer
     , _renderFeatures :: RenderFeatures
     , _renderTargetDataRef :: IORef RenderTargetData
@@ -116,7 +116,7 @@ instance RendererInterface RendererData where
     getSwapChainImageViews rendererData = _swapChainImageViews <$> getSwapChainData rendererData
     getSwapChainSupportDetails rendererData = readIORef $ _swapChainSupportDetailsRef rendererData
     getCommandPool rendererData = (_commandPool rendererData)
-    getCommandBuffers rendererData = peekArray (fromIntegral . _commandBufferCount $ rendererData) (_commandBuffersPtr rendererData)
+    getCommandBuffers rendererData = peekArray (_commandBufferCount rendererData) (_commandBuffersPtr rendererData)
     getCommandBuffer rendererData index = do
         commandBuffers <- getCommandBuffers rendererData
         return $ commandBuffers !! index
@@ -330,10 +330,10 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     swapChainDataRef <- newIORef swapChainData
     swapChainSupportDetailsRef <- newIORef swapChainSupportDetails
 
-    let commandBufferCount = fromIntegral $ _swapChainImageCount swapChainData
-    commandBuffersPtr <- mallocArray (fromIntegral commandBufferCount)::IO (Ptr VkCommandBuffer)
+    let commandBufferCount = _swapChainImageCount swapChainData
+    commandBuffersPtr <- mallocArray commandBufferCount::IO (Ptr VkCommandBuffer)
     createCommandBuffers device commandPool commandBufferCount commandBuffersPtr
-    commandBuffers <- peekArray (fromIntegral commandBufferCount) commandBuffersPtr
+    commandBuffers <- peekArray commandBufferCount commandBuffersPtr
 
     descriptorPool <- createDescriptorPool device (_swapChainImageCount swapChainData)
 

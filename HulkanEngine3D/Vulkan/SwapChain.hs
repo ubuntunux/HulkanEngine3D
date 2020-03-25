@@ -47,22 +47,19 @@ data SwapChainData = SwapChainData
 
 chooseSwapSurfaceFormat :: SwapChainSupportDetails -> IO VkSurfaceFormatKHR
 chooseSwapSurfaceFormat swapChainSupportDetails =
-  if 1 == length formats && VK_FORMAT_UNDEFINED == getFormat (head formats) then
-    newVkData $ \surfaceFormatPtr -> do
-      writeField @"format" surfaceFormatPtr VK_FORMAT_B8G8R8A8_UNORM
-      writeField @"colorSpace" surfaceFormatPtr VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-  else
-    findAvailableFormat formats
-  where
-    formats = _formats swapChainSupportDetails
-    getFormat = getField @"format"
-    getColorSpace = getField @"colorSpace"
-    findAvailableFormat :: [VkSurfaceFormatKHR] -> IO VkSurfaceFormatKHR
-    findAvailableFormat [] = return $ head formats
-    findAvailableFormat (x:xs) =
-      if VK_FORMAT_B8G8R8A8_UNORM == getFormat x && VK_COLOR_SPACE_SRGB_NONLINEAR_KHR == getColorSpace x
-      then return x
-      else findAvailableFormat xs
+    findAvailableFormat (_formats swapChainSupportDetails)
+    where
+        formats = _formats swapChainSupportDetails
+        getFormat = getField @"format"
+        getColorSpace = getField @"colorSpace"
+        findAvailableFormat :: [VkSurfaceFormatKHR] -> IO VkSurfaceFormatKHR
+        findAvailableFormat [] = newVkData $ \surfaceFormatPtr -> do
+            writeField @"format" surfaceFormatPtr VK_FORMAT_B8G8R8A8_UNORM
+            writeField @"colorSpace" surfaceFormatPtr VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+        findAvailableFormat (x:xs) =
+            if (VK_FORMAT_B8G8R8A8_UNORM == getFormat x || VK_FORMAT_UNDEFINED == getFormat x) && VK_COLOR_SPACE_SRGB_NONLINEAR_KHR == getColorSpace x
+            then return x
+            else findAvailableFormat xs
 
 chooseSwapPresentMode :: SwapChainSupportDetails -> IO VkPresentModeKHR
 chooseSwapPresentMode swapChainSupportDetails

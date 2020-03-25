@@ -59,7 +59,7 @@ instance TextureInterface TextureData where
             &* set @"sampler" (_textureSampler textureData)
 
 
-data ImageLayoutTransition = Undef_TransDst | TransDst_ShaderRO | Undef_DepthStencilAtt | Undef_ColorAtt
+data ImageLayoutTransition = TransferUndef_TransferDst | TransferDst_ShaderReadOnly | TransferUndef_DepthStencilAttachemnt | TransferUndef_ColorAttachemnt
 
 data TransitionDependent = TransitionDependent
     { _oldLayout     :: VkImageLayout
@@ -70,28 +70,28 @@ data TransitionDependent = TransitionDependent
     , _dstStageMask  :: VkPipelineStageFlags }
 
 transitionDependent :: ImageLayoutTransition -> TransitionDependent
-transitionDependent Undef_TransDst = TransitionDependent
+transitionDependent TransferUndef_TransferDst = TransitionDependent
     { _oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED
     , _newLayout      = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
     , _srcAccessMask  = VK_ZERO_FLAGS
     , _dstAccessMask  = VK_ACCESS_TRANSFER_WRITE_BIT
     , _srcStageMask   = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
     , _dstStageMask   = VK_PIPELINE_STAGE_TRANSFER_BIT }
-transitionDependent TransDst_ShaderRO = TransitionDependent
+transitionDependent TransferDst_ShaderReadOnly = TransitionDependent
     { _oldLayout      = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
     , _newLayout      = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     , _srcAccessMask  = VK_ACCESS_TRANSFER_WRITE_BIT
     , _dstAccessMask  = VK_ACCESS_SHADER_READ_BIT
     , _srcStageMask   = VK_PIPELINE_STAGE_TRANSFER_BIT
     , _dstStageMask   = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT }
-transitionDependent Undef_DepthStencilAtt = TransitionDependent
+transitionDependent TransferUndef_DepthStencilAttachemnt = TransitionDependent
     { _oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED
     , _newLayout      = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
     , _srcAccessMask  = VK_ZERO_FLAGS
     , _dstAccessMask  = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT .|. VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
     , _srcStageMask   = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
     , _dstStageMask   = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT }
-transitionDependent Undef_ColorAtt = TransitionDependent
+transitionDependent TransferUndef_ColorAttachemnt = TransitionDependent
     { _oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED
     , _newLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     , _srcAccessMask  = VK_ZERO_FLAGS
@@ -469,7 +469,7 @@ createDepthImageView physicalDevice device commandBufferPool queue extent sample
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     depthImageView <- createImageView device depthImage depthFormat VK_IMAGE_ASPECT_DEPTH_BIT mipLevels
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
-        transitionImageLayout depthImage depthFormat Undef_DepthStencilAtt mipLevels commandBuffer
+        transitionImageLayout depthImage depthFormat TransferUndef_DepthStencilAttachemnt mipLevels commandBuffer
     let anisotropyEnable = VK_FALSE
     textureSampler <- createTextureSampler device mipLevels anisotropyEnable
     let textureData = TextureData
@@ -508,7 +508,7 @@ createColorImageView physicalDevice device commandBufferPool queue format extent
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     colorImageView <- createImageView device colorImage format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
-        transitionImageLayout colorImage format Undef_ColorAtt mipLevels commandBuffer
+        transitionImageLayout colorImage format TransferUndef_ColorAttachemnt mipLevels commandBuffer
     let anisotropyEnable = VK_FALSE
     textureSampler <- createTextureSampler device mipLevels anisotropyEnable
     let textureData = TextureData
@@ -554,7 +554,7 @@ createTextureImageView physicalDevice device commandBufferPool commandQueue anis
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     -- run command
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
-        transitionImageLayout image format Undef_TransDst mipLevels commandBuffer
+        transitionImageLayout image format TransferUndef_TransferDst mipLevels commandBuffer
 
     -- create temporary staging buffer
     let stagingBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
@@ -573,7 +573,7 @@ createTextureImageView physicalDevice device commandBufferPool commandQueue anis
         (fromIntegral imageWidth) (fromIntegral imageHeight)
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
         -- generateMipmaps does this as a side effect:
-        -- transitionImageLayout image VK_FORMAT_R8G8B8A8_UNORM TransDst_ShaderRO mipLevels
+        -- transitionImageLayout image VK_FORMAT_R8G8B8A8_UNORM TransferDst_ShaderReadOnly mipLevels
         generateMipmaps
             physicalDevice
             image

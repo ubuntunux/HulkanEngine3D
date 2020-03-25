@@ -10,6 +10,7 @@ module HulkanEngine3D.Vulkan.CommandBuffer
   , destroyCommandBuffers
   ) where
 
+import Foreign.Marshal.Array
 import Foreign.Ptr
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
@@ -42,7 +43,7 @@ destroyCommandPool device commandPool = do
 
 createCommandBuffers :: VkDevice
                      -> VkCommandPool
-                     -> Word32
+                     -> Int
                      -> Ptr VkCommandBuffer
                      -> IO ()
 createCommandBuffers device commandPool commandBufferCount commandBuffersPtr = do
@@ -55,9 +56,10 @@ createCommandBuffers device commandPool commandBufferCount commandBuffersPtr = d
     withPtr allocationInfo $ \allocationInfoPtr -> do
         result <- vkAllocateCommandBuffers device allocationInfoPtr commandBuffersPtr
         validationVK result "vkAllocateCommandBuffers failed!"
+    commandBuffers <- peekArray commandBufferCount commandBuffersPtr
     logInfo $ "Create Command Buffer: "  ++ show commandBufferCount ++ " " ++ (show commandBuffersPtr)
 
 
-destroyCommandBuffers :: VkDevice -> VkCommandPool -> Word32 -> Ptr VkCommandBuffer -> IO ()
+destroyCommandBuffers :: VkDevice -> VkCommandPool -> Int -> Ptr VkCommandBuffer -> IO ()
 destroyCommandBuffers device commandPool bufferCount commandBuffersPtr = do
-  vkFreeCommandBuffers device commandPool bufferCount commandBuffersPtr
+  vkFreeCommandBuffers device commandPool (fromIntegral bufferCount) commandBuffersPtr

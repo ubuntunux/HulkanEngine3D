@@ -315,7 +315,6 @@ updateLoop applicationData loopAction = do
 
 terminateApplication :: ApplicationData -> IO ()
 terminateApplication applicationData = do
-    logInfo "               "
     logInfo "<< Terminate >>"
 
     let rendererData = (_rendererData applicationData)
