@@ -29,7 +29,6 @@ import HulkanEngine3D.Utilities.Logger
 data DescriptorSetData = DescriptorSetData
     { _descriptorSetPtr :: Ptr VkDescriptorSet
     , _descriptorSets :: [VkDescriptorSet]
-    , _descriptorSetCount :: Word32
     } deriving (Eq, Show)
 
 
@@ -118,7 +117,7 @@ createDescriptorSetData device descriptorPool swapChainImageCount descriptorSetL
         let descriptorSetData = DescriptorSetData
                 { _descriptorSets = descriptorSets
                 , _descriptorSetPtr = VK_NULL -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
-                , _descriptorSetCount = fromIntegral swapChainImageCount }
+                }
         logInfo $ "createDescriptorSets : " ++ show descriptorSetData
         return descriptorSetData
 
@@ -130,7 +129,7 @@ destroyDescriptorSetData :: VkDevice
 destroyDescriptorSetData device descriptorPool descriptorSetData@DescriptorSetData{..} = do
     -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
     logInfo $ "destroyDescriptorSetData : " ++ show descriptorSetData
-    vkFreeDescriptorSets device descriptorPool _descriptorSetCount _descriptorSetPtr
+    vkFreeDescriptorSets device descriptorPool (fromIntegral . length $ _descriptorSets) _descriptorSetPtr
         >>= flip validationVK "destroyDescriptorSetData failed!"
 
 
