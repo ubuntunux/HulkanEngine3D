@@ -45,6 +45,7 @@ data BufferData = BufferData
 class BufferInterface a where
     uploadBufferData :: (PrimBytes b) => VkDevice -> a -> b -> IO ()
     uploadBufferDataOffset :: (PrimBytes b) => VkDevice -> a -> b -> VkDeviceSize -> VkDeviceSize -> IO ()
+    destroyBufferData :: VkDevice -> a -> IO ()
 
 instance BufferInterface BufferData where
     uploadBufferData :: (PrimBytes b) => VkDevice -> BufferData -> b -> IO ()
@@ -57,6 +58,10 @@ instance BufferInterface BufferData where
             vkMapMemory device _bufferMemory offset size VK_ZERO_FLAGS mappedDataPtr
         poke (castPtr bufferDataPtr) (scalar uploadData)
         vkUnmapMemory device _bufferMemory
+
+    destroyBufferData :: VkDevice -> BufferData -> IO ()
+    destroyBufferData device bufferData@BufferData{..} = do
+        destroyBuffer device _buffer _bufferMemory
 
 
 
