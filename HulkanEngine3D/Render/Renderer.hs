@@ -448,7 +448,7 @@ updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geo
             recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (vertexIndexCount, indexBuffer) descriptorSets
 
             -- End Render
-            presentResult <- present rendererData commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore
+            presentResult <- presentSwapChain rendererData commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore
             return presentResult
         otherwise -> return acquireNextImageResult
 
@@ -540,8 +540,8 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
     vkCmdEndRenderPass commandBuffer
     vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
 
-present :: RendererData -> Ptr VkCommandBuffer -> Ptr VkFence -> VkSemaphore -> VkSemaphore -> IO VkResult
-present rendererData@RendererData {..} commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore = do
+presentSwapChain :: RendererData -> Ptr VkCommandBuffer -> Ptr VkFence -> VkSemaphore -> VkSemaphore -> IO VkResult
+presentSwapChain rendererData@RendererData {..} commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore = do
     let QueueFamilyDatas {..} = _queueFamilyDatas
     swapChainData@SwapChainData {..} <- getSwapChainData rendererData
 
