@@ -425,7 +425,7 @@ updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geo
     vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
         flip validationVK "vkWaitForFences failed!"
 
-    -- swapchain image index
+    -- Begin Render
     acquireNextImageResult <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
     imageIndexValue <- peek _imageIndexPtr
     commandBuffers <- getCommandBuffers rendererData
@@ -433,9 +433,9 @@ updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geo
         commandBufferPtr = ptrAtIndex _commandBuffersPtr imageIndex
         commandBuffer = commandBuffers !! imageIndex
 
-    -- render
     result <- case acquireNextImageResult of
         VK_SUCCESS -> do
+            -- RenderScene
             let vertexBuffer = _vertexBuffer geometryBufferData
                 vertexIndexCount = _vertexIndexCount geometryBufferData
                 indexBuffer = _indexBuffer geometryBufferData
@@ -446,6 +446,8 @@ updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geo
                     }
             updateBufferData _device sceneConstantsMemory sceneConstantsData
             recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (vertexIndexCount, indexBuffer) descriptorSets
+
+            -- End Render
             presentResult <- present rendererData commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore
             return presentResult
         otherwise -> return acquireNextImageResult
