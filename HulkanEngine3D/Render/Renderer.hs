@@ -47,6 +47,7 @@ import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Vulkan
+import HulkanEngine3D.Vulkan.Buffer
 import HulkanEngine3D.Vulkan.CommandBuffer
 import HulkanEngine3D.Vulkan.Device
 import HulkanEngine3D.Vulkan.Descriptor
@@ -443,7 +444,7 @@ updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geo
                     { _VIEW = viewMatrix
                     , _PROJECTION = projectionMatrix
                     }
-            updateUniformBuffer _device sceneConstantsMemory sceneConstantsData
+            updateBufferData _device sceneConstantsMemory sceneConstantsData
             recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (vertexIndexCount, indexBuffer) descriptorSets
             presentResult <- present rendererData commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore
             return presentResult
@@ -536,13 +537,6 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
     -- end renderpass & command buffer
     vkCmdEndRenderPass commandBuffer
     vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
-
-updateUniformBuffer :: (PrimBytes a) => VkDevice -> VkDeviceMemory -> a -> IO ()
-updateUniformBuffer device uniformBuffer uniformBufferData = do
-      uniformBufferDataPtr <- allocaPeek $ \dataPtr ->
-          vkMapMemory device uniformBuffer 0 (bSizeOf uniformBufferData) VK_ZERO_FLAGS dataPtr
-      poke (castPtr uniformBufferDataPtr) (scalar uniformBufferData)
-      vkUnmapMemory device uniformBuffer
 
 present :: RendererData -> Ptr VkCommandBuffer -> Ptr VkFence -> VkSemaphore -> VkSemaphore -> IO VkResult
 present rendererData@RendererData {..} commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore = do

@@ -377,6 +377,10 @@ runApplication = do
             resizeWindow (_window applicationData) rendererData
             writeIORef (_windowSizeChangedRef applicationData) False
             writeIORef (_needRecreateSwapChainRef rendererData) False
+            (width, height) <- readIORef (_windowSizeRef applicationData)
+            let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
+            mainCamera <- getMainCamera (_sceneManagerData applicationData)
+            setAspect mainCamera aspect
 
         -- update renderer data
         updateSceneManagerData (_sceneManagerData applicationData)

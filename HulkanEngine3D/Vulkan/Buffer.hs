@@ -3,18 +3,21 @@
 {-# LANGUAGE PolyKinds        #-}
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE InstanceSigs     #-}
+{-# LANGUAGE RecordWildCards  #-}
 
 module HulkanEngine3D.Vulkan.Buffer
   ( findMemoryType
   , createBuffer
   , destroyBuffer
   , copyBuffer
-  , updateUniformBuffer
+  , updateBufferData
   ) where
 
+import Data.Void
 import Data.Bits
-import Foreign.Storable
 import Foreign.Ptr
+import Foreign.Storable
 
 import Numeric.DataFrame
 import Graphics.Vulkan
@@ -27,22 +30,52 @@ import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan
 
 
+data BufferData = BufferData
+    { _buffer ::VkBuffer
+    , _bufferMemory :: VkDeviceMemory
+    , _bufferDescriptor :: VkDescriptorBufferInfo
+    , _bufferSize :: VkDeviceSize
+    , _bufferAlignment :: VkDeviceSize
+    , _bufferMapped :: Ptr Void
+    , _bufferUsageFlags :: VkBufferUsageFlags
+    , _bufferMemoryPropertyFlags :: VkMemoryPropertyFlags
+    }
+
+
+class BufferInterface a where
+    uploadBufferData :: (PrimBytes b) => VkDevice -> a -> b -> IO ()
+    uploadBufferDataOffset :: (PrimBytes b) => VkDevice -> a -> b -> VkDeviceSize -> VkDeviceSize -> IO ()
+
+instance BufferInterface BufferData where
+    uploadBufferData :: (PrimBytes b) => VkDevice -> BufferData -> b -> IO ()
+    uploadBufferData device bufferData uploadData =
+        uploadBufferDataOffset device bufferData uploadData (bSizeOf uploadData::VkDeviceSize) (0::VkDeviceSize)
+
+    uploadBufferDataOffset :: (PrimBytes b) => VkDevice -> BufferData -> b -> VkDeviceSize -> VkDeviceSize -> IO ()
+    uploadBufferDataOffset device bufferData@BufferData{..} uploadData size offset = do
+        bufferDataPtr <- allocaPeek $ \mappedDataPtr ->
+            vkMapMemory device _bufferMemory offset size VK_ZERO_FLAGS mappedDataPtr
+        poke (castPtr bufferDataPtr) (scalar uploadData)
+        vkUnmapMemory device _bufferMemory
+
+
+
 -- | Return an index of a memory type for a device
 findMemoryType :: VkPhysicalDevice
                -> Word32 -- ^ type filter bitfield
                -> VkMemoryPropertyFlags -- ^ desired memory properties
                -> IO Word32
 findMemoryType physicalDevice typeFilter propertyFlags = do
-  memProps <- allocaPeek $ \ptr -> vkGetPhysicalDeviceMemoryProperties physicalDevice ptr
-  let mtCount = getField @"memoryTypeCount" memProps
-      memTypes = getVec @"memoryTypes" memProps
-      flags index = getField @"propertyFlags" (ixOff (fromIntegral index) memTypes)
-      go i | i == mtCount = return i
-           | otherwise = if testBit typeFilter (fromIntegral i) &&
-                            (propertyFlags == (flags i .&. propertyFlags))
-                         then return i
-                         else go (i + 1)
-  go 0
+    memProps <- allocaPeek $ \ptr -> vkGetPhysicalDeviceMemoryProperties physicalDevice ptr
+    let mtCount = getField @"memoryTypeCount" memProps
+        memTypes = getVec @"memoryTypes" memProps
+        flags index = getField @"propertyFlags" (ixOff (fromIntegral index) memTypes)
+        go i | i == mtCount = return i
+             | otherwise = if testBit typeFilter (fromIntegral i) &&
+                              (propertyFlags == (flags i .&. propertyFlags))
+                           then return i
+                           else go (i + 1)
+    go 0
 
 
 
@@ -64,9 +97,9 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
 
     -- create buffer
     buffer <- allocaPeek $ \bufferPtr -> do
-      withPtr bufferCreateInfo $ \createInfoPtr -> do
-        result <- vkCreateBuffer device createInfoPtr VK_NULL bufferPtr
-        validationVK result "vkCreateBuffer failed!"
+        withPtr bufferCreateInfo $ \createInfoPtr -> do
+            result <- vkCreateBuffer device createInfoPtr VK_NULL bufferPtr
+            validationVK result "vkCreateBuffer failed!"
 
     memoryRequirements <- allocaPeek $ vkGetBufferMemoryRequirements device buffer
     memoryTypeIndex <- findMemoryType physicalDevice (getField @"memoryTypeBits" memoryRequirements) memoryPropertyFlags
@@ -79,9 +112,9 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
           
     -- create allocate memory
     bufferMemory <- allocaPeek $ \bufferMemoryPtr -> do
-      withPtr allocInfo $ \allocInfoPtr -> do
-        result <- vkAllocateMemory device allocInfoPtr VK_NULL bufferMemoryPtr
-        validationVK result "vkAllocateMemory failed!"
+        withPtr allocInfo $ \allocInfoPtr -> do
+            result <- vkAllocateMemory device allocInfoPtr VK_NULL bufferMemoryPtr
+            validationVK result "vkAllocateMemory failed!"
 
     logInfo $ "    Create Buffer : "  ++ show buffer ++ ", Memory : " ++ show bufferMemory
     logInfo $ "        bufferSize : " ++ show bufferSize
@@ -95,9 +128,9 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
 
 destroyBuffer :: VkDevice -> VkBuffer -> VkDeviceMemory -> IO ()
 destroyBuffer device buffer memory = do
-  logInfo $ "    Destroy Buffer : "  ++ show buffer ++ ", Memory : " ++ show memory
-  vkDestroyBuffer device buffer VK_NULL
-  vkFreeMemory device memory VK_NULL
+    logInfo $ "    Destroy Buffer : "  ++ show buffer ++ ", Memory : " ++ show memory
+    vkDestroyBuffer device buffer VK_NULL
+    vkFreeMemory device memory VK_NULL
 
 
 -- | @copyBuffer dev pool queue src dest n@ copies @n@ bytes from @src@ buffer to @dest@ buffer.
@@ -109,19 +142,19 @@ copyBuffer :: VkDevice
            -> VkDeviceSize 
            -> IO ()
 copyBuffer device commandPool commandQueue srcBuffer dstBuffer bufferSize = do
-  logInfo $ "    CopyBuffer : " ++ show srcBuffer ++ " -> " ++ show dstBuffer ++ " { size = " ++ show bufferSize ++ " }"
-  runCommandsOnce device commandPool commandQueue $ \commandBuffer -> do
-    let copyRegion = createVk @VkBufferCopy
-          $  set @"srcOffset" 0
-          &* set @"dstOffset" 0
-          &* set @"size" bufferSize
-    withPtr copyRegion $ \copyRegionPtr -> do
-      vkCmdCopyBuffer commandBuffer srcBuffer dstBuffer 1 copyRegionPtr
+    logInfo $ "    CopyBuffer : " ++ show srcBuffer ++ " -> " ++ show dstBuffer ++ " { size = " ++ show bufferSize ++ " }"
+    runCommandsOnce device commandPool commandQueue $ \commandBuffer -> do
+        let copyRegion = createVk @VkBufferCopy
+                $  set @"srcOffset" 0
+                &* set @"dstOffset" 0
+                &* set @"size" bufferSize
+        withPtr copyRegion $ \copyRegionPtr -> do
+            vkCmdCopyBuffer commandBuffer srcBuffer dstBuffer 1 copyRegionPtr
 
 
-updateUniformBuffer :: (PrimBytes a) => VkDevice -> VkDeviceMemory -> a -> IO ()
-updateUniformBuffer device uniformBuffer uniformBufferData = do
-      uniformBufferDataPtr <- allocaPeek $ \dataPtr ->
-          vkMapMemory device uniformBuffer 0 (bSizeOf uniformBufferData) VK_ZERO_FLAGS dataPtr
-      poke (castPtr uniformBufferDataPtr) (scalar uniformBufferData)
-      vkUnmapMemory device uniformBuffer
+updateBufferData :: (PrimBytes a) => VkDevice -> VkDeviceMemory -> a -> IO ()
+updateBufferData device buffer bufferData = do
+    bufferDataPtr <- allocaPeek $ \mappedDataPtr ->
+        vkMapMemory device buffer 0 (bSizeOf bufferData) VK_ZERO_FLAGS mappedDataPtr
+    poke (castPtr bufferDataPtr) (scalar bufferData)
+    vkUnmapMemory device buffer

@@ -53,6 +53,7 @@ class CameraObjectInterface a where
     createCameraObjectData :: T.Text -> CameraCreateData -> IO a
     getViewMatrix :: a -> IO Mat44f
     getProjectionMatrix :: a -> IO Mat44f
+    setAspect :: a -> Float -> IO ()
     updateCameraObjectData :: a -> IO ()
     updateProjectionMatrix :: a -> IO ()
 
@@ -92,12 +93,16 @@ instance CameraObjectInterface CameraObjectData where
     getProjectionMatrix :: CameraObjectData -> IO Mat44f
     getProjectionMatrix cameraObjectData = readIORef (_projectionMatrix cameraObjectData)
 
+    setAspect :: CameraObjectData -> Float -> IO ()
+    setAspect cameraObjectData aspect = do
+        writeIORef (_aspect cameraObjectData) aspect
+        updateProjectionMatrix cameraObjectData
+
     updateCameraObjectData :: CameraObjectData -> IO ()
     updateCameraObjectData cameraObjectData = do
         updateTransformObject (_transformObject cameraObjectData)
         viewMatrix <- readIORef (_inverseMatrix._transformObject $ cameraObjectData)
         writeIORef (_viewMatrix cameraObjectData) viewMatrix
-
 
     updateProjectionMatrix :: CameraObjectData -> IO ()
     updateProjectionMatrix cameraObjectData = do
