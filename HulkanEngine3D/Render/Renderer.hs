@@ -419,11 +419,7 @@ updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geo
     let frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
         imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
         renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
-    frameFence <- peek frameFencePtr
     swapChainData@SwapChainData {..} <- getSwapChainData rendererData
-
-    vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
-        flip validationVK "vkWaitForFences failed!"
 
     -- Begin Render
     acquireNextImageResult <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
@@ -560,9 +556,15 @@ presentSwapChain rendererData@RendererData {..} commandBufferPtr frameFencePtr i
 
     frameFence <- peek frameFencePtr
 
+    let waitingForFence = False
+
     withPtr submitInfo $ \submitInfoPtr ->
-        vkQueueSubmit _graphicsQueue 1 submitInfoPtr frameFence >>=
+        vkQueueSubmit _graphicsQueue 1 submitInfoPtr (if waitingForFence then frameFence else VK_NULL) >>=
           flip validationVK "vkQueueSubmit failed!"
+
+    when waitingForFence $
+        vkWaitForFences _device 1 frameFencePtr VK_TRUE (maxBound :: Word64) >>=
+            flip validationVK "vkWaitForFences failed!"
 
     let presentInfo = createVk @VkPresentInfoKHR
           $  set @"sType" VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
