@@ -135,7 +135,7 @@ instance RendererInterface RendererData where
         destroyRenderPassData (getDevice rendererData) renderPassData
 
     createRenderTarget rendererData format extent samples =
-        createColorImageView
+        createColorTexture
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)
@@ -145,7 +145,7 @@ instance RendererInterface RendererData where
             samples
 
     createDepthTarget rendererData extent samples =
-        createDepthImageView
+        createDepthTexture
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)
@@ -154,7 +154,7 @@ instance RendererInterface RendererData where
             samples
 
     createTexture rendererData filePath =
-        createTextureImageView
+        createTextureData
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)

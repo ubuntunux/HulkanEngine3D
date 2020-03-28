@@ -18,9 +18,9 @@ module HulkanEngine3D.Vulkan.Texture
     , createImage
     , destroyImage
     , copyBufferToImage
-    , createDepthImageView
-    , createColorImageView
-    , createTextureImageView
+    , createDepthTexture
+    , createColorTexture
+    , createTextureData
     , destroyTextureData
     ) where
 
@@ -39,13 +39,17 @@ import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
 
+
 data TextureData = TextureData
-    { _imageView :: VkImageView
-    , _image :: VkImage
+    { _image :: VkImage
+    , _imageView :: VkImageView
     , _imageMemory :: VkDeviceMemory
     , _textureSampler ::VkSampler
-    , _imageMipLevels :: Word32 }
-    deriving (Eq, Show)
+    , _imageWidth :: Int
+    , _imageHeight :: Int
+    , _imageDepth :: Int
+    , _imageMipLevels :: Int
+    } deriving (Eq, Show)
 
 
 class TextureInterface a where
@@ -173,9 +177,8 @@ generateMipmaps :: VkPhysicalDevice
 generateMipmaps physicalDevice image format width height mipLevels commandBuffer = do
     formatProps <- allocaPeek $ \propsPtr ->
         vkGetPhysicalDeviceFormatProperties physicalDevice format propsPtr
-    let supported = getField @"optimalTilingFeatures" formatProps
-                    .&. VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
-        in when (supported == VK_ZERO_FLAGS) $ throwVKMsg "texture image format does not support linear blitting!"
+    let supported = (getField @"optimalTilingFeatures" formatProps) .&. VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+    when (supported == VK_ZERO_FLAGS) $ throwVKMsg "texture image format does not support linear blitting!"
     mapM_ createMipmap
         (zip3 [1 .. mipLevels-1] (iterate nextMipmapSize (fromIntegral width)) (iterate nextMipmapSize (fromIntegral height)))
     let barrier = barrierStruct
@@ -278,7 +281,7 @@ createTextureSampler device mipLevels anisotropyEnable = do
             &* set @"borderColor" VK_BORDER_COLOR_INT_OPAQUE_BLACK
             &* set @"unnormalizedCoordinates" VK_FALSE
             &* set @"compareEnable" VK_FALSE
-            &* set @"compareOp" VK_COMPARE_OP_ALWAYS
+            &* set @"compareOp" VK_COMPARE_OP_NEVER
             &* set @"mipmapMode" VK_SAMPLER_MIPMAP_MODE_LINEAR
             &* set @"mipLodBias" 0
             &* set @"minLod" 0
@@ -446,21 +449,23 @@ copyBufferToImage device commandBufferPool commandQueue buffer image width heigh
         in withPtr region $ \regionPtr ->
             vkCmdCopyBufferToImage commandBuffer buffer image VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 1 regionPtr
 
-createDepthImageView :: VkPhysicalDevice
-                     -> VkDevice
-                     -> VkCommandPool
-                     -> VkQueue
-                     -> VkExtent2D
-                     -> VkSampleCountFlagBits
-                     -> IO TextureData
-createDepthImageView physicalDevice device commandBufferPool queue extent samples = do
-    let mipLevels = 1
+createDepthTexture :: VkPhysicalDevice
+                   -> VkDevice
+                   -> VkCommandPool
+                   -> VkQueue
+                   -> VkExtent2D
+                   -> VkSampleCountFlagBits
+                   -> IO TextureData
+createDepthTexture physicalDevice device commandBufferPool queue extent samples = do
+    let width = getField @"width" extent
+        height = getField @"height" extent
+        mipLevels = 1
     depthFormat <- findDepthFormat physicalDevice
     (depthImageMemory, depthImage) <- createImage
         physicalDevice
         device
-        (getField @"width" extent)
-        (getField @"height" extent)
+        width
+        height
         mipLevels
         samples
         depthFormat
@@ -477,29 +482,34 @@ createDepthImageView physicalDevice device commandBufferPool queue extent sample
             , _image = depthImage
             , _imageMemory = depthImageMemory
             , _textureSampler = textureSampler
-            , _imageMipLevels = mipLevels }
-    logInfo "createDepthImageView"
+            , _imageWidth = fromIntegral width
+            , _imageHeight = fromIntegral height
+            , _imageDepth = 1
+            , _imageMipLevels = fromIntegral mipLevels }
+    logInfo "createDepthTexture"
     logInfo $ "    Format : " ++ show depthFormat
     logInfo $ "    Size : " ++ show extent
     logInfo $ "    TextureData : " ++ show textureData
     return textureData
 
 
-createColorImageView :: VkPhysicalDevice
-                     -> VkDevice
-                     -> VkCommandPool
-                     -> VkQueue
-                     -> VkFormat
-                     -> VkExtent2D
-                     -> VkSampleCountFlagBits
-                     -> IO TextureData
-createColorImageView physicalDevice device commandBufferPool queue format extent samples = do
-    let mipLevels = 1
+createColorTexture :: VkPhysicalDevice
+                   -> VkDevice
+                   -> VkCommandPool
+                   -> VkQueue
+                   -> VkFormat
+                   -> VkExtent2D
+                   -> VkSampleCountFlagBits
+                   -> IO TextureData
+createColorTexture physicalDevice device commandBufferPool queue format extent samples = do
+    let width = getField @"width" extent
+        height = getField @"height" extent
+        mipLevels = 1
     (colorImageMemory, colorImage) <- createImage
         physicalDevice
         device
-        (getField @"width" extent)
-        (getField @"height" extent)
+        width
+        height
         mipLevels
         samples format
         VK_IMAGE_TILING_OPTIMAL
@@ -516,7 +526,11 @@ createColorImageView physicalDevice device commandBufferPool queue format extent
             , _image = colorImage
             , _imageMemory = colorImageMemory
             , _textureSampler = textureSampler
-            , _imageMipLevels = mipLevels }
+            , _imageWidth = fromIntegral width
+            , _imageHeight = fromIntegral height
+            , _imageDepth = 1
+            , _imageMipLevels = fromIntegral mipLevels
+            }
     logInfo "createColorImageView"
     logInfo $ "    Format : " ++ show format
     logInfo $ "    MultiSampleCount : " ++ show samples
@@ -525,14 +539,14 @@ createColorImageView physicalDevice device commandBufferPool queue format extent
     return textureData
 
 
-createTextureImageView :: VkPhysicalDevice
+createTextureData :: VkPhysicalDevice
                        -> VkDevice
                        -> VkCommandPool
                        -> VkQueue
                        -> VkBool32
                        -> FilePath
                        -> IO TextureData
-createTextureImageView physicalDevice device commandBufferPool commandQueue anisotropyEnable filePath = do
+createTextureData physicalDevice device commandBufferPool commandQueue anisotropyEnable filePath = do
     Image { imageWidth, imageHeight, imageData } <- (readImage filePath) >>= \case
         Left err -> throwVKMsg err
         Right dynamicImage -> pure $ convertRGBA8 dynamicImage
@@ -568,7 +582,6 @@ createTextureImageView physicalDevice device commandBufferPool commandQueue anis
         copyArray (castPtr stagingDataPtr) imageDataPtr imageDataLen
     vkUnmapMemory device stagingBufferMemory
 
-    -- copy image
     copyBufferToImage device commandBufferPool commandQueue stagingBuffer image
         (fromIntegral imageWidth) (fromIntegral imageHeight)
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
@@ -582,25 +595,27 @@ createTextureImageView physicalDevice device commandBufferPool commandQueue anis
             (fromIntegral imageHeight)
             mipLevels
             commandBuffer
-
-    imageView <- createImageView device image format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
-
-    -- destroy temporary staging buffer
     destroyBuffer device stagingBuffer stagingBufferMemory
 
+    imageView <- createImageView device image format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
     textureSampler <- createTextureSampler device mipLevels anisotropyEnable
 
-    let textureData = TextureData
-            { _imageView = imageView
-            , _image = image
+    let imageDepth = 1
+        textureData = TextureData
+            { _image = image
+            , _imageView = imageView
             , _imageMemory = imageMemory
             , _textureSampler = textureSampler
-            , _imageMipLevels = mipLevels }
+            , _imageWidth = imageWidth
+            , _imageHeight = imageHeight
+            , _imageDepth = imageDepth
+            , _imageMipLevels = fromIntegral mipLevels
+            }
 
-    logInfo "createTextureImageView"
+    logInfo "createTextureData"
     logInfo $ "    File : " ++ filePath
     logInfo $ "    Format : " ++ show format
-    logInfo $ "    Size : " ++ show imageWidth ++ ", " ++ show imageHeight
+    logInfo $ "    Size : " ++ show imageWidth ++ ", " ++ show imageHeight ++ ", " ++ show imageDepth
     logInfo $ "    TextureData : " ++ show textureData
 
     return textureData
