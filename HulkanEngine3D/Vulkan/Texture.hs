@@ -53,9 +53,21 @@ data TextureData = TextureData
 
 
 class TextureInterface a where
+    defaultTextureData :: a
     getTextureImageInfo :: a -> VkDescriptorImageInfo
 
 instance TextureInterface TextureData where
+    defaultTextureData = TextureData
+        { _image = VK_NULL
+        , _imageView = VK_NULL
+        , _imageMemory = VK_NULL
+        , _imageSampler = VK_NULL
+        , _imageWidth = 0
+        , _imageHeight = 0
+        , _imageDepth = 0
+        , _imageMipLevels = 0
+        }
+        
     getTextureImageInfo textureData =
         createVk @VkDescriptorImageInfo
             $  set @"imageLayout" VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
