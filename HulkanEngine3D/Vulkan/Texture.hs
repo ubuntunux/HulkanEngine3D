@@ -11,8 +11,8 @@ module HulkanEngine3D.Vulkan.Texture
     , TextureInterface (..)
     , findDepthFormat
     , findSupportedFormat
-    , createTextureSampler
-    , destroyTextureSampler
+    , createImageSampler
+    , destroyImageSampler
     , createImageView
     , destroyImageView
     , createImage
@@ -44,7 +44,7 @@ data TextureData = TextureData
     { _image :: VkImage
     , _imageView :: VkImageView
     , _imageMemory :: VkDeviceMemory
-    , _textureSampler ::VkSampler
+    , _imageSampler ::VkSampler
     , _imageWidth :: Int
     , _imageHeight :: Int
     , _imageDepth :: Int
@@ -60,7 +60,7 @@ instance TextureInterface TextureData where
         createVk @VkDescriptorImageInfo
             $  set @"imageLayout" VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             &* set @"imageView" (_imageView textureData)
-            &* set @"sampler" (_textureSampler textureData)
+            &* set @"sampler" (_imageSampler textureData)
 
 
 data ImageLayoutTransition = TransferUndef_TransferDst | TransferDst_ShaderReadOnly | TransferUndef_DepthStencilAttachemnt | TransferUndef_ColorAttachemnt
@@ -266,16 +266,16 @@ findDepthFormat physicalDevice =
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 
 
-createTextureSampler :: VkDevice -> Word32 -> VkBool32 -> IO VkSampler
-createTextureSampler device mipLevels anisotropyEnable = do
+createImageSampler :: VkDevice -> Word32 -> VkFilter -> VkFilter -> VkSamplerAddressMode -> VkBool32 -> IO VkSampler
+createImageSampler device mipLevels minFilter magFilter samplerAddressMode anisotropyEnable = do
     let samplerCreateInfo = createVk @VkSamplerCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO
             &* set @"pNext" VK_NULL_HANDLE
-            &* set @"magFilter" VK_FILTER_LINEAR
-            &* set @"minFilter" VK_FILTER_LINEAR
-            &* set @"addressModeU" VK_SAMPLER_ADDRESS_MODE_REPEAT
-            &* set @"addressModeV" VK_SAMPLER_ADDRESS_MODE_REPEAT
-            &* set @"addressModeW" VK_SAMPLER_ADDRESS_MODE_REPEAT
+            &* set @"magFilter" minFilter
+            &* set @"minFilter" magFilter
+            &* set @"addressModeU" samplerAddressMode
+            &* set @"addressModeV" samplerAddressMode
+            &* set @"addressModeW" samplerAddressMode
             &* set @"anisotropyEnable" anisotropyEnable
             &* set @"maxAnisotropy" 16
             &* set @"borderColor" VK_BORDER_COLOR_INT_OPAQUE_BLACK
@@ -290,8 +290,8 @@ createTextureSampler device mipLevels anisotropyEnable = do
       allocaPeek $ \samplerPtr ->
         vkCreateSampler device samplerCreateInfoPtr VK_NULL samplerPtr
 
-destroyTextureSampler :: VkDevice -> VkSampler -> IO ()
-destroyTextureSampler device sampler = vkDestroySampler device sampler VK_NULL
+destroyImageSampler :: VkDevice -> VkSampler -> IO ()
+destroyImageSampler device sampler = vkDestroySampler device sampler VK_NULL
 
 createImageView :: VkDevice
                 -> VkImage
@@ -476,12 +476,12 @@ createDepthTexture physicalDevice device commandBufferPool queue extent samples 
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
         transitionImageLayout depthImage depthFormat TransferUndef_DepthStencilAttachemnt mipLevels commandBuffer
     let anisotropyEnable = VK_FALSE
-    textureSampler <- createTextureSampler device mipLevels anisotropyEnable
+    imageSampler <- createImageSampler device mipLevels VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE anisotropyEnable
     let textureData = TextureData
             { _imageView = depthImageView
             , _image = depthImage
             , _imageMemory = depthImageMemory
-            , _textureSampler = textureSampler
+            , _imageSampler = imageSampler
             , _imageWidth = fromIntegral width
             , _imageHeight = fromIntegral height
             , _imageDepth = 1
@@ -520,12 +520,12 @@ createColorTexture physicalDevice device commandBufferPool queue format extent s
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
         transitionImageLayout colorImage format TransferUndef_ColorAttachemnt mipLevels commandBuffer
     let anisotropyEnable = VK_FALSE
-    textureSampler <- createTextureSampler device mipLevels anisotropyEnable
+    imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
     let textureData = TextureData
             { _imageView = colorImageView
             , _image = colorImage
             , _imageMemory = colorImageMemory
-            , _textureSampler = textureSampler
+            , _imageSampler = imageSampler
             , _imageWidth = fromIntegral width
             , _imageHeight = fromIntegral height
             , _imageDepth = 1
@@ -598,14 +598,14 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
     destroyBuffer device stagingBuffer stagingBufferMemory
 
     imageView <- createImageView device image format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
-    textureSampler <- createTextureSampler device mipLevels anisotropyEnable
+    imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
 
     let imageDepth = 1
         textureData = TextureData
             { _image = image
             , _imageView = imageView
             , _imageMemory = imageMemory
-            , _textureSampler = textureSampler
+            , _imageSampler = imageSampler
             , _imageWidth = imageWidth
             , _imageHeight = imageHeight
             , _imageDepth = imageDepth
@@ -623,6 +623,6 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
 destroyTextureData :: VkDevice -> TextureData -> IO ()
 destroyTextureData device textureData@TextureData{..} = do
     logInfo $ "destroyTextureData : " ++ show textureData
-    destroyTextureSampler device _textureSampler
+    destroyImageSampler device _imageSampler
     destroyImageView device _imageView
     destroyImage device _image _imageMemory
