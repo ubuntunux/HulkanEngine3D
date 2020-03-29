@@ -28,8 +28,8 @@ defaultImageSamplers = ImageSamplers
 
 createImageSamplers :: VkDevice -> IO ImageSamplers
 createImageSamplers device = do
-    imageSamplerPointClamp <- createImageSampler device 1 VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE VK_FALSE
-    imageSamplerLinearClamp <- createImageSampler device 1 VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE VK_FALSE
+    imageSamplerPointClamp <- createImageSampler device 0 VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE VK_FALSE
+    imageSamplerLinearClamp <- createImageSampler device 0 VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE VK_FALSE
     return ImageSamplers
         { _imageSamplerPointClamp = imageSamplerPointClamp
         , _imageSamplerLinearClamp = imageSamplerLinearClamp
