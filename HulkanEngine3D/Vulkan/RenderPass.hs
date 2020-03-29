@@ -54,14 +54,14 @@ data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     { _vertexShaderFile :: String
     , _fragmentShaderFile :: String
     , _renderPassSwapChainImageCount :: Int
-    , _renderPassImageFormat :: VkFormat
-    , _renderPassImageExtent :: VkExtent2D
+    , _renderPassImageFormat :: [VkFormat]
+    , _renderPassImageWidth :: Int
+    , _renderPassImageHeight :: Int
+    , _renderPassImageDepth :: Int
     , _renderPassSampleCount :: VkSampleCountFlagBits
     , _renderPassImageViews :: [VkImageView]
     , _renderPassResolveImageViews :: [VkImageView]
     , _renderPassClearValues :: [VkClearValue]
-    , _renderPassDepthFormat :: VkFormat
-    , _renderPassDepthClearValue :: Float
     }  deriving (Eq, Show)
 
 

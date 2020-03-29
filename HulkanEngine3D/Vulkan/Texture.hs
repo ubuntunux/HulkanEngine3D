@@ -45,6 +45,7 @@ data TextureData = TextureData
     , _imageView :: VkImageView
     , _imageMemory :: VkDeviceMemory
     , _imageSampler ::VkSampler
+    , _imageFormat :: VkFormat
     , _imageWidth :: Int
     , _imageHeight :: Int
     , _imageDepth :: Int
@@ -494,6 +495,7 @@ createDepthTexture physicalDevice device commandBufferPool queue extent samples 
             , _image = depthImage
             , _imageMemory = depthImageMemory
             , _imageSampler = imageSampler
+            , _imageFormat = depthFormat
             , _imageWidth = fromIntegral width
             , _imageHeight = fromIntegral height
             , _imageDepth = 1
@@ -538,6 +540,7 @@ createColorTexture physicalDevice device commandBufferPool queue format extent s
             , _image = colorImage
             , _imageMemory = colorImageMemory
             , _imageSampler = imageSampler
+            , _imageFormat = format
             , _imageWidth = fromIntegral width
             , _imageHeight = fromIntegral height
             , _imageDepth = 1
@@ -618,6 +621,7 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
             , _imageView = imageView
             , _imageMemory = imageMemory
             , _imageSampler = imageSampler
+            , _imageFormat = format
             , _imageWidth = imageWidth
             , _imageHeight = imageHeight
             , _imageDepth = imageDepth

@@ -9,7 +9,6 @@
 module HulkanEngine3D.Render.Renderer
   ( RendererData (..)
   , RendererInterface (..)
-  , newRenderPassDataCreateInfo
   , newRendererData
   , createRenderer
   , destroyRenderer
@@ -46,6 +45,7 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
+import HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
@@ -82,7 +82,6 @@ data RendererData = RendererData
     , _renderFeatures :: RenderFeatures
     , _imageSamplers :: IORef ImageSamplers
     , _renderTargets :: IORef RenderTargets
-    , _renderPassDataListRef :: IORef (DList.DList RenderPassData)
     , _descriptorPool :: VkDescriptorPool
     } deriving (Eq, Show)
 
@@ -100,9 +99,6 @@ class RendererInterface a where
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
     getDescriptorPool :: a -> VkDescriptorPool
-    getRenderPassData :: a -> IO RenderPassData
-    createRenderPass :: a -> RenderPassDataCreateInfo -> IO RenderPassData
-    destroyRenderPass :: a -> RenderPassData -> IO ()
     createRenderTarget :: a -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createDepthTarget :: a -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createTexture :: a -> FilePath -> IO TextureData
@@ -126,15 +122,6 @@ instance RendererInterface RendererData where
     getGraphicsQueue rendererData = (_graphicsQueue (_queueFamilyDatas rendererData))
     getPresentQueue rendererData = (_presentQueue (_queueFamilyDatas rendererData))
     getDescriptorPool rendererData = _descriptorPool rendererData
-    getRenderPassData rendererData = do
-        renderPassDataList <- readIORef (_renderPassDataListRef rendererData)
-        return $ (DList.toList renderPassDataList) !! 0
-
-    createRenderPass rendererData renderPassDataCreateInfo =
-        createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
-
-    destroyRenderPass rendererData renderPassData =
-        destroyRenderPassData (getDevice rendererData) renderPassData
 
     createRenderTarget rendererData format extent samples =
         createColorTexture
@@ -182,25 +169,6 @@ instance RendererInterface RendererData where
 
     deviceWaitIdle rendererData =
         throwingVK "vkDeviceWaitIdle failed!" (vkDeviceWaitIdle $ getDevice rendererData)
-
-newRenderPassDataCreateInfo :: RendererData -> [VkImageView] -> [VkClearValue] -> IO RenderPassDataCreateInfo
-newRenderPassDataCreateInfo rendererData imageViews clearValues = do
-    let msaaSamples = _msaaSamples (_renderFeatures rendererData)
-    swapChainData <- getSwapChainData rendererData
-    depthFormat <- findDepthFormat (getPhysicalDevice rendererData)
-    return RenderPassDataCreateInfo
-        { _vertexShaderFile = "Resource/Shaders/triangle.vert"
-        , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
-        , _renderPassSwapChainImageCount = _swapChainImageCount swapChainData
-        , _renderPassImageFormat = _swapChainImageFormat swapChainData
-        , _renderPassImageExtent = _swapChainExtent swapChainData
-        , _renderPassImageViews = imageViews
-        , _renderPassResolveImageViews = _swapChainImageViews swapChainData
-        , _renderPassSampleCount = msaaSamples
-        , _renderPassClearValues = clearValues
-        , _renderPassDepthFormat = depthFormat
-        , _renderPassDepthClearValue = 1.0
-        }
 
 newRendererData :: IO RendererData
 newRendererData = do
@@ -265,7 +233,6 @@ newRendererData = do
         , _renderFeatures = defaultRenderFeatures
         , _imageSamplers = imageSamplers
         , _renderTargets = renderTargets
-        , _renderPassDataListRef = renderPassDataListRef
         , _descriptorPool = VK_NULL
         }
 
@@ -280,14 +247,6 @@ initializeRenderer rendererData@RendererData {..} = do
 
     renderTargets <- createRenderTargets rendererData
     writeIORef _renderTargets renderTargets
-
-    renderPassDataCreateInfo <- newRenderPassDataCreateInfo
-        rendererData
-        [_imageView._sceneColorTexture $ renderTargets, _imageView._sceneDepthTexture $ renderTargets]
-        [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
-    renderPassData <- createRenderPass rendererData renderPassDataCreateInfo
-    writeIORef _renderPassDataListRef (DList.fromList [renderPassData])
-
 
 createRenderer :: GLFW.Window
                -> String
@@ -412,12 +371,7 @@ resizeWindow window rendererData@RendererData {..} = do
     renderTargets <- createRenderTargets rendererData
     writeIORef _renderTargets renderTargets
 
-    renderPassDataCreateInfo <- newRenderPassDataCreateInfo
-        rendererData
-        [_imageView._sceneColorTexture $ renderTargets, _imageView._sceneDepthTexture $ renderTargets]
-        [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
-    renderPassData <- createRenderPassData _device renderPassDataCreateInfo
-    writeIORef _renderPassDataListRef (DList.fromList [renderPassData])
+
 
 updateRendererData :: RendererData -> Mat44f -> Mat44f -> GeometryData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
 updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geometryBufferData descriptorSets sceneConstantsMemories = do
