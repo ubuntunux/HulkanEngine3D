@@ -46,6 +46,7 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
+import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
 import HulkanEngine3D.Vulkan.CommandBuffer
@@ -79,7 +80,8 @@ data RendererData = RendererData
     , _commandBufferCount :: Int
     , _commandBuffersPtr :: Ptr VkCommandBuffer
     , _renderFeatures :: RenderFeatures
-    , _renderTargetDataRef :: IORef RenderTargetData
+    , _imageSamplers :: IORef ImageSamplers
+    , _renderTargets :: IORef RenderTargets
     , _renderPassDataListRef :: IORef (DList.DList RenderPassData)
     , _descriptorPool :: VkDescriptorPool
     } deriving (Eq, Show)
@@ -237,7 +239,8 @@ newRendererData = do
     imageIndexPtr <- new (0 :: Word32)
     frameIndexRef <- newIORef (0::Int)
     needRecreateSwapChainRef <- newIORef False
-    renderTargetDataRef <- newIORef (undefined::RenderTargetData)
+    imageSamplers <- newIORef defaultImageSamplers
+    renderTargets <- newIORef (undefined::RenderTargets)
     renderPassDataListRef <- newIORef (DList.fromList [])
     swapChainDataRef <- newIORef defaultSwapChainData
     swapChainSupportDetailsRef <- newIORef defaultSwapChainSupportDetails
@@ -260,7 +263,8 @@ newRendererData = do
         , _commandBufferCount = 0
         , _commandBuffersPtr = VK_NULL
         , _renderFeatures = defaultRenderFeatures
-        , _renderTargetDataRef = renderTargetDataRef
+        , _imageSamplers = imageSamplers
+        , _renderTargets = renderTargets
         , _renderPassDataListRef = renderPassDataListRef
         , _descriptorPool = VK_NULL
         }
@@ -271,14 +275,15 @@ initializeRenderer rendererData@RendererData {..} = do
     writeIORef _frameIndexRef (0::Int)
     writeIORef _needRecreateSwapChainRef False
 
-    -- create render targets
-    renderTargetData <- createRenderTargets rendererData
-    writeIORef _renderTargetDataRef renderTargetData
+    imageSamplers <- createImageSamplers _device
+    writeIORef _imageSamplers imageSamplers
 
-    -- create render pass data
+    renderTargets <- createRenderTargets rendererData
+    writeIORef _renderTargets renderTargets
+
     renderPassDataCreateInfo <- newRenderPassDataCreateInfo
         rendererData
-        [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
+        [_imageView._sceneColorTexture $ renderTargets, _imageView._sceneDepthTexture $ renderTargets]
         [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
     renderPassData <- createRenderPass rendererData renderPassDataCreateInfo
     writeIORef _renderPassDataListRef (DList.fromList [renderPassData])
@@ -361,9 +366,12 @@ destroyRenderer rendererData@RendererData {..} = do
     -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
     -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
     destroyDescriptorPool _device _descriptorPool
-    renderTargetData <- readIORef _renderTargetDataRef
-    destroyTexture rendererData (_sceneColorTexture renderTargetData)
-    destroyTexture rendererData (_sceneDepthTexture renderTargetData)
+
+    imageSamplers <- readIORef _imageSamplers
+    destroyImageSamplers _device imageSamplers
+
+    renderTargets <- readIORef _renderTargets
+    destroyRenderTargets rendererData renderTargets
 
     renderPassDataList <- readIORef _renderPassDataListRef
     forM_ renderPassDataList $ \renderPassData -> do
@@ -394,20 +402,19 @@ resizeWindow window rendererData@RendererData {..} = do
     forM_ renderPassDataList $ \renderPassData -> do
         destroyRenderPass rendererData renderPassData
 
-    renderTargetData <- readIORef _renderTargetDataRef
-    destroyTexture rendererData (_sceneColorTexture renderTargetData)
-    destroyTexture rendererData (_sceneDepthTexture renderTargetData)
+    renderTargets <- readIORef _renderTargets
+    destroyRenderTargets rendererData renderTargets
 
     -- recreate swapChain
     recreateSwapChain rendererData window
 
     -- recreate resources
-    renderTargetData <- createRenderTargets rendererData
-    writeIORef _renderTargetDataRef renderTargetData
+    renderTargets <- createRenderTargets rendererData
+    writeIORef _renderTargets renderTargets
 
     renderPassDataCreateInfo <- newRenderPassDataCreateInfo
         rendererData
-        [(_imageView (_sceneColorTexture renderTargetData)), (_imageView (_sceneDepthTexture renderTargetData))]
+        [_imageView._sceneColorTexture $ renderTargets, _imageView._sceneDepthTexture $ renderTargets]
         [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
     renderPassData <- createRenderPassData _device renderPassDataCreateInfo
     writeIORef _renderPassDataListRef (DList.fromList [renderPassData])

@@ -3,30 +3,39 @@
 {-# LANGUAGE TypeApplications #-}
 
 module HulkanEngine3D.Render.ImageSampler
-    ( ImageSamplerData (..)
+    ( ImageSamplers (..)
+    , defaultImageSamplers
     , createImageSamplers
+    , destroyImageSamplers
     ) where
 
-import HulkanEngine3D.Render.Renderer
-import HulkanEngine3D.Vulkan
-import HulkanEngine3D.Vulkan.SwapChain
+import Graphics.Vulkan
+import Graphics.Vulkan.Core_1_0
 import HulkanEngine3D.Vulkan.Texture
 
 
-data ImageSamplerData = ImageSamplerData
-    { _sceneColorTexture :: TextureData
-    , _sceneDepthTexture :: TextureData
+data ImageSamplers = ImageSamplers
+    { _imageSamplerPointClamp :: VkSampler
+    , _imageSamplerLinearClamp :: VkSampler
     } deriving (Show)
 
 
-createImageSamplers :: RendererData -> IO ImageSamplerData
-createImageSamplers rendererData = do
-        swapChainData <- getSwapChainData rendererData
-        let format = _swapChainImageFormat swapChainData
-            extent = _swapChainExtent swapChainData
-            samples = _msaaSamples (_renderFeatures rendererData)
-        sceneColor <- createImageSampler rendererData format extent samples
-        sceneDepth <- createDepthTarget rendererData extent samples
-        return ImageSamplerData
-            { _sceneColorTexture = sceneColor
-            , _sceneDepthTexture = sceneDepth }
+defaultImageSamplers :: ImageSamplers
+defaultImageSamplers = ImageSamplers
+    { _imageSamplerPointClamp = VK_NULL
+    , _imageSamplerLinearClamp = VK_NULL
+    }
+
+createImageSamplers :: VkDevice -> IO ImageSamplers
+createImageSamplers device = do
+    imageSamplerPointClamp <- createImageSampler device 1 VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE VK_FALSE
+    imageSamplerLinearClamp <- createImageSampler device 1 VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE VK_FALSE
+    return ImageSamplers
+        { _imageSamplerPointClamp = imageSamplerPointClamp
+        , _imageSamplerLinearClamp = imageSamplerLinearClamp
+        }
+
+destroyImageSamplers :: VkDevice -> ImageSamplers -> IO ()
+destroyImageSamplers device imageSamplers = do
+    destroyImageSampler device (_imageSamplerPointClamp imageSamplers)
+    destroyImageSampler device (_imageSamplerLinearClamp imageSamplers)
