@@ -10,6 +10,7 @@ module HulkanEngine3D.Vulkan.Texture
     ( TextureData (..)
     , TextureInterface (..)
     , findDepthFormat
+    , isDepthFormat
     , findSupportedFormat
     , createImageSampler
     , destroyImageSampler
@@ -63,6 +64,7 @@ instance TextureInterface TextureData where
         , _imageView = VK_NULL
         , _imageMemory = VK_NULL
         , _imageSampler = VK_NULL
+        , _imageFormat = VK_FORMAT_UNDEFINED
         , _imageWidth = 0
         , _imageHeight = 0
         , _imageDepth = 0
@@ -253,6 +255,9 @@ generateMipmaps physicalDevice image format width height mipLevels commandBuffer
                     1 barrierPtr
 
 
+depthFomats :: [VkFormat]
+depthFomats = [VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM_S8_UINT, VK_FORMAT_D16_UNORM]
+
 findSupportedFormat :: VkPhysicalDevice
                     -> [VkFormat]
                     -> VkImageTiling
@@ -274,10 +279,12 @@ findDepthFormat :: VkPhysicalDevice -> IO VkFormat
 findDepthFormat physicalDevice =
     findSupportedFormat
         physicalDevice
-        [VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT]
+        depthFomats
         VK_IMAGE_TILING_OPTIMAL
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 
+isDepthFormat :: VkFormat -> Bool
+isDepthFormat format = elem format depthFomats
 
 createImageSampler :: VkDevice -> Word32 -> VkFilter -> VkFilter -> VkSamplerAddressMode -> VkBool32 -> IO VkSampler
 createImageSampler device mipLevels minFilter magFilter samplerAddressMode anisotropyEnable = do

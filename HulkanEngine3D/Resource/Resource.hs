@@ -6,13 +6,20 @@ module HulkanEngine3D.Resource.Resource
     , ResourceInterface (..)
     ) where
 
+import Data.IORef
 import qualified Data.HashTable.IO as HashTable
 import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
 
+import Graphics.Vulkan.Core_1_0
+import Graphics.Vulkan.Ext.VK_KHR_swapchain
+
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.Renderer
+import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Resource.ObjLoader
+import HulkanEngine3D.Vulkan (getColorClearValue, getDepthStencilClearValue)
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 
@@ -43,6 +50,7 @@ class ResourceInterface a where
     loadRenderPassDatas :: a -> RendererData -> IO ()
     unloadRenderPassDatas :: a -> RendererData -> IO ()
     getRenderPassData :: a -> Text.Text -> IO (Maybe RenderPassData)
+    getDefaultRenderPassData :: a -> IO RenderPassData
 
 instance ResourceInterface ResourceData where
     createNewResourceData :: IO ResourceData
@@ -107,27 +115,51 @@ instance ResourceInterface ResourceData where
 
     getTextureData :: ResourceData -> Text.Text -> IO (Maybe TextureData)
     getTextureData resourceData resourceName = do
-        HashTable.lookup (_renderPassDataMap resourceData) resourceName
+        HashTable.lookup (_textureDataMap resourceData) resourceName
 
     -- RenderPassLoader
     loadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     loadRenderPassDatas resourceData rendererData = do
         renderTargets <- readIORef (_renderTargets rendererData)
+
+        let msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
+            renderPassImageAttachmentDescriptions =
+                [ defaultAttachmentDescription
+                    { _attachmentImageFormat = (_imageFormat . _sceneColorTexture $ renderTargets)
+                    , _attachmentImageSamples = msaaSampleCount
+                    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
+                    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                    }
+                , defaultAttachmentDescription
+                    { _attachmentImageFormat = (_imageFormat . _sceneDepthTexture $ renderTargets)
+                    , _attachmentImageSamples = msaaSampleCount
+                    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
+                    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                    }
+                , defaultAttachmentDescription
+                    { _attachmentImageFormat = (_imageFormat . _sceneColorTexture $ renderTargets)
+                    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                    }
+                ]
+
         let renderPassDataCreateInfo = RenderPassDataCreateInfo
                 { _vertexShaderFile = "Resource/Shaders/triangle.vert"
                 , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
-                , _renderPassSwapChainImageCount = Constant.swapChainImageCount
-                , _renderPassImageFormats = [_imageFormat._sceneColorTexture $ renderTargets, _imageFormat._sceneDepthTexture $ renderTargets]
+                , _renderPassSwapChainImageCount = fromIntegral Constants.swapChainImageCount
+                , _renderPassImageAttachmentDescriptions = renderPassImageAttachmentDescriptions
                 , _renderPassImageWidth = _imageWidth._sceneColorTexture $ renderTargets
                 , _renderPassImageHeight = _imageHeight._sceneColorTexture $ renderTargets
                 , _renderPassImageDepth = _imageDepth._sceneColorTexture $ renderTargets
                 , _renderPassImageViews = [_imageView._sceneColorTexture $ renderTargets, _imageView._sceneDepthTexture $ renderTargets]
-                , _renderPassResolveImageViews = []
-                , _renderPassSampleCount = 1
+                , _renderPassSampleCount = _attachmentImageSamples (head renderPassImageAttachmentDescriptions)
                 , _renderPassClearValues = [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
                 }
         renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
-        HashTable.insert (_renderPassDataMap resourceData) "renderPass" renderPassData
+        HashTable.insert (_renderPassDataMap resourceData) "defaultRenderPass" renderPassData
 
     unloadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     unloadRenderPassDatas resourceData rendererData = do
@@ -136,3 +168,8 @@ instance ResourceInterface ResourceData where
     getRenderPassData :: ResourceData -> Text.Text -> IO (Maybe RenderPassData)
     getRenderPassData resourceData resourceName = do
         HashTable.lookup (_renderPassDataMap resourceData) resourceName
+
+    getDefaultRenderPassData :: ResourceData -> IO RenderPassData
+    getDefaultRenderPassData resourceData = do
+        Just renderPassData <- getRenderPassData resourceData "defaultRenderPass"
+        return renderPassData

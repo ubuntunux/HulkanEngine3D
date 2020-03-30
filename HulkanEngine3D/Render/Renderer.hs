@@ -45,7 +45,7 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
-import HulkanEngine3D.Resource.Resource
+import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
@@ -61,6 +61,7 @@ import HulkanEngine3D.Vulkan.SceneConstants
 import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Sync
 import HulkanEngine3D.Vulkan.Texture
+
 
 data RendererData = RendererData
     { _frameIndexRef :: IORef Int
@@ -83,7 +84,8 @@ data RendererData = RendererData
     , _imageSamplers :: IORef ImageSamplers
     , _renderTargets :: IORef RenderTargets
     , _descriptorPool :: VkDescriptorPool
-    } deriving (Eq, Show)
+    , _resourceData :: ResourceData
+    } deriving (Show)
 
 
 class RendererInterface a where
@@ -170,8 +172,8 @@ instance RendererInterface RendererData where
     deviceWaitIdle rendererData =
         throwingVK "vkDeviceWaitIdle failed!" (vkDeviceWaitIdle $ getDevice rendererData)
 
-newRendererData :: IO RendererData
-newRendererData = do
+newRendererData :: ResourceData -> IO RendererData
+newRendererData resourceData = do
     imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
         writeField @"width" extentPtr $ 0
         writeField @"height" extentPtr $ 0
@@ -234,6 +236,7 @@ newRendererData = do
         , _imageSamplers = imageSamplers
         , _renderTargets = renderTargets
         , _descriptorPool = VK_NULL
+        , _resourceData = resourceData
         }
 
 initializeRenderer :: RendererData -> IO ()
@@ -255,14 +258,15 @@ createRenderer :: GLFW.Window
                -> Bool
                -> [CString]
                -> VkSampleCountFlagBits
+               -> ResourceData
                -> IO RendererData
-createRenderer window progName engineName enableValidationLayer isConcurrentMode requireExtensions requireMSAASampleCount = do
+createRenderer window progName engineName enableValidationLayer isConcurrentMode requireExtensions requireMSAASampleCount resourceData = do
     let validationLayers = if enableValidationLayer then Constants.vulkanLayers else []
     if enableValidationLayer
     then logInfo $ "Enable validation layers : " ++ show validationLayers
     else logInfo $ "Disabled validation layers"
 
-    defaultRendererData <- newRendererData
+    defaultRendererData <- newRendererData resourceData
 
     vkInstance <- createVulkanInstance progName engineName validationLayers requireExtensions
     vkSurface <- createVkSurface vkInstance window
@@ -302,7 +306,7 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
 
     descriptorPool <- createDescriptorPool device (_swapChainImageCount swapChainData)
 
-    let rendererData = defaultRendererData
+    return defaultRendererData
           { _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
           , _vkInstance = vkInstance
@@ -317,8 +321,8 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
           , _swapChainDataRef = swapChainDataRef
           , _swapChainSupportDetailsRef = swapChainSupportDetailsRef
           , _renderFeatures = renderFeatures
-          , _descriptorPool = descriptorPool }
-    return rendererData
+          , _descriptorPool = descriptorPool
+          }
 
 destroyRenderer :: RendererData -> IO ()
 destroyRenderer rendererData@RendererData {..} = do
@@ -331,10 +335,6 @@ destroyRenderer rendererData@RendererData {..} = do
 
     renderTargets <- readIORef _renderTargets
     destroyRenderTargets rendererData renderTargets
-
-    renderPassDataList <- readIORef _renderPassDataListRef
-    forM_ renderPassDataList $ \renderPassData -> do
-        destroyRenderPassData _device renderPassData
 
     destroySemaphores _device _renderFinishedSemaphores
     destroySemaphores _device _imageAvailableSemaphores
@@ -357,9 +357,7 @@ resizeWindow window rendererData@RendererData {..} = do
 
     deviceWaitIdle rendererData
 
-    renderPassDataList <- readIORef _renderPassDataListRef
-    forM_ renderPassDataList $ \renderPassData -> do
-        destroyRenderPass rendererData renderPassData
+    unloadRenderPassDatas _resourceData rendererData
 
     renderTargets <- readIORef _renderTargets
     destroyRenderTargets rendererData renderTargets
@@ -437,12 +435,12 @@ recordCommandBuffer :: RendererData
                     -> [VkDescriptorSet]
                     -> IO ()
 recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCount, indexBuffer) descriptorSets = do
-    renderPassData <- getRenderPassData rendererData
-    let renderPass = _renderPass renderPassData
-        graphicsPipelineData = _graphicsPipelineData renderPassData
+    defaultRenderPassData <- getDefaultRenderPassData (_resourceData rendererData)
+    let renderPass = _renderPass defaultRenderPassData
+        graphicsPipelineData = _graphicsPipelineData defaultRenderPassData
         pipelineLayout = _pipelineLayout graphicsPipelineData
         pipeline = _pipeline graphicsPipelineData
-        frameBufferData = _frameBufferData renderPassData
+        frameBufferData = _frameBufferData defaultRenderPassData
         frameBuffers = _frameBuffers frameBufferData
         imageExtent = _frameBufferSize frameBufferData
         clearValues = _frameBufferClearValues frameBufferData

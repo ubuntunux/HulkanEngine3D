@@ -4,10 +4,12 @@
 {-# LANGUAGE TypeApplications #-}
 
 module HulkanEngine3D.Vulkan.RenderPass
-    ( GraphicsPipelineData (..)
+    ( ImageAttachmentDescription (..)
+    , GraphicsPipelineData (..)
     , RenderPassData (..)
     , RenderPassDataCreateInfo (..)
     , RenderPassInterface (..)
+    , defaultAttachmentDescription
     , createRenderPassData
     , destroyRenderPassData
     , createGraphicsPipeline
@@ -19,7 +21,6 @@ import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
-import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame
 import Numeric.DataFrame
@@ -33,7 +34,21 @@ import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.PushConstant
 import HulkanEngine3D.Vulkan.Shader
+import HulkanEngine3D.Vulkan.Texture
 
+
+data ImageAttachmentDescription = ImageAttachmentDescription
+    { _attachmentImageFormat :: VkFormat
+    , _attachmentImageSamples :: VkSampleCountFlagBits
+    , _attachmentLoadOperation :: VkAttachmentLoadOp
+    , _attachmentStoreOperation :: VkAttachmentStoreOp
+    , _attachmentStencilLoadOperation :: VkAttachmentLoadOp
+    , _attachmentStencilStoreOperation :: VkAttachmentStoreOp
+    , _attachmentInitialLayout :: VkImageLayout
+    , _attachmentFinalLayout :: VkImageLayout
+    , _attachmentReferenceLayout :: VkImageLayout
+    , _isResolveAttachment :: Bool
+    } deriving (Eq, Show)
 
 data GraphicsPipelineData = GraphicsPipelineData
     { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
@@ -49,18 +64,16 @@ data RenderPassData = RenderPassData
     , _frameBufferData :: FrameBufferData
     } deriving (Eq, Show)
 
-
 data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     { _vertexShaderFile :: String
     , _fragmentShaderFile :: String
     , _renderPassSwapChainImageCount :: Int
-    , _renderPassImageFormat :: [VkFormat]
     , _renderPassImageWidth :: Int
     , _renderPassImageHeight :: Int
     , _renderPassImageDepth :: Int
     , _renderPassSampleCount :: VkSampleCountFlagBits
     , _renderPassImageViews :: [VkImageView]
-    , _renderPassResolveImageViews :: [VkImageView]
+    , _renderPassImageAttachmentDescriptions :: [ImageAttachmentDescription]
     , _renderPassClearValues :: [VkClearValue]
     }  deriving (Eq, Show)
 
@@ -72,11 +85,26 @@ instance RenderPassInterface RenderPassData where
     getDescriptorSetLayout renderPassData = (_descriptorSetLayout (_graphicsPipelineData renderPassData))
 
 
+defaultAttachmentDescription :: ImageAttachmentDescription
+defaultAttachmentDescription = ImageAttachmentDescription
+    { _attachmentImageFormat = VK_FORMAT_UNDEFINED
+    , _attachmentImageSamples = VK_SAMPLE_COUNT_1_BIT
+    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_LOAD
+    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
+    , _attachmentStencilLoadOperation = VK_ATTACHMENT_LOAD_OP_LOAD
+    , _attachmentStencilStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
+    , _attachmentInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_UNDEFINED
+    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
+    , _isResolveAttachment = False
+    }
+
 createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> IO RenderPassData
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} = do
-    renderPass <- createRenderPass device _renderPassImageFormat _renderPassDepthFormat _renderPassSampleCount
-    graphicsPipelineData <- createGraphicsPipeline device renderPass _renderPassImageExtent _renderPassSampleCount _vertexShaderFile _fragmentShaderFile
-    frameBufferData <- createFramebufferData device renderPass _renderPassSwapChainImageCount _renderPassImageViews _renderPassResolveImageViews _renderPassImageExtent _renderPassSampleCount _renderPassClearValues
+    let imageSize = (_renderPassImageWidth, _renderPassImageHeight, _renderPassImageDepth)
+    renderPass <- createRenderPass device _renderPassImageAttachmentDescriptions
+    graphicsPipelineData <- createGraphicsPipeline device renderPass imageSize _renderPassSampleCount _vertexShaderFile _fragmentShaderFile
+    frameBufferData <- createFramebufferData device renderPass _renderPassSwapChainImageCount _renderPassImageViews imageSize _renderPassSampleCount _renderPassClearValues
     let renderPassData = RenderPassData
             { _renderPass = renderPass
             , _graphicsPipelineData = graphicsPipelineData
@@ -91,58 +119,35 @@ destroyRenderPassData device renderPassData@RenderPassData {..} = do
     destroyGraphicsPipeline device _graphicsPipelineData
     destroyRenderPass device _renderPass
 
-createRenderPass :: VkDevice -> VkFormat -> VkFormat -> VkSampleCountFlagBits -> IO VkRenderPass
-createRenderPass device imageFormat depthFormat samples = do
-    let isMSAA = (samples /= VK_SAMPLE_COUNT_1_BIT)
-        colorAttachment = createVk @VkAttachmentDescription
+
+createRenderPass :: VkDevice -> [ImageAttachmentDescription] -> IO VkRenderPass
+createRenderPass device attachmentDescriptions = do
+    let imageAttachment attachmentDescription = createVk @VkAttachmentDescription
             $  set @"flags" VK_ZERO_FLAGS
-            &* set @"format" imageFormat
-            &* set @"samples" samples
-            &* set @"loadOp" VK_ATTACHMENT_LOAD_OP_CLEAR
-            &* set @"storeOp" VK_ATTACHMENT_STORE_OP_STORE
-            &* set @"stencilLoadOp" VK_ATTACHMENT_LOAD_OP_DONT_CARE
-            &* set @"stencilStoreOp" VK_ATTACHMENT_STORE_OP_DONT_CARE
-            &* set @"initialLayout" VK_IMAGE_LAYOUT_UNDEFINED
-            &* set @"finalLayout" (if isMSAA
-                then VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                else VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-        depthAttachment = createVk @VkAttachmentDescription
-            $  set @"flags" VK_ZERO_FLAGS
-            &* set @"format" depthFormat
-            &* set @"samples" samples
-            &* set @"loadOp" VK_ATTACHMENT_LOAD_OP_CLEAR
-            &* set @"storeOp" VK_ATTACHMENT_STORE_OP_DONT_CARE
-            &* set @"stencilLoadOp" VK_ATTACHMENT_LOAD_OP_DONT_CARE
-            &* set @"stencilStoreOp" VK_ATTACHMENT_STORE_OP_DONT_CARE
-            &* set @"initialLayout" VK_IMAGE_LAYOUT_UNDEFINED
-            &* set @"finalLayout" VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-        colorAttachmentResolve = createVk @VkAttachmentDescription
-            $  set @"flags" VK_ZERO_FLAGS
-            &* set @"format" imageFormat
-            &* set @"samples" VK_SAMPLE_COUNT_1_BIT
-            &* set @"loadOp" VK_ATTACHMENT_LOAD_OP_DONT_CARE
-            &* set @"storeOp" VK_ATTACHMENT_STORE_OP_STORE
-            &* set @"stencilLoadOp" VK_ATTACHMENT_LOAD_OP_DONT_CARE
-            &* set @"stencilStoreOp" VK_ATTACHMENT_STORE_OP_DONT_CARE
-            &* set @"initialLayout" VK_IMAGE_LAYOUT_UNDEFINED
-            &* set @"finalLayout" VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-        colorAttachmentRef = createVk @VkAttachmentReference
-            $  set @"attachment" 0
-            &* set @"layout" VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        depthAttachmentRef = createVk @VkAttachmentReference
-            $  set @"attachment" 1
-            &* set @"layout" VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-        colorAttachmentResolveRef = createVk @VkAttachmentReference
-            $  set @"attachment" 2
-            &* set @"layout" VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+            &* set @"format" (_attachmentImageFormat attachmentDescription)
+            &* set @"samples" (_attachmentImageSamples attachmentDescription)
+            &* set @"loadOp" (_attachmentLoadOperation attachmentDescription)
+            &* set @"storeOp" (_attachmentStoreOperation attachmentDescription)
+            &* set @"stencilLoadOp" (_attachmentStencilLoadOperation attachmentDescription)
+            &* set @"stencilStoreOp" (_attachmentStencilStoreOperation attachmentDescription)
+            &* set @"initialLayout" (_attachmentInitialLayout attachmentDescription)
+            &* set @"finalLayout" (_attachmentFinalLayout attachmentDescription)
+        imageAttachmentReference attachmentDescription index = createVk @VkAttachmentReference
+            $  set @"attachment" index
+            &* set @"layout" _attachmentReferenceLayout attachmentDescription
+        imageAttachments = map imageAttachment attachmentDescriptions
+        attachmentDescriptionsWithIndex = zip attachmentDescriptions [0..]
+        colorAttachmentReferences = [imageAttachmentReference description index | (description, index) <- attachmentDescriptionsWithIndex, not . isDepthFormat . _attachmentImageFormat $ description]
+        depthAttachmentReference = head [imageAttachmentReference description index | (description, index) <- attachmentDescriptionsWithIndex, isDepthFormat . _attachmentImageFormat $ description]
+        resolveAttachmentReferences = [imageAttachmentReference description index | (description, index) <- attachmentDescriptionsWithIndex, _isResolveAttachment description]
         subpass = createVk @VkSubpassDescription
             $  set @"pipelineBindPoint" VK_PIPELINE_BIND_POINT_GRAPHICS
-            &* set @"colorAttachmentCount" 1
-            &* setVkRef @"pColorAttachments" colorAttachmentRef
-            &* setVkRef @"pDepthStencilAttachment" depthAttachmentRef
-            &* (if isMSAA
-                    then setVkRef @"pResolveAttachments" colorAttachmentResolveRef
-                    else set @"pResolveAttachments" VK_NULL)
+            &* set @"colorAttachmentCount" (fromIntegral . length $ colorAttachmentReferences)
+            &* setListRef @"pColorAttachments" colorAttachmentReferences
+            &* setVkRef @"pDepthStencilAttachment" depthAttachmentReference
+            &* (case resolveAttachmentReferences of
+                    [] -> set @"pResolveAttachments" VK_NULL
+                    _ -> setListRef @"pResolveAttachments" resolveAttachmentReferences)
             &* set @"pPreserveAttachments" VK_NULL
             &* set @"pInputAttachments" VK_NULL
         dependency = createVk @VkSubpassDependency
@@ -152,25 +157,21 @@ createRenderPass device imageFormat depthFormat samples = do
             &* set @"srcAccessMask" VK_ZERO_FLAGS
             &* set @"dstStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
             &* set @"dstAccessMask" (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT .|. VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
-        attachments = if isMSAA
-            then [colorAttachment, depthAttachment, colorAttachmentResolve]
-            else [colorAttachment, depthAttachment]
         renderPassCreateInfo = createVk @VkRenderPassCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
             &* set @"pNext" VK_NULL
-            &* set @"attachmentCount" (fromIntegral $ length attachments)
-            &* setListRef @"pAttachments" attachments
+            &* set @"attachmentCount" (fromIntegral . length $ imageAttachments)
+            &* setListRef @"pAttachments" imageAttachments
             &* set @"subpassCount" 1
             &* setVkRef @"pSubpasses" subpass
             &* set @"dependencyCount" 1
             &* setVkRef @"pDependencies" dependency
-
     renderPass <- alloca $ \renderPassPtr -> do
         result <- vkCreateRenderPass device (unsafePtr renderPassCreateInfo) VK_NULL renderPassPtr
         validationVK result "vkCreatePipelineLayout failed!"
         peek renderPassPtr
     touchVkData renderPassCreateInfo
-    logInfo $ "Create RenderPass: " ++ show imageFormat
+    logInfo $ "Create RenderPass: " ++ show [_attachmentImageFormat x | x <- attachmentDescriptions]
     return renderPass
 
 
@@ -207,21 +208,22 @@ destroyPipelineLayout device pipelineLayout = do
 
 createGraphicsPipeline :: VkDevice
                        -> VkRenderPass
-                       -> VkExtent2D
+                       -> (Int, Int, Int)
                        -> VkSampleCountFlagBits
                        -> String
                        -> String
                        -> IO GraphicsPipelineData
-createGraphicsPipeline device renderPass imageExtent msaaSamples vertexShaderFile fragmentShaderFile = do
+createGraphicsPipeline device renderPass imageSize msaaSamples vertexShaderFile fragmentShaderFile = do
     vertexShaderCreateInfo <- createShaderStageCreateInfo device vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
     descriptorSetLayout <- createDescriptorSetLayout device
     let pushConstantData = PushConstantData { modelMatrix = matrix4x4_indentity }
         pushConstantRange = getPushConstantRange pushConstantData
-    pipelineLayout <- createPipelineLayout device [pushConstantRange] [descriptorSetLayout]
-
-    let shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
+        shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
         shaderStageInfoCount = length shaderStageInfos
+        (imageWidth, imageHeight, imageDepth) = imageSize
+
+    pipelineLayout <- createPipelineLayout device [pushConstantRange] [descriptorSetLayout]
 
     let vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
@@ -243,13 +245,15 @@ createGraphicsPipeline device renderPass imageExtent msaaSamples vertexShaderFil
         viewPort = createVk @VkViewport
             $  set @"x" 0
             &* set @"y" 0
-            &* set @"width" (fromIntegral $ getField @"width" imageExtent)
-            &* set @"height" (fromIntegral $ getField @"height" imageExtent)
+            &* set @"width" (fromIntegral imageWidth)
+            &* set @"height" (fromIntegral imageHeight)
             &* set @"minDepth" 0
             &* set @"maxDepth" 1
 
         scissorRect = createVk @VkRect2D
-            $  set   @"extent" imageExtent
+            $  setVk @"extent"
+                (  set @"width" (fromIntegral imageWidth)
+                &* set @"height" (fromIntegral imageHeight) )
             &* setVk @"offset"
                 (  set @"x" 0
                 &* set @"y" 0 )
@@ -363,7 +367,7 @@ createGraphicsPipeline device renderPass imageExtent msaaSamples vertexShaderFil
             &* set @"basePipelineHandle" VK_NULL_HANDLE
             &* set @"basePipelineIndex" (-1)
 
-    logInfo $ "Create Pipeline: " ++ show imageExtent
+    logInfo $ "Create Pipeline: " ++ show imageSize
     graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do
         withPtr graphicsPipelineCreateInfo $ \graphicsPipelineCreateInfoPtr -> do
             result <- vkCreateGraphicsPipelines device VK_NULL_HANDLE 1 graphicsPipelineCreateInfoPtr VK_NULL graphicsPipelinePtr

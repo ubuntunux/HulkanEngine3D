@@ -24,7 +24,7 @@ import HulkanEngine3D.Application.Input
 import HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.Mesh
-import HulkanEngine3D.Render.Renderer
+import qualified HulkanEngine3D.Render.Renderer as Renderer
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.System
@@ -55,7 +55,7 @@ data ApplicationData = ApplicationData
     , _mouseMoveDataRef :: IORef MouseMoveData
     , _mouseInputDataRef :: IORef MouseInputData
     , _sceneManagerData :: SceneManagerData
-    , _rendererData :: RendererData
+    , _rendererData :: Renderer.RendererData
     , _resourceData :: ResourceData
     , _sceneConstantsBuffers :: [VkBuffer]
     , _sceneConstantsMemories :: [VkDeviceMemory]
@@ -221,8 +221,8 @@ initializeApplication = do
         isConcurrentMode = True
         msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
 
-    -- create renderer
-    rendererData <- createRenderer
+    resourceData <- createNewResourceData
+    rendererData <- Renderer.createRenderer
         window
         progName
         engineName
@@ -230,30 +230,30 @@ initializeApplication = do
         isConcurrentMode
         requireExtensions
         msaaSampleCount
-    initializeRenderer rendererData
+        resourceData
+    Renderer.initializeRenderer rendererData
 
-    swapChainImageCount <- getSwapChainImageCount rendererData
+    swapChainImageCount <- Renderer.getSwapChainImageCount rendererData
 
-    resourceData <- createNewResourceData
     initializeResourceData resourceData rendererData
 
     (Just textureData) <- getTextureData resourceData "texture"
 
     (sceneConstantsMemories, sceneConstantsBuffers) <- unzip <$> createSceneConstantsBuffers
-        (getPhysicalDevice rendererData)
-        (getDevice rendererData)
+        (Renderer.getPhysicalDevice rendererData)
+        (Renderer.getDevice rendererData)
         swapChainImageCount
-    renderPassData <- getRenderPassData $ rendererData
+    defaultRenderPassData <- getDefaultRenderPassData resourceData
     descriptorSetData <- createDescriptorSetData
-        (getDevice rendererData)
-        (getDescriptorPool rendererData)
+        (Renderer.getDevice rendererData)
+        (Renderer.getDescriptorPool rendererData)
         swapChainImageCount
-        (getDescriptorSetLayout renderPassData)
+        (getDescriptorSetLayout defaultRenderPassData)
 
     let descriptorBufferInfos = fmap (\buffer -> createDescriptorBufferInfo buffer sceneConstantsBufferSize) sceneConstantsBuffers
 
     forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
-        prepareDescriptorSet (getDevice rendererData) descriptorBufferInfo (getTextureImageInfo textureData) descriptorSet
+        prepareDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo (getTextureImageInfo textureData) descriptorSet
 
     -- SceneManagerDatas
     sceneManagerData <- newSceneManagerData
@@ -320,15 +320,15 @@ terminateApplication applicationData = do
     let rendererData = (_rendererData applicationData)
 
     -- waiting
-    deviceWaitIdle rendererData
+    Renderer.deviceWaitIdle rendererData
 
     destroySceneConstantsBuffers
-        (getDevice rendererData)
+        (Renderer.getDevice rendererData)
         (_sceneConstantsBuffers applicationData)
         (_sceneConstantsMemories applicationData)
 
     destroyResourceData (_resourceData applicationData) rendererData
-    destroyRenderer rendererData
+    Renderer.destroyRenderer rendererData
     destroyGLFWWindow (_window applicationData)
 
 
@@ -371,12 +371,12 @@ runApplication = do
         let rendererData = _rendererData applicationData
 
         -- resize window
-        needRecreateSwapChain <- readIORef (_needRecreateSwapChainRef rendererData)
+        needRecreateSwapChain <- readIORef (Renderer._needRecreateSwapChainRef rendererData)
         windowSizeChanged <- readIORef (_windowSizeChangedRef applicationData)
         when (windowSizeChanged || needRecreateSwapChain) $ do
-            resizeWindow (_window applicationData) rendererData
+            Renderer.resizeWindow (_window applicationData) rendererData
             writeIORef (_windowSizeChangedRef applicationData) False
-            writeIORef (_needRecreateSwapChainRef rendererData) False
+            writeIORef (Renderer._needRecreateSwapChainRef rendererData) False
             (width, height) <- readIORef (_windowSizeRef applicationData)
             let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
             mainCamera <- getMainCamera (_sceneManagerData applicationData)
@@ -390,7 +390,7 @@ runApplication = do
         (Just meshData) <- getMeshData (_resourceData applicationData) "suzan"
         geometryBufferData <- (getGeometryData meshData 0)
 
-        updateRendererData
+        Renderer.updateRendererData
             rendererData
             viewMatrix
             projectionMatrix
