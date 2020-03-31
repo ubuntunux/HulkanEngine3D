@@ -17,8 +17,10 @@ module HulkanEngine3D.Vulkan.RenderPass
     ) where
 
 import Data.Bits
+import qualified Data.Text as Text
 import Foreign.Marshal.Alloc
 import Foreign.Storable
+
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
@@ -49,7 +51,8 @@ data ImageAttachmentDescription = ImageAttachmentDescription
     } deriving (Eq, Show)
 
 data RenderPassDataCreateInfo = RenderPassDataCreateInfo
-    { _vertexShaderFile :: String
+    { _renderPassName :: Text.Text
+    , _vertexShaderFile :: String
     , _fragmentShaderFile :: String
     , _renderPassImageWidth :: Int
     , _renderPassImageHeight :: Int
@@ -71,7 +74,8 @@ data GraphicsPipelineData = GraphicsPipelineData
     } deriving (Eq, Show)
 
 data RenderPassData = RenderPassData
-    { _graphicsPipelineData :: GraphicsPipelineData
+    { _renderPassDataName :: Text.Text
+    , _graphicsPipelineData :: GraphicsPipelineData
     , _renderPass :: VkRenderPass
     , _frameBufferData :: FrameBufferData
     } deriving (Eq, Show)
@@ -103,7 +107,8 @@ createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {.
     graphicsPipelineData <- createGraphicsPipeline device renderPass imageSize _renderPassSampleCount _vertexShaderFile _fragmentShaderFile
     frameBufferData <- createFramebufferData device renderPass _renderPassImageViewsList imageSize _renderPassSampleCount _renderPassClearValues
     let renderPassData = RenderPassData
-            { _renderPass = renderPass
+            { _renderPassDataName = _renderPassName
+            , _renderPass = renderPass
             , _graphicsPipelineData = graphicsPipelineData
             , _frameBufferData = frameBufferData }
     logInfo "CreateRenderPassData"

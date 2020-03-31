@@ -36,6 +36,7 @@ executable main
                       HulkanEngine3D.Render.TransformObject
                       HulkanEngine3D.Resource.ObjLoader
                       HulkanEngine3D.Resource.Resource
+                      HulkanEngine3D.Resource.RenderPassLoader
                       HulkanEngine3D.Utilities.Logger
                       HulkanEngine3D.Utilities.Math
                       HulkanEngine3D.Utilities.System

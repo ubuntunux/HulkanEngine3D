@@ -11,18 +11,12 @@ import qualified Data.HashTable.IO as HashTable
 import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
 
-import Graphics.Vulkan.Core_1_0
-import Graphics.Vulkan.Ext.VK_KHR_swapchain
-
-import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.Renderer
-import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Resource.ObjLoader
-import HulkanEngine3D.Vulkan
+import HulkanEngine3D.Resource.RenderPassLoader
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
-import HulkanEngine3D.Vulkan.SwapChain
 
 type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
 type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
@@ -124,56 +118,9 @@ instance ResourceInterface ResourceData where
         renderTargets <- readIORef (_renderTargets rendererData)
         swapChainData <- readIORef (_swapChainDataRef rendererData)
 
-        let msaaSampleCount = (_msaaSamples . _renderFeatures $ rendererData)
-            colorAttachmentDescriptions =
-                [ defaultAttachmentDescription
-                    { _attachmentImageFormat = (_imageFormat . _sceneColorTexture $ renderTargets)
-                    , _attachmentImageSamples = msaaSampleCount
-                    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
-                    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
-                    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                    }
-                ]
-            depthAttachmentDescriptions =
-                [ defaultAttachmentDescription
-                    { _attachmentImageFormat = (_imageFormat . _sceneDepthTexture $ renderTargets)
-                    , _attachmentImageSamples = msaaSampleCount
-                    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
-                    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
-                    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                    }
-                ]
-            resolveAttachmentDescriptions =
-                [ defaultAttachmentDescription
-                    { _attachmentImageFormat = (_imageFormat . _sceneColorTexture $ renderTargets)
-                    , _attachmentImageSamples = VK_SAMPLE_COUNT_1_BIT
-                    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
-                    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
-                    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                    }
-                ]
-            renderPassDataCreateInfo = RenderPassDataCreateInfo
-                { _vertexShaderFile = "Resource/Shaders/triangle.vert"
-                , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
-                , _renderPassColorAttachmentDescriptions = colorAttachmentDescriptions
-                , _renderPassDepthAttachmentDescriptions = depthAttachmentDescriptions
-                , _renderPassResolveAttachmentDescriptions = resolveAttachmentDescriptions
-                , _renderPassImageWidth = _imageWidth._sceneColorTexture $ renderTargets
-                , _renderPassImageHeight = _imageHeight._sceneColorTexture $ renderTargets
-                , _renderPassImageDepth = _imageDepth._sceneColorTexture $ renderTargets
-                , _renderPassImageViewsList = [
-                    [ _imageView._sceneColorTexture $ renderTargets
-                    , _imageView._sceneDepthTexture $ renderTargets
-                    , (_swapChainImageViews swapChainData) !! index
-                    ] | index <- Constants.swapChainImageIndices]
-                , _renderPassSampleCount = msaaSampleCount
-                , _renderPassClearValues = [ getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0 ]
-                }
-        renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
-        HashTable.insert (_renderPassDataMap resourceData) "defaultRenderPass" renderPassData
+        defaultRenderPassDataCreateInfo <- createDefaultRenderPassDataCreateInfo rendererData "defaultRenderPass"
+        defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo
+        HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
 
     unloadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     unloadRenderPassDatas resourceData rendererData = do
