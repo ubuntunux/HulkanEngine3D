@@ -125,7 +125,7 @@ instance ResourceInterface ResourceData where
         swapChainData <- readIORef (_swapChainDataRef rendererData)
 
         let msaaSampleCount = (_msaaSamples . _renderFeatures $ rendererData)
-            renderPassImageAttachmentDescriptions =
+            colorAttachmentDescriptions =
                 [ defaultAttachmentDescription
                     { _attachmentImageFormat = (_imageFormat . _sceneColorTexture $ renderTargets)
                     , _attachmentImageSamples = msaaSampleCount
@@ -134,7 +134,9 @@ instance ResourceInterface ResourceData where
                     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
                     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                     }
-                , defaultAttachmentDescription
+                ]
+            depthAttachmentDescriptions =
+                [ defaultAttachmentDescription
                     { _attachmentImageFormat = (_imageFormat . _sceneDepthTexture $ renderTargets)
                     , _attachmentImageSamples = msaaSampleCount
                     , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
@@ -142,7 +144,9 @@ instance ResourceInterface ResourceData where
                     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
                     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
                     }
-                , defaultAttachmentDescription
+                ]
+            resolveAttachmentDescriptions =
+                [ defaultAttachmentDescription
                     { _attachmentImageFormat = (_imageFormat . _sceneColorTexture $ renderTargets)
                     , _attachmentImageSamples = VK_SAMPLE_COUNT_1_BIT
                     , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
@@ -151,11 +155,12 @@ instance ResourceInterface ResourceData where
                     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                     }
                 ]
-
-        let renderPassDataCreateInfo = RenderPassDataCreateInfo
+            renderPassDataCreateInfo = RenderPassDataCreateInfo
                 { _vertexShaderFile = "Resource/Shaders/triangle.vert"
                 , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
-                , _renderPassImageAttachmentDescriptions = renderPassImageAttachmentDescriptions
+                , _renderPassColorAttachmentDescriptions = colorAttachmentDescriptions
+                , _renderPassDepthAttachmentDescriptions = depthAttachmentDescriptions
+                , _renderPassResolveAttachmentDescriptions = resolveAttachmentDescriptions
                 , _renderPassImageWidth = _imageWidth._sceneColorTexture $ renderTargets
                 , _renderPassImageHeight = _imageHeight._sceneColorTexture $ renderTargets
                 , _renderPassImageDepth = _imageDepth._sceneColorTexture $ renderTargets
@@ -165,7 +170,7 @@ instance ResourceInterface ResourceData where
                     , (_swapChainImageViews swapChainData) !! index
                     ] | index <- Constants.swapChainImageIndices]
                 , _renderPassSampleCount = msaaSampleCount
-                , _renderPassClearValues = [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
+                , _renderPassClearValues = [ getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0 ]
                 }
         renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo
         HashTable.insert (_renderPassDataMap resourceData) "defaultRenderPass" renderPassData

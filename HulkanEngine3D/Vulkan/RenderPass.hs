@@ -46,8 +46,21 @@ data ImageAttachmentDescription = ImageAttachmentDescription
     , _attachmentInitialLayout :: VkImageLayout
     , _attachmentFinalLayout :: VkImageLayout
     , _attachmentReferenceLayout :: VkImageLayout
-    , _isResolveAttachment :: Bool
     } deriving (Eq, Show)
+
+data RenderPassDataCreateInfo = RenderPassDataCreateInfo
+    { _vertexShaderFile :: String
+    , _fragmentShaderFile :: String
+    , _renderPassImageWidth :: Int
+    , _renderPassImageHeight :: Int
+    , _renderPassImageDepth :: Int
+    , _renderPassSampleCount :: VkSampleCountFlagBits
+    , _renderPassImageViewsList :: [[VkImageView]]
+    , _renderPassColorAttachmentDescriptions :: [ImageAttachmentDescription]
+    , _renderPassDepthAttachmentDescriptions :: [ImageAttachmentDescription]
+    , _renderPassResolveAttachmentDescriptions :: [ImageAttachmentDescription]
+    , _renderPassClearValues :: [VkClearValue]
+    }  deriving (Eq, Show)
 
 data GraphicsPipelineData = GraphicsPipelineData
     { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
@@ -62,19 +75,6 @@ data RenderPassData = RenderPassData
     , _renderPass :: VkRenderPass
     , _frameBufferData :: FrameBufferData
     } deriving (Eq, Show)
-
-data RenderPassDataCreateInfo = RenderPassDataCreateInfo
-    { _vertexShaderFile :: String
-    , _fragmentShaderFile :: String
-    , _renderPassImageWidth :: Int
-    , _renderPassImageHeight :: Int
-    , _renderPassImageDepth :: Int
-    , _renderPassSampleCount :: VkSampleCountFlagBits
-    , _renderPassImageViewsList :: [[VkImageView]]
-    , _renderPassImageAttachmentDescriptions :: [ImageAttachmentDescription]
-    , _renderPassClearValues :: [VkClearValue]
-    }  deriving (Eq, Show)
-
 
 class RenderPassInterface a where
     getDescriptorSetLayout :: a -> VkDescriptorSetLayout
@@ -94,13 +94,12 @@ defaultAttachmentDescription = ImageAttachmentDescription
     , _attachmentInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED
     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_UNDEFINED
     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
-    , _isResolveAttachment = False
     }
 
 createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> IO RenderPassData
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} = do
     let imageSize = (_renderPassImageWidth, _renderPassImageHeight, _renderPassImageDepth)
-    renderPass <- createRenderPass device _renderPassImageAttachmentDescriptions
+    renderPass <- createRenderPass device _renderPassColorAttachmentDescriptions _renderPassDepthAttachmentDescriptions _renderPassResolveAttachmentDescriptions
     graphicsPipelineData <- createGraphicsPipeline device renderPass imageSize _renderPassSampleCount _vertexShaderFile _fragmentShaderFile
     frameBufferData <- createFramebufferData device renderPass _renderPassImageViewsList imageSize _renderPassSampleCount _renderPassClearValues
     let renderPassData = RenderPassData
@@ -118,9 +117,10 @@ destroyRenderPassData device renderPassData@RenderPassData {..} = do
     destroyRenderPass device _renderPass
 
 
-createRenderPass :: VkDevice -> [ImageAttachmentDescription] -> IO VkRenderPass
-createRenderPass device attachmentDescriptions = do
-    let imageAttachment attachmentDescription = createVk @VkAttachmentDescription
+createRenderPass :: VkDevice -> [ImageAttachmentDescription] -> [ImageAttachmentDescription] -> [ImageAttachmentDescription] -> IO VkRenderPass
+createRenderPass device colorAttachmentDescriptions depthAttachmentDescriptions resolveAttachmentDescriptions = do
+    let imageAttachment :: ImageAttachmentDescription -> VkAttachmentDescription
+        imageAttachment attachmentDescription = createVk @VkAttachmentDescription
             $  set @"flags" VK_ZERO_FLAGS
             &* set @"format" (_attachmentImageFormat attachmentDescription)
             &* set @"samples" (_attachmentImageSamples attachmentDescription)
@@ -130,22 +130,30 @@ createRenderPass device attachmentDescriptions = do
             &* set @"stencilStoreOp" (_attachmentStencilStoreOperation attachmentDescription)
             &* set @"initialLayout" (_attachmentInitialLayout attachmentDescription)
             &* set @"finalLayout" (_attachmentFinalLayout attachmentDescription)
+        imageAttachmentReference :: ImageAttachmentDescription -> Int -> VkAttachmentReference
         imageAttachmentReference attachmentDescription index = createVk @VkAttachmentReference
-            $  set @"attachment" index
+            $  set @"attachment" (fromIntegral index)
             &* set @"layout" (_attachmentReferenceLayout attachmentDescription)
+        attachmentDescriptions = colorAttachmentDescriptions ++ depthAttachmentDescriptions ++ resolveAttachmentDescriptions
         imageAttachments = map imageAttachment attachmentDescriptions
-        colorAttachmentReferences = imageAttachmentReference (attachmentDescriptions !! 0) 0
-        depthAttachmentReference = imageAttachmentReference (attachmentDescriptions !! 1) 1
-        resolveAttachmentReferences = imageAttachmentReference (attachmentDescriptions !! 2) 2
+        colorAttachmentCount = length colorAttachmentDescriptions
+        depthAttachmentCount = length depthAttachmentDescriptions
+        resolveAttachmentCount = length resolveAttachmentDescriptions
+        colorAttachmentReferences = zipWith imageAttachmentReference colorAttachmentDescriptions [0..]
+        depthAttachmentReferences = zipWith imageAttachmentReference depthAttachmentDescriptions [colorAttachmentCount..]
+        resolveAttachmentReferences = zipWith imageAttachmentReference resolveAttachmentDescriptions [(colorAttachmentCount + depthAttachmentCount)..]
         subpass = createVk @VkSubpassDescription
             $  set @"pipelineBindPoint" VK_PIPELINE_BIND_POINT_GRAPHICS
-            &* set @"colorAttachmentCount" 1
-            &* setVkRef @"pColorAttachments" colorAttachmentReferences
-            &* setVkRef @"pDepthStencilAttachment" depthAttachmentReference
-            &* setVkRef @"pResolveAttachments" resolveAttachmentReferences
---            &* (case resolveAttachmentReferences of
---                    [] -> set @"pResolveAttachments" VK_NULL
---                    _ -> setVkRef @"pResolveAttachments" resolveAttachmentReferences)
+            &* set @"colorAttachmentCount" (fromIntegral . length $ colorAttachmentReferences)
+            &* case colorAttachmentReferences of
+                [] -> set @"pColorAttachments" VK_NULL
+                otherwise -> setListRef @"pColorAttachments" colorAttachmentReferences
+            &* case depthAttachmentReferences of
+                [] -> set @"pDepthStencilAttachment" VK_NULL
+                otherwise -> setListRef @"pDepthStencilAttachment" depthAttachmentReferences
+            &* case resolveAttachmentReferences of
+                [] -> set @"pResolveAttachments" VK_NULL
+                otherwise -> setListRef @"pResolveAttachments" resolveAttachmentReferences
             &* set @"pPreserveAttachments" VK_NULL
             &* set @"pInputAttachments" VK_NULL
         dependency = createVk @VkSubpassDependency
@@ -169,7 +177,7 @@ createRenderPass device attachmentDescriptions = do
         validationVK result "vkCreatePipelineLayout failed!"
         peek renderPassPtr
     touchVkData renderPassCreateInfo
-    logInfo $ "Create RenderPass: " ++ show [_attachmentImageFormat x | x <- attachmentDescriptions]
+    logInfo $ "Create RenderPass: " ++ show (fmap _attachmentImageFormat attachmentDescriptions)
     return renderPass
 
 
