@@ -369,6 +369,8 @@ resizeWindow window rendererData@RendererData {..} = do
     renderTargets <- createRenderTargets rendererData
     writeIORef _renderTargets renderTargets
 
+    loadRenderPassDatas _resourceData rendererData
+
 
 
 updateRendererData :: RendererData -> Mat44f -> Mat44f -> GeometryData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
