@@ -553,7 +553,7 @@ createColorTexture physicalDevice device commandBufferPool queue format extent s
             , _imageDepth = 1
             , _imageMipLevels = fromIntegral mipLevels
             }
-    logInfo "createColorImageView"
+    logInfo "createColorTexture"
     logInfo $ "    Format : " ++ show format
     logInfo $ "    MultiSampleCount : " ++ show samples
     logInfo $ "    Size : " ++ show extent
