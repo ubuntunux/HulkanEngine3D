@@ -16,7 +16,7 @@ swapChainImageCount :: Int
 swapChainImageCount = 3
 
 swapChainImageIndices :: [Int]
-swapChainImageIndices = [0..swapChainImageCount]
+swapChainImageIndices = [0..(swapChainImageCount-1)]
 
 maxFrameCount :: Int
 maxFrameCount = 2

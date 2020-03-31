@@ -155,7 +155,6 @@ instance ResourceInterface ResourceData where
         let renderPassDataCreateInfo = RenderPassDataCreateInfo
                 { _vertexShaderFile = "Resource/Shaders/triangle.vert"
                 , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
-                , _renderPassSwapChainImageCount = fromIntegral Constants.swapChainImageCount
                 , _renderPassImageAttachmentDescriptions = renderPassImageAttachmentDescriptions
                 , _renderPassImageWidth = _imageWidth._sceneColorTexture $ renderTargets
                 , _renderPassImageHeight = _imageHeight._sceneColorTexture $ renderTargets

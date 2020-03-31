@@ -16,6 +16,7 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 
@@ -28,18 +29,17 @@ data FrameBufferData = FrameBufferData
 
 createFramebufferData :: VkDevice
                       -> VkRenderPass
-                      -> Int
                       -> [[VkImageView]]
                       -> (Int, Int, Int)
                       -> VkSampleCountFlagBits
                       -> [VkClearValue]
                       -> IO FrameBufferData
-createFramebufferData device renderPass swapChainImageCount imageViewsList (width, height, depth) msaaSampleCount clearValues = do
+createFramebufferData device renderPass imageViewsList (width, height, depth) msaaSampleCount clearValues = do
     logInfo "Create Framebuffers"
     logInfo $ "    ImageViews " ++ show (imageViewsList !! 0)
     when (msaaSampleCount /= VK_SAMPLE_COUNT_1_BIT) $ do
         logInfo $ "    MSAA " ++ show msaaSampleCount
-    framebuffers <- mapM createFrameBuffer [0..(swapChainImageCount - 1)]
+    framebuffers <- mapM createFrameBuffer Constants.swapChainImageIndices
     let imageExtent = createVk @VkExtent2D
             $  set @"width" (fromIntegral width)
             &* set @"height" (fromIntegral height)

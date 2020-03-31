@@ -66,7 +66,6 @@ data RenderPassData = RenderPassData
 data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     { _vertexShaderFile :: String
     , _fragmentShaderFile :: String
-    , _renderPassSwapChainImageCount :: Int
     , _renderPassImageWidth :: Int
     , _renderPassImageHeight :: Int
     , _renderPassImageDepth :: Int
@@ -103,7 +102,7 @@ createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {.
     let imageSize = (_renderPassImageWidth, _renderPassImageHeight, _renderPassImageDepth)
     renderPass <- createRenderPass device _renderPassImageAttachmentDescriptions
     graphicsPipelineData <- createGraphicsPipeline device renderPass imageSize _renderPassSampleCount _vertexShaderFile _fragmentShaderFile
-    frameBufferData <- createFramebufferData device renderPass _renderPassSwapChainImageCount _renderPassImageViewsList imageSize _renderPassSampleCount _renderPassClearValues
+    frameBufferData <- createFramebufferData device renderPass _renderPassImageViewsList imageSize _renderPassSampleCount _renderPassClearValues
     let renderPassData = RenderPassData
             { _renderPass = renderPass
             , _graphicsPipelineData = graphicsPipelineData
