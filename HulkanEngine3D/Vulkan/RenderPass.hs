@@ -34,7 +34,6 @@ import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.PushConstant
 import HulkanEngine3D.Vulkan.Shader
-import HulkanEngine3D.Vulkan.Texture
 
 
 data ImageAttachmentDescription = ImageAttachmentDescription
@@ -89,10 +88,10 @@ defaultAttachmentDescription :: ImageAttachmentDescription
 defaultAttachmentDescription = ImageAttachmentDescription
     { _attachmentImageFormat = VK_FORMAT_UNDEFINED
     , _attachmentImageSamples = VK_SAMPLE_COUNT_1_BIT
-    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_LOAD
-    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
-    , _attachmentStencilLoadOperation = VK_ATTACHMENT_LOAD_OP_LOAD
-    , _attachmentStencilStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
+    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
+    , _attachmentStencilLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+    , _attachmentStencilStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
     , _attachmentInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED
     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_UNDEFINED
     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
@@ -136,18 +135,18 @@ createRenderPass device attachmentDescriptions = do
             $  set @"attachment" index
             &* set @"layout" (_attachmentReferenceLayout attachmentDescription)
         imageAttachments = map imageAttachment attachmentDescriptions
-        attachmentDescriptionsWithIndex = zip attachmentDescriptions [0..]
-        colorAttachmentReferences = [imageAttachmentReference description index | (description, index) <- attachmentDescriptionsWithIndex, not . isDepthFormat . _attachmentImageFormat $ description]
-        depthAttachmentReference = head [imageAttachmentReference description index | (description, index) <- attachmentDescriptionsWithIndex, isDepthFormat . _attachmentImageFormat $ description]
-        resolveAttachmentReferences = [imageAttachmentReference description index | (description, index) <- attachmentDescriptionsWithIndex, _isResolveAttachment description]
+        colorAttachmentReferences = imageAttachmentReference (attachmentDescriptions !! 0) 0
+        depthAttachmentReference = imageAttachmentReference (attachmentDescriptions !! 1) 1
+        resolveAttachmentReferences = imageAttachmentReference (attachmentDescriptions !! 2) 2
         subpass = createVk @VkSubpassDescription
             $  set @"pipelineBindPoint" VK_PIPELINE_BIND_POINT_GRAPHICS
-            &* set @"colorAttachmentCount" (fromIntegral . length $ colorAttachmentReferences)
-            &* setListRef @"pColorAttachments" colorAttachmentReferences
+            &* set @"colorAttachmentCount" 1
+            &* setVkRef @"pColorAttachments" colorAttachmentReferences
             &* setVkRef @"pDepthStencilAttachment" depthAttachmentReference
-            &* (case resolveAttachmentReferences of
-                    [] -> set @"pResolveAttachments" VK_NULL
-                    _ -> setListRef @"pResolveAttachments" resolveAttachmentReferences)
+            &* setVkRef @"pResolveAttachments" resolveAttachmentReferences
+--            &* (case resolveAttachmentReferences of
+--                    [] -> set @"pResolveAttachments" VK_NULL
+--                    _ -> setVkRef @"pResolveAttachments" resolveAttachmentReferences)
             &* set @"pPreserveAttachments" VK_NULL
             &* set @"pInputAttachments" VK_NULL
         dependency = createVk @VkSubpassDependency

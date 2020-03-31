@@ -19,7 +19,7 @@ import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Resource.ObjLoader
-import HulkanEngine3D.Vulkan (getColorClearValue, getDepthStencilClearValue)
+import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 
@@ -122,12 +122,13 @@ instance ResourceInterface ResourceData where
     loadRenderPassDatas resourceData rendererData = do
         renderTargets <- readIORef (_renderTargets rendererData)
 
-        let msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
+        let msaaSampleCount = (_msaaSamples . _renderFeatures $ rendererData)
             renderPassImageAttachmentDescriptions =
                 [ defaultAttachmentDescription
                     { _attachmentImageFormat = (_imageFormat . _sceneColorTexture $ renderTargets)
                     , _attachmentImageSamples = msaaSampleCount
                     , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
+                    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
                     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
                     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                     }
@@ -135,14 +136,17 @@ instance ResourceInterface ResourceData where
                     { _attachmentImageFormat = (_imageFormat . _sceneDepthTexture $ renderTargets)
                     , _attachmentImageSamples = msaaSampleCount
                     , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
+                    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
                     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
                     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
                     }
                 , defaultAttachmentDescription
                     { _attachmentImageFormat = (_imageFormat . _sceneColorTexture $ renderTargets)
+                    , _attachmentImageSamples = VK_SAMPLE_COUNT_1_BIT
                     , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
                     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                     }
                 ]
 
@@ -154,8 +158,8 @@ instance ResourceInterface ResourceData where
                 , _renderPassImageWidth = _imageWidth._sceneColorTexture $ renderTargets
                 , _renderPassImageHeight = _imageHeight._sceneColorTexture $ renderTargets
                 , _renderPassImageDepth = _imageDepth._sceneColorTexture $ renderTargets
-                , _renderPassImageViews = [_imageView._sceneColorTexture $ renderTargets, _imageView._sceneDepthTexture $ renderTargets]
-                , _renderPassSampleCount = _attachmentImageSamples (head renderPassImageAttachmentDescriptions)
+                , _renderPassImageViews = [_imageView._sceneColorTexture $ renderTargets, _imageView._sceneDepthTexture $ renderTargets, _imageView._sceneColorTexture $ renderTargets]
+                , _renderPassSampleCount = msaaSampleCount
                 , _renderPassClearValues = [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
                 }
         renderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo

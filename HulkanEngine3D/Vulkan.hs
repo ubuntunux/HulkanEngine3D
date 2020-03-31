@@ -26,7 +26,7 @@ import HulkanEngine3D.Utilities.System
 
 data RenderFeatures = RenderFeatures
     { _anisotropyEnable :: VkBool32
-    , _msaaSamples :: VkSampleCountBitmask FlagBit
+    , _msaaSamples :: VkSampleCountFlagBits
     } deriving (Eq, Show)
 
 getColorClearValue :: [Float] -> VkClearValue
