@@ -121,8 +121,8 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface im
   let maxImageCount = getField @"maxImageCount" $ _capabilities swapChainSupportDetails
       minImageCount = getField @"minImageCount" $ _capabilities swapChainSupportDetails
       imageCount' = if maxImageCount <= 0
-                   then max minImageCount Constants.swapChainImageCount
-                   else min maxImageCount $ max minImageCount Constants.swapChainImageCount
+                   then max minImageCount (fromIntegral Constants.swapChainImageCount)
+                   else min maxImageCount $ max minImageCount (fromIntegral Constants.swapChainImageCount)
 
   -- write VkSwapchainCreateInfoKHR
   swapChainCreateInfo <- newVkData @VkSwapchainCreateInfoKHR $ \swapChainCreateInfoPtr -> do

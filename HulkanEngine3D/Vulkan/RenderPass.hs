@@ -71,7 +71,7 @@ data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     , _renderPassImageHeight :: Int
     , _renderPassImageDepth :: Int
     , _renderPassSampleCount :: VkSampleCountFlagBits
-    , _renderPassImageViews :: [VkImageView]
+    , _renderPassImageViewsList :: [[VkImageView]]
     , _renderPassImageAttachmentDescriptions :: [ImageAttachmentDescription]
     , _renderPassClearValues :: [VkClearValue]
     }  deriving (Eq, Show)
@@ -103,7 +103,7 @@ createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {.
     let imageSize = (_renderPassImageWidth, _renderPassImageHeight, _renderPassImageDepth)
     renderPass <- createRenderPass device _renderPassImageAttachmentDescriptions
     graphicsPipelineData <- createGraphicsPipeline device renderPass imageSize _renderPassSampleCount _vertexShaderFile _fragmentShaderFile
-    frameBufferData <- createFramebufferData device renderPass _renderPassSwapChainImageCount _renderPassImageViews imageSize _renderPassSampleCount _renderPassClearValues
+    frameBufferData <- createFramebufferData device renderPass _renderPassSwapChainImageCount _renderPassImageViewsList imageSize _renderPassSampleCount _renderPassClearValues
     let renderPassData = RenderPassData
             { _renderPass = renderPass
             , _graphicsPipelineData = graphicsPipelineData

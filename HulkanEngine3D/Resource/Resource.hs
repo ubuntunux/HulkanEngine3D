@@ -22,6 +22,7 @@ import HulkanEngine3D.Resource.ObjLoader
 import HulkanEngine3D.Vulkan
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
+import HulkanEngine3D.Vulkan.SwapChain
 
 type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
 type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
@@ -121,6 +122,7 @@ instance ResourceInterface ResourceData where
     loadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     loadRenderPassDatas resourceData rendererData = do
         renderTargets <- readIORef (_renderTargets rendererData)
+        swapChainData <- readIORef (_swapChainDataRef rendererData)
 
         let msaaSampleCount = (_msaaSamples . _renderFeatures $ rendererData)
             renderPassImageAttachmentDescriptions =
@@ -158,7 +160,11 @@ instance ResourceInterface ResourceData where
                 , _renderPassImageWidth = _imageWidth._sceneColorTexture $ renderTargets
                 , _renderPassImageHeight = _imageHeight._sceneColorTexture $ renderTargets
                 , _renderPassImageDepth = _imageDepth._sceneColorTexture $ renderTargets
-                , _renderPassImageViews = [_imageView._sceneColorTexture $ renderTargets, _imageView._sceneDepthTexture $ renderTargets, _imageView._sceneColorTexture $ renderTargets]
+                , _renderPassImageViewsList = [
+                    [ _imageView._sceneColorTexture $ renderTargets
+                    , _imageView._sceneDepthTexture $ renderTargets
+                    , (_swapChainImageViews swapChainData) !! index
+                    ] | index <- Constants.swapChainImageIndices]
                 , _renderPassSampleCount = msaaSampleCount
                 , _renderPassClearValues = [getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0]
                 }

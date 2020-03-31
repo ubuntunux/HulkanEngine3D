@@ -12,8 +12,11 @@ requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
 invalidQueueIndex :: Word32
 invalidQueueIndex = maxBound
 
-swapChainImageCount :: Word32
+swapChainImageCount :: Int
 swapChainImageCount = 3
+
+swapChainImageIndices :: [Int]
+swapChainImageIndices = [0..swapChainImageCount]
 
 maxFrameCount :: Int
 maxFrameCount = 2

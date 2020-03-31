@@ -29,14 +29,14 @@ data FrameBufferData = FrameBufferData
 createFramebufferData :: VkDevice
                       -> VkRenderPass
                       -> Int
-                      -> [VkImageView]
+                      -> [[VkImageView]]
                       -> (Int, Int, Int)
                       -> VkSampleCountFlagBits
                       -> [VkClearValue]
                       -> IO FrameBufferData
-createFramebufferData device renderPass swapChainImageCount imageViews (width, height, depth) msaaSampleCount clearValues = do
+createFramebufferData device renderPass swapChainImageCount imageViewsList (width, height, depth) msaaSampleCount clearValues = do
     logInfo "Create Framebuffers"
-    logInfo $ "    ImageViews " ++ show imageViews
+    logInfo $ "    ImageViews " ++ show (imageViewsList !! 0)
     when (msaaSampleCount /= VK_SAMPLE_COUNT_1_BIT) $ do
         logInfo $ "    MSAA " ++ show msaaSampleCount
     framebuffers <- mapM createFrameBuffer [0..(swapChainImageCount - 1)]
@@ -50,7 +50,8 @@ createFramebufferData device renderPass swapChainImageCount imageViews (width, h
     where
         createFrameBuffer :: Int -> IO VkFramebuffer
         createFrameBuffer index = do
-            let frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
+            let imageViews = imageViewsList !! index
+                frameBufferCreateInfo = createVk @VkFramebufferCreateInfo
                     $  set @"sType" VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
                     &* set @"pNext" VK_NULL
                     &* set @"flags" VK_ZERO_FLAGS
