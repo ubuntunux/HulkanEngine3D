@@ -134,7 +134,7 @@ createRenderPass device attachmentDescriptions = do
             &* set @"finalLayout" (_attachmentFinalLayout attachmentDescription)
         imageAttachmentReference attachmentDescription index = createVk @VkAttachmentReference
             $  set @"attachment" index
-            &* set @"layout" _attachmentReferenceLayout attachmentDescription
+            &* set @"layout" (_attachmentReferenceLayout attachmentDescription)
         imageAttachments = map imageAttachment attachmentDescriptions
         attachmentDescriptionsWithIndex = zip attachmentDescriptions [0..]
         colorAttachmentReferences = [imageAttachmentReference description index | (description, index) <- attachmentDescriptionsWithIndex, not . isDepthFormat . _attachmentImageFormat $ description]
