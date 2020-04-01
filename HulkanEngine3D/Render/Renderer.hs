@@ -52,7 +52,6 @@ import HulkanEngine3D.Vulkan.Buffer
 import HulkanEngine3D.Vulkan.CommandBuffer
 import HulkanEngine3D.Vulkan.Device
 import HulkanEngine3D.Vulkan.Descriptor
-import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Queue
 import HulkanEngine3D.Vulkan.PushConstant
@@ -438,16 +437,13 @@ recordCommandBuffer :: RendererData
                     -> IO ()
 recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCount, indexBuffer) descriptorSets = do
     defaultRenderPassData <- getDefaultRenderPassData (_resourceData rendererData)
+
     let renderPass = _renderPass defaultRenderPassData
+        renderPassBeginInfo = (_renderPassBeginInfos defaultRenderPassData) !! imageIndex
         graphicsPipelineData = _graphicsPipelineData defaultRenderPassData
         pipelineLayout = _pipelineLayout graphicsPipelineData
         pipeline = _pipeline graphicsPipelineData
-        frameBufferData = _frameBufferData defaultRenderPassData
-        frameBuffers = _frameBuffers frameBufferData
-        imageExtent = _frameBufferSize frameBufferData
-        clearValues = _frameBufferClearValues frameBufferData
-        frameBuffer = frameBuffers !! fromIntegral imageIndex
-        descriptorSet = descriptorSets !! fromIntegral imageIndex
+        descriptorSet = descriptorSets !! imageIndex
 
     -- begin command buffer
     let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
@@ -467,19 +463,6 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
         vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
 
     -- begin renderpass
-    let renderPassBeginInfo = createVk @VkRenderPassBeginInfo
-            $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
-            &* set @"pNext" VK_NULL
-            &* set @"renderPass" renderPass
-            &* set @"framebuffer" frameBuffer
-            &* setVk @"renderArea"
-                (  setVk @"offset"
-                        (  set @"x" 0
-                        &* set @"y" 0 )
-                &* set @"extent" imageExtent )
-            &* set @"clearValueCount" (fromIntegral $ length clearValues)
-            &* setListRef @"pClearValues" clearValues
-
     withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
         vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
 

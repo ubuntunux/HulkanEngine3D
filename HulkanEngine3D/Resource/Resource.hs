@@ -118,7 +118,7 @@ instance ResourceInterface ResourceData where
         renderTargets <- readIORef (_renderTargets rendererData)
         swapChainData <- readIORef (_swapChainDataRef rendererData)
 
-        defaultRenderPassDataCreateInfo <- createDefaultRenderPassDataCreateInfo rendererData "defaultRenderPass"
+        defaultRenderPassDataCreateInfo <- createDefaultRenderPassDataCreateInfo rendererData
         defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo
         HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
 

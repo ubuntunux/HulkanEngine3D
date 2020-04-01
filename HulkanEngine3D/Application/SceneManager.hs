@@ -54,11 +54,12 @@ instance SceneManagerInterface SceneManagerData where
         cameraObjectData <- createCameraObjectData objectName cameraCreateData
         HashTable.insert (_cameraObjectMap sceneManagerData) objectName cameraObjectData
         return cameraObjectData
-
+    
     updateSceneManagerData :: SceneManagerData -> IO ()
     updateSceneManagerData sceneManagerData = do
         mainCamera <- getMainCamera sceneManagerData
         updateCameraObjectData mainCamera
+    
 
 generateObjectName :: HashTable.BasicHashTable T.Text v -> T.Text -> IO T.Text
 generateObjectName objectMap objectName = do
