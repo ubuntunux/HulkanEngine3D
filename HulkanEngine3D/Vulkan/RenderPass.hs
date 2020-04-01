@@ -7,9 +7,11 @@ module HulkanEngine3D.Vulkan.RenderPass
     ( ImageAttachmentDescription (..)
     , RenderPassDataCreateInfo (..)
     , PipelineDataCreateInfo (..)
+    , DepthStencilStateCreateInfo (..)
     , GraphicsPipelineData (..)
     , RenderPassData (..)
     , RenderPassInterface (..)
+    , defaultDepthStencilStateCreateInfo
     , defaultAttachmentDescription
     , createRenderPassData
     , destroyRenderPassData
@@ -57,6 +59,7 @@ data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     , _depthAttachmentDescriptions :: [ImageAttachmentDescription]
     , _resolveAttachmentDescriptions :: [ImageAttachmentDescription]
     , _pipelineDataCreateInfo :: PipelineDataCreateInfo
+    , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
     , _frameBufferDataCreateInfo :: FrameBufferDataCreateInfo
     }  deriving (Eq, Show)
 
@@ -66,7 +69,33 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     , _fragmentShaderFile :: String
     , _pipelineViewportWidth :: Int
     , _pipelineViewportHeight :: Int
+    , _pipelinePolygonMode :: VkPolygonMode
+    , _pipelineCullMode :: VkCullModeFlagBits
+    , _pipelineFrontFace :: VkFrontFace
+    , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
     }  deriving (Eq, Show)
+
+
+data DepthStencilStateCreateInfo = DepthStencilStateCreateInfo
+    { _depthTestEnable :: VkBool32
+    , _depthWriteEnable :: VkBool32
+    , _depthCompareOp :: VkCompareOp
+    , _stencilTestEnable :: VkBool32
+    , _frontFailOp :: VkStencilOp -- fail the stencil test
+    , _frontPassOp :: VkStencilOp -- pass both the depth and stencil tests
+    , _frontDepthFailOp :: VkStencilOp -- pass the stencil test and fail the depth test
+    , _frontCompareOp :: VkCompareOp
+    , _frontCompareMask :: Word32
+    , _frontWriteMask :: Word32
+    , _frontReference :: Word32
+    , _backFailOp :: VkStencilOp -- fail the stencil test
+    , _backPassOp :: VkStencilOp -- pass both the depth and stencil tests
+    , _backDepthFailOp :: VkStencilOp -- pass the stencil test and fail the depth test
+    , _backCompareOp :: VkCompareOp
+    , _backCompareMask :: Word32
+    , _backWriteMask :: Word32
+    , _backReference :: Word32
+    } deriving (Eq, Show)
 
 data GraphicsPipelineData = GraphicsPipelineData
     { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
@@ -91,6 +120,28 @@ instance RenderPassInterface RenderPassData where
     getDescriptorSetLayout renderPassData = (_descriptorSetLayout (_graphicsPipelineData renderPassData))
 
 
+defaultDepthStencilStateCreateInfo :: DepthStencilStateCreateInfo
+defaultDepthStencilStateCreateInfo = DepthStencilStateCreateInfo
+   { _depthTestEnable = VK_TRUE
+   , _depthWriteEnable = VK_TRUE
+   , _depthCompareOp = VK_COMPARE_OP_LESS
+   , _stencilTestEnable = VK_FALSE
+   , _frontFailOp = VK_STENCIL_OP_KEEP
+   , _frontPassOp = VK_STENCIL_OP_KEEP
+   , _frontDepthFailOp = VK_STENCIL_OP_KEEP
+   , _frontCompareOp = VK_COMPARE_OP_NEVER
+   , _frontCompareMask = 0
+   , _frontWriteMask = 0
+   , _frontReference = 0
+   , _backFailOp = VK_STENCIL_OP_KEEP
+   , _backPassOp = VK_STENCIL_OP_KEEP
+   , _backDepthFailOp = VK_STENCIL_OP_KEEP
+   , _backCompareOp = VK_COMPARE_OP_NEVER
+   , _backCompareMask = 0
+   , _backWriteMask = 0
+   , _backReference = 0
+   }
+
 defaultAttachmentDescription :: ImageAttachmentDescription
 defaultAttachmentDescription = ImageAttachmentDescription
     { _attachmentImageFormat = VK_FORMAT_UNDEFINED
@@ -107,7 +158,7 @@ defaultAttachmentDescription = ImageAttachmentDescription
 createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> IO RenderPassData
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} = do
     renderPass <- createRenderPass device renderPassDataCreateInfo
-    graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo (_frameBufferSampleCount _frameBufferDataCreateInfo)
+    graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo _depthStencilStateCreateInfo (_frameBufferSampleCount _frameBufferDataCreateInfo)
     frameBufferData <- createFramebufferData device renderPass _frameBufferDataCreateInfo
     let renderPassBeginInfo frameBuffer = createVk @VkRenderPassBeginInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
@@ -242,9 +293,10 @@ destroyPipelineLayout device pipelineLayout = do
 createGraphicsPipeline :: VkDevice
                        -> VkRenderPass
                        -> PipelineDataCreateInfo
+                       -> DepthStencilStateCreateInfo
                        -> VkSampleCountFlagBits
                        -> IO GraphicsPipelineData
-createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} sampleCount = do
+createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} depthStencilStateCreateInfo@DepthStencilStateCreateInfo {..} sampleCount = do
     vertexShaderCreateInfo <- createShaderStageCreateInfo device _vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device _fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
 
@@ -300,9 +352,9 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"depthClampEnable" VK_FALSE
             &* set @"rasterizerDiscardEnable" VK_FALSE
-            &* set @"polygonMode" VK_POLYGON_MODE_FILL
-            &* set @"cullMode" VK_CULL_MODE_BACK_BIT
-            &* set @"frontFace" VK_FRONT_FACE_CLOCKWISE
+            &* set @"polygonMode" _pipelinePolygonMode
+            &* set @"cullMode" (bitToMask _pipelineCullMode)
+            &* set @"frontFace" _pipelineFrontFace
             &* set @"depthBiasEnable" VK_FALSE
             &* set @"depthBiasConstantFactor" 0
             &* set @"depthBiasClamp" 0
@@ -318,23 +370,14 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             &* set @"pSampleMask" VK_NULL
             &* set @"alphaToCoverageEnable" VK_FALSE
             &* set @"alphaToOneEnable" VK_FALSE
-        colorBlendAttachment = createVk @VkPipelineColorBlendAttachmentState
-            $  set @"colorWriteMask" ( VK_COLOR_COMPONENT_R_BIT .|. VK_COLOR_COMPONENT_G_BIT .|. VK_COLOR_COMPONENT_B_BIT .|. VK_COLOR_COMPONENT_A_BIT )
-            &* set @"blendEnable" VK_FALSE
-            &* set @"srcColorBlendFactor" VK_BLEND_FACTOR_ONE
-            &* set @"dstColorBlendFactor" VK_BLEND_FACTOR_ZERO
-            &* set @"colorBlendOp" VK_BLEND_OP_ADD
-            &* set @"srcAlphaBlendFactor" VK_BLEND_FACTOR_ONE
-            &* set @"dstAlphaBlendFactor" VK_BLEND_FACTOR_ZERO
-            &* set @"alphaBlendOp" VK_BLEND_OP_ADD
         colorBlending = createVk @VkPipelineColorBlendStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"logicOpEnable" VK_FALSE
             &* set @"logicOp" VK_LOGIC_OP_COPY
-            &* set @"attachmentCount" 1
-            &* setVkRef @"pAttachments" colorBlendAttachment
+            &* set @"attachmentCount" (fromIntegral . length $ _pipelineColorBlendModes)
+            &* setListRef @"pAttachments" _pipelineColorBlendModes
             &* setAt @"blendConstants" @0 0.0
             &* setAt @"blendConstants" @1 0.0
             &* setAt @"blendConstants" @2 0.0
@@ -343,29 +386,29 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
-            &* set @"depthTestEnable" VK_TRUE
-            &* set @"depthWriteEnable" VK_TRUE
-            &* set @"depthCompareOp" VK_COMPARE_OP_LESS
+            &* set @"depthTestEnable" _depthTestEnable
+            &* set @"depthWriteEnable" _depthWriteEnable
+            &* set @"depthCompareOp" _depthCompareOp
             &* set @"depthBoundsTestEnable" VK_FALSE
             &* set @"minDepthBounds" 0.0
             &* set @"maxDepthBounds" 1.0
-            &* set @"stencilTestEnable" VK_FALSE
+            &* set @"stencilTestEnable" _stencilTestEnable
             &* setVk @"front"
-                (  set @"failOp" VK_STENCIL_OP_KEEP
-                &* set @"passOp" VK_STENCIL_OP_KEEP
-                &* set @"depthFailOp" VK_STENCIL_OP_KEEP
-                &* set @"compareOp" VK_COMPARE_OP_NEVER
-                &* set @"compareMask" 0
-                &* set @"writeMask" 0
-                &* set @"reference" 0 )
+                (  set @"failOp" _frontFailOp
+                &* set @"passOp" _frontPassOp
+                &* set @"depthFailOp" _frontDepthFailOp
+                &* set @"compareOp" _frontCompareOp
+                &* set @"compareMask" _frontCompareMask
+                &* set @"writeMask" _frontWriteMask
+                &* set @"reference" _frontReference )
             &* setVk @"back"
-                (  set @"failOp" VK_STENCIL_OP_KEEP
-                &* set @"passOp" VK_STENCIL_OP_KEEP
-                &* set @"depthFailOp" VK_STENCIL_OP_KEEP
-                &* set @"compareOp" VK_COMPARE_OP_NEVER
-                &* set @"compareMask" 0
-                &* set @"writeMask" 0
-                &* set @"reference" 0 )
+                (  set @"failOp" _backFailOp
+                &* set @"passOp" _backPassOp
+                &* set @"depthFailOp" _backDepthFailOp
+                &* set @"compareOp" _backCompareOp
+                &* set @"compareMask" _backCompareMask
+                &* set @"writeMask" _backWriteMask
+                &* set @"reference" _backReference )
         graphicsPipelineCreateInfo = createVk @VkGraphicsPipelineCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
             &* set @"pNext" VK_NULL

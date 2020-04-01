@@ -6,13 +6,9 @@
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 
-module HulkanEngine3D.Vulkan
-  ( RenderFeatures (..)
-  , getColorClearValue
-  , getDepthStencilClearValue
-  , runCommandsOnce
-  ) where
+module HulkanEngine3D.Vulkan where
 
+import Data.Bits
 import Foreign.Storable
 
 import Graphics.Vulkan
@@ -28,6 +24,18 @@ data RenderFeatures = RenderFeatures
     { _anisotropyEnable :: VkBool32
     , _msaaSamples :: VkSampleCountFlagBits
     } deriving (Eq, Show)
+
+
+getColorBlendMode_None :: VkPipelineColorBlendAttachmentState
+getColorBlendMode_None = createVk @VkPipelineColorBlendAttachmentState
+    $  set @"colorWriteMask" ( VK_COLOR_COMPONENT_R_BIT .|. VK_COLOR_COMPONENT_G_BIT .|. VK_COLOR_COMPONENT_B_BIT .|. VK_COLOR_COMPONENT_A_BIT )
+    &* set @"blendEnable" VK_FALSE
+    &* set @"srcColorBlendFactor" VK_BLEND_FACTOR_ONE
+    &* set @"dstColorBlendFactor" VK_BLEND_FACTOR_ZERO
+    &* set @"colorBlendOp" VK_BLEND_OP_ADD
+    &* set @"srcAlphaBlendFactor" VK_BLEND_FACTOR_ONE
+    &* set @"dstAlphaBlendFactor" VK_BLEND_FACTOR_ZERO
+    &* set @"alphaBlendOp" VK_BLEND_OP_ADD
 
 getColorClearValue :: [Float] -> VkClearValue
 getColorClearValue colors = createVk @VkClearValue

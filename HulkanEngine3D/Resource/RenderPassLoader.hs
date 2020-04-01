@@ -59,6 +59,10 @@ createDefaultRenderPassDataCreateInfo rendererData = do
             , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
             , _pipelineViewportWidth = _imageWidth _sceneColorTexture
             , _pipelineViewportHeight = _imageHeight _sceneColorTexture
+            , _pipelinePolygonMode = VK_POLYGON_MODE_FILL
+            , _pipelineCullMode = VK_CULL_MODE_BACK_BIT
+            , _pipelineFrontFace = VK_FRONT_FACE_CLOCKWISE
+            , _pipelineColorBlendModes = [getColorBlendMode_None]
             }
         frameBufferDataCreateInfo = defaultFrameBufferDataCreateInfo
             { _frameBufferName = "defaultRenderPassFrameBuffer"
@@ -80,5 +84,6 @@ createDefaultRenderPassDataCreateInfo rendererData = do
         , _depthAttachmentDescriptions = depthAttachmentDescriptions
         , _resolveAttachmentDescriptions = resolveAttachmentDescriptions
         , _pipelineDataCreateInfo = pipelineDataCreateInfo
+        , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
         , _frameBufferDataCreateInfo = frameBufferDataCreateInfo
         }
