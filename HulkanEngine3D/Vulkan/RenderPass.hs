@@ -238,9 +238,10 @@ createRenderPass device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} =
             $  set @"srcSubpass" VK_SUBPASS_EXTERNAL
             &* set @"dstSubpass" 0
             &* set @"srcStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-            &* set @"srcAccessMask" VK_ZERO_FLAGS
             &* set @"dstStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+            &* set @"srcAccessMask" VK_ZERO_FLAGS
             &* set @"dstAccessMask" (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT .|. VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+            &* set @"dependencyFlags" VK_DEPENDENCY_BY_REGION_BIT
         renderPassCreateInfo = createVk @VkRenderPassCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
             &* set @"pNext" VK_NULL
