@@ -27,6 +27,6 @@ class ResourceInterface a where
     loadRenderPassDatas :: a -> RendererData -> IO ()
     unloadRenderPassDatas :: a -> RendererData -> IO ()
     getRenderPassData :: a -> Text.Text -> IO (Maybe RenderPassData)
-    getDefaultRenderPassData :: a -> IO RenderPassData
+    getDefaultRenderPassData :: a -> IO (Maybe RenderPassData)
 
 instance ResourceInterface ResourceData where

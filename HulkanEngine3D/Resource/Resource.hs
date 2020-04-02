@@ -45,7 +45,7 @@ class ResourceInterface a where
     loadRenderPassDatas :: a -> RendererData -> IO ()
     unloadRenderPassDatas :: a -> RendererData -> IO ()
     getRenderPassData :: a -> Text.Text -> IO (Maybe RenderPassData)
-    getDefaultRenderPassData :: a -> IO RenderPassData
+    getDefaultRenderPassData :: a -> IO (Maybe RenderPassData)
 
 instance ResourceInterface ResourceData where
     createNewResourceData :: IO ResourceData
@@ -130,7 +130,6 @@ instance ResourceInterface ResourceData where
     getRenderPassData resourceData resourceName = do
         HashTable.lookup (_renderPassDataMap resourceData) resourceName
 
-    getDefaultRenderPassData :: ResourceData -> IO RenderPassData
+    getDefaultRenderPassData :: ResourceData -> IO (Maybe RenderPassData)
     getDefaultRenderPassData resourceData = do
-        Just renderPassData <- getRenderPassData resourceData "defaultRenderPass"
-        return renderPassData
+        getRenderPassData resourceData "defaultRenderPass"

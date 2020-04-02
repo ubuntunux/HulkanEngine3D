@@ -235,15 +235,15 @@ initializeApplication = do
 
     initializeResourceData resourceData rendererData
 
-    (Just textureData) <- getTextureData resourceData "texture"
+    Just textureData <- getTextureData resourceData "texture"
 
     (sceneConstantsMemories, sceneConstantsBuffers) <- unzip <$> createSceneConstantsBuffers
         (Renderer.getPhysicalDevice rendererData)
         (Renderer.getDevice rendererData)
         Constants.swapChainImageCount
-        
-    defaultRenderPassData <- getDefaultRenderPassData resourceData
-    
+
+    Just defaultRenderPassData <- getDefaultRenderPassData resourceData
+
     descriptorSetData <- createDescriptorSetData
         (Renderer.getDevice rendererData)
         (Renderer.getDescriptorPool rendererData)

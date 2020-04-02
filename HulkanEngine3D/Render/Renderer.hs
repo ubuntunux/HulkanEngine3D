@@ -433,7 +433,7 @@ recordCommandBuffer :: RendererData
                     -> [VkDescriptorSet]
                     -> IO ()
 recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCount, indexBuffer) descriptorSets = do
-    defaultRenderPassData <- getDefaultRenderPassData (_resourceData rendererData)
+    Just defaultRenderPassData <- getDefaultRenderPassData (_resourceData rendererData)
 
     let renderPass = _renderPass defaultRenderPassData
         renderPassBeginInfo = (_renderPassBeginInfos defaultRenderPassData) !! imageIndex
