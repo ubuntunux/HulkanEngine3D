@@ -4,6 +4,7 @@
 module HulkanEngine3D.Resource.RenderPassLoader where
 
 import Data.IORef
+import qualified Data.Text as Text
 
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
@@ -18,8 +19,8 @@ import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.SwapChain
 
 
-createDefaultRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
-createDefaultRenderPassDataCreateInfo rendererData = do
+createDefaultRenderPassDataCreateInfo :: RendererData -> Text.Text -> IO RenderPassDataCreateInfo
+createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
     renderTargets@RenderTargets {..} <- readIORef (_renderTargets rendererData)
     swapChainData <- readIORef (_swapChainDataRef rendererData)
     let sampleCount = (_msaaSamples . _renderFeatures $ rendererData)
@@ -79,7 +80,7 @@ createDefaultRenderPassDataCreateInfo rendererData = do
             , _frameBuffers = []
             }
     return RenderPassDataCreateInfo
-        { _renderPassName = "defaultRenderPass"
+        { _renderPassName = renderPassName
         , _colorAttachmentDescriptions = colorAttachmentDescriptions
         , _depthAttachmentDescriptions = depthAttachmentDescriptions
         , _resolveAttachmentDescriptions = resolveAttachmentDescriptions
