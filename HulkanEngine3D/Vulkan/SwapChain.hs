@@ -37,7 +37,6 @@ data SwapChainSupportDetails = SwapChainSupportDetails
 
 data SwapChainData = SwapChainData
     { _swapChain :: VkSwapchainKHR
-    , _swapChainImageCount :: Int
     , _swapChainImageFormat :: VkFormat
     , _swapChainImages :: [VkImage]
     , _swapChainImageViews :: [VkImageView]
@@ -178,7 +177,6 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface im
   logInfo $ "    imageSharingMode : " ++ (show $ getField @"imageSharingMode" swapChainCreateInfo)
 
   let swapChainData = SwapChainData { _swapChain = swapChain
-                                    , _swapChainImageCount = length swapChainImages
                                     , _swapChainImages = swapChainImages
                                     , _swapChainImageFormat = swapChainImageFormat
                                     , _swapChainImageViews = swapChainImageViews

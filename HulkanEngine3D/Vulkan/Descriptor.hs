@@ -33,20 +33,21 @@ data DescriptorSetData = DescriptorSetData
 
 
 createDescriptorPool :: VkDevice -> Int -> IO VkDescriptorPool
-createDescriptorPool device count = do
+createDescriptorPool device descriptorCount = do
     let bufferPoolSize = createVk @VkDescriptorPoolSize
             $  set @"type" VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-            &* set @"descriptorCount" (fromIntegral count)
+            &* set @"descriptorCount" (fromIntegral descriptorCount)
         imagePoolSize = createVk @VkDescriptorPoolSize
             $  set @"type" VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-            &* set @"descriptorCount" (fromIntegral count)
+            &* set @"descriptorCount" (fromIntegral descriptorCount)
+        poolSizeList = [bufferPoolSize, imagePoolSize]
         poolCreateInfo = createVk @VkDescriptorPoolCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS -- manually free descriptorSets - VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
-            &* setListCountAndRef @"poolSizeCount" @"pPoolSizes"
-                [bufferPoolSize, imagePoolSize]
-            &* set @"maxSets" (fromIntegral count)
+            &* set @"poolSizeCount" (fromIntegral $ length poolSizeList)
+            &* setListRef @"pPoolSizes" poolSizeList
+            &* set @"maxSets" (fromIntegral descriptorCount)
 
     descriptorPool <- allocaPeek $ \descriptorPoolPtr ->
         withPtr poolCreateInfo $ \poolCreateInfoPtr ->
@@ -75,12 +76,13 @@ createDescriptorSetLayout device = do
             &* set @"descriptorCount" 1
             &* set @"stageFlags" VK_SHADER_STAGE_FRAGMENT_BIT
             &* set @"pImmutableSamplers" VK_NULL
+        layoutBindingList = [bufferlayoutBinding, imageLayoutBinding]
         layoutCreateInfo = createVk @VkDescriptorSetLayoutCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
-            &* setListCountAndRef @"bindingCount" @"pBindings"
-                [bufferlayoutBinding, imageLayoutBinding]
+            &* set @"bindingCount" (fromIntegral $ length layoutBindingList)
+            &* setListRef @"pBindings" layoutBindingList
 
     descriptorSetLayout <- allocaPeek $ \descriptorSetLayoutPtr ->
         withPtr layoutCreateInfo $ \layoutCreateInfoPtr ->
@@ -100,8 +102,8 @@ createDescriptorSetData :: VkDevice
                         -> Int
                         -> VkDescriptorSetLayout
                         -> IO DescriptorSetData
-createDescriptorSetData device descriptorPool swapChainImageCount descriptorSetLayout = do
-    let descriptorSetLayouts = replicate swapChainImageCount descriptorSetLayout
+createDescriptorSetData device descriptorPool descriptorSetCount descriptorSetLayout = do
+    let descriptorSetLayouts = replicate descriptorSetCount descriptorSetLayout
     allocaArray (length descriptorSetLayouts) $ \descriptorSetLayoutsPtr -> do
         pokeArray descriptorSetLayoutsPtr descriptorSetLayouts
 
@@ -109,9 +111,9 @@ createDescriptorSetData device descriptorPool swapChainImageCount descriptorSetL
                 $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
                 &* set @"pNext" VK_NULL
                 &* set @"descriptorPool" descriptorPool
-                &* set @"descriptorSetCount" (fromIntegral swapChainImageCount)
+                &* set @"descriptorSetCount" (fromIntegral descriptorSetCount)
                 &* set @"pSetLayouts" descriptorSetLayoutsPtr
-        descriptorSets <- allocaPeekArray swapChainImageCount $ \descriptorSetPtr ->
+        descriptorSets <- allocaPeekArray descriptorSetCount $ \descriptorSetPtr ->
             withPtr allocateInfo $ \allocateInfoPtr ->
                 vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
         let descriptorSetData = DescriptorSetData

@@ -233,8 +233,6 @@ initializeApplication = do
         resourceData
     Renderer.initializeRenderer rendererData
 
-    swapChainImageCount <- Renderer.getSwapChainImageCount rendererData
-
     initializeResourceData resourceData rendererData
 
     (Just textureData) <- getTextureData resourceData "texture"
@@ -242,12 +240,14 @@ initializeApplication = do
     (sceneConstantsMemories, sceneConstantsBuffers) <- unzip <$> createSceneConstantsBuffers
         (Renderer.getPhysicalDevice rendererData)
         (Renderer.getDevice rendererData)
-        swapChainImageCount
+        Constants.swapChainImageCount
+        
     defaultRenderPassData <- getDefaultRenderPassData resourceData
+    
     descriptorSetData <- createDescriptorSetData
         (Renderer.getDevice rendererData)
         (Renderer.getDescriptorPool rendererData)
-        swapChainImageCount
+        Constants.swapChainImageCount
         (getDescriptorSetLayout defaultRenderPassData)
 
     let descriptorBufferInfos = fmap (\buffer -> createDescriptorBufferInfo buffer sceneConstantsBufferSize) sceneConstantsBuffers

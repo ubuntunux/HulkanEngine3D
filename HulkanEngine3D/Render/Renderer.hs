@@ -91,7 +91,6 @@ class RendererInterface a where
     getPhysicalDevice :: a -> VkPhysicalDevice
     getDevice :: a -> VkDevice
     getSwapChainData :: a -> IO SwapChainData
-    getSwapChainImageCount :: a -> IO Int
     getSwapChainImageViews :: a -> IO [VkImageView]
     getSwapChainSupportDetails :: a -> IO SwapChainSupportDetails
     getCommandPool :: a -> VkCommandPool
@@ -112,7 +111,6 @@ instance RendererInterface RendererData where
     getPhysicalDevice rendererData = (_physicalDevice rendererData)
     getDevice rendererData = (_device rendererData)
     getSwapChainData rendererData = readIORef $ _swapChainDataRef rendererData
-    getSwapChainImageCount rendererData = _swapChainImageCount <$> getSwapChainData rendererData
     getSwapChainImageViews rendererData = _swapChainImageViews <$> getSwapChainData rendererData
     getSwapChainSupportDetails rendererData = readIORef $ _swapChainSupportDetailsRef rendererData
     getCommandPool rendererData = (_commandPool rendererData)
@@ -181,7 +179,6 @@ newRendererData resourceData = do
     let defaultSwapChainData = SwapChainData
             { _swapChain = VK_NULL
             , _swapChainImages = []
-            , _swapChainImageCount = 0
             , _swapChainImageFormat = VK_FORMAT_UNDEFINED
             , _swapChainImageViews = []
             , _swapChainExtent = imageExtent }
@@ -298,12 +295,12 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     swapChainDataRef <- newIORef swapChainData
     swapChainSupportDetailsRef <- newIORef swapChainSupportDetails
 
-    let commandBufferCount = _swapChainImageCount swapChainData
+    let commandBufferCount = Constants.swapChainImageCount
     commandBuffersPtr <- mallocArray commandBufferCount::IO (Ptr VkCommandBuffer)
     createCommandBuffers device commandPool commandBufferCount commandBuffersPtr
     commandBuffers <- peekArray commandBufferCount commandBuffersPtr
 
-    descriptorPool <- createDescriptorPool device (_swapChainImageCount swapChainData)
+    descriptorPool <- createDescriptorPool device Constants.swapChainImageCount
 
     return defaultRendererData
           { _imageAvailableSemaphores = imageAvailableSemaphores
