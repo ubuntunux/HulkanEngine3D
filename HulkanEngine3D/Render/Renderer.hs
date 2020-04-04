@@ -56,7 +56,7 @@ import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Queue
 import HulkanEngine3D.Vulkan.PushConstant
 import HulkanEngine3D.Vulkan.RenderPass
-import HulkanEngine3D.Vulkan.SceneConstants
+import HulkanEngine3D.Vulkan.UniformBuffer
 import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Sync
 import HulkanEngine3D.Vulkan.Texture
@@ -83,6 +83,7 @@ data RendererData = RendererData
     , _imageSamplers :: IORef ImageSamplers
     , _renderTargets :: IORef RenderTargets
     , _descriptorPool :: VkDescriptorPool
+    , _uniformBufferDatas :: UniformBufferDatas
     , _resourceData :: ResourceData
     } deriving (Show)
 
@@ -232,6 +233,7 @@ newRendererData resourceData = do
         , _imageSamplers = imageSamplers
         , _renderTargets = renderTargets
         , _descriptorPool = VK_NULL
+        , _uniformBufferDatas = defaultUniformBufferDatas
         , _resourceData = resourceData
         }
 
@@ -302,6 +304,8 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
 
     descriptorPool <- createDescriptorPool device Constants.swapChainImageCount
 
+    uniformBufferDatas <- createUniformBufferDatas physicalDevice device
+
     return defaultRendererData
           { _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
@@ -318,10 +322,13 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
           , _swapChainSupportDetailsRef = swapChainSupportDetailsRef
           , _renderFeatures = renderFeatures
           , _descriptorPool = descriptorPool
+          , _uniformBufferDatas = uniformBufferDatas
           }
 
 destroyRenderer :: RendererData -> IO ()
 destroyRenderer rendererData@RendererData {..} = do
+    destroyUniformBufferDatas _device _uniformBufferDatas
+
     -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
     -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
     destroyDescriptorPool _device _descriptorPool

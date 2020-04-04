@@ -50,7 +50,7 @@ executable main
                       HulkanEngine3D.Vulkan.PushConstant
                       HulkanEngine3D.Vulkan.RenderPass
                       HulkanEngine3D.Vulkan.Queue
-                      HulkanEngine3D.Vulkan.SceneConstants
+                      HulkanEngine3D.Vulkan.UniformBuffer
                       HulkanEngine3D.Vulkan.Shader
                       HulkanEngine3D.Vulkan.SwapChain
                       HulkanEngine3D.Vulkan.Sync

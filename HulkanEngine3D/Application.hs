@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module HulkanEngine3D.Application
     ( ApplicationData (..)
@@ -33,7 +34,7 @@ import HulkanEngine3D.Vulkan.Device
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
-import HulkanEngine3D.Vulkan.SceneConstants
+import HulkanEngine3D.Vulkan.UniformBuffer
 
 
 data TimeData = TimeData
@@ -57,8 +58,6 @@ data ApplicationData = ApplicationData
     , _sceneManagerData :: SceneManagerData
     , _rendererData :: Renderer.RendererData
     , _resourceData :: ResourceData
-    , _sceneConstantsBuffers :: [VkBuffer]
-    , _sceneConstantsMemories :: [VkDeviceMemory]
     , _descriptorSetData :: DescriptorSetData
     } deriving (Show)
 
@@ -208,7 +207,6 @@ initializeApplication = do
     windowSizeChangedRef <- newIORef False
     windowSizeRef <- newIORef (width, height)
     window <- createGLFWWindow "Vulkan Application" windowSizeRef windowSizeChangedRef keyboardInputDataRef mouseInputDataRef mouseMoveDataRef
-    logInfo "                             "
     logInfo "<< Initialized GLFW window >>"
     requireExtensions <- GLFW.getRequiredInstanceExtensions
     instanceExtensionNames <- getInstanceExtensionSupport
@@ -235,22 +233,17 @@ initializeApplication = do
 
     initializeResourceData resourceData rendererData
 
-    Just textureData <- getTextureData resourceData "texture"
-
-    (sceneConstantsMemories, sceneConstantsBuffers) <- unzip <$> createSceneConstantsBuffers
-        (Renderer.getPhysicalDevice rendererData)
-        (Renderer.getDevice rendererData)
-        Constants.swapChainImageCount
-
     Just defaultRenderPassData <- getDefaultRenderPassData resourceData
+    let sceneConstantsBufferData = (_sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
 
     descriptorSetData <- createDescriptorSetData
         (Renderer.getDevice rendererData)
         (Renderer.getDescriptorPool rendererData)
-        Constants.swapChainImageCount
         (getDescriptorSetLayout defaultRenderPassData)
 
-    let descriptorBufferInfos = fmap (\buffer -> createDescriptorBufferInfo buffer sceneConstantsBufferSize) sceneConstantsBuffers
+    Just textureData <- getTextureData resourceData "texture"
+
+    let descriptorBufferInfos = map (\uniformBuffer -> createDescriptorBufferInfo uniformBuffer (_uniformBufferDataSize sceneConstantsBufferData)) (_uniformBuffers sceneConstantsBufferData)
 
     forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
         prepareDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo (getTextureImageInfo textureData) descriptorSet
@@ -285,8 +278,6 @@ initializeApplication = do
             , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
             , _resourceData = resourceData
-            , _sceneConstantsBuffers = sceneConstantsBuffers
-            , _sceneConstantsMemories = sceneConstantsMemories
             , _descriptorSetData = descriptorSetData
             }
 
@@ -321,11 +312,6 @@ terminateApplication applicationData = do
 
     -- waiting
     Renderer.deviceWaitIdle rendererData
-
-    destroySceneConstantsBuffers
-        (Renderer.getDevice rendererData)
-        (_sceneConstantsBuffers applicationData)
-        (_sceneConstantsMemories applicationData)
 
     destroyResourceData (_resourceData applicationData) rendererData
     Renderer.destroyRenderer rendererData
@@ -396,6 +382,6 @@ runApplication = do
             projectionMatrix
             geometryBufferData
             (_descriptorSets._descriptorSetData $ applicationData)
-            (_sceneConstantsMemories applicationData)
+            (_uniformBufferMemories . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
 
     terminateApplication applicationData

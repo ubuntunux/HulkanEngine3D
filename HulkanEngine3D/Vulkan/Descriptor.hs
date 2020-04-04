@@ -22,6 +22,7 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 
@@ -99,11 +100,11 @@ destroyDescriptorSetLayout device descriptorSetLayout = do
 
 createDescriptorSetData :: VkDevice
                         -> VkDescriptorPool
-                        -> Int
                         -> VkDescriptorSetLayout
                         -> IO DescriptorSetData
-createDescriptorSetData device descriptorPool descriptorSetCount descriptorSetLayout = do
-    let descriptorSetLayouts = replicate descriptorSetCount descriptorSetLayout
+createDescriptorSetData device descriptorPool descriptorSetLayout = do
+    let descriptorSetCount = Constants.swapChainImageCount
+        descriptorSetLayouts = replicate descriptorSetCount descriptorSetLayout
     allocaArray (length descriptorSetLayouts) $ \descriptorSetLayoutsPtr -> do
         pokeArray descriptorSetLayoutsPtr descriptorSetLayouts
 
