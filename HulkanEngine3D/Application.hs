@@ -229,7 +229,6 @@ initializeApplication = do
         requireExtensions
         msaaSampleCount
         resourceData
-    Renderer.initializeRenderer rendererData
 
     initializeResourceData resourceData rendererData
 

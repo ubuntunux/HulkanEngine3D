@@ -236,7 +236,7 @@ defaultRendererData resourceData = do
         , _resourceData = resourceData
         }
 
-initializeRenderer :: RendererData -> IO ()
+initializeRenderer :: RendererData -> IO RendererData
 initializeRenderer rendererData@RendererData {..} = do
     poke _imageIndexPtr 0
     writeIORef _frameIndexRef (0::Int)
@@ -247,6 +247,7 @@ initializeRenderer rendererData@RendererData {..} = do
 
     renderTargets <- createRenderTargets rendererData
     writeIORef _renderTargets renderTargets
+    return rendererData
 
 createRenderer :: GLFW.Window
                -> String
@@ -302,10 +303,9 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     commandBuffers <- peekArray commandBufferCount commandBuffersPtr
 
     descriptorPool <- createDescriptorPool device Constants.swapChainImageCount
-
     uniformBufferDatas <- createUniformBufferDatas physicalDevice device
 
-    return defaultRendererData
+    let rendererData = defaultRendererData
           { _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
           , _vkInstance = vkInstance
@@ -323,6 +323,8 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
           , _descriptorPool = descriptorPool
           , _uniformBufferDatas = uniformBufferDatas
           }
+
+    initializeRenderer rendererData
 
 destroyRenderer :: RendererData -> IO ()
 destroyRenderer rendererData@RendererData {..} = do
