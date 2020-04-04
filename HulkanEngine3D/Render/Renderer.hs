@@ -9,7 +9,6 @@
 module HulkanEngine3D.Render.Renderer
   ( RendererData (..)
   , RendererInterface (..)
-  , newRendererData
   , createRenderer
   , destroyRenderer
   , initializeRenderer
@@ -170,8 +169,8 @@ instance RendererInterface RendererData where
     deviceWaitIdle rendererData =
         throwingVK "vkDeviceWaitIdle failed!" (vkDeviceWaitIdle $ getDevice rendererData)
 
-newRendererData :: ResourceData -> IO RendererData
-newRendererData resourceData = do
+defaultRendererData :: ResourceData -> IO RendererData
+defaultRendererData resourceData = do
     imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
         writeField @"width" extentPtr $ 0
         writeField @"height" extentPtr $ 0
@@ -264,7 +263,7 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     then logInfo $ "Enable validation layers : " ++ show validationLayers
     else logInfo $ "Disabled validation layers"
 
-    defaultRendererData <- newRendererData resourceData
+    defaultRendererData <- defaultRendererData resourceData
 
     vkInstance <- createVulkanInstance progName engineName validationLayers requireExtensions
     vkSurface <- createVkSurface vkInstance window
