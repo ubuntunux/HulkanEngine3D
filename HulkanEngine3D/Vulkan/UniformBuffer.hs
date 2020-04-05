@@ -30,12 +30,14 @@ import Numeric.DataFrame
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan.Buffer
+import HulkanEngine3D.Vulkan.Descriptor
 
 
 data UniformBufferData = UniformBufferData
     { _uniformBuffers :: [VkBuffer]
     , _uniformBufferMemories :: [VkDeviceMemory]
     , _uniformBufferDataSize :: VkDeviceSize
+    , _descriptorBufferInfos :: [VkDescriptorBufferInfo]
     } deriving (Eq, Show)
 
 data UniformBufferDatas = UniformBufferDatas
@@ -87,6 +89,7 @@ defaultUniformBufferData = UniformBufferData
     { _uniformBuffers = []
     , _uniformBufferMemories = []
     , _uniformBufferDataSize = 0
+    , _descriptorBufferInfos = []
     }
 
 createUniformBufferData :: VkPhysicalDevice -> VkDevice -> VkDeviceSize -> IO UniformBufferData
@@ -96,10 +99,12 @@ createUniformBufferData physicalDevice device bufferSize = do
         device
         Constants.swapChainImageCount
         bufferSize
+    let descriptorBufferInfos = map (\uniformBuffer -> createDescriptorBufferInfo uniformBuffer bufferSize) uniformBuffers
     return UniformBufferData
         { _uniformBuffers = uniformBuffers
         , _uniformBufferMemories = uniformBufferMemories
         , _uniformBufferDataSize = bufferSize
+        , _descriptorBufferInfos = descriptorBufferInfos
         }
 
 destroyUniformBufferData :: VkDevice -> UniformBufferData -> IO ()

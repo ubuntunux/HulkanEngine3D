@@ -8,7 +8,7 @@
 
 module HulkanEngine3D.Vulkan.Texture
     ( TextureData (..)
-    , TextureInterface (..)
+    , createDescriptorImageInfo
     , findDepthFormat
     , isDepthFormat
     , findSupportedFormat
@@ -51,32 +51,8 @@ data TextureData = TextureData
     , _imageHeight :: Int
     , _imageDepth :: Int
     , _imageMipLevels :: Int
+    , _descriptorImageInfo :: VkDescriptorImageInfo
     } deriving (Eq, Show)
-
-
-class TextureInterface a where
-    defaultTextureData :: a
-    getTextureImageInfo :: a -> VkDescriptorImageInfo
-
-instance TextureInterface TextureData where
-    defaultTextureData = TextureData
-        { _image = VK_NULL
-        , _imageView = VK_NULL
-        , _imageMemory = VK_NULL
-        , _imageSampler = VK_NULL
-        , _imageFormat = VK_FORMAT_UNDEFINED
-        , _imageWidth = 0
-        , _imageHeight = 0
-        , _imageDepth = 0
-        , _imageMipLevels = 0
-        }
-        
-    getTextureImageInfo textureData =
-        createVk @VkDescriptorImageInfo
-            $  set @"imageLayout" VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-            &* set @"imageView" (_imageView textureData)
-            &* set @"sampler" (_imageSampler textureData)
-
 
 data ImageLayoutTransition = TransferUndef_TransferDst | TransferDst_ShaderReadOnly | TransferUndef_DepthStencilAttachemnt | TransferUndef_ColorAttachemnt
 
@@ -120,6 +96,13 @@ transitionDependent TransferUndef_ColorAttachemnt = TransitionDependent
 
 nextMipmapSize :: Int32 -> Int32
 nextMipmapSize n = if 1 < n then (div n 2) else 1
+
+createDescriptorImageInfo :: VkImageLayout -> VkImageView -> VkSampler -> VkDescriptorImageInfo
+createDescriptorImageInfo imageLayout imageView imageSasmpler =
+    createVk @VkDescriptorImageInfo
+        $  set @"imageLayout" imageLayout -- VK_IMAGE_LAYOUT_GENERAL
+        &* set @"imageView" imageView
+        &* set @"sampler" imageSasmpler
 
 barrierStruct :: VkImage
               -> Word32
@@ -492,13 +475,16 @@ createDepthTexture physicalDevice device commandBufferPool queue extent samples 
         VK_IMAGE_TILING_OPTIMAL
         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-    depthImageView <- createImageView device depthImage depthFormat VK_IMAGE_ASPECT_DEPTH_BIT mipLevels
+
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
         transitionImageLayout depthImage depthFormat TransferUndef_DepthStencilAttachemnt mipLevels commandBuffer
+
     let anisotropyEnable = VK_FALSE
+    imageView <- createImageView device depthImage depthFormat VK_IMAGE_ASPECT_DEPTH_BIT mipLevels
     imageSampler <- createImageSampler device mipLevels VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE anisotropyEnable
-    let textureData = TextureData
-            { _imageView = depthImageView
+    let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
+        textureData = TextureData
+            { _imageView = imageView
             , _image = depthImage
             , _imageMemory = depthImageMemory
             , _imageSampler = imageSampler
@@ -506,7 +492,9 @@ createDepthTexture physicalDevice device commandBufferPool queue extent samples 
             , _imageWidth = fromIntegral width
             , _imageHeight = fromIntegral height
             , _imageDepth = 1
-            , _imageMipLevels = fromIntegral mipLevels }
+            , _imageMipLevels = fromIntegral mipLevels
+            , _descriptorImageInfo = descriptorImageInfo
+            }
     logInfo "createDepthTexture"
     logInfo $ "    Format : " ++ show depthFormat
     logInfo $ "    Size : " ++ show extent
@@ -537,13 +525,16 @@ createColorTexture physicalDevice device commandBufferPool queue format extent s
         -- not sure why tutorial uses VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
         (VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT .|. VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-    colorImageView <- createImageView device colorImage format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
+
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
         transitionImageLayout colorImage format TransferUndef_ColorAttachemnt mipLevels commandBuffer
+
     let anisotropyEnable = VK_FALSE
+    imageView <- createImageView device colorImage format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
     imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
-    let textureData = TextureData
-            { _imageView = colorImageView
+    let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
+        textureData = TextureData
+            { _imageView = imageView
             , _image = colorImage
             , _imageMemory = colorImageMemory
             , _imageSampler = imageSampler
@@ -552,6 +543,7 @@ createColorTexture physicalDevice device commandBufferPool queue format extent s
             , _imageHeight = fromIntegral height
             , _imageDepth = 1
             , _imageMipLevels = fromIntegral mipLevels
+            , _descriptorImageInfo = descriptorImageInfo
             }
     logInfo "createColorTexture"
     logInfo $ "    Format : " ++ show format
@@ -621,8 +613,8 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
 
     imageView <- createImageView device image format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
     imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
-
-    let imageDepth = 1
+    let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL imageView imageSampler
+        imageDepth = 1
         textureData = TextureData
             { _image = image
             , _imageView = imageView
@@ -633,6 +625,7 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
             , _imageHeight = imageHeight
             , _imageDepth = imageDepth
             , _imageMipLevels = fromIntegral mipLevels
+            , _descriptorImageInfo = descriptorImageInfo
             }
 
     logInfo "createTextureData"

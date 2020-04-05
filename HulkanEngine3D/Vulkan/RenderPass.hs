@@ -10,7 +10,6 @@ module HulkanEngine3D.Vulkan.RenderPass
     , DepthStencilStateCreateInfo (..)
     , GraphicsPipelineData (..)
     , RenderPassData (..)
-    , RenderPassInterface (..)
     , defaultDepthStencilStateCreateInfo
     , defaultAttachmentDescription
     , createRenderPassData
@@ -31,6 +30,7 @@ import Graphics.Vulkan.Marshal.Create.DataFrame
 import Numeric.DataFrame
 import Numeric.Dimensions
 
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
@@ -95,15 +95,16 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     , _pipelineFrontFace :: VkFrontFace
     , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
     , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
-    , _descriptorSetLayoutBindingList :: [VkDescriptorSetLayoutBinding]
+    , _descriptorSetDataCreateInfoList :: [DescriptorSetDataCreateInfo]
+    , _descriptorCount :: Int
     }  deriving (Eq, Show)
 
 data GraphicsPipelineData = GraphicsPipelineData
     { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
     , _fragmentShaderCreateInfo :: VkPipelineShaderStageCreateInfo
-    , _descriptorSetLayout :: VkDescriptorSetLayout
     , _pipelineLayout :: VkPipelineLayout
     , _pipeline :: VkPipeline
+    , _descriptorSetData :: DescriptorSetData
     } deriving (Eq, Show)
 
 data RenderPassData = RenderPassData
@@ -113,12 +114,6 @@ data RenderPassData = RenderPassData
     , _graphicsPipelineData :: GraphicsPipelineData
     , _frameBufferData :: FrameBufferData
     } deriving (Eq, Show)
-
-class RenderPassInterface a where
-    getDescriptorSetLayout :: a -> VkDescriptorSetLayout
-
-instance RenderPassInterface RenderPassData where
-    getDescriptorSetLayout renderPassData = (_descriptorSetLayout (_graphicsPipelineData renderPassData))
 
 
 defaultDepthStencilStateCreateInfo :: DepthStencilStateCreateInfo
@@ -305,9 +300,10 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
         pushConstantRange = getPushConstantRange pushConstantData
         shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
         shaderStageInfoCount = length shaderStageInfos
+        descriptorSetCount = Constants.swapChainImageCount
 
-    descriptorSetLayout <- createDescriptorSetLayout device _descriptorSetLayoutBindingList
-    pipelineLayout <- createPipelineLayout device [pushConstantRange] [descriptorSetLayout]
+    descriptorSetData <- createDescriptorSetData device _descriptorSetDataCreateInfoList descriptorSetCount
+    pipelineLayout <- createPipelineLayout device [pushConstantRange] [_descriptorSetLayout descriptorSetData]
 
     let vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
@@ -333,12 +329,10 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
         scissorRect = createVk @VkRect2D
             $  setVk @"extent"
                 (  set @"width" (fromIntegral _pipelineViewportWidth)
-                &* set @"height" (fromIntegral _pipelineViewportHeight)
-                )
+                &* set @"height" (fromIntegral _pipelineViewportHeight) )
             &* setVk @"offset"
                 (  set @"x" 0
-                &* set @"y" 0
-                )
+                &* set @"y" 0 )
         viewPortState = createVk @VkPipelineViewportStateCreateInfo
             $ set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -443,16 +437,17 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
     return GraphicsPipelineData
         { _vertexShaderCreateInfo = vertexShaderCreateInfo
         , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
-        , _descriptorSetLayout = descriptorSetLayout
+        , _pipeline = graphicsPipeline
         , _pipelineLayout = pipelineLayout
-        , _pipeline = graphicsPipeline }
+        , _descriptorSetData = descriptorSetData
+        }
 
 
 destroyGraphicsPipeline :: VkDevice -> GraphicsPipelineData -> IO ()
 destroyGraphicsPipeline device graphicsPipelineData@GraphicsPipelineData {..} = do
     logInfo $ "Destroy GraphicsPipeline"
+    destroyDescriptorSetData device _descriptorSetData
     vkDestroyPipeline device _pipeline VK_NULL
     destroyPipelineLayout device _pipelineLayout
-    destroyDescriptorSetLayout device _descriptorSetLayout
     destroyShaderStageCreateInfo device _vertexShaderCreateInfo
     destroyShaderStageCreateInfo device _fragmentShaderCreateInfo

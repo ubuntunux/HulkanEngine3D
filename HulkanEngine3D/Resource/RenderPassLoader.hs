@@ -13,7 +13,6 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Vulkan.Vulkan
-import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
@@ -55,8 +54,6 @@ createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 }
             ]
-        bufferlayoutBinding = createDescriptorSetLayoutBinding 0 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER VK_SHADER_STAGE_VERTEX_BIT
-        imageLayoutBinding = createDescriptorSetLayoutBinding 1 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
         pipelineDataCreateInfo = PipelineDataCreateInfo
             { _pipelineDataName = "defaultRenderPassGraphicsPipeline"
             , _vertexShaderFile = "Resource/Shaders/triangle.vert"
@@ -69,7 +66,11 @@ createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
             , _pipelineFrontFace = VK_FRONT_FACE_CLOCKWISE
             , _pipelineColorBlendModes = [getColorBlendMode_None]
             , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
-            , _descriptorSetLayoutBindingList = [bufferlayoutBinding, imageLayoutBinding]
+            , _descriptorSetDataCreateInfoList =
+                [ (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                , (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+                ]
+            , _descriptorCount = Constants.swapChainImageCount
             }
         frameBufferDataCreateInfo = defaultFrameBufferDataCreateInfo
             { _frameBufferName = "defaultRenderPassFrameBuffer"

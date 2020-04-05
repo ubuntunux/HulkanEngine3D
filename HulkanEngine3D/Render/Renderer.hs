@@ -50,7 +50,6 @@ import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
 import HulkanEngine3D.Vulkan.CommandBuffer
 import HulkanEngine3D.Vulkan.Device
-import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Queue
 import HulkanEngine3D.Vulkan.PushConstant
@@ -81,7 +80,6 @@ data RendererData = RendererData
     , _renderFeatures :: RenderFeatures
     , _imageSamplers :: IORef ImageSamplers
     , _renderTargets :: IORef RenderTargets
-    , _descriptorPool :: VkDescriptorPool
     , _uniformBufferDatas :: UniformBufferDatas
     , _resourceData :: ResourceData
     } deriving (Show)
@@ -98,7 +96,6 @@ class RendererInterface a where
     getCommandBuffer :: a -> Int -> IO VkCommandBuffer
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
-    getDescriptorPool :: a -> VkDescriptorPool
     createRenderTarget :: a -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createDepthTarget :: a -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createTexture :: a -> FilePath -> IO TextureData
@@ -120,7 +117,6 @@ instance RendererInterface RendererData where
         return $ commandBuffers !! index
     getGraphicsQueue rendererData = (_graphicsQueue (_queueFamilyDatas rendererData))
     getPresentQueue rendererData = (_presentQueue (_queueFamilyDatas rendererData))
-    getDescriptorPool rendererData = _descriptorPool rendererData
 
     createRenderTarget rendererData format extent samples =
         createColorTexture
@@ -231,7 +227,6 @@ defaultRendererData resourceData = do
         , _renderFeatures = defaultRenderFeatures
         , _imageSamplers = imageSamplers
         , _renderTargets = renderTargets
-        , _descriptorPool = VK_NULL
         , _uniformBufferDatas = defaultUniformBufferDatas
         , _resourceData = resourceData
         }
@@ -302,7 +297,6 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     createCommandBuffers device commandPool commandBufferCount commandBuffersPtr
     commandBuffers <- peekArray commandBufferCount commandBuffersPtr
 
-    descriptorPool <- createDescriptorPool device Constants.swapChainImageCount
     uniformBufferDatas <- createUniformBufferDatas physicalDevice device
 
     let rendererData = defaultRendererData
@@ -320,7 +314,6 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
           , _swapChainDataRef = swapChainDataRef
           , _swapChainSupportDetailsRef = swapChainSupportDetailsRef
           , _renderFeatures = renderFeatures
-          , _descriptorPool = descriptorPool
           , _uniformBufferDatas = uniformBufferDatas
           }
 
@@ -329,10 +322,6 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
 destroyRenderer :: RendererData -> IO ()
 destroyRenderer rendererData@RendererData {..} = do
     destroyUniformBufferDatas _device _uniformBufferDatas
-
-    -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for createDescriptorPool
-    -- destroyDescriptorSetData (getDevice rendererData) descriptorPool descriptorSetData
-    destroyDescriptorPool _device _descriptorPool
 
     imageSamplers <- readIORef _imageSamplers
     destroyImageSamplers _device imageSamplers

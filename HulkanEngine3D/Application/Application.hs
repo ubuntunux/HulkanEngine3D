@@ -58,7 +58,6 @@ data ApplicationData = ApplicationData
     , _sceneManagerData :: SceneManagerData
     , _rendererData :: Renderer.RendererData
     , _resourceData :: ResourceData
-    , _descriptorSetData :: DescriptorSetData
     } deriving (Show)
 
 
@@ -232,20 +231,17 @@ initializeApplication = do
 
     initializeResourceData resourceData rendererData
 
-    Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-    let sceneConstantsBufferData = (_sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
-
-    descriptorSetData <- createDescriptorSetData
-        (Renderer.getDevice rendererData)
-        (Renderer.getDescriptorPool rendererData)
-        (getDescriptorSetLayout defaultRenderPassData)
-
+    ---------------------------------------------------------
     Just textureData <- getTextureData resourceData "texture"
+    Just defaultRenderPassData <- getDefaultRenderPassData resourceData
+    let descriptorSets = _descriptorSets . _descriptorSetData . _graphicsPipelineData $ defaultRenderPassData
+        sceneConstantsBufferData = (_sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
+        descriptorBufferInfos = _descriptorBufferInfos sceneConstantsBufferData
+        descriptorImageInfo = _descriptorImageInfo textureData
 
-    let descriptorBufferInfos = map (\uniformBuffer -> createDescriptorBufferInfo uniformBuffer (_uniformBufferDataSize sceneConstantsBufferData)) (_uniformBuffers sceneConstantsBufferData)
-
-    forM_ (zip descriptorBufferInfos (_descriptorSets descriptorSetData)) $ \(descriptorBufferInfo, descriptorSet) ->
-        prepareDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo (getTextureImageInfo textureData) descriptorSet
+    forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) ->
+        prepareDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
+    ---------------------------------------------------------
 
     -- SceneManagerDatas
     sceneManagerData <- newSceneManagerData
@@ -277,7 +273,6 @@ initializeApplication = do
             , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
             , _resourceData = resourceData
-            , _descriptorSetData = descriptorSetData
             }
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ()) -> IO ()
@@ -307,13 +302,11 @@ terminateApplication :: ApplicationData -> IO ()
 terminateApplication applicationData = do
     logInfo "<< Terminate >>"
 
-    let rendererData = (_rendererData applicationData)
-
     -- waiting
-    Renderer.deviceWaitIdle rendererData
+    Renderer.deviceWaitIdle (_rendererData applicationData)
 
-    destroyResourceData (_resourceData applicationData) rendererData
-    Renderer.destroyRenderer rendererData
+    destroyResourceData (_resourceData applicationData) (_rendererData applicationData)
+    Renderer.destroyRenderer (_rendererData applicationData)
     destroyGLFWWindow (_window applicationData)
 
 
@@ -354,6 +347,8 @@ runApplication = do
         updateTimeData $ _timeDataRef applicationData
 
         let rendererData = _rendererData applicationData
+            resourceData = _resourceData applicationData
+            sceneManagerData = _sceneManagerData applicationData
 
         -- resize window
         needRecreateSwapChain <- readIORef (Renderer._needRecreateSwapChainRef rendererData)
@@ -364,23 +359,38 @@ runApplication = do
             writeIORef (Renderer._needRecreateSwapChainRef rendererData) False
             (width, height) <- readIORef (_windowSizeRef applicationData)
             let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
-            mainCamera <- getMainCamera (_sceneManagerData applicationData)
+            mainCamera <- getMainCamera sceneManagerData
             setAspect mainCamera aspect
 
+            ---------------------------------------------------------
+            Just textureData <- getTextureData resourceData "texture"
+            Just defaultRenderPassData <- getDefaultRenderPassData resourceData
+            let descriptorSets = _descriptorSets . _descriptorSetData . _graphicsPipelineData $ defaultRenderPassData
+                sceneConstantsBufferData = (_sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
+                descriptorBufferInfos = _descriptorBufferInfos sceneConstantsBufferData
+                descriptorImageInfo = _descriptorImageInfo textureData
+
+            forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) ->
+                prepareDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
+            ---------------------------------------------------------
+
         -- update renderer data
-        updateSceneManagerData (_sceneManagerData applicationData)
-        mainCamera <- getMainCamera (_sceneManagerData applicationData)
+        updateSceneManagerData sceneManagerData
+        mainCamera <- getMainCamera sceneManagerData
         viewMatrix <- readIORef (_viewMatrix mainCamera)
         projectionMatrix <- readIORef (_projectionMatrix mainCamera)
-        (Just meshData) <- getMeshData (_resourceData applicationData) "suzan"
+        (Just meshData) <- getMeshData resourceData "suzan"
         geometryBufferData <- (getGeometryData meshData 0)
+
+        Just defaultRenderPassData <- getDefaultRenderPassData resourceData
+        let descriptorSets = _descriptorSets . _descriptorSetData . _graphicsPipelineData $ defaultRenderPassData
 
         Renderer.updateRendererData
             rendererData
             viewMatrix
             projectionMatrix
             geometryBufferData
-            (_descriptorSets._descriptorSetData $ applicationData)
+            descriptorSets
             (_uniformBufferMemories . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
 
     terminateApplication applicationData
