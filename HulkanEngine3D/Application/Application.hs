@@ -235,10 +235,8 @@ initializeApplication = do
     Just textureData <- getTextureData resourceData "texture"
     Just defaultRenderPassData <- getDefaultRenderPassData resourceData
     let descriptorSets = _descriptorSets . _descriptorSetData . _graphicsPipelineData $ defaultRenderPassData
-        sceneConstantsBufferData = (_sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
-        descriptorBufferInfos = _descriptorBufferInfos sceneConstantsBufferData
+        descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData
         descriptorImageInfo = _descriptorImageInfo textureData
-
     forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) ->
         prepareDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
     ---------------------------------------------------------
@@ -366,10 +364,8 @@ runApplication = do
             Just textureData <- getTextureData resourceData "texture"
             Just defaultRenderPassData <- getDefaultRenderPassData resourceData
             let descriptorSets = _descriptorSets . _descriptorSetData . _graphicsPipelineData $ defaultRenderPassData
-                sceneConstantsBufferData = (_sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
-                descriptorBufferInfos = _descriptorBufferInfos sceneConstantsBufferData
+                descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData
                 descriptorImageInfo = _descriptorImageInfo textureData
-
             forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) ->
                 prepareDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
             ---------------------------------------------------------
