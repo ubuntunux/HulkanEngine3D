@@ -7,6 +7,7 @@ module HulkanEngine3D.Vulkan.Descriptor
   ( DescriptorSetData (..)
   , createDescriptorPool
   , destroyDescriptorPool
+  , createDescriptorSetLayoutBinding
   , createDescriptorSetLayout
   , destroyDescriptorSetLayout
   , createDescriptorSetData
@@ -63,8 +64,17 @@ destroyDescriptorPool device descriptorPool = do
     vkDestroyDescriptorPool device descriptorPool VK_NULL
 
 
-createDescriptorSetLayout :: VkDevice -> IO VkDescriptorSetLayout
-createDescriptorSetLayout device = do
+createDescriptorSetLayoutBinding :: Int -> VkDescriptorType -> VkShaderStageFlagBits -> VkDescriptorSetLayoutBinding
+createDescriptorSetLayoutBinding binding descriptorType shaderStageFlags =
+  createVk @VkDescriptorSetLayoutBinding
+              $  set @"binding" (fromINtegral binding)
+              &* set @"descriptorType" descriptorType
+              &* set @"descriptorCount" 1
+              &* set @"stageFlags" shaderStageFlags
+              &* set @"pImmutableSamplers" VK_NULL
+
+createDescriptorSetLayout :: VkDevice -> [VkDescriptorSetLayoutBinding] -> IO VkDescriptorSetLayout
+createDescriptorSetLayout device layoutBindingList = do
     let bufferlayoutBinding = createVk @VkDescriptorSetLayoutBinding
             $  set @"binding" 0
             &* set @"descriptorType" VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
