@@ -1,4 +1,4 @@
-module HulkanEngine3D.Vulkan where
+module HulkanEngine3D.Vulkan.Vulkan where
 
 import Graphics.Vulkan
 

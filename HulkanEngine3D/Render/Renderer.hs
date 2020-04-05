@@ -46,7 +46,7 @@ import HulkanEngine3D.Utilities.System
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Render.ImageSampler
-import HulkanEngine3D.Vulkan
+import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
 import HulkanEngine3D.Vulkan.CommandBuffer
 import HulkanEngine3D.Vulkan.Device

@@ -12,7 +12,7 @@ import Graphics.Vulkan.Ext.VK_KHR_swapchain
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTarget
-import HulkanEngine3D.Vulkan
+import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.Texture

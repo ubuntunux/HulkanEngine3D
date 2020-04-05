@@ -6,7 +6,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module HulkanEngine3D.Application
+module HulkanEngine3D.Application.Application
     ( ApplicationData (..)
     , runApplication
     ) where

@@ -37,7 +37,7 @@ import Graphics.Vulkan.Marshal.Create
 
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
-import HulkanEngine3D.Vulkan
+import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
 
 

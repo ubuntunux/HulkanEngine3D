@@ -4,7 +4,7 @@ module Main
 
 import Control.Concurrent (forkIO)
 
-import HulkanEngine3D.Application
+import HulkanEngine3D.Application.Application
 import HulkanEngine3D.Application.Editor
 
 main::IO()

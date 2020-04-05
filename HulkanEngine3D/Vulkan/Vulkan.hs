@@ -6,7 +6,7 @@
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 
-module HulkanEngine3D.Vulkan where
+module HulkanEngine3D.Vulkan.Vulkan where
 
 import Data.Bits
 import Foreign.Storable

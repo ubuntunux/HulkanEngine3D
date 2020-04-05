@@ -21,7 +21,7 @@ executable main
     hs-source-dirs:   .
     main-is:          Main.hs
     ghc-options:      -threaded
-    other-modules:    HulkanEngine3D.Application
+    other-modules:    HulkanEngine3D.Application.Application
                       HulkanEngine3D.Application.Input
                       HulkanEngine3D.Application.Editor
                       HulkanEngine3D.Application.SceneManager
@@ -40,7 +40,7 @@ executable main
                       HulkanEngine3D.Utilities.Logger
                       HulkanEngine3D.Utilities.Math
                       HulkanEngine3D.Utilities.System
-                      HulkanEngine3D.Vulkan
+                      HulkanEngine3D.Vulkan.Vulkan
                       HulkanEngine3D.Vulkan.Buffer
                       HulkanEngine3D.Vulkan.CommandBuffer
                       HulkanEngine3D.Vulkan.Descriptor
