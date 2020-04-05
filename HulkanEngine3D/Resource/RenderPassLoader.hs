@@ -13,6 +13,7 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Vulkan
+import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
@@ -54,23 +55,27 @@ createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 }
             ]
+        bufferlayoutBinding = createDescriptorSetLayoutBinding 0 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER VK_SHADER_STAGE_VERTEX_BIT
+        imageLayoutBinding = createDescriptorSetLayoutBinding 1 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
         pipelineDataCreateInfo = PipelineDataCreateInfo
             { _pipelineDataName = "defaultRenderPassGraphicsPipeline"
             , _vertexShaderFile = "Resource/Shaders/triangle.vert"
             , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
             , _pipelineViewportWidth = _imageWidth _sceneColorTexture
             , _pipelineViewportHeight = _imageHeight _sceneColorTexture
+            , _pipelineMultisampleCount = sampleCount
             , _pipelinePolygonMode = VK_POLYGON_MODE_FILL
             , _pipelineCullMode = VK_CULL_MODE_BACK_BIT
             , _pipelineFrontFace = VK_FRONT_FACE_CLOCKWISE
             , _pipelineColorBlendModes = [getColorBlendMode_None]
+            , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
+            , _descriptorSetLayoutBindingList = [bufferlayoutBinding, imageLayoutBinding]
             }
         frameBufferDataCreateInfo = defaultFrameBufferDataCreateInfo
             { _frameBufferName = "defaultRenderPassFrameBuffer"
             , _frameBufferWidth = _imageWidth _sceneColorTexture
             , _frameBufferHeight = _imageHeight _sceneColorTexture
             , _frameBufferDepth = _imageDepth _sceneColorTexture
-            , _frameBufferSampleCount = sampleCount
             , _frameBufferImageViewsList = [
                 [ _imageView _sceneColorTexture
                 , _imageView _sceneDepthTexture
@@ -85,6 +90,5 @@ createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
         , _depthAttachmentDescriptions = depthAttachmentDescriptions
         , _resolveAttachmentDescriptions = resolveAttachmentDescriptions
         , _pipelineDataCreateInfo = pipelineDataCreateInfo
-        , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
         , _frameBufferDataCreateInfo = frameBufferDataCreateInfo
         }

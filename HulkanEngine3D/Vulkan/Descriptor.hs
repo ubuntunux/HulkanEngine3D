@@ -63,38 +63,23 @@ destroyDescriptorPool device descriptorPool = do
     logInfo $ "destroyDescriptorPool : " ++ show descriptorPool
     vkDestroyDescriptorPool device descriptorPool VK_NULL
 
-
-createDescriptorSetLayoutBinding :: Int -> VkDescriptorType -> VkShaderStageFlagBits -> VkDescriptorSetLayoutBinding
+createDescriptorSetLayoutBinding :: Word32 -> VkDescriptorType -> VkShaderStageFlagBits -> VkDescriptorSetLayoutBinding
 createDescriptorSetLayoutBinding binding descriptorType shaderStageFlags =
   createVk @VkDescriptorSetLayoutBinding
-              $  set @"binding" (fromINtegral binding)
-              &* set @"descriptorType" descriptorType
-              &* set @"descriptorCount" 1
-              &* set @"stageFlags" shaderStageFlags
-              &* set @"pImmutableSamplers" VK_NULL
+      $  set @"binding" binding
+      &* set @"descriptorType" descriptorType
+      &* set @"descriptorCount" 1
+      &* set @"stageFlags" (bitToMask shaderStageFlags)
+      &* set @"pImmutableSamplers" VK_NULL
 
 createDescriptorSetLayout :: VkDevice -> [VkDescriptorSetLayoutBinding] -> IO VkDescriptorSetLayout
 createDescriptorSetLayout device layoutBindingList = do
-    let bufferlayoutBinding = createVk @VkDescriptorSetLayoutBinding
-            $  set @"binding" 0
-            &* set @"descriptorType" VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-            &* set @"descriptorCount" 1
-            &* set @"stageFlags" VK_SHADER_STAGE_VERTEX_BIT
-            &* set @"pImmutableSamplers" VK_NULL
-        imageLayoutBinding = createVk @VkDescriptorSetLayoutBinding
-            $  set @"binding" 1
-            &* set @"descriptorType" VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-            &* set @"descriptorCount" 1
-            &* set @"stageFlags" VK_SHADER_STAGE_FRAGMENT_BIT
-            &* set @"pImmutableSamplers" VK_NULL
-        layoutBindingList = [bufferlayoutBinding, imageLayoutBinding]
-        layoutCreateInfo = createVk @VkDescriptorSetLayoutCreateInfo
+    let layoutCreateInfo = createVk @VkDescriptorSetLayoutCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"bindingCount" (fromIntegral $ length layoutBindingList)
             &* setListRef @"pBindings" layoutBindingList
-
     descriptorSetLayout <- allocaPeek $ \descriptorSetLayoutPtr ->
         withPtr layoutCreateInfo $ \layoutCreateInfoPtr ->
             vkCreateDescriptorSetLayout device layoutCreateInfoPtr VK_NULL descriptorSetLayoutPtr

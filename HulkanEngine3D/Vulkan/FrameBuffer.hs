@@ -30,7 +30,6 @@ data FrameBufferData = FrameBufferData
     , _frameBufferWidth :: Int
     , _frameBufferHeight :: Int
     , _frameBufferDepth :: Int
-    , _frameBufferSampleCount :: VkSampleCountFlagBits
     , _frameBufferImageViewsList :: [[VkImageView]]
     , _frameBufferClearValues :: [VkClearValue]
     , _frameBuffers :: [VkFramebuffer]
@@ -44,7 +43,6 @@ defaultFrameBufferDataCreateInfo = FrameBufferData
     , _frameBufferWidth = 0
     , _frameBufferHeight = 0
     , _frameBufferDepth = 1
-    , _frameBufferSampleCount = VK_SAMPLE_COUNT_1_BIT
     , _frameBufferImageViewsList = []
     , _frameBufferClearValues = []
     , _frameBuffers = []
@@ -62,8 +60,6 @@ createFramebufferData device renderPass frameBufferDataCreateInfo = do
         , _frameBufferHeight $ frameBufferDataCreateInfo
         , _frameBufferDepth $ frameBufferDataCreateInfo
         )
-    when (_frameBufferSampleCount frameBufferDataCreateInfo /= VK_SAMPLE_COUNT_1_BIT) $ do
-        logInfo $ "    SampleCount " ++ show (_frameBufferSampleCount frameBufferDataCreateInfo)
     frameBuffers <- mapM createFrameBuffer (_frameBufferImageViewsList frameBufferDataCreateInfo)
     return frameBufferDataCreateInfo { _frameBuffers = frameBuffers }
     where

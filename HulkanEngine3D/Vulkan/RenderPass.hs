@@ -59,22 +59,8 @@ data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     , _depthAttachmentDescriptions :: [ImageAttachmentDescription]
     , _resolveAttachmentDescriptions :: [ImageAttachmentDescription]
     , _pipelineDataCreateInfo :: PipelineDataCreateInfo
-    , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
     , _frameBufferDataCreateInfo :: FrameBufferDataCreateInfo
     }  deriving (Eq, Show)
-
-data PipelineDataCreateInfo = PipelineDataCreateInfo
-    { _pipelineDataName :: Text.Text
-    , _vertexShaderFile :: String
-    , _fragmentShaderFile :: String
-    , _pipelineViewportWidth :: Int
-    , _pipelineViewportHeight :: Int
-    , _pipelinePolygonMode :: VkPolygonMode
-    , _pipelineCullMode :: VkCullModeFlagBits
-    , _pipelineFrontFace :: VkFrontFace
-    , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
-    }  deriving (Eq, Show)
-
 
 data DepthStencilStateCreateInfo = DepthStencilStateCreateInfo
     { _depthTestEnable :: VkBool32
@@ -96,6 +82,21 @@ data DepthStencilStateCreateInfo = DepthStencilStateCreateInfo
     , _backWriteMask :: Word32
     , _backReference :: Word32
     } deriving (Eq, Show)
+
+data PipelineDataCreateInfo = PipelineDataCreateInfo
+    { _pipelineDataName :: Text.Text
+    , _vertexShaderFile :: String
+    , _fragmentShaderFile :: String
+    , _pipelineViewportWidth :: Int
+    , _pipelineViewportHeight :: Int
+    , _pipelineMultisampleCount :: VkSampleCountFlagBits
+    , _pipelinePolygonMode :: VkPolygonMode
+    , _pipelineCullMode :: VkCullModeFlagBits
+    , _pipelineFrontFace :: VkFrontFace
+    , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
+    , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
+    , _descriptorSetLayoutBindingList :: [VkDescriptorSetLayoutBinding]
+    }  deriving (Eq, Show)
 
 data GraphicsPipelineData = GraphicsPipelineData
     { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
@@ -158,7 +159,7 @@ defaultAttachmentDescription = ImageAttachmentDescription
 createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> IO RenderPassData
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} = do
     renderPass <- createRenderPass device renderPassDataCreateInfo
-    graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo _depthStencilStateCreateInfo (_frameBufferSampleCount _frameBufferDataCreateInfo)
+    graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo
     frameBufferData <- createFramebufferData device renderPass _frameBufferDataCreateInfo
     let renderPassBeginInfo frameBuffer = createVk @VkRenderPassBeginInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
@@ -294,19 +295,18 @@ destroyPipelineLayout device pipelineLayout = do
 createGraphicsPipeline :: VkDevice
                        -> VkRenderPass
                        -> PipelineDataCreateInfo
-                       -> DepthStencilStateCreateInfo
-                       -> VkSampleCountFlagBits
                        -> IO GraphicsPipelineData
-createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} depthStencilStateCreateInfo@DepthStencilStateCreateInfo {..} sampleCount = do
+createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} = do
     vertexShaderCreateInfo <- createShaderStageCreateInfo device _vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device _fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
 
-    let pushConstantData = PushConstantData { modelMatrix = matrix4x4_indentity }
+    let depthStencilStateCreateInfo@DepthStencilStateCreateInfo {..} = _depthStencilStateCreateInfo
+        pushConstantData = PushConstantData { modelMatrix = matrix4x4_indentity }
         pushConstantRange = getPushConstantRange pushConstantData
         shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
         shaderStageInfoCount = length shaderStageInfos
 
-    descriptorSetLayout <- createDescriptorSetLayout device
+    descriptorSetLayout <- createDescriptorSetLayout device _descriptorSetLayoutBindingList
     pipelineLayout <- createPipelineLayout device [pushConstantRange] [descriptorSetLayout]
 
     let vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
@@ -366,7 +366,7 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"sampleShadingEnable" VK_FALSE
-            &* set @"rasterizationSamples" sampleCount
+            &* set @"rasterizationSamples" _pipelineMultisampleCount
             &* set @"minSampleShading" 1.0
             &* set @"pSampleMask" VK_NULL
             &* set @"alphaToCoverageEnable" VK_FALSE
