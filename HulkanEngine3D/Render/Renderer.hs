@@ -299,6 +299,8 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
 
     uniformBufferDatas <- createUniformBufferDatas physicalDevice device
 
+    descriptorData <- createDescriptorData device _descriptorDataCreateInfoList descriptorSetCount
+
     let rendererData = defaultRendererData
           { _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
@@ -321,6 +323,7 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
 
 destroyRenderer :: RendererData -> IO ()
 destroyRenderer rendererData@RendererData {..} = do
+    destroyDescriptorData device _descriptorData
     destroyUniformBufferDatas _device _uniformBufferDatas
 
     imageSamplers <- readIORef _imageSamplers

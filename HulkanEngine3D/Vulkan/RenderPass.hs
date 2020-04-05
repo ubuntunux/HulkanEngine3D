@@ -302,7 +302,6 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
         shaderStageInfoCount = length shaderStageInfos
         descriptorSetCount = Constants.swapChainImageCount
 
-    descriptorData <- createDescriptorData device _descriptorDataCreateInfoList descriptorSetCount
     pipelineLayout <- createPipelineLayout device [pushConstantRange] [_descriptorSetLayout descriptorData]
 
     let vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
@@ -446,7 +445,6 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
 destroyGraphicsPipeline :: VkDevice -> GraphicsPipelineData -> IO ()
 destroyGraphicsPipeline device graphicsPipelineData@GraphicsPipelineData {..} = do
     logInfo $ "Destroy GraphicsPipeline"
-    destroyDescriptorData device _descriptorData
     vkDestroyPipeline device _pipeline VK_NULL
     destroyPipelineLayout device _pipelineLayout
     destroyShaderStageCreateInfo device _vertexShaderCreateInfo
