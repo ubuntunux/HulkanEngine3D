@@ -4,16 +4,18 @@
 
 
 module HulkanEngine3D.Vulkan.Descriptor
-  ( DescriptorSetDataCreateInfo
-  , DescriptorSetData (..)
+  ( DescriptorDataCreateInfo
+  , DescriptorData (..)
   , createDescriptorPool
   , destroyDescriptorPool
   , createDescriptorSetLayoutBinding
   , createDescriptorSetLayout
   , destroyDescriptorSetLayout
-  , createDescriptorSetData
-  , destroyDescriptorSetData
-  , prepareDescriptorSet
+  , createDescriptorData
+  , destroyDescriptorData
+  , createDescriptorSet
+  , destroyDescriptorSet
+  , updateDescriptorSets
   , createDescriptorBufferInfo
   ) where
 
@@ -29,12 +31,10 @@ import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 
 
-type DescriptorSetDataCreateInfo = (VkDescriptorType, VkShaderStageFlagBits)
+type DescriptorDataCreateInfo = (VkDescriptorType, VkShaderStageFlagBits)
 
-data DescriptorSetData = DescriptorSetData
-    { _descriptorSetPtr :: Ptr VkDescriptorSet
-    , _descriptorSets :: [VkDescriptorSet]
-    , _descriptorSetLayoutBindingList :: [VkDescriptorSetLayoutBinding]
+data DescriptorData = DescriptorData
+    { _descriptorSetLayoutBindingList :: [VkDescriptorSetLayoutBinding]
     , _descriptorPoolSizeList :: [VkDescriptorPoolSize]
     , _descriptorPool :: VkDescriptorPool
     , _descriptorSetLayout :: VkDescriptorSetLayout
@@ -98,12 +98,12 @@ destroyDescriptorSetLayout device descriptorSetLayout = do
     vkDestroyDescriptorSetLayout device descriptorSetLayout VK_NULL
 
 
-createDescriptorSetData :: VkDevice
-                        -> [DescriptorSetDataCreateInfo]
+createDescriptorData :: VkDevice
+                        -> [DescriptorDataCreateInfo]
                         -> Int
-                        -> IO DescriptorSetData
-createDescriptorSetData device descriptorSetDataCreateInfoList descriptorCount = do
-    descriptorLayoutBindingWithPoolSizeList <- forM (zip descriptorSetDataCreateInfoList [0..]) $ \((descriptorType, shaderStageFlags), binding) -> do
+                        -> IO DescriptorData
+createDescriptorData device descriptorDataCreateInfoList descriptorCount = do
+    descriptorLayoutBindingWithPoolSizeList <- forM (zip descriptorDataCreateInfoList [0..]) $ \((descriptorType, shaderStageFlags), binding) -> do
         let descriptorLayoutBinding = createDescriptorSetLayoutBinding binding descriptorType shaderStageFlags
             descriptorPoolSize = createDescriptorPoolSize descriptorType descriptorCount
         return (descriptorLayoutBinding, descriptorPoolSize)
@@ -111,51 +111,56 @@ createDescriptorSetData device descriptorSetDataCreateInfoList descriptorCount =
 
     descriptorSetLayout <- createDescriptorSetLayout device descriptorSetLayoutBindingList
     descriptorPool <- createDescriptorPool device descriptorPoolSizeList descriptorCount
+    let descriptorData = DescriptorData
+            { _descriptorSetLayoutBindingList = descriptorSetLayoutBindingList
+            , _descriptorPoolSizeList = descriptorPoolSizeList
+            , _descriptorPool = descriptorPool
+            , _descriptorSetLayout = descriptorSetLayout
+            , _descriptorCount = descriptorCount
+            }
+    logInfo $ "createDescriptorData : " ++ show descriptorData
+    return descriptorData
 
+
+destroyDescriptorData :: VkDevice
+                      -> DescriptorData
+                      -> IO ()
+destroyDescriptorData device descriptorData@DescriptorData{..} = do
+    logInfo $ "destroyDescriptorData : " ++ show descriptorData
+    destroyDescriptorSetLayout device _descriptorSetLayout
+    destroyDescriptorPool device _descriptorPool
+
+
+createDescriptorSet :: VkDevice -> VkDescriptorPool -> VkDescriptorSetLayout -> Int -> IO [VkDescriptorSet]
+createDescriptorSet device descriptorPool descriptorSetLayout descriptorCount = do
     let descriptorSetLayouts = replicate descriptorCount descriptorSetLayout
     allocaArray (length descriptorSetLayouts) $ \descriptorSetLayoutsPtr -> do
         pokeArray descriptorSetLayoutsPtr descriptorSetLayouts
 
         let allocateInfo = createVk @VkDescriptorSetAllocateInfo
-                $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
-                &* set @"pNext" VK_NULL
-                &* set @"descriptorPool" descriptorPool
-                &* set @"descriptorSetCount" (fromIntegral descriptorCount)
-                &* set @"pSetLayouts" descriptorSetLayoutsPtr
+                    $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
+                    &* set @"pNext" VK_NULL
+                    &* set @"descriptorPool" descriptorPool
+                    &* set @"descriptorSetCount" (fromIntegral descriptorCount)
+                    &* set @"pSetLayouts" descriptorSetLayoutsPtr
         descriptorSets <- allocaPeekArray descriptorCount $ \descriptorSetPtr ->
             withPtr allocateInfo $ \allocateInfoPtr ->
                 vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
-        let descriptorSetData = DescriptorSetData
-                { _descriptorSets = descriptorSets
-                , _descriptorSetPtr = VK_NULL -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for vkFreeDescriptorSets
-                , _descriptorSetLayoutBindingList = descriptorSetLayoutBindingList
-                , _descriptorPoolSizeList = descriptorPoolSizeList
-                , _descriptorPool = descriptorPool
-                , _descriptorSetLayout = descriptorSetLayout
-                , _descriptorCount = descriptorCount
-                }
-        logInfo $ "createDescriptorSets : " ++ show descriptorSetData
-        return descriptorSetData
+        return descriptorSets
 
-
-destroyDescriptorSetData :: VkDevice
-                         -> DescriptorSetData
-                         -> IO ()
-destroyDescriptorSetData device descriptorSetData@DescriptorSetData{..} = do
-    logInfo $ "destroyDescriptorSetData : " ++ show descriptorSetData
+destroyDescriptorSet :: VkDevice -> VkDescriptorPool -> [VkDescriptorSet] -> Ptr VkDescriptorSet -> IO ()
+destroyDescriptorSet device descriptorPool descriptorSets descriptorSetPtr = do
     -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for vkFreeDescriptorSets
-    when (_descriptorSetPtr /= VK_NULL) $
-        vkFreeDescriptorSets device _descriptorPool (fromIntegral . length $ _descriptorSets) _descriptorSetPtr
+    when (descriptorSetPtr /= VK_NULL) $
+        vkFreeDescriptorSets device descriptorPool (fromIntegral . length $ descriptorSets) descriptorSetPtr
             >>= flip validationVK "destroyDescriptorSetData failed!"
-    destroyDescriptorSetLayout device _descriptorSetLayout
-    destroyDescriptorPool device _descriptorPool
 
-prepareDescriptorSet :: VkDevice
+updateDescriptorSets :: VkDevice
                      -> VkDescriptorBufferInfo
                      -> VkDescriptorImageInfo
                      -> VkDescriptorSet
                      -> IO ()
-prepareDescriptorSet device bufferInfo imageInfo descriptorSet = do
+updateDescriptorSets device bufferInfo imageInfo descriptorSet = do
     let bufferDescriptorSet = createVk @VkWriteDescriptorSet
             $  set @"sType" VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
             &* set @"pNext" VK_NULL

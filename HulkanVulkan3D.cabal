@@ -33,6 +33,7 @@ executable main
                       HulkanEngine3D.Render.Model
                       HulkanEngine3D.Render.RenderTarget
                       HulkanEngine3D.Render.Renderer
+                      HulkanEngine3D.Render.RenderElement
                       HulkanEngine3D.Render.TransformObject
                       HulkanEngine3D.Resource.ObjLoader
                       HulkanEngine3D.Resource.Resource

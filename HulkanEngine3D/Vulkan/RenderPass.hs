@@ -95,7 +95,7 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     , _pipelineFrontFace :: VkFrontFace
     , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
     , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
-    , _descriptorSetDataCreateInfoList :: [DescriptorSetDataCreateInfo]
+    , _descriptorDataCreateInfoList :: [DescriptorDataCreateInfo]
     , _descriptorCount :: Int
     }  deriving (Eq, Show)
 
@@ -104,7 +104,7 @@ data GraphicsPipelineData = GraphicsPipelineData
     , _fragmentShaderCreateInfo :: VkPipelineShaderStageCreateInfo
     , _pipelineLayout :: VkPipelineLayout
     , _pipeline :: VkPipeline
-    , _descriptorSetData :: DescriptorSetData
+    , _descriptorData :: DescriptorData
     } deriving (Eq, Show)
 
 data RenderPassData = RenderPassData
@@ -302,8 +302,8 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
         shaderStageInfoCount = length shaderStageInfos
         descriptorSetCount = Constants.swapChainImageCount
 
-    descriptorSetData <- createDescriptorSetData device _descriptorSetDataCreateInfoList descriptorSetCount
-    pipelineLayout <- createPipelineLayout device [pushConstantRange] [_descriptorSetLayout descriptorSetData]
+    descriptorData <- createDescriptorData device _descriptorDataCreateInfoList descriptorSetCount
+    pipelineLayout <- createPipelineLayout device [pushConstantRange] [_descriptorSetLayout descriptorData]
 
     let vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
@@ -439,14 +439,14 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
         , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
         , _pipeline = graphicsPipeline
         , _pipelineLayout = pipelineLayout
-        , _descriptorSetData = descriptorSetData
+        , _descriptorData = descriptorData
         }
 
 
 destroyGraphicsPipeline :: VkDevice -> GraphicsPipelineData -> IO ()
 destroyGraphicsPipeline device graphicsPipelineData@GraphicsPipelineData {..} = do
     logInfo $ "Destroy GraphicsPipeline"
-    destroyDescriptorSetData device _descriptorSetData
+    destroyDescriptorData device _descriptorData
     vkDestroyPipeline device _pipeline VK_NULL
     destroyPipelineLayout device _pipelineLayout
     destroyShaderStageCreateInfo device _vertexShaderCreateInfo

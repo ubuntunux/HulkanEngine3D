@@ -66,7 +66,7 @@ createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
             , _pipelineFrontFace = VK_FRONT_FACE_CLOCKWISE
             , _pipelineColorBlendModes = [getColorBlendMode_None]
             , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
-            , _descriptorSetDataCreateInfoList =
+            , _descriptorDataCreateInfoList =
                 [ (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
                 , (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
                 ]

@@ -25,6 +25,7 @@ import HulkanEngine3D.Application.Input
 import HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.Mesh
+import HulkanEngine3D.Render.RenderElement
 import qualified HulkanEngine3D.Render.Renderer as Renderer
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Resource.Resource
@@ -58,6 +59,7 @@ data ApplicationData = ApplicationData
     , _sceneManagerData :: SceneManagerData
     , _rendererData :: Renderer.RendererData
     , _resourceData :: ResourceData
+    , _renderElement :: IORef RenderElementData
     } deriving (Show)
 
 
@@ -231,18 +233,23 @@ initializeApplication = do
 
     initializeResourceData resourceData rendererData
 
+    sceneManagerData <- newSceneManagerData
+
     ---------------------------------------------------------
+    descriptorSets = createDescriptorSet
+    let renderElement = RenderElementData
+            { _descriptorSets = []
+            }
+    renderElementRef <- newIORef renderElement
+
     Just textureData <- getTextureData resourceData "texture"
     Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-    let descriptorSets = _descriptorSets . _descriptorSetData . _graphicsPipelineData $ defaultRenderPassData
+    let descriptorSets = _descriptorSets renderElement
         descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData
         descriptorImageInfo = _descriptorImageInfo textureData
     forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) ->
-        prepareDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
+        updateDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
     ---------------------------------------------------------
-
-    -- SceneManagerDatas
-    sceneManagerData <- newSceneManagerData
 
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
         cameraCreateData = getDefaultCameraCreateData { aspect = aspect, position = vec3 0 0 10 }
@@ -271,6 +278,7 @@ initializeApplication = do
             , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
             , _resourceData = resourceData
+            , _renderElement = renderElementRef
             }
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ()) -> IO ()
@@ -359,16 +367,6 @@ runApplication = do
             let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
             mainCamera <- getMainCamera sceneManagerData
             setAspect mainCamera aspect
-
-            ---------------------------------------------------------
-            Just textureData <- getTextureData resourceData "texture"
-            Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-            let descriptorSets = _descriptorSets . _descriptorSetData . _graphicsPipelineData $ defaultRenderPassData
-                descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData
-                descriptorImageInfo = _descriptorImageInfo textureData
-            forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) ->
-                prepareDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
-            ---------------------------------------------------------
 
         -- update renderer data
         updateSceneManagerData sceneManagerData
