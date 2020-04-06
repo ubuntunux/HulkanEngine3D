@@ -483,7 +483,7 @@ createDepthTexture physicalDevice device commandBufferPool queue extent samples 
     imageView <- createImageView device depthImage depthFormat VK_IMAGE_ASPECT_DEPTH_BIT mipLevels
     imageSampler <- createImageSampler device mipLevels VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE anisotropyEnable
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
-        textureData = TextureData
+        textureData@TextureData {..} = TextureData
             { _imageView = imageView
             , _image = depthImage
             , _imageMemory = depthImageMemory
@@ -498,7 +498,7 @@ createDepthTexture physicalDevice device commandBufferPool queue extent samples 
     logInfo "createDepthTexture"
     logInfo $ "    Format : " ++ show depthFormat
     logInfo $ "    Size : " ++ show extent
-    logInfo $ "    TextureData : " ++ show textureData
+    logInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
     return textureData
 
 
@@ -533,7 +533,7 @@ createColorTexture physicalDevice device commandBufferPool queue format extent s
     imageView <- createImageView device colorImage format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
     imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
-        textureData = TextureData
+        textureData@TextureData {..} = TextureData
             { _imageView = imageView
             , _image = colorImage
             , _imageMemory = colorImageMemory
@@ -549,7 +549,7 @@ createColorTexture physicalDevice device commandBufferPool queue format extent s
     logInfo $ "    Format : " ++ show format
     logInfo $ "    MultiSampleCount : " ++ show samples
     logInfo $ "    Size : " ++ show extent
-    logInfo $ "    TextureData : " ++ show textureData
+    logInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
     return textureData
 
 
@@ -615,7 +615,7 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
     imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL imageView imageSampler
         imageDepth = 1
-        textureData = TextureData
+        textureData@TextureData {..} = TextureData
             { _image = image
             , _imageView = imageView
             , _imageMemory = imageMemory
@@ -632,13 +632,13 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
     logInfo $ "    File : " ++ filePath
     logInfo $ "    Format : " ++ show format
     logInfo $ "    Size : " ++ show imageWidth ++ ", " ++ show imageHeight ++ ", " ++ show imageDepth
-    logInfo $ "    TextureData : " ++ show textureData
+    logInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
 
     return textureData
 
 destroyTextureData :: VkDevice -> TextureData -> IO ()
 destroyTextureData device textureData@TextureData{..} = do
-    logInfo $ "destroyTextureData : " ++ show textureData
+    logInfo $ "destroyTextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
     destroyImageSampler device _imageSampler
     destroyImageView device _imageView
     destroyImage device _image _imageMemory

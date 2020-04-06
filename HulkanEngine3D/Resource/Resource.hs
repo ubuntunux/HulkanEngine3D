@@ -11,21 +11,25 @@ import qualified Data.HashTable.IO as HashTable
 import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
 
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Resource.ObjLoader
 import HulkanEngine3D.Resource.RenderPassLoader
 import HulkanEngine3D.Vulkan.Texture
+import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.RenderPass
 
 type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
 type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
 type RenderPassDataMap = HashTable.BasicHashTable Text.Text RenderPassData
+type DescriptorDataMap = HashTable.BasicHashTable Text.Text DescriptorData
 
 data ResourceData = ResourceData
     { _meshDataMap :: MeshDataMap
     , _textureDataMap :: TextureDataMap
     , _renderPassDataMap :: RenderPassDataMap
+    , _descriptorDataMap :: DescriptorDataMap
     } deriving (Show)
 
 
@@ -33,6 +37,9 @@ class ResourceInterface a where
     createNewResourceData :: IO a
     initializeResourceData :: a -> RendererData -> IO ()
     destroyResourceData :: a -> RendererData -> IO ()
+
+    recreateGraphicsDatas :: a -> RendererData -> IO ()
+    destroyGraphicsDatas :: a -> RendererData -> IO ()
 
     loadMeshDatas :: a -> RendererData -> IO ()
     unloadMeshDatas :: a -> RendererData -> IO ()
@@ -47,16 +54,21 @@ class ResourceInterface a where
     getRenderPassData :: a -> Text.Text -> IO (Maybe RenderPassData)
     getDefaultRenderPassData :: a -> IO (Maybe RenderPassData)
 
+    getDescriptorData :: a -> RendererData -> RenderPassDataCreateInfo -> IO DescriptorData
+    unloadDescriptorDatas :: a -> RendererData -> IO ()
+
 instance ResourceInterface ResourceData where
     createNewResourceData :: IO ResourceData
     createNewResourceData = do
         meshDataMap <- HashTable.new
         textureDataMap <- HashTable.new
         renderPassDataMap <- HashTable.new
+        descriptorDataMap <- HashTable.new
         return ResourceData
             { _meshDataMap = meshDataMap
             , _textureDataMap = textureDataMap
             , _renderPassDataMap = renderPassDataMap
+            , _descriptorDataMap = descriptorDataMap
             }
 
     initializeResourceData :: ResourceData -> RendererData -> IO ()
@@ -69,6 +81,16 @@ instance ResourceInterface ResourceData where
     destroyResourceData resourceData rendererData = do
         unloadMeshDatas resourceData rendererData
         unloadTextureDatas resourceData rendererData
+        unloadDescriptorDatas resourceData rendererData
+        unloadRenderPassDatas resourceData rendererData
+
+    -- GraphicsDatas
+    recreateGraphicsDatas :: ResourceData -> RendererData -> IO ()
+    recreateGraphicsDatas resourceData rendererData =
+        loadRenderPassDatas resourceData rendererData
+
+    destroyGraphicsDatas :: ResourceData -> RendererData -> IO ()
+    destroyGraphicsDatas resourceData rendererData =
         unloadRenderPassDatas resourceData rendererData
 
     -- Mesh Loader
@@ -95,7 +117,7 @@ instance ResourceInterface ResourceData where
                 loop 0
 
     getMeshData :: ResourceData -> Text.Text -> IO (Maybe MeshData)
-    getMeshData resourceData resourceName = do
+    getMeshData resourceData resourceName =
         HashTable.lookup (_meshDataMap resourceData) resourceName
 
     -- TextureLoader
@@ -105,11 +127,11 @@ instance ResourceInterface ResourceData where
         HashTable.insert (_textureDataMap resourceData) "texture" textureData
 
     unloadTextureDatas :: ResourceData -> RendererData -> IO ()
-    unloadTextureDatas resourceData rendererData = do
+    unloadTextureDatas resourceData rendererData =
         HashTable.mapM_ (\(k, v) -> destroyTexture rendererData v) (_textureDataMap resourceData)
 
     getTextureData :: ResourceData -> Text.Text -> IO (Maybe TextureData)
-    getTextureData resourceData resourceName = do
+    getTextureData resourceData resourceName =
         HashTable.lookup (_textureDataMap resourceData) resourceName
 
     -- RenderPassLoader
@@ -118,18 +140,40 @@ instance ResourceInterface ResourceData where
         renderTargets <- readIORef (_renderTargets rendererData)
         swapChainData <- readIORef (_swapChainDataRef rendererData)
 
-        defaultRenderPassDataCreateInfo <- createDefaultRenderPassDataCreateInfo rendererData "defaultRenderPass"
-        defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo
+        defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData "defaultRenderPass"
+        descriptorData <- getDescriptorData resourceData rendererData defaultRenderPassDataCreateInfo
+        defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo descriptorData
         HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
 
     unloadRenderPassDatas :: ResourceData -> RendererData -> IO ()
-    unloadRenderPassDatas resourceData rendererData = do
+    unloadRenderPassDatas resourceData rendererData =
         HashTable.mapM_ (\(k, v) -> destroyRenderPassData (getDevice rendererData) v) (_renderPassDataMap resourceData)
 
     getRenderPassData :: ResourceData -> Text.Text -> IO (Maybe RenderPassData)
-    getRenderPassData resourceData resourceName = do
+    getRenderPassData resourceData resourceName =
         HashTable.lookup (_renderPassDataMap resourceData) resourceName
 
     getDefaultRenderPassData :: ResourceData -> IO (Maybe RenderPassData)
-    getDefaultRenderPassData resourceData = do
+    getDefaultRenderPassData resourceData =
         getRenderPassData resourceData "defaultRenderPass"
+
+    -- DescriptorDatas
+    getDescriptorData :: ResourceData -> RendererData -> RenderPassDataCreateInfo -> IO DescriptorData
+    getDescriptorData resourceData rendererData renderPassDataCreateInfo = do
+        let renderPassName = _renderPassCreateInfoName renderPassDataCreateInfo
+            pipelineDataCreateInfo = _pipelineDataCreateInfo renderPassDataCreateInfo
+            pipelineDataName = _pipelineDataCreateInfoName pipelineDataCreateInfo
+            descriptorDataCreateInfoList = _descriptorDataCreateInfoList pipelineDataCreateInfo
+            descriptorCount = Constants.swapChainImageCount
+            resourceName = Text.append renderPassName (Text.append "_" pipelineDataName)
+        maybeDescriptorData <- HashTable.lookup (_descriptorDataMap resourceData) resourceName
+        case maybeDescriptorData of
+            (Just descriptorData) -> return descriptorData
+            otherwise -> do
+                descriptorData <- createDescriptorData (getDevice rendererData) descriptorDataCreateInfoList descriptorCount
+                HashTable.insert (_descriptorDataMap resourceData) resourceName descriptorData
+                return descriptorData
+
+    unloadDescriptorDatas :: ResourceData -> RendererData -> IO ()
+    unloadDescriptorDatas resourceData rendererData =
+        HashTable.mapM_ (\(k, v) -> destroyDescriptorData (getDevice rendererData) v) (_descriptorDataMap resourceData)

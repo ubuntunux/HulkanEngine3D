@@ -1,7 +1,8 @@
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE Strict           #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DuplicateRecordFields  #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE Strict                 #-}
+{-# LANGUAGE TypeApplications       #-}
 
 module HulkanEngine3D.Vulkan.RenderPass
     ( ImageAttachmentDescription (..)
@@ -54,7 +55,7 @@ data ImageAttachmentDescription = ImageAttachmentDescription
     } deriving (Eq, Show)
 
 data RenderPassDataCreateInfo = RenderPassDataCreateInfo
-    { _renderPassName :: Text.Text
+    { _renderPassCreateInfoName :: Text.Text
     , _colorAttachmentDescriptions :: [ImageAttachmentDescription]
     , _depthAttachmentDescriptions :: [ImageAttachmentDescription]
     , _resolveAttachmentDescriptions :: [ImageAttachmentDescription]
@@ -84,7 +85,7 @@ data DepthStencilStateCreateInfo = DepthStencilStateCreateInfo
     } deriving (Eq, Show)
 
 data PipelineDataCreateInfo = PipelineDataCreateInfo
-    { _pipelineDataName :: Text.Text
+    { _pipelineDataCreateInfoName :: Text.Text
     , _vertexShaderFile :: String
     , _fragmentShaderFile :: String
     , _pipelineViewportWidth :: Int
@@ -96,11 +97,11 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
     , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
     , _descriptorDataCreateInfoList :: [DescriptorDataCreateInfo]
-    , _descriptorCount :: Int
     }  deriving (Eq, Show)
 
 data GraphicsPipelineData = GraphicsPipelineData
-    { _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
+    { _pipelineDataName :: Text.Text
+    , _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
     , _fragmentShaderCreateInfo :: VkPipelineShaderStageCreateInfo
     , _pipelineLayout :: VkPipelineLayout
     , _pipeline :: VkPipeline
@@ -151,10 +152,10 @@ defaultAttachmentDescription = ImageAttachmentDescription
     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
     }
 
-createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> IO RenderPassData
-createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} = do
+createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> DescriptorData -> IO RenderPassData
+createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} descriptorData = do
     renderPass <- createRenderPass device renderPassDataCreateInfo
-    graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo
+    graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo descriptorData
     frameBufferData <- createFramebufferData device renderPass _frameBufferDataCreateInfo
     let renderPassBeginInfo frameBuffer = createVk @VkRenderPassBeginInfo
                 $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
@@ -174,9 +175,9 @@ createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {.
                 &* set @"clearValueCount" (fromIntegral . length $ _frameBufferClearValues frameBufferData)
                 &* setListRef @"pClearValues" (_frameBufferClearValues frameBufferData)
         renderPassBeginInfos = fmap renderPassBeginInfo (_frameBuffers frameBufferData)
-    logInfo $ "CreateRenderPassData : " ++ (Text.unpack _renderPassName)
+    logInfo $ "CreateRenderPassData : " ++ (Text.unpack _renderPassCreateInfoName)
     return RenderPassData
-        { _renderPassDataName = _renderPassName
+        { _renderPassDataName = _renderPassCreateInfoName
         , _renderPassBeginInfos = renderPassBeginInfos
         , _renderPass = renderPass
         , _graphicsPipelineData = graphicsPipelineData
@@ -188,7 +189,7 @@ destroyRenderPassData device renderPassData@RenderPassData {..} = do
     logInfo "DestroyRenderPassData"
     destroyFramebufferData device _frameBufferData
     destroyGraphicsPipeline device _graphicsPipelineData
-    destroyRenderPass device _renderPass
+    destroyRenderPass device _renderPass _renderPassDataName
 
 
 createRenderPass :: VkDevice -> RenderPassDataCreateInfo -> IO VkRenderPass
@@ -256,9 +257,9 @@ createRenderPass device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} =
     return renderPass
 
 
-destroyRenderPass :: VkDevice -> VkRenderPass -> IO ()
-destroyRenderPass device renderPass = do
-    logInfo $ "Destroy RenderPass : " ++ show renderPass
+destroyRenderPass :: VkDevice -> VkRenderPass -> Text.Text -> IO ()
+destroyRenderPass device renderPass renderPassName = do
+    logInfo $ "Destroy RenderPass : " ++ Text.unpack renderPassName ++ " " ++ show renderPass
     vkDestroyRenderPass device renderPass VK_NULL
 
 
@@ -290,8 +291,9 @@ destroyPipelineLayout device pipelineLayout = do
 createGraphicsPipeline :: VkDevice
                        -> VkRenderPass
                        -> PipelineDataCreateInfo
+                       -> DescriptorData
                        -> IO GraphicsPipelineData
-createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} = do
+createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} descriptorData = do
     vertexShaderCreateInfo <- createShaderStageCreateInfo device _vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device _fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
 
@@ -424,7 +426,7 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             &* set @"basePipelineHandle" VK_NULL_HANDLE
             &* set @"basePipelineIndex" (-1)
 
-    logInfo $ "createGraphicsPipeline : " ++ show [vertexShaderCreateInfo, fragmentShaderCreateInfo]
+    logInfo $ "createGraphicsPipeline : "
     logInfo $ "    vertexShader : " ++ show _vertexShaderFile
     logInfo $ "    fragmentShader : " ++ show _fragmentShaderFile
     graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do
@@ -434,7 +436,8 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
         peek graphicsPipelinePtr
 
     return GraphicsPipelineData
-        { _vertexShaderCreateInfo = vertexShaderCreateInfo
+        { _pipelineDataName = _pipelineDataCreateInfoName
+        , _vertexShaderCreateInfo = vertexShaderCreateInfo
         , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
         , _pipeline = graphicsPipeline
         , _pipelineLayout = pipelineLayout
@@ -444,7 +447,7 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
 
 destroyGraphicsPipeline :: VkDevice -> GraphicsPipelineData -> IO ()
 destroyGraphicsPipeline device graphicsPipelineData@GraphicsPipelineData {..} = do
-    logInfo $ "Destroy GraphicsPipeline"
+    logInfo $ "Destroy GraphicsPipeline : " ++ Text.unpack _pipelineDataName ++ "pipeline " ++ show _pipeline ++ ", pipelineLayout" ++ show _pipelineLayout
     vkDestroyPipeline device _pipeline VK_NULL
     destroyPipelineLayout device _pipelineLayout
     destroyShaderStageCreateInfo device _vertexShaderCreateInfo

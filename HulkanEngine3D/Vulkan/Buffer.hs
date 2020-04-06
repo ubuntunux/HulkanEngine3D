@@ -133,7 +133,7 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
 
 destroyBuffer :: VkDevice -> VkBuffer -> VkDeviceMemory -> IO ()
 destroyBuffer device buffer memory = do
-    logInfo $ "    Destroy Buffer : "  ++ show buffer ++ ", Memory : " ++ show memory
+    logInfo $ "    Destroy Buffer : buffer "  ++ show buffer ++ ", memory " ++ show memory
     vkDestroyBuffer device buffer VK_NULL
     vkFreeMemory device memory VK_NULL
 

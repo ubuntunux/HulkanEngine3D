@@ -97,6 +97,8 @@ createShaderStageCreateInfo device shaderFilePath stageBit = do
 
 destroyShaderStageCreateInfo :: VkDevice -> VkPipelineShaderStageCreateInfo -> IO ()
 destroyShaderStageCreateInfo device shaderStageCreateInfo = do
-    logInfo $ "destroyShaderStageCreateInfo : " ++ show shaderStageCreateInfo
+    let shaderModule = getField @"module" shaderStageCreateInfo
+        shaderStage = getField @"stage" shaderStageCreateInfo
+    logInfo $ "destroyShaderStageCreateInfo : stage " ++ show shaderStage ++ ", module " ++ show shaderModule
     vkDestroyShaderModule device (getField @"module" shaderStageCreateInfo) VK_NULL
     touchVkData shaderStageCreateInfo

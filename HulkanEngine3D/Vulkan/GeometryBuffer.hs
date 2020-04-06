@@ -185,6 +185,7 @@ createGeometryData physicalDevice device graphicsQueue commandPool geometryName 
 
 destroyGeometryData :: VkDevice -> GeometryData -> IO ()
 destroyGeometryData device geometryBuffer = do
+    logInfo "destroyGeometryData"
     destroyBuffer device (_vertexBuffer geometryBuffer) (_vertexBufferMemory geometryBuffer)
     destroyBuffer device (_indexBuffer geometryBuffer) (_indexBufferMemory geometryBuffer)
 

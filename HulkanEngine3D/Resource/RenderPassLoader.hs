@@ -19,8 +19,8 @@ import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.SwapChain
 
 
-createDefaultRenderPassDataCreateInfo :: RendererData -> Text.Text -> IO RenderPassDataCreateInfo
-createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
+getRenderPassDataCreateInfo :: RendererData -> Text.Text -> IO RenderPassDataCreateInfo
+getRenderPassDataCreateInfo rendererData renderPassName = do
     renderTargets@RenderTargets {..} <- readIORef (_renderTargets rendererData)
     swapChainData <- readIORef (_swapChainDataRef rendererData)
     let sampleCount = (_msaaSamples . _renderFeatures $ rendererData)
@@ -55,7 +55,7 @@ createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
                 }
             ]
         pipelineDataCreateInfo = PipelineDataCreateInfo
-            { _pipelineDataName = "defaultRenderPassGraphicsPipeline"
+            { _pipelineDataCreateInfoName = "RenderTriangle"
             , _vertexShaderFile = "Resource/Shaders/triangle.vert"
             , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
             , _pipelineViewportWidth = _imageWidth _sceneColorTexture
@@ -70,7 +70,6 @@ createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
                 [ (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
                 , (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
                 ]
-            , _descriptorCount = Constants.swapChainImageCount
             }
         frameBufferDataCreateInfo = defaultFrameBufferDataCreateInfo
             { _frameBufferName = "defaultRenderPassFrameBuffer"
@@ -86,7 +85,7 @@ createDefaultRenderPassDataCreateInfo rendererData renderPassName = do
             , _frameBuffers = []
             }
     return RenderPassDataCreateInfo
-        { _renderPassName = renderPassName
+        { _renderPassCreateInfoName = renderPassName
         , _colorAttachmentDescriptions = colorAttachmentDescriptions
         , _depthAttachmentDescriptions = depthAttachmentDescriptions
         , _resolveAttachmentDescriptions = resolveAttachmentDescriptions

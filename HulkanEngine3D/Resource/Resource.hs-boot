@@ -3,6 +3,7 @@ module HulkanEngine3D.Resource.Resource where
 import qualified Data.Text as Text
 
 import HulkanEngine3D.Render.Mesh
+import HulkanEngine3D.Vulkan.Descriptor
 import {-# SOURCE #-} HulkanEngine3D.Render.Renderer
 import {-# SOURCE #-} HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.Texture
@@ -16,6 +17,9 @@ class ResourceInterface a where
     initializeResourceData :: a -> RendererData -> IO ()
     destroyResourceData :: a -> RendererData -> IO ()
 
+    recreateGraphicsDatas :: a -> RendererData -> IO ()
+    destroyGraphicsDatas :: a -> RendererData -> IO ()
+
     loadMeshDatas :: a -> RendererData -> IO ()
     unloadMeshDatas :: a -> RendererData -> IO ()
     getMeshData :: a -> Text.Text -> IO (Maybe MeshData)
@@ -28,5 +32,8 @@ class ResourceInterface a where
     unloadRenderPassDatas :: a -> RendererData -> IO ()
     getRenderPassData :: a -> Text.Text -> IO (Maybe RenderPassData)
     getDefaultRenderPassData :: a -> IO (Maybe RenderPassData)
+
+    getDescriptorData :: a -> RendererData -> RenderPassDataCreateInfo -> IO DescriptorData
+    unloadDescriptorDatas :: a -> RendererData -> IO ()
 
 instance ResourceInterface ResourceData where

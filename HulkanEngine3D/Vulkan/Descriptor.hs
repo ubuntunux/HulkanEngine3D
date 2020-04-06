@@ -6,6 +6,7 @@
 module HulkanEngine3D.Vulkan.Descriptor
   ( DescriptorDataCreateInfo
   , DescriptorData (..)
+  , defaultDescriptorData
   , createDescriptorPool
   , destroyDescriptorPool
   , createDescriptorSetLayoutBinding
@@ -41,6 +42,15 @@ data DescriptorData = DescriptorData
     , _descriptorCount :: Int
     } deriving (Eq, Show)
 
+
+defaultDescriptorData :: DescriptorData
+defaultDescriptorData = DescriptorData
+    { _descriptorSetLayoutBindingList = []
+    , _descriptorPoolSizeList = []
+    , _descriptorPool = VK_NULL
+    , _descriptorSetLayout = VK_NULL
+    , _descriptorCount = 0
+    }
 
 createDescriptorPool :: VkDevice -> [VkDescriptorPoolSize] -> Int -> IO VkDescriptorPool
 createDescriptorPool device poolSizeList descriptorCount = do
@@ -126,24 +136,24 @@ destroyDescriptorData :: VkDevice
                       -> DescriptorData
                       -> IO ()
 destroyDescriptorData device descriptorData@DescriptorData{..} = do
-    logInfo $ "destroyDescriptorData : " ++ show descriptorData
+    logInfo $ "destroyDescriptorData : pool " ++ show _descriptorPool ++ ", layout " ++ show _descriptorSetLayout
     destroyDescriptorSetLayout device _descriptorSetLayout
     destroyDescriptorPool device _descriptorPool
 
 
-createDescriptorSet :: VkDevice -> VkDescriptorPool -> VkDescriptorSetLayout -> Int -> IO [VkDescriptorSet]
-createDescriptorSet device descriptorPool descriptorSetLayout descriptorCount = do
-    let descriptorSetLayouts = replicate descriptorCount descriptorSetLayout
+createDescriptorSet :: VkDevice -> DescriptorData -> IO [VkDescriptorSet]
+createDescriptorSet device descriptorData@DescriptorData {..} = do
+    let descriptorSetLayouts = replicate _descriptorCount _descriptorSetLayout
     allocaArray (length descriptorSetLayouts) $ \descriptorSetLayoutsPtr -> do
         pokeArray descriptorSetLayoutsPtr descriptorSetLayouts
 
         let allocateInfo = createVk @VkDescriptorSetAllocateInfo
                     $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
                     &* set @"pNext" VK_NULL
-                    &* set @"descriptorPool" descriptorPool
-                    &* set @"descriptorSetCount" (fromIntegral descriptorCount)
+                    &* set @"descriptorPool" _descriptorPool
+                    &* set @"descriptorSetCount" (fromIntegral . length $ descriptorSetLayouts)
                     &* set @"pSetLayouts" descriptorSetLayoutsPtr
-        descriptorSets <- allocaPeekArray descriptorCount $ \descriptorSetPtr ->
+        descriptorSets <- allocaPeekArray _descriptorCount $ \descriptorSetPtr ->
             withPtr allocateInfo $ \allocateInfoPtr ->
                 vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
         return descriptorSets

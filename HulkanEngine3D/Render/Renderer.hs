@@ -41,11 +41,12 @@ import Graphics.Vulkan.Marshal.Create
 import Numeric.DataFrame
 
 import qualified HulkanEngine3D.Constants as Constants
+import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
+import HulkanEngine3D.Render.ImageSampler
+import HulkanEngine3D.Render.UniformBufferDatas
+import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
-import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
-import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
-import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
 import HulkanEngine3D.Vulkan.CommandBuffer
@@ -54,7 +55,6 @@ import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Queue
 import HulkanEngine3D.Vulkan.PushConstant
 import HulkanEngine3D.Vulkan.RenderPass
-import HulkanEngine3D.Vulkan.UniformBuffer
 import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Sync
 import HulkanEngine3D.Vulkan.Texture
@@ -299,8 +299,6 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
 
     uniformBufferDatas <- createUniformBufferDatas physicalDevice device
 
-    descriptorData <- createDescriptorData device _descriptorDataCreateInfoList descriptorSetCount
-
     let rendererData = defaultRendererData
           { _imageAvailableSemaphores = imageAvailableSemaphores
           , _renderFinishedSemaphores = renderFinishedSemaphores
@@ -323,7 +321,6 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
 
 destroyRenderer :: RendererData -> IO ()
 destroyRenderer rendererData@RendererData {..} = do
-    destroyDescriptorData device _descriptorData
     destroyUniformBufferDatas _device _uniformBufferDatas
 
     imageSamplers <- readIORef _imageSamplers
@@ -353,19 +350,19 @@ resizeWindow window rendererData@RendererData {..} = do
 
     deviceWaitIdle rendererData
 
-    unloadRenderPassDatas _resourceData rendererData
+    -- destroy swapchain & graphics resources
+    destroyGraphicsDatas _resourceData rendererData
 
     renderTargets <- readIORef _renderTargets
     destroyRenderTargets rendererData renderTargets
 
-    -- recreate swapChain
+    -- recreate swapchain & graphics resources
     recreateSwapChain rendererData window
 
-    -- recreate resources
     renderTargets <- createRenderTargets rendererData
     writeIORef _renderTargets renderTargets
 
-    loadRenderPassDatas _resourceData rendererData
+    recreateGraphicsDatas _resourceData rendererData
 
 
 

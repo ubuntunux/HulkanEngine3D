@@ -26,6 +26,7 @@ import HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.RenderElement
+import HulkanEngine3D.Render.UniformBufferDatas
 import qualified HulkanEngine3D.Render.Renderer as Renderer
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Resource.Resource
@@ -236,19 +237,19 @@ initializeApplication = do
     sceneManagerData <- newSceneManagerData
 
     ---------------------------------------------------------
-    descriptorSets = createDescriptorSet
-    let renderElement = RenderElementData
-            { _descriptorSets = []
-            }
+    Just defaultRenderPassData <- getDefaultRenderPassData resourceData
+    let descriptorData = _descriptorData . _graphicsPipelineData $ defaultRenderPassData
+
+    descriptorSets <- createDescriptorSet (Renderer.getDevice rendererData) descriptorData
+    let renderElement = RenderElementData { _descriptorSets = descriptorSets }
     renderElementRef <- newIORef renderElement
 
     Just textureData <- getTextureData resourceData "texture"
-    Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-    let descriptorSets = _descriptorSets renderElement
-        descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData
+
+    let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData $ (Renderer._uniformBufferDatas rendererData)
         descriptorImageInfo = _descriptorImageInfo textureData
     forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) ->
-        updateDescriptorSet (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
+        updateDescriptorSets (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
     ---------------------------------------------------------
 
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
@@ -377,14 +378,14 @@ runApplication = do
         geometryBufferData <- (getGeometryData meshData 0)
 
         Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-        let descriptorSets = _descriptorSets . _descriptorSetData . _graphicsPipelineData $ defaultRenderPassData
+        renderElement <- readIORef (_renderElement applicationData)
 
         Renderer.updateRendererData
             rendererData
             viewMatrix
             projectionMatrix
             geometryBufferData
-            descriptorSets
+            (_descriptorSets renderElement)
             (_uniformBufferMemories . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
 
     terminateApplication applicationData
