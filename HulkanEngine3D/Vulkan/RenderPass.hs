@@ -426,7 +426,7 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             &* set @"basePipelineHandle" VK_NULL_HANDLE
             &* set @"basePipelineIndex" (-1)
 
-    logInfo $ "createGraphicsPipeline : "
+    logInfo $ "createGraphicsPipeline"
     logInfo $ "    vertexShader : " ++ show _vertexShaderFile
     logInfo $ "    fragmentShader : " ++ show _fragmentShaderFile
     graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do

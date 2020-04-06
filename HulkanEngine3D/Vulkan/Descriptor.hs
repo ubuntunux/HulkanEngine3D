@@ -128,7 +128,7 @@ createDescriptorData device descriptorDataCreateInfoList descriptorCount = do
             , _descriptorSetLayout = descriptorSetLayout
             , _descriptorCount = descriptorCount
             }
-    logInfo $ "createDescriptorData : " ++ show descriptorData
+    logInfo $ "createDescriptorData : pool " ++ show (_descriptorPool descriptorData) ++ ", layout " ++ show (_descriptorSetLayout descriptorData)
     return descriptorData
 
 
@@ -169,33 +169,38 @@ updateDescriptorSets :: VkDevice
                      -> VkDescriptorBufferInfo
                      -> VkDescriptorImageInfo
                      -> VkDescriptorSet
+                     -> [VkDescriptorSetLayoutBinding]
                      -> IO ()
-updateDescriptorSets device bufferInfo imageInfo descriptorSet = do
-    let bufferDescriptorSet = createVk @VkWriteDescriptorSet
+updateDescriptorSets device bufferInfo imageInfo descriptorSet descriptorSetLayoutBindingList = do
+    let descriptorWrites =
+            [ bufferDescriptorSet 0 bufferInfo (getField @"descriptorType" (descriptorSetLayoutBindingList !! 0))
+            , imageDescriptorSet 1 imageInfo (getField @"descriptorType" (descriptorSetLayoutBindingList !! 1))
+            ]
+    withVkArrayLen descriptorWrites $ \count descriptorWritesPtr ->
+        vkUpdateDescriptorSets device count descriptorWritesPtr 0 VK_NULL
+    where
+        bufferDescriptorSet index bufferInfo descriptorType = createVk @VkWriteDescriptorSet
             $  set @"sType" VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
             &* set @"pNext" VK_NULL
             &* set @"dstSet" descriptorSet
-            &* set @"dstBinding" 0
+            &* set @"dstBinding" index
             &* set @"dstArrayElement" 0
-            &* set @"descriptorType" VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+            &* set @"descriptorType" descriptorType
             &* set @"descriptorCount" 1
             &* setVkRef @"pBufferInfo" bufferInfo
             &* set @"pImageInfo" VK_NULL
             &* set @"pTexelBufferView" VK_NULL
-        imageDescriptorSet = createVk @VkWriteDescriptorSet
+        imageDescriptorSet index bufferInfo descriptorType = createVk @VkWriteDescriptorSet
             $  set @"sType" VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
             &* set @"pNext" VK_NULL
             &* set @"dstSet" descriptorSet
-            &* set @"dstBinding" 1
+            &* set @"dstBinding" index
             &* set @"dstArrayElement" 0
-            &* set @"descriptorType" VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+            &* set @"descriptorType" descriptorType
             &* set @"descriptorCount" 1
             &* set @"pBufferInfo" VK_NULL
             &* setVkRef @"pImageInfo" imageInfo
             &* set @"pTexelBufferView" VK_NULL
-        descriptorWrites = [bufferDescriptorSet, imageDescriptorSet]
-    withVkArrayLen descriptorWrites $ \count descriptorWritesPtr ->
-        vkUpdateDescriptorSets device count descriptorWritesPtr 0 VK_NULL
 
 
 createDescriptorBufferInfo :: VkBuffer -> VkDeviceSize -> VkDescriptorBufferInfo

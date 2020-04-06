@@ -345,7 +345,6 @@ destroyRenderer rendererData@RendererData {..} = do
 
 resizeWindow :: GLFW.Window -> RendererData -> IO ()
 resizeWindow window rendererData@RendererData {..} = do
-    logInfo "                  "
     logInfo "<< resizeWindow >>"
 
     deviceWaitIdle rendererData

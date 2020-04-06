@@ -249,7 +249,7 @@ initializeApplication = do
     let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData $ (Renderer._uniformBufferDatas rendererData)
         descriptorImageInfo = _descriptorImageInfo textureData
     forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) ->
-        updateDescriptorSets (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet
+        updateDescriptorSets (Renderer.getDevice rendererData) descriptorBufferInfo descriptorImageInfo descriptorSet (_descriptorSetLayoutBindingList descriptorData)
     ---------------------------------------------------------
 
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
