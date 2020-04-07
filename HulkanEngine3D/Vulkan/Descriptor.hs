@@ -4,7 +4,8 @@
 
 
 module HulkanEngine3D.Vulkan.Descriptor
-  ( DescriptorDataCreateInfo
+  ( DescriptorBufferOrImageInfo
+  , DescriptorDataCreateInfo
   , DescriptorData (..)
   , defaultDescriptorData
   , createDescriptorPool
@@ -31,7 +32,7 @@ import Graphics.Vulkan.Marshal.Create
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 
-
+type DescriptorBufferOrImageInfo = Either VkDescriptorBufferInfo VkDescriptorImageInfo
 type DescriptorDataCreateInfo = (VkDescriptorType, VkShaderStageFlagBits)
 
 data DescriptorData = DescriptorData
@@ -41,7 +42,6 @@ data DescriptorData = DescriptorData
     , _descriptorSetLayout :: VkDescriptorSetLayout
     , _descriptorCount :: Int
     } deriving (Eq, Show)
-
 
 defaultDescriptorData :: DescriptorData
 defaultDescriptorData = DescriptorData
@@ -166,41 +166,33 @@ destroyDescriptorSet device descriptorPool descriptorSets descriptorSetPtr = do
             >>= flip validationVK "destroyDescriptorSetData failed!"
 
 updateDescriptorSets :: VkDevice
-                     -> VkDescriptorBufferInfo
-                     -> VkDescriptorImageInfo
                      -> VkDescriptorSet
                      -> [VkDescriptorSetLayoutBinding]
+                     -> [DescriptorBufferOrImageInfo]
                      -> IO ()
-updateDescriptorSets device bufferInfo imageInfo descriptorSet descriptorSetLayoutBindingList = do
-    let descriptorWrites =
-            [ bufferDescriptorSet 0 bufferInfo (getField @"descriptorType" (descriptorSetLayoutBindingList !! 0))
-            , imageDescriptorSet 1 imageInfo (getField @"descriptorType" (descriptorSetLayoutBindingList !! 1))
-            ]
+updateDescriptorSets device descriptorSet descriptorSetLayoutBindingList descriptorBufferOrImageInfos = do
+    let descriptorWrites = zipWith3 writeDescriptorSet [0..] descriptorSetLayoutBindingList descriptorBufferOrImageInfos
     withVkArrayLen descriptorWrites $ \count descriptorWritesPtr ->
         vkUpdateDescriptorSets device count descriptorWritesPtr 0 VK_NULL
     where
-        bufferDescriptorSet index bufferInfo descriptorType = createVk @VkWriteDescriptorSet
-            $  set @"sType" VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
-            &* set @"pNext" VK_NULL
-            &* set @"dstSet" descriptorSet
-            &* set @"dstBinding" index
-            &* set @"dstArrayElement" 0
-            &* set @"descriptorType" descriptorType
-            &* set @"descriptorCount" 1
-            &* setVkRef @"pBufferInfo" bufferInfo
-            &* set @"pImageInfo" VK_NULL
-            &* set @"pTexelBufferView" VK_NULL
-        imageDescriptorSet index bufferInfo descriptorType = createVk @VkWriteDescriptorSet
-            $  set @"sType" VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
-            &* set @"pNext" VK_NULL
-            &* set @"dstSet" descriptorSet
-            &* set @"dstBinding" index
-            &* set @"dstArrayElement" 0
-            &* set @"descriptorType" descriptorType
-            &* set @"descriptorCount" 1
-            &* set @"pBufferInfo" VK_NULL
-            &* setVkRef @"pImageInfo" imageInfo
-            &* set @"pTexelBufferView" VK_NULL
+        writeDescriptorSet :: Word32 -> VkDescriptorSetLayoutBinding -> DescriptorBufferOrImageInfo -> VkWriteDescriptorSet
+        writeDescriptorSet index descriptorSetLayoutBinding descriptorBufferOrImageInfo =
+            createVk @VkWriteDescriptorSet
+                $  set @"sType" VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
+                &* set @"pNext" VK_NULL
+                &* set @"dstSet" descriptorSet
+                &* set @"dstBinding" index
+                &* set @"dstArrayElement" 0
+                &* set @"descriptorType" (getField @"descriptorType" descriptorSetLayoutBinding)
+                &* set @"descriptorCount" 1
+                &* case descriptorBufferOrImageInfo of
+                        Left bufferInfo ->
+                            setVkRef @"pBufferInfo" bufferInfo
+                            &* set @"pImageInfo" VK_NULL
+                        Right imageInfo ->
+                            set @"pBufferInfo" VK_NULL
+                            &* setVkRef @"pImageInfo" imageInfo
+                &* set @"pTexelBufferView" VK_NULL
 
 
 createDescriptorBufferInfo :: VkBuffer -> VkDeviceSize -> VkDescriptorBufferInfo
