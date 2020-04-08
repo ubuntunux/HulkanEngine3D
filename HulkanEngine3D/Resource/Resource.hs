@@ -6,7 +6,6 @@ module HulkanEngine3D.Resource.Resource
     , ResourceInterface (..)
     ) where
 
-import Data.IORef
 import qualified Data.HashTable.IO as HashTable
 import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
@@ -149,9 +148,6 @@ instance ResourceInterface ResourceData where
     -- RenderPassLoader
     loadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     loadRenderPassDatas resourceData rendererData = do
-        renderTargets <- readIORef (_renderTargets rendererData)
-        swapChainData <- readIORef (_swapChainDataRef rendererData)
-
         defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData "defaultRenderPass"
         descriptorData <- getDescriptorData resourceData rendererData defaultRenderPassDataCreateInfo
         defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo descriptorData
