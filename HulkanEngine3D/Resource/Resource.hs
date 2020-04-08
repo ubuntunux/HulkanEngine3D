@@ -13,6 +13,7 @@ import qualified Data.Vector.Mutable as MVector
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Mesh
+import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Resource.ObjLoader
 import HulkanEngine3D.Resource.RenderPassLoader
@@ -20,6 +21,7 @@ import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.RenderPass
 
+type MaterialInstanceDataMap = HashTable.BasicHashTable Text.Text MaterialInstanceData
 type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
 type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
 type RenderPassDataMap = HashTable.BasicHashTable Text.Text RenderPassData
@@ -29,6 +31,7 @@ data ResourceData = ResourceData
     { _meshDataMap :: MeshDataMap
     , _textureDataMap :: TextureDataMap
     , _renderPassDataMap :: RenderPassDataMap
+    , _materialInstanceDataMap :: MaterialInstanceDataMap
     , _descriptorDataMap :: DescriptorDataMap
     } deriving (Show)
 
@@ -54,6 +57,11 @@ class ResourceInterface a where
     getRenderPassData :: a -> Text.Text -> IO (Maybe RenderPassData)
     getDefaultRenderPassData :: a -> IO (Maybe RenderPassData)
 
+    loadMaterialInstanceDatas :: a -> RendererData -> IO ()
+    unloadMaterialInstanceDatas :: a -> RendererData -> IO ()
+    getMaterialInstanceData :: a -> Text.Text -> IO (Maybe MaterialInstanceData)
+    getDefaultMaterialInstanceData :: a -> IO (Maybe MaterialInstanceData)
+
     getDescriptorData :: a -> RendererData -> RenderPassDataCreateInfo -> IO DescriptorData
     unloadDescriptorDatas :: a -> RendererData -> IO ()
 
@@ -63,11 +71,13 @@ instance ResourceInterface ResourceData where
         meshDataMap <- HashTable.new
         textureDataMap <- HashTable.new
         renderPassDataMap <- HashTable.new
+        materialInstanceDataMap <- HashTable.new
         descriptorDataMap <- HashTable.new
         return ResourceData
             { _meshDataMap = meshDataMap
             , _textureDataMap = textureDataMap
             , _renderPassDataMap = renderPassDataMap
+            , _materialInstanceDataMap = materialInstanceDataMap
             , _descriptorDataMap = descriptorDataMap
             }
 
@@ -76,6 +86,7 @@ instance ResourceInterface ResourceData where
         loadMeshDatas resourceData rendererData
         loadTextureDatas resourceData rendererData
         loadRenderPassDatas resourceData rendererData
+        loadMaterialInstanceDatas resourceData rendererData
 
     destroyResourceData :: ResourceData -> RendererData -> IO ()
     destroyResourceData resourceData rendererData = do
@@ -83,6 +94,7 @@ instance ResourceInterface ResourceData where
         unloadTextureDatas resourceData rendererData
         unloadDescriptorDatas resourceData rendererData
         unloadRenderPassDatas resourceData rendererData
+        unloadMaterialInstanceDatas resourceData rendererData
 
     -- GraphicsDatas
     recreateGraphicsDatas :: ResourceData -> RendererData -> IO ()
@@ -156,6 +168,19 @@ instance ResourceInterface ResourceData where
     getDefaultRenderPassData :: ResourceData -> IO (Maybe RenderPassData)
     getDefaultRenderPassData resourceData =
         getRenderPassData resourceData "defaultRenderPass"
+
+    -- MaterialInstanceDatas
+    loadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
+    loadMaterialInstanceDatas resourceData rendererData = return ()
+
+    unloadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
+    unloadMaterialInstanceDatas resourceData rendererData = return ()
+
+    getMaterialInstanceData :: ResourceData -> Text.Text -> IO (Maybe MaterialInstanceData)
+    getMaterialInstanceData resourceData resourceName = return undefined
+
+    getDefaultMaterialInstanceData :: ResourceData -> IO (Maybe MaterialInstanceData)
+    getDefaultMaterialInstanceData resourceData = return undefined
 
     -- DescriptorDatas
     getDescriptorData :: ResourceData -> RendererData -> RenderPassDataCreateInfo -> IO DescriptorData
