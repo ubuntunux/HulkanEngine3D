@@ -351,7 +351,7 @@ resizeWindow window rendererData@RendererData {..} = do
     deviceWaitIdle rendererData
 
     -- destroy swapchain & graphics resources
-    destroyGraphicsDatas _resourceData rendererData
+    unloadGraphicsDatas _resourceData rendererData
 
     renderTargets <- readIORef _renderTargets
     destroyRenderTargets rendererData renderTargets
@@ -362,7 +362,7 @@ resizeWindow window rendererData@RendererData {..} = do
     renderTargets <- createRenderTargets rendererData
     writeIORef _renderTargets renderTargets
 
-    recreateGraphicsDatas _resourceData rendererData
+    loadGraphicsDatas _resourceData rendererData
 
 
 

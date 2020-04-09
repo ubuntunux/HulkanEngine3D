@@ -19,8 +19,8 @@ class ResourceInterface a where
     initializeResourceData :: a -> RendererData -> IO ()
     destroyResourceData :: a -> RendererData -> IO ()
 
-    recreateGraphicsDatas :: a -> RendererData -> IO ()
-    destroyGraphicsDatas :: a -> RendererData -> IO ()
+    loadGraphicsDatas :: a -> RendererData -> IO ()
+    unloadGraphicsDatas :: a -> RendererData -> IO ()
 
     loadMeshDatas :: a -> RendererData -> IO ()
     unloadMeshDatas :: a -> RendererData -> IO ()

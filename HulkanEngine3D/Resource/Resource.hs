@@ -45,8 +45,8 @@ class ResourceInterface a where
     initializeResourceData :: a -> RendererData -> IO ()
     destroyResourceData :: a -> RendererData -> IO ()
 
-    recreateGraphicsDatas :: a -> RendererData -> IO ()
-    destroyGraphicsDatas :: a -> RendererData -> IO ()
+    loadGraphicsDatas :: a -> RendererData -> IO ()
+    unloadGraphicsDatas :: a -> RendererData -> IO ()
 
     loadMeshDatas :: a -> RendererData -> IO ()
     unloadMeshDatas :: a -> RendererData -> IO ()
@@ -111,13 +111,13 @@ instance ResourceInterface ResourceData where
         unloadMaterialInstanceDatas resourceData rendererData
 
     -- GraphicsDatas
-    recreateGraphicsDatas :: ResourceData -> RendererData -> IO ()
-    recreateGraphicsDatas resourceData rendererData = do
+    loadGraphicsDatas :: ResourceData -> RendererData -> IO ()
+    loadGraphicsDatas resourceData rendererData = do
         loadRenderPassDatas resourceData rendererData
         loadFrameBufferDatas resourceData rendererData
 
-    destroyGraphicsDatas :: ResourceData -> RendererData -> IO ()
-    destroyGraphicsDatas resourceData rendererData = do
+    unloadGraphicsDatas :: ResourceData -> RendererData -> IO ()
+    unloadGraphicsDatas resourceData rendererData = do
         unloadFrameBufferDatas resourceData rendererData
         unloadRenderPassDatas resourceData rendererData
 
@@ -168,7 +168,7 @@ instance ResourceInterface ResourceData where
         defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData
         let frameBufferDataCreateInfo = _frameBufferDataCreateInfo defaultRenderPassDataCreateInfo
         Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-        defaultFrameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass defaultRenderPassData) frameBufferDataCreateInfo        
+        defaultFrameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass defaultRenderPassData) frameBufferDataCreateInfo
         HashTable.insert (_frameBufferDataMap resourceData) (_frameBufferName frameBufferDataCreateInfo) defaultFrameBufferData
 
     unloadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
