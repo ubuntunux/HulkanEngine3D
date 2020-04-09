@@ -21,6 +21,7 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
+import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 
@@ -30,6 +31,8 @@ data FrameBufferData = FrameBufferData
     , _frameBufferWidth :: Int
     , _frameBufferHeight :: Int
     , _frameBufferDepth :: Int
+    , _frameBufferViewPort :: VkViewport
+    , _frameBufferScissorRect :: VkRect2D
     , _frameBufferImageViewsList :: [[VkImageView]]
     , _frameBufferClearValues :: [VkClearValue]
     , _frameBuffers :: [VkFramebuffer]
@@ -44,6 +47,8 @@ defaultFrameBufferDataCreateInfo = FrameBufferData
     , _frameBufferWidth = 0
     , _frameBufferHeight = 0
     , _frameBufferDepth = 1
+    , _frameBufferViewPort = createViewport 0 0 0 0 0 0
+    , _frameBufferScissorRect = createScissorRect 0 0 0 0
     , _frameBufferImageViewsList = []
     , _frameBufferClearValues = []
     , _frameBuffers = []

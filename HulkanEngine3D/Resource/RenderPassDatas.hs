@@ -73,11 +73,15 @@ getRenderPassDataCreateInfo rendererData = do
                 , (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
                 ]
             }
+        viewPort = createViewport 0 0 (fromIntegral $ _imageWidth _sceneColorTexture) (fromIntegral $ _imageHeight _sceneColorTexture) 0 1
+        scissorRect = createScissorRect 0 0 (fromIntegral $ _imageWidth _sceneColorTexture) (fromIntegral $ _imageHeight _sceneColorTexture)
         frameBufferDataCreateInfo = defaultFrameBufferDataCreateInfo
             { _frameBufferName = renderPassName
             , _frameBufferWidth = _imageWidth _sceneColorTexture
             , _frameBufferHeight = _imageHeight _sceneColorTexture
             , _frameBufferDepth = _imageDepth _sceneColorTexture
+            , _frameBufferViewPort = viewPort
+            , _frameBufferScissorRect = scissorRect
             , _frameBufferImageViewsList = [
                 [ _imageView _sceneColorTexture
                 , _imageView _sceneDepthTexture

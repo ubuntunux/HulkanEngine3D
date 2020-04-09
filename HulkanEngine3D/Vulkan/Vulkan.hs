@@ -48,6 +48,26 @@ getDepthStencilClearValue depthClearValue stencilClearValue = createVk @VkClearV
         $  set @"depth" depthClearValue
         &* set @"stencil" stencilClearValue
 
+createViewport :: Float -> Float -> Float -> Float -> Float -> Float -> VkViewport
+createViewport x y width height minDepth maxDepth = createVk @VkViewport
+    $  set @"x" x
+    &* set @"y" y
+    &* set @"width" width
+    &* set @"height" height
+    &* set @"minDepth" minDepth
+    &* set @"maxDepth" maxDepth
+
+createScissorRect :: Int32 -> Int32 -> Word32 -> Word32 -> VkRect2D
+createScissorRect x y width height = createVk @VkRect2D
+    $  setVk @"extent"
+        (  set @"width" width
+        &* set @"height" height
+        )
+    &* setVk @"offset"
+        (  set @"x" x
+        &* set @"y" y
+        )
+
 runCommandsOnce :: VkDevice
                 -> VkCommandPool
                 -> VkQueue

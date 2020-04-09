@@ -461,25 +461,9 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
         vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
 
     -- set viewport
-    let viewPort = createVk @VkViewport
-            $  set @"x" 0
-            &* set @"y" 0
-            &* set @"width" (fromIntegral $ _frameBufferWidth frameBufferData)
-            &* set @"height" (fromIntegral $ _frameBufferHeight frameBufferData)
-            &* set @"minDepth" 0
-            &* set @"maxDepth" 1
-        scissorRect = createVk @VkRect2D
-            $  setVk @"extent"
-                (  set @"width" (fromIntegral $ _frameBufferWidth frameBufferData)
-                &* set @"height" (fromIntegral $ _frameBufferHeight frameBufferData)
-                )
-            &* setVk @"offset"
-                (  set @"x" 0
-                &* set @"y" 0
-                )
-    withPtr viewPort $ \viewPortPtr ->
+    withPtr (_frameBufferViewPort frameBufferData) $ \viewPortPtr ->
         vkCmdSetViewport commandBuffer 0 1 viewPortPtr
-    withPtr scissorRect $ \scissorRectPtr ->
+    withPtr (_frameBufferScissorRect frameBufferData) $ \scissorRectPtr ->
         vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
 
     -- drawing commands

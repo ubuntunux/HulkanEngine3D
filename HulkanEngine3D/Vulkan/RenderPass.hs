@@ -402,7 +402,9 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             &* setVkRef @"pMultisampleState" multisampling
             &* setVkRef @"pDepthStencilState" depthStencilState
             &* setVkRef @"pColorBlendState" colorBlending
-            &* setVkRef @"pDynamicState" dynamicState
+            &* case _pipelineDynamicStateList of
+                [] -> set @"pDynamicState" VK_NULL
+                otherwise -> setVkRef @"pDynamicState" dynamicState
             &* set @"layout" pipelineLayout
             &* set @"renderPass" renderPass
             &* set @"subpass" 0
