@@ -15,11 +15,15 @@ import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Resource.ObjLoader
-import HulkanEngine3D.Resource.RenderPassLoader
-import HulkanEngine3D.Vulkan.Texture
+import HulkanEngine3D.Resource.RenderPassDatas
 import HulkanEngine3D.Vulkan.Descriptor
+import HulkanEngine3D.Vulkan.FrameBuffer
+import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
+import HulkanEngine3D.Utilities.Logger
 
+
+type FrameBufferDataMap = HashTable.BasicHashTable Text.Text FrameBufferData
 type MaterialInstanceDataMap = HashTable.BasicHashTable Text.Text MaterialInstanceData
 type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
 type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
@@ -29,6 +33,7 @@ type DescriptorDataMap = HashTable.BasicHashTable Text.Text DescriptorData
 data ResourceData = ResourceData
     { _meshDataMap :: MeshDataMap
     , _textureDataMap :: TextureDataMap
+    , _frameBufferDataMap :: FrameBufferDataMap
     , _renderPassDataMap :: RenderPassDataMap
     , _materialInstanceDataMap :: MaterialInstanceDataMap
     , _descriptorDataMap :: DescriptorDataMap
@@ -51,6 +56,10 @@ class ResourceInterface a where
     unloadTextureDatas :: a -> RendererData -> IO ()
     getTextureData :: a -> Text.Text -> IO (Maybe TextureData)
 
+    loadFrameBufferDatas :: a -> RendererData -> IO ()
+    unloadFrameBufferDatas :: a -> RendererData -> IO ()
+    getFrameBufferData :: a -> Text.Text -> IO (Maybe FrameBufferData)
+
     loadRenderPassDatas :: a -> RendererData -> IO ()
     unloadRenderPassDatas :: a -> RendererData -> IO ()
     getRenderPassData :: a -> Text.Text -> IO (Maybe RenderPassData)
@@ -67,13 +76,15 @@ class ResourceInterface a where
 instance ResourceInterface ResourceData where
     createNewResourceData :: IO ResourceData
     createNewResourceData = do
+        frameBufferDataMap <- HashTable.new
         meshDataMap <- HashTable.new
         textureDataMap <- HashTable.new
         renderPassDataMap <- HashTable.new
         materialInstanceDataMap <- HashTable.new
         descriptorDataMap <- HashTable.new
         return ResourceData
-            { _meshDataMap = meshDataMap
+            { _frameBufferDataMap = frameBufferDataMap
+            , _meshDataMap = meshDataMap
             , _textureDataMap = textureDataMap
             , _renderPassDataMap = renderPassDataMap
             , _materialInstanceDataMap = materialInstanceDataMap
@@ -82,26 +93,32 @@ instance ResourceInterface ResourceData where
 
     initializeResourceData :: ResourceData -> RendererData -> IO ()
     initializeResourceData resourceData rendererData = do
+        logInfo "initializeResourceData"
         loadMeshDatas resourceData rendererData
         loadTextureDatas resourceData rendererData
         loadRenderPassDatas resourceData rendererData
+        loadFrameBufferDatas resourceData rendererData
         loadMaterialInstanceDatas resourceData rendererData
 
     destroyResourceData :: ResourceData -> RendererData -> IO ()
     destroyResourceData resourceData rendererData = do
+        logInfo "destroyResourceData"
         unloadMeshDatas resourceData rendererData
         unloadTextureDatas resourceData rendererData
         unloadDescriptorDatas resourceData rendererData
         unloadRenderPassDatas resourceData rendererData
+        unloadFrameBufferDatas resourceData rendererData
         unloadMaterialInstanceDatas resourceData rendererData
 
     -- GraphicsDatas
     recreateGraphicsDatas :: ResourceData -> RendererData -> IO ()
-    recreateGraphicsDatas resourceData rendererData =
+    recreateGraphicsDatas resourceData rendererData = do
         loadRenderPassDatas resourceData rendererData
+        loadFrameBufferDatas resourceData rendererData
 
     destroyGraphicsDatas :: ResourceData -> RendererData -> IO ()
-    destroyGraphicsDatas resourceData rendererData =
+    destroyGraphicsDatas resourceData rendererData = do
+        unloadFrameBufferDatas resourceData rendererData
         unloadRenderPassDatas resourceData rendererData
 
     -- Mesh Loader
@@ -145,10 +162,27 @@ instance ResourceInterface ResourceData where
     getTextureData resourceData resourceName =
         HashTable.lookup (_textureDataMap resourceData) resourceName
 
+    -- FrameBuffer
+    loadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
+    loadFrameBufferDatas resourceData rendererData = do
+        defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData
+        let frameBufferDataCreateInfo = _frameBufferDataCreateInfo defaultRenderPassDataCreateInfo
+        Just defaultRenderPassData <- getDefaultRenderPassData resourceData
+        defaultFrameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass defaultRenderPassData) frameBufferDataCreateInfo        
+        HashTable.insert (_frameBufferDataMap resourceData) (_frameBufferName frameBufferDataCreateInfo) defaultFrameBufferData
+
+    unloadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
+    unloadFrameBufferDatas resourceData rendererData =
+        HashTable.mapM_ (\(k, v) -> destroyFrameBufferData (getDevice rendererData) v) (_frameBufferDataMap resourceData)
+
+    getFrameBufferData :: ResourceData -> Text.Text -> IO (Maybe FrameBufferData)
+    getFrameBufferData resourceData resourceName =
+       HashTable.lookup (_frameBufferDataMap resourceData) resourceName
+
     -- RenderPassLoader
     loadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     loadRenderPassDatas resourceData rendererData = do
-        defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData "defaultRenderPass"
+        defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData
         descriptorData <- getDescriptorData resourceData rendererData defaultRenderPassDataCreateInfo
         defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo descriptorData
         HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData

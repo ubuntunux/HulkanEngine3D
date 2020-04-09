@@ -88,6 +88,7 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     { _pipelineDataCreateInfoName :: Text.Text
     , _vertexShaderFile :: String
     , _fragmentShaderFile :: String
+    , _pipelineDynamicViewport :: Bool
     , _pipelineViewportWidth :: Int
     , _pipelineViewportHeight :: Int
     , _pipelineMultisampleCount :: VkSampleCountFlagBits
@@ -110,10 +111,8 @@ data GraphicsPipelineData = GraphicsPipelineData
 
 data RenderPassData = RenderPassData
     { _renderPassDataName :: Text.Text
-    , _renderPassBeginInfos :: [VkRenderPassBeginInfo]
     , _renderPass :: VkRenderPass
     , _graphicsPipelineData :: GraphicsPipelineData
-    , _frameBufferData :: FrameBufferData
     } deriving (Eq, Show)
 
 
@@ -156,38 +155,16 @@ createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> DescriptorData -
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} descriptorData = do
     renderPass <- createRenderPass device renderPassDataCreateInfo
     graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo descriptorData
-    frameBufferData <- createFramebufferData device renderPass _frameBufferDataCreateInfo
-    let renderPassBeginInfo frameBuffer = createVk @VkRenderPassBeginInfo
-                $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
-                &* set @"pNext" VK_NULL
-                &* set @"renderPass" renderPass
-                &* set @"framebuffer" frameBuffer
-                &* setVk @"renderArea"
-                    (  setVk @"offset"
-                            (  set @"x" 0
-                            &* set @"y" 0
-                            )
-                    &* setVk @"extent"
-                        (  set @"width" (fromIntegral $ _frameBufferWidth frameBufferData)
-                        &* set @"height" (fromIntegral $ _frameBufferHeight frameBufferData)
-                        )
-                    )
-                &* set @"clearValueCount" (fromIntegral . length $ _frameBufferClearValues frameBufferData)
-                &* setListRef @"pClearValues" (_frameBufferClearValues frameBufferData)
-        renderPassBeginInfos = fmap renderPassBeginInfo (_frameBuffers frameBufferData)
     logInfo $ "CreateRenderPassData : " ++ (Text.unpack _renderPassCreateInfoName)
     return RenderPassData
         { _renderPassDataName = _renderPassCreateInfoName
-        , _renderPassBeginInfos = renderPassBeginInfos
         , _renderPass = renderPass
         , _graphicsPipelineData = graphicsPipelineData
-        , _frameBufferData = frameBufferData
         }
 
 destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
 destroyRenderPassData device renderPassData@RenderPassData {..} = do
     logInfo "DestroyRenderPassData"
-    destroyFramebufferData device _frameBufferData
     destroyGraphicsPipeline device _graphicsPipelineData
     destroyRenderPass device _renderPass _renderPassDataName
 

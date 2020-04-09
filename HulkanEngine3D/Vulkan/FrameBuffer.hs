@@ -8,8 +8,8 @@ module HulkanEngine3D.Vulkan.FrameBuffer
     ( FrameBufferData (..)
     , FrameBufferDataCreateInfo
     , defaultFrameBufferDataCreateInfo
-    , createFramebufferData
-    , destroyFramebufferData
+    , createFrameBufferData
+    , destroyFrameBufferData
     ) where
 
 import qualified Data.Text as Text
@@ -33,6 +33,7 @@ data FrameBufferData = FrameBufferData
     , _frameBufferImageViewsList :: [[VkImageView]]
     , _frameBufferClearValues :: [VkClearValue]
     , _frameBuffers :: [VkFramebuffer]
+    , _renderPassBeginInfos :: [VkRenderPassBeginInfo]
     }  deriving (Eq, Show)
 
 type FrameBufferDataCreateInfo = FrameBufferData
@@ -46,22 +47,47 @@ defaultFrameBufferDataCreateInfo = FrameBufferData
     , _frameBufferImageViewsList = []
     , _frameBufferClearValues = []
     , _frameBuffers = []
+    , _renderPassBeginInfos = []
     }
 
 
-createFramebufferData :: VkDevice
+createFrameBufferData :: VkDevice
                       -> VkRenderPass
                       -> FrameBufferDataCreateInfo
                       -> IO FrameBufferData
-createFramebufferData device renderPass frameBufferDataCreateInfo = do
+createFrameBufferData device renderPass frameBufferDataCreateInfo = do
     logInfo $ "Create Framebuffers : " ++ (Text.unpack $ _frameBufferName frameBufferDataCreateInfo)
     logInfo $ "    ImageSize " ++ show
         ( _frameBufferWidth $ frameBufferDataCreateInfo
         , _frameBufferHeight $ frameBufferDataCreateInfo
         , _frameBufferDepth $ frameBufferDataCreateInfo
         )
+
     frameBuffers <- mapM createFrameBuffer (_frameBufferImageViewsList frameBufferDataCreateInfo)
-    return frameBufferDataCreateInfo { _frameBuffers = frameBuffers }
+
+    let renderPassBeginInfo frameBuffer = createVk @VkRenderPassBeginInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"renderPass" renderPass
+            &* set @"framebuffer" frameBuffer
+            &* setVk @"renderArea"
+                (  setVk @"offset"
+                        (  set @"x" 0
+                        &* set @"y" 0
+                        )
+                &* setVk @"extent"
+                    (  set @"width" (fromIntegral $ _frameBufferWidth frameBufferDataCreateInfo)
+                    &* set @"height" (fromIntegral $ _frameBufferHeight frameBufferDataCreateInfo)
+                    )
+                )
+            &* set @"clearValueCount" (fromIntegral . length $ _frameBufferClearValues frameBufferDataCreateInfo)
+            &* setListRef @"pClearValues" (_frameBufferClearValues frameBufferDataCreateInfo)
+        renderPassBeginInfos = map renderPassBeginInfo frameBuffers
+
+    return frameBufferDataCreateInfo
+        { _frameBuffers = frameBuffers
+        , _renderPassBeginInfos = renderPassBeginInfos
+        }
     where
         createFrameBuffer :: [VkImageView] -> IO VkFramebuffer
         createFrameBuffer imageViews = do
@@ -83,8 +109,8 @@ createFramebufferData device renderPass frameBufferDataCreateInfo = do
             return frameBuffer
 
 
-destroyFramebufferData :: VkDevice -> FrameBufferData -> IO ()
-destroyFramebufferData device frameBufferData = do
+destroyFrameBufferData :: VkDevice -> FrameBufferData -> IO ()
+destroyFrameBufferData device frameBufferData = do
     logInfo $ "Destroy Framebuffers : " ++ show (_frameBufferName frameBufferData) ++ " "  ++ show (_frameBuffers frameBufferData)
     forM_ (_frameBuffers frameBufferData) $ \frameBuffer ->
         vkDestroyFramebuffer device frameBuffer VK_NULL_HANDLE

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 
-module HulkanEngine3D.Resource.RenderPassLoader where
+module HulkanEngine3D.Resource.RenderPassDatas where
 
 import Data.IORef
 import qualified Data.Text as Text
@@ -19,11 +19,12 @@ import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.SwapChain
 
 
-getRenderPassDataCreateInfo :: RendererData -> Text.Text -> IO RenderPassDataCreateInfo
-getRenderPassDataCreateInfo rendererData renderPassName = do
+getRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
+getRenderPassDataCreateInfo rendererData = do
     renderTargets@RenderTargets {..} <- readIORef (_renderTargets rendererData)
     swapChainData <- readIORef (_swapChainDataRef rendererData)
-    let sampleCount = (_msaaSamples . _renderFeatures $ rendererData)
+    let renderPassName = "defaultRenderPass"::Text.Text
+        sampleCount = (_msaaSamples . _renderFeatures $ rendererData)
         colorAttachmentDescriptions =
             [ defaultAttachmentDescription
                 { _attachmentImageFormat = _imageFormat _sceneColorTexture
@@ -58,6 +59,7 @@ getRenderPassDataCreateInfo rendererData renderPassName = do
             { _pipelineDataCreateInfoName = "RenderTriangle"
             , _vertexShaderFile = "Resource/Shaders/triangle.vert"
             , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
+            , _pipelineDynamicViewport = False
             , _pipelineViewportWidth = _imageWidth _sceneColorTexture
             , _pipelineViewportHeight = _imageHeight _sceneColorTexture
             , _pipelineMultisampleCount = sampleCount
@@ -72,7 +74,7 @@ getRenderPassDataCreateInfo rendererData renderPassName = do
                 ]
             }
         frameBufferDataCreateInfo = defaultFrameBufferDataCreateInfo
-            { _frameBufferName = "defaultRenderPassFrameBuffer"
+            { _frameBufferName = renderPassName
             , _frameBufferWidth = _imageWidth _sceneColorTexture
             , _frameBufferHeight = _imageHeight _sceneColorTexture
             , _frameBufferDepth = _imageDepth _sceneColorTexture
@@ -82,7 +84,6 @@ getRenderPassDataCreateInfo rendererData renderPassName = do
                 , (_swapChainImageViews swapChainData) !! index
                 ] | index <- Constants.swapChainImageIndices]
             , _frameBufferClearValues = [ getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0 ]
-            , _frameBuffers = []
             }
     return RenderPassDataCreateInfo
         { _renderPassCreateInfoName = renderPassName

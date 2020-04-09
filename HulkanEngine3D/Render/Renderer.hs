@@ -51,6 +51,7 @@ import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
 import HulkanEngine3D.Vulkan.CommandBuffer
 import HulkanEngine3D.Vulkan.Device
+import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Queue
 import HulkanEngine3D.Vulkan.PushConstant
@@ -430,9 +431,9 @@ recordCommandBuffer :: RendererData
                     -> IO ()
 recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCount, indexBuffer) descriptorSets = do
     Just defaultRenderPassData <- getDefaultRenderPassData (_resourceData rendererData)
-
+    Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (_renderPassDataName defaultRenderPassData)
     let renderPass = _renderPass defaultRenderPassData
-        renderPassBeginInfo = (_renderPassBeginInfos defaultRenderPassData) !! imageIndex
+        renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
         graphicsPipelineData = _graphicsPipelineData defaultRenderPassData
         pipelineLayout = _pipelineLayout graphicsPipelineData
         pipeline = _pipeline graphicsPipelineData

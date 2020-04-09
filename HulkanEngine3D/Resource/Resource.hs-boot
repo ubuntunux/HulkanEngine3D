@@ -7,6 +7,7 @@ import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Vulkan.Descriptor
 import {-# SOURCE #-} HulkanEngine3D.Render.Renderer
 import {-# SOURCE #-} HulkanEngine3D.Vulkan.RenderPass
+import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.Texture
 
 data ResourceData
@@ -28,6 +29,10 @@ class ResourceInterface a where
     loadTextureDatas :: a -> RendererData -> IO ()
     unloadTextureDatas :: a -> RendererData -> IO ()
     getTextureData :: a -> Text.Text -> IO (Maybe TextureData)
+
+    loadFrameBufferDatas :: a -> RendererData -> IO ()
+    unloadFrameBufferDatas :: a -> RendererData -> IO ()
+    getFrameBufferData :: a -> Text.Text -> IO (Maybe FrameBufferData)
 
     loadRenderPassDatas :: a -> RendererData -> IO ()
     unloadRenderPassDatas :: a -> RendererData -> IO ()
