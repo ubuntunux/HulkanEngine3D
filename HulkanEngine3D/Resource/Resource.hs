@@ -113,13 +113,11 @@ instance ResourceInterface ResourceData where
     -- GraphicsDatas
     loadGraphicsDatas :: ResourceData -> RendererData -> IO ()
     loadGraphicsDatas resourceData rendererData = do
-        loadRenderPassDatas resourceData rendererData
         loadFrameBufferDatas resourceData rendererData
 
     unloadGraphicsDatas :: ResourceData -> RendererData -> IO ()
     unloadGraphicsDatas resourceData rendererData = do
         unloadFrameBufferDatas resourceData rendererData
-        unloadRenderPassDatas resourceData rendererData
 
     -- Mesh Loader
     loadMeshDatas :: ResourceData -> RendererData -> IO ()

@@ -88,7 +88,7 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     { _pipelineDataCreateInfoName :: Text.Text
     , _vertexShaderFile :: String
     , _fragmentShaderFile :: String
-    , _pipelineDynamicViewport :: Bool
+    , _pipelineDynamicStateList :: [VkDynamicState]
     , _pipelineViewportWidth :: Int
     , _pipelineViewportHeight :: Int
     , _pipelineMultisampleCount :: VkSampleCountFlagBits
@@ -297,6 +297,12 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"topology" VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
             &* set @"primitiveRestartEnable" VK_FALSE
+        dynamicState = createVk @VkPipelineDynamicStateCreateInfo
+            $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO
+            &* set @"pNext" VK_NULL
+            &* set @"flags" VK_ZERO_FLAGS
+            &* set @"dynamicStateCount" (fromIntegral . length $ _pipelineDynamicStateList)
+            &* setListRef @"pDynamicStates" _pipelineDynamicStateList
         viewPort = createVk @VkViewport
             $  set @"x" 0
             &* set @"y" 0
@@ -396,7 +402,7 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             &* setVkRef @"pMultisampleState" multisampling
             &* setVkRef @"pDepthStencilState" depthStencilState
             &* setVkRef @"pColorBlendState" colorBlending
-            &* set @"pDynamicState" VK_NULL
+            &* setVkRef @"pDynamicState" dynamicState
             &* set @"layout" pipelineLayout
             &* set @"renderPass" renderPass
             &* set @"subpass" 0
