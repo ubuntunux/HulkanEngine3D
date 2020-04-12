@@ -166,7 +166,7 @@ instance ResourceInterface ResourceData where
     loadFrameBufferDatas resourceData rendererData = do
         defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData
         let frameBufferDataCreateInfo = _frameBufferDataCreateInfo defaultRenderPassDataCreateInfo
-        Just defaultRenderPassData <- getDefaultRenderPassData resourceData
+        Just defaultRenderPassData <- getRenderPassData resourceData (_renderPassCreateInfoName defaultRenderPassDataCreateInfo)
         defaultFrameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass defaultRenderPassData) frameBufferDataCreateInfo
         HashTable.insert (_frameBufferDataMap resourceData) (_frameBufferName frameBufferDataCreateInfo) defaultFrameBufferData
 

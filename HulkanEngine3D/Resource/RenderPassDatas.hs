@@ -82,12 +82,16 @@ getRenderPassDataCreateInfo rendererData = do
             , _frameBufferDepth = _imageDepth _sceneColorTexture
             , _frameBufferViewPort = viewPort
             , _frameBufferScissorRect = scissorRect
-            , _frameBufferImageViewsList = [
-                [ _imageView _sceneColorTexture
-                , _imageView _sceneDepthTexture
-                , (_swapChainImageViews swapChainData) !! index
-                ] | index <- Constants.swapChainImageIndices]
-            , _frameBufferClearValues = [ getColorClearValue [0.0, 0.0, 0.2, 1.0], getDepthStencilClearValue 1.0 0 ]
+            , _frameBufferImageViewsList =
+                [[ _imageView _sceneColorTexture
+                 , _imageView _sceneDepthTexture
+                 , (_swapChainImageViews swapChainData) !! index
+                 ] | index <- Constants.swapChainImageIndices
+                ]
+            , _frameBufferClearValues =
+                [ getColorClearValue [0.0, 0.0, 0.2, 1.0]
+                , getDepthStencilClearValue 1.0 0
+                ]
             }
     return RenderPassDataCreateInfo
         { _renderPassCreateInfoName = renderPassName
