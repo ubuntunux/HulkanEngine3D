@@ -434,10 +434,10 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
     Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (_renderPassDataName defaultRenderPassData)
     let renderPass = _renderPass defaultRenderPassData
         renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
-        graphicsPipelineData = (_graphicsPipelineDataList defaultRenderPassData) !! 0
-        pipelineLayout = _pipelineLayout graphicsPipelineData
-        pipeline = _pipeline graphicsPipelineData
         descriptorSet = descriptorSets !! imageIndex
+    Just pipelineData <- getPipelineData defaultRenderPassData "RenderTriangle"
+    let pipelineLayout = _pipelineLayout pipelineData
+        pipeline = _pipeline pipelineData
 
     -- begin command buffer
     let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
@@ -453,6 +453,7 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
     let phaseTau = snd (properFraction $ seconds * 0.0625::(Int, Double))
         modelMatrix = rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
         pushConstantData = PushConstantData { modelMatrix = modelMatrix }
+    -- push constant
     with modelMatrix $ \modelMatrixPtr ->
         vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
 

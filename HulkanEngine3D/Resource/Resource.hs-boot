@@ -44,7 +44,7 @@ class ResourceInterface a where
     getMaterialInstanceData :: a -> Text.Text -> IO (Maybe MaterialInstanceData)
     getDefaultMaterialInstanceData :: a -> IO (Maybe MaterialInstanceData)
 
-    getDescriptorData :: a -> RendererData -> PipelineDataCreateInfo -> IO DescriptorData
+    getDescriptorData :: a -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO DescriptorData
     unloadDescriptorDatas :: a -> RendererData -> IO ()
 
 instance ResourceInterface ResourceData where

@@ -146,13 +146,12 @@ createDescriptorSet device descriptorData@DescriptorData {..} = do
     let descriptorSetLayouts = replicate _descriptorCount _descriptorSetLayout
     allocaArray (length descriptorSetLayouts) $ \descriptorSetLayoutsPtr -> do
         pokeArray descriptorSetLayoutsPtr descriptorSetLayouts
-
         let allocateInfo = createVk @VkDescriptorSetAllocateInfo
-                    $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
-                    &* set @"pNext" VK_NULL
-                    &* set @"descriptorPool" _descriptorPool
-                    &* set @"descriptorSetCount" (fromIntegral . length $ descriptorSetLayouts)
-                    &* set @"pSetLayouts" descriptorSetLayoutsPtr
+                $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
+                &* set @"pNext" VK_NULL
+                &* set @"descriptorPool" _descriptorPool
+                &* set @"descriptorSetCount" (fromIntegral . length $ descriptorSetLayouts)
+                &* set @"pSetLayouts" descriptorSetLayoutsPtr
         descriptorSets <- allocaPeekArray _descriptorCount $ \descriptorSetPtr ->
             withPtr allocateInfo $ \allocateInfoPtr ->
                 vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr

@@ -9,14 +9,15 @@ module HulkanEngine3D.Vulkan.RenderPass
     , RenderPassDataCreateInfo (..)
     , PipelineDataCreateInfo (..)
     , DepthStencilStateCreateInfo (..)
-    , GraphicsPipelineData (..)
+    , PipelineData (..)
     , RenderPassData (..)
     , defaultDepthStencilStateCreateInfo
     , defaultAttachmentDescription
     , createRenderPassData
     , destroyRenderPassData
-    , createGraphicsPipeline
-    , destroyGraphicsPipeline
+    , getPipelineData
+    , createGraphicsPipelineData
+    , destroyPipelineData
     ) where
 
 import Data.Bits
@@ -24,6 +25,7 @@ import Control.Monad
 import qualified Data.Text as Text
 import Foreign.Marshal.Alloc
 import Foreign.Storable
+import qualified Data.HashTable.IO as HashTable
 
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
@@ -99,7 +101,7 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     , _descriptorDataCreateInfoList :: [DescriptorDataCreateInfo]
     }  deriving (Eq, Show)
 
-data GraphicsPipelineData = GraphicsPipelineData
+data PipelineData = PipelineData
     { _pipelineDataName :: Text.Text
     , _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
     , _fragmentShaderCreateInfo :: VkPipelineShaderStageCreateInfo
@@ -108,11 +110,13 @@ data GraphicsPipelineData = GraphicsPipelineData
     , _descriptorData :: DescriptorData
     } deriving (Eq, Show)
 
+type PipelineDataMap = HashTable.BasicHashTable Text.Text PipelineData
+
 data RenderPassData = RenderPassData
     { _renderPassDataName :: Text.Text
     , _renderPass :: VkRenderPass
-    , _graphicsPipelineDataList :: [GraphicsPipelineData]
-    } deriving (Eq, Show)
+    , _pipelineDataMap :: PipelineDataMap
+    } deriving Show
 
 
 defaultDepthStencilStateCreateInfo :: DepthStencilStateCreateInfo
@@ -153,21 +157,23 @@ defaultAttachmentDescription = ImageAttachmentDescription
 createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> [DescriptorData] -> IO RenderPassData
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} descriptorDatas = do
     renderPass <- createRenderPass device renderPassDataCreateInfo
-    graphicsPipelineDataList <- forM (zip _pipelineDataCreateInfos descriptorDatas) $ \(pipelineDataCreateInfo, descriptorData) -> do
-        graphicsPipelineData <- createGraphicsPipeline device renderPass pipelineDataCreateInfo _frameBufferDataCreateInfo descriptorData
+    pipelineDataList <- forM (zip _pipelineDataCreateInfos descriptorDatas) $ \(pipelineDataCreateInfo, descriptorData) -> do
+        graphicsPipelineData <- createGraphicsPipelineData device renderPass pipelineDataCreateInfo _frameBufferDataCreateInfo descriptorData
         return graphicsPipelineData
+    pipelineDataMap <- HashTable.new
+    forM_ pipelineDataList $ \pipelineData ->
+        HashTable.insert pipelineDataMap  (_pipelineDataName pipelineData) pipelineData
     logInfo $ "CreateRenderPassData : " ++ (Text.unpack _renderPassCreateInfoName)
     return RenderPassData
         { _renderPassDataName = _renderPassCreateInfoName
         , _renderPass = renderPass
-        , _graphicsPipelineDataList = graphicsPipelineDataList
+        , _pipelineDataMap = pipelineDataMap
         }
 
 destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
 destroyRenderPassData device renderPassData@RenderPassData {..} = do
     logInfo "DestroyRenderPassData"
-    forM _graphicsPipelineDataList $ \graphicsPipelineData ->
-        destroyGraphicsPipeline device graphicsPipelineData
+    HashTable.mapM_ (\(k, v) -> destroyPipelineData device v) _pipelineDataMap
     destroyRenderPass device _renderPass _renderPassDataName
 
 
@@ -242,6 +248,11 @@ destroyRenderPass device renderPass renderPassName = do
     vkDestroyRenderPass device renderPass VK_NULL
 
 
+getPipelineData :: RenderPassData -> Text.Text -> IO (Maybe PipelineData)
+getPipelineData renderPassData pipelineDataName = do
+    HashTable.lookup (_pipelineDataMap renderPassData) pipelineDataName
+
+
 createPipelineLayout :: VkDevice -> [VkPushConstantRange] -> [VkDescriptorSetLayout] -> IO VkPipelineLayout
 createPipelineLayout device pushConstantRanges descriptorSetLayouts = do
     let pipelineCreateInfo = createVk @VkPipelineLayoutCreateInfo
@@ -267,13 +278,13 @@ destroyPipelineLayout device pipelineLayout = do
     vkDestroyPipelineLayout device pipelineLayout VK_NULL
 
 
-createGraphicsPipeline :: VkDevice
-                       -> VkRenderPass
-                       -> PipelineDataCreateInfo
-                       -> FrameBufferDataCreateInfo
-                       -> DescriptorData
-                       -> IO GraphicsPipelineData
-createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} frameBufferDataCreateInfo descriptorData = do
+createGraphicsPipelineData :: VkDevice
+                           -> VkRenderPass
+                           -> PipelineDataCreateInfo
+                           -> FrameBufferDataCreateInfo
+                           -> DescriptorData
+                           -> IO PipelineData
+createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} frameBufferDataCreateInfo descriptorData = do
     vertexShaderCreateInfo <- createShaderStageCreateInfo device _vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device _fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
 
@@ -411,7 +422,7 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             validationVK result "vkCreateGraphicsPipelines failed!"
         peek graphicsPipelinePtr
 
-    return GraphicsPipelineData
+    return PipelineData
         { _pipelineDataName = _pipelineDataCreateInfoName
         , _vertexShaderCreateInfo = vertexShaderCreateInfo
         , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
@@ -421,8 +432,8 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
         }
 
 
-destroyGraphicsPipeline :: VkDevice -> GraphicsPipelineData -> IO ()
-destroyGraphicsPipeline device graphicsPipelineData@GraphicsPipelineData {..} = do
+destroyPipelineData :: VkDevice -> PipelineData -> IO ()
+destroyPipelineData device pipelineData@PipelineData {..} = do
     logInfo $ "Destroy GraphicsPipeline : " ++ Text.unpack _pipelineDataName ++ "pipeline " ++ show _pipeline ++ ", pipelineLayout" ++ show _pipelineLayout
     vkDestroyPipeline device _pipeline VK_NULL
     destroyPipelineLayout device _pipelineLayout

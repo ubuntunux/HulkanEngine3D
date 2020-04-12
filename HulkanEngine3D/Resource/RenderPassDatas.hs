@@ -57,7 +57,7 @@ getRenderPassDataCreateInfo rendererData = do
             ]
         pipelineDataCreateInfos =
             [ PipelineDataCreateInfo
-                { _pipelineDataCreateInfoName = Text.append renderPassName "RenderTriangle"
+                { _pipelineDataCreateInfoName = "RenderTriangle"
                 , _vertexShaderFile = "Resource/Shaders/triangle.vert"
                 , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
                 , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]

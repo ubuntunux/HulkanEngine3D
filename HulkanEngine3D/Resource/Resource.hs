@@ -71,7 +71,7 @@ class ResourceInterface a where
     getMaterialInstanceData :: a -> Text.Text -> IO (Maybe MaterialInstanceData)
     getDefaultMaterialInstanceData :: a -> IO (Maybe MaterialInstanceData)
 
-    getDescriptorData :: a -> RendererData -> PipelineDataCreateInfo -> IO DescriptorData
+    getDescriptorData :: a -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO DescriptorData
     unloadDescriptorDatas :: a -> RendererData -> IO ()
 
 instance ResourceInterface ResourceData where
@@ -183,7 +183,7 @@ instance ResourceInterface ResourceData where
     loadRenderPassDatas resourceData rendererData = do
         defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData
         descriptorDatas <- forM (_pipelineDataCreateInfos defaultRenderPassDataCreateInfo) $ \pipelineDataCreateInfo ->
-            getDescriptorData resourceData rendererData pipelineDataCreateInfo
+            getDescriptorData resourceData rendererData (_renderPassCreateInfoName defaultRenderPassDataCreateInfo) pipelineDataCreateInfo
         defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo descriptorDatas
         HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
 
@@ -213,17 +213,17 @@ instance ResourceInterface ResourceData where
     getDefaultMaterialInstanceData resourceData = return undefined
 
     -- DescriptorDatas
-    getDescriptorData :: ResourceData -> RendererData -> PipelineDataCreateInfo -> IO DescriptorData
-    getDescriptorData resourceData rendererData pipelineDataCreateInfo = do
-        let pipelineDataName = _pipelineDataCreateInfoName pipelineDataCreateInfo
+    getDescriptorData :: ResourceData -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO DescriptorData
+    getDescriptorData resourceData rendererData renderPassName pipelineDataCreateInfo = do
+        let descriptorName = Text.append renderPassName (_pipelineDataCreateInfoName pipelineDataCreateInfo)
             descriptorDataCreateInfoList = _descriptorDataCreateInfoList pipelineDataCreateInfo
             descriptorCount = Constants.swapChainImageCount
-        maybeDescriptorData <- HashTable.lookup (_descriptorDataMap resourceData) pipelineDataName
+        maybeDescriptorData <- HashTable.lookup (_descriptorDataMap resourceData) descriptorName
         case maybeDescriptorData of
             (Just descriptorData) -> return descriptorData
             otherwise -> do
                 descriptorData <- createDescriptorData (getDevice rendererData) descriptorDataCreateInfoList descriptorCount
-                HashTable.insert (_descriptorDataMap resourceData) pipelineDataName descriptorData
+                HashTable.insert (_descriptorDataMap resourceData) descriptorName descriptorData
                 return descriptorData
 
     unloadDescriptorDatas :: ResourceData -> RendererData -> IO ()

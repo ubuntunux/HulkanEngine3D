@@ -238,7 +238,8 @@ initializeApplication = do
 
     ---------------------------------------------------------
     Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-    let descriptorData = _descriptorData ((_graphicsPipelineDataList defaultRenderPassData) !! 0)
+    Just pipeline <- getPipelineData defaultRenderPassData "RenderTriangle"
+    let descriptorData = _descriptorData pipeline
 
     descriptorSets <- createDescriptorSet (Renderer.getDevice rendererData) descriptorData
     let renderElement = RenderElementData { _descriptorSets = descriptorSets }
