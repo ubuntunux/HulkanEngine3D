@@ -58,6 +58,7 @@ instance SceneManagerInterface SceneManagerData where
 
     loadSceneManagerData :: SceneManagerData -> CameraCreateData -> IO ()
     loadSceneManagerData sceneManagerData@SceneManagerData {..} cameraCreateData = do
+        -----------------------------------------------------------------------------------------------------
         Just defaultRenderPassData <- getDefaultRenderPassData _resourceData
         Just pipeline <- getPipelineData defaultRenderPassData "RenderTriangle"
         let descriptorData = _descriptorData pipeline
@@ -74,6 +75,7 @@ instance SceneManagerInterface SceneManagerData where
         forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) -> do
             let descriptorBufferOrImageInfos = [Left descriptorBufferInfo, Right descriptorImageInfo]::[DescriptorBufferOrImageInfo]
             updateDescriptorSets (Renderer.getDevice _rendererData) descriptorSet (_descriptorSetLayoutBindingList descriptorData) descriptorBufferOrImageInfos
+        -----------------------------------------------------------------------------------------------------
 
         mainCamera <- addCameraObject sceneManagerData "MainCamera" cameraCreateData
         writeIORef _mainCamera mainCamera
