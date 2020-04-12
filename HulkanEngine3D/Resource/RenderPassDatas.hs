@@ -55,24 +55,24 @@ getRenderPassDataCreateInfo rendererData = do
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 }
             ]
-        pipelineDataCreateInfo = PipelineDataCreateInfo
-            { _pipelineDataCreateInfoName = "RenderTriangle"
-            , _vertexShaderFile = "Resource/Shaders/triangle.vert"
-            , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
-            , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
-            , _pipelineViewportWidth = _imageWidth _sceneColorTexture
-            , _pipelineViewportHeight = _imageHeight _sceneColorTexture
-            , _pipelineMultisampleCount = sampleCount
-            , _pipelinePolygonMode = VK_POLYGON_MODE_FILL
-            , _pipelineCullMode = VK_CULL_MODE_BACK_BIT
-            , _pipelineFrontFace = VK_FRONT_FACE_CLOCKWISE
-            , _pipelineColorBlendModes = [getColorBlendMode_None]
-            , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
-            , _descriptorDataCreateInfoList =
-                [ (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-                , (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-                ]
-            }
+        pipelineDataCreateInfos =
+            [ PipelineDataCreateInfo
+                { _pipelineDataCreateInfoName = Text.append renderPassName "RenderTriangle"
+                , _vertexShaderFile = "Resource/Shaders/triangle.vert"
+                , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
+                , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
+                , _pipelineMultisampleCount = sampleCount
+                , _pipelinePolygonMode = VK_POLYGON_MODE_FILL
+                , _pipelineCullMode = VK_CULL_MODE_BACK_BIT
+                , _pipelineFrontFace = VK_FRONT_FACE_CLOCKWISE
+                , _pipelineColorBlendModes = [getColorBlendMode_None]
+                , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
+                , _descriptorDataCreateInfoList =
+                    [ (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                    , (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+                    ]
+                }
+            ]
         viewPort = createViewport 0 0 (fromIntegral $ _imageWidth _sceneColorTexture) (fromIntegral $ _imageHeight _sceneColorTexture) 0 1
         scissorRect = createScissorRect 0 0 (fromIntegral $ _imageWidth _sceneColorTexture) (fromIntegral $ _imageHeight _sceneColorTexture)
         frameBufferDataCreateInfo = defaultFrameBufferDataCreateInfo
@@ -94,6 +94,6 @@ getRenderPassDataCreateInfo rendererData = do
         , _colorAttachmentDescriptions = colorAttachmentDescriptions
         , _depthAttachmentDescriptions = depthAttachmentDescriptions
         , _resolveAttachmentDescriptions = resolveAttachmentDescriptions
-        , _pipelineDataCreateInfo = pipelineDataCreateInfo
+        , _pipelineDataCreateInfos = pipelineDataCreateInfos
         , _frameBufferDataCreateInfo = frameBufferDataCreateInfo
         }

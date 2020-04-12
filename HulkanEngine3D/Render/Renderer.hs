@@ -434,7 +434,7 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
     Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (_renderPassDataName defaultRenderPassData)
     let renderPass = _renderPass defaultRenderPassData
         renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
-        graphicsPipelineData = _graphicsPipelineData defaultRenderPassData
+        graphicsPipelineData = (_graphicsPipelineDataList defaultRenderPassData) !! 0
         pipelineLayout = _pipelineLayout graphicsPipelineData
         pipeline = _pipeline graphicsPipelineData
         descriptorSet = descriptorSets !! imageIndex

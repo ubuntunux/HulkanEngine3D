@@ -20,6 +20,7 @@ module HulkanEngine3D.Vulkan.RenderPass
     ) where
 
 import Data.Bits
+import Control.Monad
 import qualified Data.Text as Text
 import Foreign.Marshal.Alloc
 import Foreign.Storable
@@ -59,7 +60,7 @@ data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     , _colorAttachmentDescriptions :: [ImageAttachmentDescription]
     , _depthAttachmentDescriptions :: [ImageAttachmentDescription]
     , _resolveAttachmentDescriptions :: [ImageAttachmentDescription]
-    , _pipelineDataCreateInfo :: PipelineDataCreateInfo
+    , _pipelineDataCreateInfos :: [PipelineDataCreateInfo]
     , _frameBufferDataCreateInfo :: FrameBufferDataCreateInfo
     }  deriving (Eq, Show)
 
@@ -89,8 +90,6 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     , _vertexShaderFile :: String
     , _fragmentShaderFile :: String
     , _pipelineDynamicStateList :: [VkDynamicState]
-    , _pipelineViewportWidth :: Int
-    , _pipelineViewportHeight :: Int
     , _pipelineMultisampleCount :: VkSampleCountFlagBits
     , _pipelinePolygonMode :: VkPolygonMode
     , _pipelineCullMode :: VkCullModeFlagBits
@@ -112,7 +111,7 @@ data GraphicsPipelineData = GraphicsPipelineData
 data RenderPassData = RenderPassData
     { _renderPassDataName :: Text.Text
     , _renderPass :: VkRenderPass
-    , _graphicsPipelineData :: GraphicsPipelineData
+    , _graphicsPipelineDataList :: [GraphicsPipelineData]
     } deriving (Eq, Show)
 
 
@@ -151,21 +150,24 @@ defaultAttachmentDescription = ImageAttachmentDescription
     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
     }
 
-createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> DescriptorData -> IO RenderPassData
-createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} descriptorData = do
+createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> [DescriptorData] -> IO RenderPassData
+createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} descriptorDatas = do
     renderPass <- createRenderPass device renderPassDataCreateInfo
-    graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo _frameBufferDataCreateInfo descriptorData
+    graphicsPipelineDataList <- forM (zip _pipelineDataCreateInfos descriptorDatas) $ \(pipelineDataCreateInfo, descriptorData) -> do
+        graphicsPipelineData <- createGraphicsPipeline device renderPass pipelineDataCreateInfo _frameBufferDataCreateInfo descriptorData
+        return graphicsPipelineData
     logInfo $ "CreateRenderPassData : " ++ (Text.unpack _renderPassCreateInfoName)
     return RenderPassData
         { _renderPassDataName = _renderPassCreateInfoName
         , _renderPass = renderPass
-        , _graphicsPipelineData = graphicsPipelineData
+        , _graphicsPipelineDataList = graphicsPipelineDataList
         }
 
 destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
 destroyRenderPassData device renderPassData@RenderPassData {..} = do
     logInfo "DestroyRenderPassData"
-    destroyGraphicsPipeline device _graphicsPipelineData
+    forM _graphicsPipelineDataList $ \graphicsPipelineData ->
+        destroyGraphicsPipeline device graphicsPipelineData
     destroyRenderPass device _renderPass _renderPassDataName
 
 

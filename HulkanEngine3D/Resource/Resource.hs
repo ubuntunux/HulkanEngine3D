@@ -6,6 +6,7 @@ module HulkanEngine3D.Resource.Resource
     , ResourceInterface (..)
     ) where
 
+import Control.Monad
 import qualified Data.HashTable.IO as HashTable
 import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
@@ -70,7 +71,7 @@ class ResourceInterface a where
     getMaterialInstanceData :: a -> Text.Text -> IO (Maybe MaterialInstanceData)
     getDefaultMaterialInstanceData :: a -> IO (Maybe MaterialInstanceData)
 
-    getDescriptorData :: a -> RendererData -> RenderPassDataCreateInfo -> IO DescriptorData
+    getDescriptorData :: a -> RendererData -> PipelineDataCreateInfo -> IO DescriptorData
     unloadDescriptorDatas :: a -> RendererData -> IO ()
 
 instance ResourceInterface ResourceData where
@@ -181,8 +182,9 @@ instance ResourceInterface ResourceData where
     loadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     loadRenderPassDatas resourceData rendererData = do
         defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData
-        descriptorData <- getDescriptorData resourceData rendererData defaultRenderPassDataCreateInfo
-        defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo descriptorData
+        descriptorDatas <- forM (_pipelineDataCreateInfos defaultRenderPassDataCreateInfo) $ \pipelineDataCreateInfo ->
+            getDescriptorData resourceData rendererData pipelineDataCreateInfo
+        defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo descriptorDatas
         HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
 
     unloadRenderPassDatas :: ResourceData -> RendererData -> IO ()
@@ -211,20 +213,17 @@ instance ResourceInterface ResourceData where
     getDefaultMaterialInstanceData resourceData = return undefined
 
     -- DescriptorDatas
-    getDescriptorData :: ResourceData -> RendererData -> RenderPassDataCreateInfo -> IO DescriptorData
-    getDescriptorData resourceData rendererData renderPassDataCreateInfo = do
-        let renderPassName = _renderPassCreateInfoName renderPassDataCreateInfo
-            pipelineDataCreateInfo = _pipelineDataCreateInfo renderPassDataCreateInfo
-            pipelineDataName = _pipelineDataCreateInfoName pipelineDataCreateInfo
+    getDescriptorData :: ResourceData -> RendererData -> PipelineDataCreateInfo -> IO DescriptorData
+    getDescriptorData resourceData rendererData pipelineDataCreateInfo = do
+        let pipelineDataName = _pipelineDataCreateInfoName pipelineDataCreateInfo
             descriptorDataCreateInfoList = _descriptorDataCreateInfoList pipelineDataCreateInfo
             descriptorCount = Constants.swapChainImageCount
-            resourceName = Text.append renderPassName (Text.append "_" pipelineDataName)
-        maybeDescriptorData <- HashTable.lookup (_descriptorDataMap resourceData) resourceName
+        maybeDescriptorData <- HashTable.lookup (_descriptorDataMap resourceData) pipelineDataName
         case maybeDescriptorData of
             (Just descriptorData) -> return descriptorData
             otherwise -> do
                 descriptorData <- createDescriptorData (getDevice rendererData) descriptorDataCreateInfoList descriptorCount
-                HashTable.insert (_descriptorDataMap resourceData) resourceName descriptorData
+                HashTable.insert (_descriptorDataMap resourceData) pipelineDataName descriptorData
                 return descriptorData
 
     unloadDescriptorDatas :: ResourceData -> RendererData -> IO ()

@@ -238,7 +238,7 @@ initializeApplication = do
 
     ---------------------------------------------------------
     Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-    let descriptorData = _descriptorData . _graphicsPipelineData $ defaultRenderPassData
+    let descriptorData = _descriptorData ((_graphicsPipelineDataList defaultRenderPassData) !! 0)
 
     descriptorSets <- createDescriptorSet (Renderer.getDevice rendererData) descriptorData
     let renderElement = RenderElementData { _descriptorSets = descriptorSets }
