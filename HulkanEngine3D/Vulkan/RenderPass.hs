@@ -154,7 +154,7 @@ defaultAttachmentDescription = ImageAttachmentDescription
 createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> DescriptorData -> IO RenderPassData
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} descriptorData = do
     renderPass <- createRenderPass device renderPassDataCreateInfo
-    graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo descriptorData
+    graphicsPipelineData <- createGraphicsPipeline device renderPass _pipelineDataCreateInfo _frameBufferDataCreateInfo descriptorData
     logInfo $ "CreateRenderPassData : " ++ (Text.unpack _renderPassCreateInfoName)
     return RenderPassData
         { _renderPassDataName = _renderPassCreateInfoName
@@ -268,9 +268,10 @@ destroyPipelineLayout device pipelineLayout = do
 createGraphicsPipeline :: VkDevice
                        -> VkRenderPass
                        -> PipelineDataCreateInfo
+                       -> FrameBufferDataCreateInfo
                        -> DescriptorData
                        -> IO GraphicsPipelineData
-createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} descriptorData = do
+createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} frameBufferDataCreateInfo descriptorData = do
     vertexShaderCreateInfo <- createShaderStageCreateInfo device _vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device _fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
 
@@ -302,29 +303,17 @@ createGraphicsPipeline device renderPass pipelineDataCreateInfo@PipelineDataCrea
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"dynamicStateCount" (fromIntegral . length $ _pipelineDynamicStateList)
-            &* setListRef @"pDynamicStates" _pipelineDynamicStateList
-        viewPort = createVk @VkViewport
-            $  set @"x" 0
-            &* set @"y" 0
-            &* set @"width" (fromIntegral _pipelineViewportWidth)
-            &* set @"height" (fromIntegral _pipelineViewportHeight)
-            &* set @"minDepth" 0
-            &* set @"maxDepth" 1
-        scissorRect = createVk @VkRect2D
-            $  setVk @"extent"
-                (  set @"width" (fromIntegral _pipelineViewportWidth)
-                &* set @"height" (fromIntegral _pipelineViewportHeight) )
-            &* setVk @"offset"
-                (  set @"x" 0
-                &* set @"y" 0 )
+            &* case _pipelineDynamicStateList of
+                [] -> set @"pDynamicStates" VK_NULL
+                otherwise -> setListRef @"pDynamicStates" _pipelineDynamicStateList
         viewPortState = createVk @VkPipelineViewportStateCreateInfo
             $ set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"viewportCount" 1
-            &* setVkRef @"pViewports" viewPort
+            &* setVkRef @"pViewports" (_frameBufferViewPort frameBufferDataCreateInfo)
             &* set @"scissorCount" 1
-            &* setVkRef @"pScissors" scissorRect
+            &* setVkRef @"pScissors" (_frameBufferScissorRect frameBufferDataCreateInfo)
         rasterizer = createVk @VkPipelineRasterizationStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
