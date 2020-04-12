@@ -22,7 +22,7 @@ import Numeric.Dimensions
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Application.Input
-import HulkanEngine3D.Application.SceneManager
+import qualified HulkanEngine3D.Application.SceneManager as SceneManager
 import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.RenderElement
@@ -33,9 +33,6 @@ import HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan.Device
-import HulkanEngine3D.Vulkan.Descriptor
-import HulkanEngine3D.Vulkan.Texture
-import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.UniformBuffer
 
 
@@ -57,10 +54,9 @@ data ApplicationData = ApplicationData
     , _keyboardInputDataRef :: IORef KeyboardInputData
     , _mouseMoveDataRef :: IORef MouseMoveData
     , _mouseInputDataRef :: IORef MouseInputData
-    , _sceneManagerData :: SceneManagerData
+    , _sceneManagerData :: SceneManager.SceneManagerData
     , _rendererData :: Renderer.RendererData
     , _resourceData :: ResourceData
-    , _renderElement :: IORef RenderElementData
     } deriving (Show)
 
 
@@ -164,7 +160,7 @@ updateEvent applicationData = do
     pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
     pressed_key_Q <- getKeyPressed keyboardInputData GLFW.Key'Q
     pressed_key_E <- getKeyPressed keyboardInputData GLFW.Key'E
-    mainCamera <- readIORef . _mainCamera . _sceneManagerData $ applicationData
+    mainCamera <- readIORef (SceneManager._mainCamera . _sceneManagerData $ applicationData)
     let mousePosDelta = _mousePosDelta mouseMoveData
         mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta ! (Idx 0:*U)) :: Float
         mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta ! (Idx 1:*U)) :: Float
@@ -231,33 +227,13 @@ initializeApplication = do
         requireExtensions
         msaaSampleCount
         resourceData
-
     initializeResourceData resourceData rendererData
-
-    sceneManagerData <- newSceneManagerData
-
-    ---------------------------------------------------------
-    Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-    Just pipeline <- getPipelineData defaultRenderPassData "RenderTriangle"
-    let descriptorData = _descriptorData pipeline
-
-    descriptorSets <- createDescriptorSet (Renderer.getDevice rendererData) descriptorData
-    let renderElement = RenderElementData { _descriptorSets = descriptorSets }
-    renderElementRef <- newIORef renderElement
-
-    Just textureData <- getTextureData resourceData "texture"
-
-    let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData $ (Renderer._uniformBufferDatas rendererData)
-        descriptorImageInfo = _descriptorImageInfo textureData
-        
-    forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) -> do
-        let descriptorBufferOrImageInfos = [Left descriptorBufferInfo, Right descriptorImageInfo]::[DescriptorBufferOrImageInfo]
-        updateDescriptorSets (Renderer.getDevice rendererData) descriptorSet (_descriptorSetLayoutBindingList descriptorData) descriptorBufferOrImageInfos
-    ---------------------------------------------------------
 
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
         cameraCreateData = getDefaultCameraCreateData { aspect = aspect, position = vec3 0 0 10 }
-    initializeSceneManagerData sceneManagerData cameraCreateData
+
+    sceneManagerData <- SceneManager.newSceneManagerData rendererData resourceData
+    SceneManager.loadSceneManagerData sceneManagerData cameraCreateData
 
     -- init system variables
     currentTime <- getSystemTime
@@ -282,7 +258,6 @@ initializeApplication = do
             , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
             , _resourceData = resourceData
-            , _renderElement = renderElementRef
             }
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ()) -> IO ()
@@ -369,19 +344,19 @@ runApplication = do
             writeIORef (Renderer._needRecreateSwapChainRef rendererData) False
             (width, height) <- readIORef (_windowSizeRef applicationData)
             let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
-            mainCamera <- getMainCamera sceneManagerData
+            mainCamera <- SceneManager.getMainCamera sceneManagerData
             setAspect mainCamera aspect
 
         -- update renderer data
-        updateSceneManagerData sceneManagerData
-        mainCamera <- getMainCamera sceneManagerData
+        SceneManager.updateSceneManagerData sceneManagerData
+        mainCamera <- SceneManager.getMainCamera sceneManagerData
         viewMatrix <- readIORef (_viewMatrix mainCamera)
         projectionMatrix <- readIORef (_projectionMatrix mainCamera)
         (Just meshData) <- getMeshData resourceData "suzan"
         geometryBufferData <- (getGeometryData meshData 0)
 
         Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-        renderElement <- readIORef (_renderElement applicationData)
+        renderElement <- readIORef (SceneManager._renderElement sceneManagerData)
 
         Renderer.updateRendererData
             rendererData
