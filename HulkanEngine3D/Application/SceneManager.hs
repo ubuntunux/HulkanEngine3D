@@ -73,7 +73,7 @@ instance SceneManagerInterface SceneManagerData where
             descriptorImageInfo = _descriptorImageInfo textureData
 
         forM_ (zip descriptorBufferInfos descriptorSets) $ \(descriptorBufferInfo, descriptorSet) -> do
-            let descriptorBufferOrImageInfos = [Left descriptorBufferInfo, Right descriptorImageInfo]::[DescriptorBufferOrImageInfo]
+            let descriptorBufferOrImageInfos = [DescriptorBufferInfo descriptorBufferInfo, DescriptorImageInfo descriptorImageInfo]::[DescriptorBufferOrImageInfo]
             updateDescriptorSets (Renderer.getDevice _rendererData) descriptorSet (_descriptorSetLayoutBindingList descriptorData) descriptorBufferOrImageInfos
         -----------------------------------------------------------------------------------------------------
 

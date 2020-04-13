@@ -4,7 +4,7 @@
 
 
 module HulkanEngine3D.Vulkan.Descriptor
-  ( DescriptorBufferOrImageInfo
+  ( DescriptorBufferOrImageInfo (..)
   , DescriptorDataCreateInfo
   , DescriptorData (..)
   , defaultDescriptorData
@@ -32,7 +32,7 @@ import Graphics.Vulkan.Marshal.Create
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 
-type DescriptorBufferOrImageInfo = Either VkDescriptorBufferInfo VkDescriptorImageInfo
+data DescriptorBufferOrImageInfo = DescriptorBufferInfo VkDescriptorBufferInfo | DescriptorImageInfo VkDescriptorImageInfo deriving (Eq, Show)
 type DescriptorDataCreateInfo = (VkDescriptorType, VkShaderStageFlagBits)
 
 data DescriptorData = DescriptorData
@@ -185,10 +185,10 @@ updateDescriptorSets device descriptorSet descriptorSetLayoutBindingList descrip
                 &* set @"descriptorType" (getField @"descriptorType" descriptorSetLayoutBinding)
                 &* set @"descriptorCount" 1
                 &* case descriptorBufferOrImageInfo of
-                        Left bufferInfo ->
+                        DescriptorBufferInfo bufferInfo ->
                             setVkRef @"pBufferInfo" bufferInfo
                             &* set @"pImageInfo" VK_NULL
-                        Right imageInfo ->
+                        DescriptorImageInfo imageInfo ->
                             set @"pBufferInfo" VK_NULL
                             &* setVkRef @"pImageInfo" imageInfo
                 &* set @"pTexelBufferView" VK_NULL
