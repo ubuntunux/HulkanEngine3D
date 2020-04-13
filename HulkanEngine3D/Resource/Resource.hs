@@ -15,12 +15,15 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Renderer
+import HulkanEngine3D.Render.UniformBufferDatas
 import HulkanEngine3D.Resource.ObjLoader
-import HulkanEngine3D.Resource.RenderPassDatas
+import qualified HulkanEngine3D.Resource.MaterialInstanceCreateInfo as MaterialInstanceCreateInfo
+import HulkanEngine3D.Resource.RenderPassCreateInfo
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
+import HulkanEngine3D.Vulkan.UniformBuffer
 import HulkanEngine3D.Utilities.Logger
 
 
@@ -201,16 +204,34 @@ instance ResourceInterface ResourceData where
 
     -- MaterialInstanceDatas
     loadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
-    loadMaterialInstanceDatas resourceData rendererData = return ()
+    loadMaterialInstanceDatas resourceData rendererData = do
+        Just renderPassData <- getRenderPassData resourceData "defaultRenderPass"
+        Just pipelineData <- getPipelineData renderPassData "RenderTriangle"
+        Just textureData <- getTextureData resourceData "texture"
+
+        let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . _uniformBufferDatas $ rendererData
+            descriptorImageInfo = _descriptorImageInfo textureData
+
+        descriptorBufferOrImageInfosList <- forM descriptorBufferInfos $ \descriptorBufferInfo ->
+            return [DescriptorBufferInfo descriptorBufferInfo, DescriptorImageInfo descriptorImageInfo]
+        let materialInstanceCreateInfo = MaterialInstanceCreateInfo.MaterialInstanceCreateInfo
+                { MaterialInstanceCreateInfo._renderPassData = renderPassData
+                , MaterialInstanceCreateInfo._pipelineData = pipelineData
+                , MaterialInstanceCreateInfo._descriptorBufferOrImageInfosList = descriptorBufferOrImageInfosList
+                }
+        materialInstance <- createMaterialInstance (getDevice rendererData) materialInstanceCreateInfo
+        HashTable.insert (_materialInstanceDataMap resourceData) "default" materialInstance
 
     unloadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
-    unloadMaterialInstanceDatas resourceData rendererData = return ()
+    unloadMaterialInstanceDatas resourceData rendererData =
+        HashTable.mapM_ (\(k, v) -> destroyMaterialInstance (getDevice rendererData) v) (_materialInstanceDataMap resourceData)
 
     getMaterialInstanceData :: ResourceData -> Text.Text -> IO (Maybe MaterialInstanceData)
-    getMaterialInstanceData resourceData resourceName = return undefined
+    getMaterialInstanceData resourceData resourceName =
+        HashTable.lookup (_materialInstanceDataMap resourceData) resourceName
 
     getDefaultMaterialInstanceData :: ResourceData -> IO (Maybe MaterialInstanceData)
-    getDefaultMaterialInstanceData resourceData = return undefined
+    getDefaultMaterialInstanceData resourceData = getMaterialInstanceData resourceData "default"
 
     -- DescriptorDatas
     getDescriptorData :: ResourceData -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO DescriptorData

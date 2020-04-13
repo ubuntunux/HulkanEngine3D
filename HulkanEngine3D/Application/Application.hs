@@ -25,7 +25,7 @@ import HulkanEngine3D.Application.Input
 import qualified HulkanEngine3D.Application.SceneManager as SceneManager
 import HulkanEngine3D.Render.Camera
 import HulkanEngine3D.Render.Mesh
-import HulkanEngine3D.Render.RenderElement
+import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.UniformBufferDatas
 import qualified HulkanEngine3D.Render.Renderer as Renderer
 import HulkanEngine3D.Render.TransformObject
@@ -356,14 +356,14 @@ runApplication = do
         geometryBufferData <- (getGeometryData meshData 0)
 
         Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-        renderElement <- readIORef (SceneManager._renderElement sceneManagerData)
+        Just defaultMaterialInstanceData <- getDefaultMaterialInstanceData resourceData
 
         Renderer.updateRendererData
             rendererData
             viewMatrix
             projectionMatrix
             geometryBufferData
-            (_descriptorSets renderElement)
+            (_descriptorSets defaultMaterialInstanceData)
             (_uniformBufferMemories . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
 
     terminateApplication applicationData
