@@ -469,11 +469,11 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
 
     -- drawing commands
     vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
-    withArray [vertexBuffer] $ \vertexBufferPtr ->
-        withArray [0] $ \vertexOffsetPtr ->
+    with vertexBuffer $ \vertexBufferPtr ->
+        with 0 $ \vertexOffsetPtr ->
             vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
     vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
-    withArray [descriptorSet] $ \descriptorSetPtr ->
+    with descriptorSet $ \descriptorSetPtr ->
         vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
     vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
 
