@@ -18,7 +18,6 @@ module HulkanEngine3D.Vulkan.Descriptor
   , createDescriptorSet
   , destroyDescriptorSet
   , updateDescriptorSets
-  , createDescriptorBufferInfo
   ) where
 
 import Control.Monad
@@ -192,11 +191,3 @@ updateDescriptorSets device descriptorSet descriptorSetLayoutBindingList descrip
                             set @"pBufferInfo" VK_NULL
                             &* setVkRef @"pImageInfo" imageInfo
                 &* set @"pTexelBufferView" VK_NULL
-
-
-createDescriptorBufferInfo :: VkBuffer -> VkDeviceSize -> VkDescriptorBufferInfo
-createDescriptorBufferInfo uniformBuffer size =
-    createVk @VkDescriptorBufferInfo
-        $  set @"buffer" uniformBuffer
-        &* set @"offset" 0
-        &* set @"range" size
