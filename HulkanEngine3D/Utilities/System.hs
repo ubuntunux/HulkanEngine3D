@@ -7,27 +7,13 @@
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE UnboxedTuples       #-}
 
-module HulkanEngine3D.Utilities.System
-    ( VulkanException (..)
-    , getSystemTime
-    , handleAllErrors
-    , validationVK
-    , throwingVK
-    , throwVKMsg
-    , withCStringList
-    , asListVK
-    , withVkArrayLen
-    , unsafeAddr
-    , unsafeToPtr
-    , ptrAtIndex
-    , allocaPeek
-    , allocaPeekArray
-    ) where
+module HulkanEngine3D.Utilities.System where
 
 import GHC.Base
 import GHC.Exts
 import Control.Exception
-import Control.Monad (when)
+import Control.Monad
+import Data.Char
 import Data.IORef
 import qualified Data.Time.Clock.System as SystemTime
 import Foreign.C.String
@@ -35,6 +21,8 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
+import System.Directory
+import System.FilePath.Posix
 
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
@@ -155,3 +143,21 @@ allocaPeekArray :: Storable a => Int -> (Ptr a -> IO b) -> IO [a]
 allocaPeekArray count action = allocaArray count $ \arrayPtr -> do
    action arrayPtr
    peekArray count arrayPtr
+
+
+walkDirectory :: FilePath -> [String] -> IO [FilePath]
+walkDirectory currentDirectory filter = do
+    contents <- getDirectoryContents currentDirectory
+    filepaths <- forM [x | x <- contents, not (elem x [".", ".."])] (\content -> do
+        let currentContent = joinPath [currentDirectory, content]
+        isDir <- doesDirectoryExist currentContent
+        if isDir then do
+            walkDirectory currentContent filter
+        else do
+            let ext = map toLower (snd . splitExtension $ currentContent)
+            if elem ext filter || null filter then
+                return [currentContent]
+            else
+                return []
+        )
+    return $ concat [filepath | filepath <- filepaths, not (null filepath)]

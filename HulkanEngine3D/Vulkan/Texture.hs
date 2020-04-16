@@ -25,6 +25,7 @@ module HulkanEngine3D.Vulkan.Texture
     , destroyTextureData
     ) where
 
+import qualified Data.Text as Text
 import Control.Monad
 import Codec.Picture
 import Data.Bits
@@ -42,7 +43,8 @@ import HulkanEngine3D.Vulkan.Buffer
 
 
 data TextureData = TextureData
-    { _image :: VkImage
+    { _textureDataName :: Text.Text
+    , _image :: VkImage
     , _imageView :: VkImageView
     , _imageMemory :: VkDeviceMemory
     , _imageSampler ::VkSampler
@@ -452,14 +454,15 @@ copyBufferToImage device commandBufferPool commandQueue buffer image width heigh
         in withPtr region $ \regionPtr ->
             vkCmdCopyBufferToImage commandBuffer buffer image VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 1 regionPtr
 
-createDepthTexture :: VkPhysicalDevice
+createDepthTexture :: Text.Text
+                   -> VkPhysicalDevice
                    -> VkDevice
                    -> VkCommandPool
                    -> VkQueue
                    -> VkExtent2D
                    -> VkSampleCountFlagBits
                    -> IO TextureData
-createDepthTexture physicalDevice device commandBufferPool queue extent samples = do
+createDepthTexture textureDataName physicalDevice device commandBufferPool queue extent samples = do
     let width = getField @"width" extent
         height = getField @"height" extent
         mipLevels = 1
@@ -484,7 +487,8 @@ createDepthTexture physicalDevice device commandBufferPool queue extent samples 
     imageSampler <- createImageSampler device mipLevels VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE anisotropyEnable
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
         textureData@TextureData {..} = TextureData
-            { _imageView = imageView
+            { _textureDataName = textureDataName
+            , _imageView = imageView
             , _image = depthImage
             , _imageMemory = depthImageMemory
             , _imageSampler = imageSampler
@@ -502,7 +506,8 @@ createDepthTexture physicalDevice device commandBufferPool queue extent samples 
     return textureData
 
 
-createColorTexture :: VkPhysicalDevice
+createColorTexture :: Text.Text
+                   -> VkPhysicalDevice
                    -> VkDevice
                    -> VkCommandPool
                    -> VkQueue
@@ -510,7 +515,7 @@ createColorTexture :: VkPhysicalDevice
                    -> VkExtent2D
                    -> VkSampleCountFlagBits
                    -> IO TextureData
-createColorTexture physicalDevice device commandBufferPool queue format extent samples = do
+createColorTexture textureDataName physicalDevice device commandBufferPool queue format extent samples = do
     let width = getField @"width" extent
         height = getField @"height" extent
         mipLevels = 1
@@ -534,7 +539,8 @@ createColorTexture physicalDevice device commandBufferPool queue format extent s
     imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
         textureData@TextureData {..} = TextureData
-            { _imageView = imageView
+            { _textureDataName = textureDataName
+            , _imageView = imageView
             , _image = colorImage
             , _imageMemory = colorImageMemory
             , _imageSampler = imageSampler
@@ -553,14 +559,15 @@ createColorTexture physicalDevice device commandBufferPool queue format extent s
     return textureData
 
 
-createTextureData :: VkPhysicalDevice
-                       -> VkDevice
-                       -> VkCommandPool
-                       -> VkQueue
-                       -> VkBool32
-                       -> FilePath
-                       -> IO TextureData
-createTextureData physicalDevice device commandBufferPool commandQueue anisotropyEnable filePath = do
+createTextureData :: Text.Text
+                  -> VkPhysicalDevice
+                  -> VkDevice
+                  -> VkCommandPool
+                  -> VkQueue
+                  -> VkBool32
+                  -> FilePath
+                  -> IO TextureData
+createTextureData textureDataName physicalDevice device commandBufferPool commandQueue anisotropyEnable filePath = do
     Image { imageWidth, imageHeight, imageData } <- (readImage filePath) >>= \case
         Left err -> throwVKMsg err
         Right dynamicImage -> pure $ convertRGBA8 dynamicImage
@@ -616,7 +623,8 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL imageView imageSampler
         imageDepth = 1
         textureData@TextureData {..} = TextureData
-            { _image = image
+            { _textureDataName = textureDataName
+            , _image = image
             , _imageView = imageView
             , _imageMemory = imageMemory
             , _imageSampler = imageSampler
@@ -629,6 +637,7 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
             }
 
     logInfo "createTextureData"
+    logInfo $ "    Name : " ++ Text.unpack textureDataName
     logInfo $ "    File : " ++ filePath
     logInfo $ "    Format : " ++ show format
     logInfo $ "    Size : " ++ show imageWidth ++ ", " ++ show imageHeight ++ ", " ++ show imageDepth
@@ -638,7 +647,7 @@ createTextureData physicalDevice device commandBufferPool commandQueue anisotrop
 
 destroyTextureData :: VkDevice -> TextureData -> IO ()
 destroyTextureData device textureData@TextureData{..} = do
-    logInfo $ "destroyTextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
+    logInfo $ "destroyTextureData(" ++ (Text.unpack _textureDataName) ++ ") : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
     destroyImageSampler device _imageSampler
     destroyImageView device _imageView
     destroyImage device _image _imageMemory

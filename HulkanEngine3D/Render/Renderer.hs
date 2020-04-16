@@ -97,9 +97,9 @@ class RendererInterface a where
     getCommandBuffer :: a -> Int -> IO VkCommandBuffer
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
-    createRenderTarget :: a -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
-    createDepthTarget :: a -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
-    createTexture :: a -> FilePath -> IO TextureData
+    createRenderTarget :: a -> Text.Text -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
+    createDepthTarget :: a -> Text.Text -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
+    createTexture :: a -> Text.Text -> FilePath -> IO TextureData
     destroyTexture :: a -> TextureData -> IO ()
     createGeometryBuffer :: a -> Text.Text -> DataFrame Vertex '[XN 3] -> DataFrame Word32 '[XN 3] -> IO GeometryData
     destroyGeometryBuffer :: a -> GeometryData -> IO ()
@@ -119,8 +119,9 @@ instance RendererInterface RendererData where
     getGraphicsQueue rendererData = (_graphicsQueue (_queueFamilyDatas rendererData))
     getPresentQueue rendererData = (_presentQueue (_queueFamilyDatas rendererData))
 
-    createRenderTarget rendererData format extent samples =
+    createRenderTarget rendererData textureDataName format extent samples =
         createColorTexture
+            textureDataName
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)
@@ -129,8 +130,9 @@ instance RendererInterface RendererData where
             extent
             samples
 
-    createDepthTarget rendererData extent samples =
+    createDepthTarget rendererData textureDataName extent samples =
         createDepthTexture
+            textureDataName
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)
@@ -138,8 +140,9 @@ instance RendererInterface RendererData where
             extent
             samples
 
-    createTexture rendererData filePath =
+    createTexture rendererData textureDataName filePath =
         createTextureData
+            textureDataName
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)

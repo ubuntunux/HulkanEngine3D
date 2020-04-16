@@ -10,6 +10,7 @@ import Control.Monad
 import qualified Data.HashTable.IO as HashTable
 import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
+import System.FilePath.Posix
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Mesh
@@ -25,6 +26,7 @@ import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.UniformBuffer
 import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.System
 
 
 type FrameBufferDataMap = HashTable.BasicHashTable Text.Text FrameBufferData
@@ -33,6 +35,9 @@ type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
 type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
 type RenderPassDataMap = HashTable.BasicHashTable Text.Text RenderPassData
 type DescriptorDataMap = HashTable.BasicHashTable Text.Text DescriptorData
+
+textureFilePath :: FilePath
+textureFilePath = "Resource/Externals/Textures"
 
 data ResourceData = ResourceData
     { _meshDataMap :: MeshDataMap
@@ -153,8 +158,11 @@ instance ResourceInterface ResourceData where
     -- TextureLoader
     loadTextureDatas :: ResourceData -> RendererData -> IO ()
     loadTextureDatas resourceData rendererData = do
-        textureData <- createTexture rendererData "Resource/Externals/Textures/texture.jpg"
-        HashTable.insert (_textureDataMap resourceData) "texture" textureData
+        textureFiles <- walkDirectory textureFilePath [".png", ".jpg"]
+        forM_ textureFiles $ \textureFile -> do
+            let textureDataName = Text.pack $ drop (length textureFilePath + 1) (dropExtension textureFile)
+            textureData <- createTexture rendererData textureDataName textureFile
+            HashTable.insert (_textureDataMap resourceData) textureDataName textureData
 
     unloadTextureDatas :: ResourceData -> RendererData -> IO ()
     unloadTextureDatas resourceData rendererData =

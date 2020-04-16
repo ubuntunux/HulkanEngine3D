@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE OverloadedStrings  #-}
 
 module HulkanEngine3D.Render.RenderTarget
     ( RenderTargets (..)
@@ -26,8 +27,8 @@ createRenderTargets rendererData = do
     let format = _swapChainImageFormat swapChainData
         extent = _swapChainExtent swapChainData
         samples = _msaaSamples (_renderFeatures rendererData)
-    sceneColor <- createRenderTarget rendererData format extent samples
-    sceneDepth <- createDepthTarget rendererData extent samples
+    sceneColor <- createRenderTarget rendererData "sceneColor" format extent samples
+    sceneDepth <- createDepthTarget rendererData "sceneDepth" extent samples
     return RenderTargets
         { _sceneColorTexture = sceneColor
         , _sceneDepthTexture = sceneDepth }
