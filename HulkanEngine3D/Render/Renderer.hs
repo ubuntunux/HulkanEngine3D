@@ -15,7 +15,7 @@ module HulkanEngine3D.Render.Renderer
   , resizeWindow
   , recreateSwapChain
   , recordCommandBuffer
-  , updateRendererData
+  , renderScene
   ) where
 
 import Control.Monad
@@ -41,8 +41,12 @@ import Graphics.Vulkan.Marshal.Create
 import Numeric.DataFrame
 
 import qualified HulkanEngine3D.Constants as Constants
+import {-# SOURCE #-} qualified HulkanEngine3D.Application.SceneManager as SceneManager
+import HulkanEngine3D.Render.Camera
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.ImageSampler
+import HulkanEngine3D.Render.MaterialInstance
+import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Render.UniformBufferDatas
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.Logger
@@ -59,6 +63,7 @@ import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Sync
 import HulkanEngine3D.Vulkan.Texture
+import HulkanEngine3D.Vulkan.UniformBuffer
 
 
 data RendererData = RendererData
@@ -369,14 +374,27 @@ resizeWindow window rendererData@RendererData {..} = do
 
 
 
-updateRendererData :: RendererData -> Mat44f -> Mat44f -> GeometryData -> [VkDescriptorSet] -> [VkDeviceMemory] -> IO ()
-updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geometryBufferData descriptorSets sceneConstantsMemories = do
+renderScene :: RendererData -> SceneManager.SceneManagerData -> IO ()
+renderScene rendererData@RendererData{..} sceneManagerData = do
     -- frame index
     frameIndex <- readIORef _frameIndexRef
     let frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
         imageAvailableSemaphore = _imageAvailableSemaphores !! frameIndex
         renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
     swapChainData@SwapChainData {..} <- getSwapChainData rendererData
+
+    --
+    mainCamera <- SceneManager.getMainCamera sceneManagerData
+    viewMatrix <- readIORef (_viewMatrix mainCamera)
+    projectionMatrix <- readIORef (_projectionMatrix mainCamera)
+    (Just meshData) <- getMeshData _resourceData "suzan"
+    geometryBufferData <- (getGeometryData meshData 0)
+
+    Just defaultRenderPassData <- getDefaultRenderPassData _resourceData
+    Just defaultMaterialInstanceData <- getDefaultMaterialInstanceData _resourceData
+
+    let descriptorSets = _descriptorSets defaultMaterialInstanceData
+        sceneConstantsBufferMemories = _uniformBufferMemories . _sceneConstantsBufferData $ _uniformBufferDatas
 
     -- Begin Render
     acquireNextImageResult <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
@@ -392,7 +410,7 @@ updateRendererData rendererData@RendererData{..} viewMatrix projectionMatrix geo
             let vertexBuffer = _vertexBuffer geometryBufferData
                 vertexIndexCount = _vertexIndexCount geometryBufferData
                 indexBuffer = _indexBuffer geometryBufferData
-                sceneConstantsMemory = sceneConstantsMemories !! imageIndex
+                sceneConstantsMemory = sceneConstantsBufferMemories !! imageIndex
                 sceneConstantsData = SceneConstantsData
                     { _VIEW = viewMatrix
                     , _PROJECTION = projectionMatrix

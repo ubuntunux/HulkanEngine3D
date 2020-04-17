@@ -24,16 +24,12 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Application.Input
 import qualified HulkanEngine3D.Application.SceneManager as SceneManager
 import HulkanEngine3D.Render.Camera
-import HulkanEngine3D.Render.Mesh
-import HulkanEngine3D.Render.MaterialInstance
-import HulkanEngine3D.Render.UniformBufferDatas
 import qualified HulkanEngine3D.Render.Renderer as Renderer
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan.Device
-import HulkanEngine3D.Vulkan.UniformBuffer
 
 
 data TimeData = TimeData
@@ -349,21 +345,8 @@ runApplication = do
 
         -- update renderer data
         SceneManager.updateSceneManagerData sceneManagerData
-        mainCamera <- SceneManager.getMainCamera sceneManagerData
-        viewMatrix <- readIORef (_viewMatrix mainCamera)
-        projectionMatrix <- readIORef (_projectionMatrix mainCamera)
-        (Just meshData) <- getMeshData resourceData "suzan"
-        geometryBufferData <- (getGeometryData meshData 0)
 
-        Just defaultRenderPassData <- getDefaultRenderPassData resourceData
-        Just defaultMaterialInstanceData <- getDefaultMaterialInstanceData resourceData
-
-        Renderer.updateRendererData
-            rendererData
-            viewMatrix
-            projectionMatrix
-            geometryBufferData
-            (_descriptorSets defaultMaterialInstanceData)
-            (_uniformBufferMemories . _sceneConstantsBufferData . Renderer._uniformBufferDatas $ rendererData)
+        -- render scene
+        Renderer.renderScene rendererData sceneManagerData
 
     terminateApplication applicationData
