@@ -158,7 +158,7 @@ instance ResourceInterface ResourceData where
     -- TextureLoader
     loadTextureDatas :: ResourceData -> RendererData -> IO ()
     loadTextureDatas resourceData rendererData = do
-        textureFiles <- walkDirectory textureFilePath [".png", ".jpg"]
+        textureFiles <- walkDirectory textureFilePath [".jpg"]
         forM_ textureFiles $ \textureFile -> do
             let textureDataName = Text.pack $ drop (length textureFilePath + 1) (dropExtension textureFile)
             textureData <- createTexture rendererData textureDataName textureFile

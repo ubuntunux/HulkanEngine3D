@@ -5,18 +5,22 @@
 {-# LANGUAGE DuplicateRecordFields  #-}
 
 module HulkanEngine3D.Render.MaterialInstance
-    ( MaterialInstanceData (..)
+    ( MaterialInstanceDataList
+    , MaterialInstanceData (..)
     , createMaterialInstance
     , destroyMaterialInstance
     ) where
 
+import Control.Monad
+import qualified Data.Vector.Mutable as MVector
+
 import Graphics.Vulkan
 
-import Control.Monad
 import qualified HulkanEngine3D.Vulkan.RenderPass as RenderPass
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import qualified HulkanEngine3D.Resource.MaterialInstanceCreateInfo as MaterialInstanceCreateInfo
 
+type MaterialInstanceDataList = MVector.IOVector MaterialInstanceData
 
 data MaterialInstanceData = MaterialInstanceData
     { _renderPassData :: RenderPass.RenderPassData

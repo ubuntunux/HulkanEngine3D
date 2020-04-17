@@ -1,11 +1,13 @@
-{-# LANGUAGE Strict              #-}
-{-# LANGUAGE MagicHash           #-}
-{-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE UnboxedTuples       #-}
+{-# LANGUAGE Strict                 #-}
+{-# LANGUAGE MagicHash              #-}
+{-# LANGUAGE BangPatterns           #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE UnboxedTuples          #-}
+{-# LANGUAGE TypeSynonymInstances   #-}
+{-# LANGUAGE FlexibleInstances      #-}
 
 module HulkanEngine3D.Utilities.System where
 
@@ -16,6 +18,7 @@ import Control.Monad
 import Data.Char
 import Data.IORef
 import qualified Data.Time.Clock.System as SystemTime
+import qualified Data.Vector.Mutable as MVector
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -29,6 +32,9 @@ import Graphics.Vulkan.Core_1_0
 
 instance Show (IORef a) where
   show _ = "<ioref>"
+
+instance Show (MVector.IOVector a) where
+    show a = "MVector<" ++ show (MVector.length a) ++ ">"
 
 -- | Use this to throw all exceptions in this project
 data VulkanException

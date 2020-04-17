@@ -18,12 +18,7 @@ import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
 
 import HulkanEngine3D.Vulkan.GeometryBuffer
-import HulkanEngine3D.Utilities.System()
-
-type GeometryDataList = MVector.IOVector GeometryData
-
-instance Show GeometryDataList where
-    show a = show . MVector.length $ a
+import HulkanEngine3D.Utilities.System ()
 
 data MeshData = MeshData
     { _name :: IORef Text.Text

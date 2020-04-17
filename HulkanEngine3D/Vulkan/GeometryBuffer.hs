@@ -1,17 +1,20 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE Strict              #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE PolyKinds              #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE Strict                 #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE TypeSynonymInstances   #-}
+{-# LANGUAGE FlexibleInstances      #-}
 
 module HulkanEngine3D.Vulkan.GeometryBuffer
   ( Vertex (..)
   , Tri (..)
+  , GeometryDataList
   , GeometryData(..)
   , atLeastThree
   , dataFrameLength
@@ -35,6 +38,8 @@ import Foreign.Ptr (castPtr)
 import Foreign.Storable
 import Codec.Wavefront
 import Data.Maybe
+import qualified Data.Vector.Mutable as MVector
+
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
@@ -60,6 +65,8 @@ instance PrimBytes Vertex
 data Tri = Tri {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
+
+type GeometryDataList = MVector.IOVector GeometryData
 
 data GeometryData = GeometryData
     { _geometryName :: Text.Text

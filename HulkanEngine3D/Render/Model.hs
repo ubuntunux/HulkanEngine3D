@@ -10,16 +10,17 @@ module HulkanEngine3D.Render.Model
 
 import Data.IORef
 import Data.Text
+import qualified Data.Vector.Mutable as MVector
 
+import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Mesh
-import HulkanEngine3D.Utilities.System()
-
+import HulkanEngine3D.Utilities.System ()
 
 data ModelData = ModelData
     { _name :: IORef Text
     , _meshData :: MeshData
-    , _materialInstances :: [Bool]
-    } deriving (Show)
+    , _materialInstances :: MaterialInstanceDataList
+    } deriving Show
 
 
 class ModelInterface a where
@@ -29,10 +30,12 @@ class ModelInterface a where
 instance ModelInterface ModelData where
     newModelData name meshData = do
         nameRef <- newIORef name
+        let geometryBufferDataCount = MVector.length (_geometryBufferDatas meshData)
+        materialInstances <- MVector.new geometryBufferDataCount
         return ModelData
             { _name = nameRef
             , _meshData = meshData
-            , _materialInstances = []
+            , _materialInstances = materialInstances
             }
 
     updateModelData modelData = return ()
