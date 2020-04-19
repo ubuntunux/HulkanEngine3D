@@ -4,6 +4,7 @@ import qualified Data.Text as Text
 
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Mesh
+import qualified HulkanEngine3D.Render.Model as Model
 import HulkanEngine3D.Vulkan.Descriptor
 import {-# SOURCE #-} HulkanEngine3D.Render.Renderer
 import {-# SOURCE #-} HulkanEngine3D.Vulkan.RenderPass
@@ -21,6 +22,10 @@ class ResourceInterface a where
 
     loadGraphicsDatas :: a -> RendererData -> IO ()
     unloadGraphicsDatas :: a -> RendererData -> IO ()
+
+    loadModelDatas :: a -> RendererData -> IO ()
+    unloadModelDatas :: a -> RendererData -> IO ()
+    getModelData :: a -> Text.Text -> IO (Maybe Model.ModelData)
 
     loadMeshDatas :: a -> RendererData -> IO ()
     unloadMeshDatas :: a -> RendererData -> IO ()

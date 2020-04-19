@@ -8,12 +8,13 @@ module HulkanEngine3D.Resource.Resource
 
 import Control.Monad
 import qualified Data.HashTable.IO as HashTable
-import qualified Data.Text as Text
 import qualified Data.Vector.Mutable as MVector
+import qualified Data.Text as Text
 import System.FilePath.Posix
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Mesh
+import qualified HulkanEngine3D.Render.Model as Model
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.UniformBufferDatas
@@ -32,6 +33,7 @@ import HulkanEngine3D.Utilities.System
 type FrameBufferDataMap = HashTable.BasicHashTable Text.Text FrameBufferData
 type MaterialInstanceDataMap = HashTable.BasicHashTable Text.Text MaterialInstanceData
 type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
+type ModelDataMap = HashTable.BasicHashTable Text.Text Model.ModelData
 type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
 type RenderPassDataMap = HashTable.BasicHashTable Text.Text RenderPassData
 type DescriptorDataMap = HashTable.BasicHashTable Text.Text DescriptorData
@@ -41,6 +43,7 @@ textureFilePath = "Resource/Externals/Textures"
 
 data ResourceData = ResourceData
     { _meshDataMap :: MeshDataMap
+    , _modelDataMap :: ModelDataMap
     , _textureDataMap :: TextureDataMap
     , _frameBufferDataMap :: FrameBufferDataMap
     , _renderPassDataMap :: RenderPassDataMap
@@ -56,6 +59,10 @@ class ResourceInterface a where
 
     loadGraphicsDatas :: a -> RendererData -> IO ()
     unloadGraphicsDatas :: a -> RendererData -> IO ()
+
+    loadModelDatas :: a -> RendererData -> IO ()
+    unloadModelDatas :: a -> RendererData -> IO ()
+    getModelData :: a -> Text.Text -> IO (Maybe Model.ModelData)
 
     loadMeshDatas :: a -> RendererData -> IO ()
     unloadMeshDatas :: a -> RendererData -> IO ()
@@ -86,6 +93,7 @@ instance ResourceInterface ResourceData where
     createNewResourceData :: IO ResourceData
     createNewResourceData = do
         frameBufferDataMap <- HashTable.new
+        modelDataMap <- HashTable.new
         meshDataMap <- HashTable.new
         textureDataMap <- HashTable.new
         renderPassDataMap <- HashTable.new
@@ -93,6 +101,7 @@ instance ResourceInterface ResourceData where
         descriptorDataMap <- HashTable.new
         return ResourceData
             { _frameBufferDataMap = frameBufferDataMap
+            , _modelDataMap = modelDataMap
             , _meshDataMap = meshDataMap
             , _textureDataMap = textureDataMap
             , _renderPassDataMap = renderPassDataMap
@@ -103,21 +112,23 @@ instance ResourceInterface ResourceData where
     initializeResourceData :: ResourceData -> RendererData -> IO ()
     initializeResourceData resourceData rendererData = do
         logInfo "initializeResourceData"
-        loadMeshDatas resourceData rendererData
         loadTextureDatas resourceData rendererData
         loadRenderPassDatas resourceData rendererData
         loadFrameBufferDatas resourceData rendererData
         loadMaterialInstanceDatas resourceData rendererData
+        loadMeshDatas resourceData rendererData
+        loadModelDatas resourceData rendererData
 
     destroyResourceData :: ResourceData -> RendererData -> IO ()
     destroyResourceData resourceData rendererData = do
         logInfo "destroyResourceData"
+        unloadModelDatas resourceData rendererData
         unloadMeshDatas resourceData rendererData
+        unloadMaterialInstanceDatas resourceData rendererData
+        unloadFrameBufferDatas resourceData rendererData
+        unloadRenderPassDatas resourceData rendererData
         unloadTextureDatas resourceData rendererData
         unloadDescriptorDatas resourceData rendererData
-        unloadRenderPassDatas resourceData rendererData
-        unloadFrameBufferDatas resourceData rendererData
-        unloadMaterialInstanceDatas resourceData rendererData
 
     -- GraphicsDatas
     loadGraphicsDatas :: ResourceData -> RendererData -> IO ()
@@ -127,6 +138,25 @@ instance ResourceInterface ResourceData where
     unloadGraphicsDatas :: ResourceData -> RendererData -> IO ()
     unloadGraphicsDatas resourceData rendererData = do
         unloadFrameBufferDatas resourceData rendererData
+
+    -- Model Loader
+    loadModelDatas :: ResourceData -> RendererData -> IO ()
+    loadModelDatas resourceData rendererData = do
+        Just meshData <- getMeshData resourceData "suzan"
+        Just materialInstanceData <- getDefaultMaterialInstanceData resourceData
+        let modelName = "suzan"::Text.Text
+        geometryBufferDataCount <- getGeometryDataCount meshData
+        materialInstances <- MVector.replicate geometryBufferDataCount materialInstanceData
+        modelData <- Model.newModelData modelName meshData materialInstances
+        HashTable.insert (_modelDataMap resourceData) modelName modelData
+
+    unloadModelDatas :: ResourceData -> RendererData -> IO ()
+    unloadModelDatas resourceData rendererData = do
+        HashTable.mapM_ (\(k, v) -> Model.destroyModelData v) (_modelDataMap resourceData)
+
+    getModelData :: ResourceData -> Text.Text -> IO (Maybe Model.ModelData)
+    getModelData resourceData resourceName =
+        HashTable.lookup (_modelDataMap resourceData) resourceName
 
     -- Mesh Loader
     loadMeshDatas :: ResourceData -> RendererData -> IO ()
@@ -142,8 +172,9 @@ instance ResourceInterface ResourceData where
         HashTable.mapM_ (\(k, v) -> (action rendererData k v)) (_meshDataMap resourceData)
         where
             action rendererData name meshData = do
-                geometryDataList <- getGeometryDataList meshData
-                forM_  (MVector. geometryDataList $ \geometryData ->
+                geometryDataCount <- getGeometryDataCount meshData
+                forM_  [0..(geometryDataCount-1)] $ \index -> do
+                    geometryData <- getGeometryData meshData index
                     destroyGeometryBuffer rendererData geometryData
 
     getMeshData :: ResourceData -> Text.Text -> IO (Maybe MeshData)

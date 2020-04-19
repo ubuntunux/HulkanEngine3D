@@ -30,7 +30,7 @@ data MeshData = MeshData
 
 class MeshInterface a where
     newMeshData :: Text.Text -> [GeometryData] -> IO a
-    getGeometryCount :: a -> IO Int
+    getGeometryDataCount :: a -> IO Int
     getGeometryDataList :: a -> IO GeometryDataList
     getGeometryData :: a -> Int -> IO GeometryData
     updateMeshData :: a -> IO ()
@@ -51,8 +51,8 @@ instance MeshInterface MeshData where
             , _geometryBufferDatas = geometryBufferDatasRef
             }
 
-    getGeometryCount :: MeshData -> IO Int
-    getGeometryCount meshData = do
+    getGeometryDataCount :: MeshData -> IO Int
+    getGeometryDataCount meshData = do
         geometryBufferDatasList <- readIORef (_geometryBufferDatas meshData)
         return $ MVector.length geometryBufferDatasList
 
