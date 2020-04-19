@@ -47,6 +47,8 @@ import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Mesh
+import qualified HulkanEngine3D.Render.Model as Model
+import HulkanEngine3D.Render.Actor
 import HulkanEngine3D.Render.UniformBufferDatas
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.Logger
@@ -383,17 +385,17 @@ renderScene rendererData@RendererData{..} sceneManagerData = do
         renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
     swapChainData@SwapChainData {..} <- getSwapChainData rendererData
 
-    --
+    -- prepare render scene
     mainCamera <- SceneManager.getMainCamera sceneManagerData
     viewMatrix <- readIORef (_viewMatrix mainCamera)
     projectionMatrix <- readIORef (_projectionMatrix mainCamera)
-    (Just meshData) <- getMeshData _resourceData "suzan"
+
+    (Just staticObjectData) <- SceneManager.getStaticObject sceneManagerData "suzan"
+    let meshData = Model._meshData . _modelData $ staticObjectData
+    materialInstanceData <- Model.getMaterialInstanceData (_modelData staticObjectData) 0
     geometryBufferData <- (getGeometryData meshData 0)
 
-    Just defaultRenderPassData <- getDefaultRenderPassData _resourceData
-    Just defaultMaterialInstanceData <- getDefaultMaterialInstanceData _resourceData
-
-    let descriptorSets = _descriptorSets defaultMaterialInstanceData
+    let descriptorSets = _descriptorSets materialInstanceData
         sceneConstantsBufferMemories = _uniformBufferMemories . _sceneConstantsBufferData $ _uniformBufferDatas
 
     -- Begin Render
@@ -459,6 +461,7 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
     Just pipelineData <- getPipelineData defaultRenderPassData "RenderTriangle"
     let pipelineLayout = _pipelineLayout pipelineData
         pipeline = _pipeline pipelineData
+    seconds <- getSystemTime
 
     -- begin command buffer
     let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
@@ -470,14 +473,6 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
         result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
         validationVK result "vkBeginCommandBuffer failed!"
 
-    seconds <- getSystemTime
-    let phaseTau = snd (properFraction $ seconds * 0.0625::(Int, Double))
-        modelMatrix = rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
-        pushConstantData = PushConstantData { modelMatrix = modelMatrix }
-    -- push constant
-    with modelMatrix $ \modelMatrixPtr ->
-        vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
-
     -- begin renderpass
     withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
         vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
@@ -487,6 +482,13 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
         vkCmdSetViewport commandBuffer 0 1 viewPortPtr
     withPtr (_frameBufferScissorRect frameBufferData) $ \scissorRectPtr ->
         vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
+
+    -- update model view matrix
+    let phaseTau = snd (properFraction $ seconds * 0.0625::(Int, Double))
+        modelMatrix = rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
+        pushConstantData = PushConstantData { modelMatrix = modelMatrix }
+    with modelMatrix $ \modelMatrixPtr ->
+        vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
 
     -- drawing commands
     vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline

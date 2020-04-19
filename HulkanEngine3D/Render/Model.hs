@@ -27,6 +27,7 @@ data ModelData = ModelData
 class ModelInterface a where
     newModelData :: T.Text -> MeshData -> MVector.IOVector MaterialInstanceData -> IO a
     destroyModelData :: a -> IO ()
+    getMeshData :: a -> MeshData
     getMaterialInstanceDataCount :: a -> IO Int
     getMaterialInstanceDataList :: a -> IO MaterialInstanceDataList
     getMaterialInstanceData :: a -> Int -> IO MaterialInstanceData
@@ -47,6 +48,9 @@ instance ModelInterface ModelData where
     destroyModelData modelData = do
         materialInstanceDatas <- readIORef (_materialInstanceDatas modelData)
         MVector.clear materialInstanceDatas
+
+    getMeshData :: ModelData -> MeshData
+    getMeshData modelData = _meshData modelData
 
     getMaterialInstanceDataCount :: ModelData -> IO Int
     getMaterialInstanceDataCount modelData = do

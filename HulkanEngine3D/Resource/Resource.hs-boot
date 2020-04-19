@@ -23,6 +23,9 @@ class ResourceInterface a where
     loadGraphicsDatas :: a -> RendererData -> IO ()
     unloadGraphicsDatas :: a -> RendererData -> IO ()
 
+    loadSceneManagerDatas :: a -> RendererData -> IO ()
+    unloadSceneManagerDatas :: a -> RendererData -> IO ()
+
     loadModelDatas :: a -> RendererData -> IO ()
     unloadModelDatas :: a -> RendererData -> IO ()
     getModelData :: a -> Text.Text -> IO (Maybe Model.ModelData)

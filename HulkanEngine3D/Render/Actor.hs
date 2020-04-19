@@ -1,42 +1,52 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE NegativeLiterals    #-}
-{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE NegativeLiterals       #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE DuplicateRecordFields  #-}
+{-# LANGUAGE InstanceSigs           #-}
 
-module HulkanEngine3D.Render.Actor
-    ( StaticObjectData (..)
-    , StaticObjectInterface (..)
-    ) where
+module HulkanEngine3D.Render.Actor where
 
-import Data.IORef
-import Data.Text
+import qualified Data.Text as T
+
 import Numeric.DataFrame
+
 import HulkanEngine3D.Render.Model
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Utilities.System()
 
 
+data StaticObjectCreateData = StaticObjectCreateData
+    { _modelData' :: ModelData
+    , _position' :: Vec3f
+    } deriving Show
+
 data StaticObjectData = StaticObjectData
-    { _name :: IORef Text
+    { _staticObjectName :: T.Text
     , _modelData :: ModelData
     , _transformObject :: TransformObjectData
-    } deriving (Show)
+    } deriving Show
 
 
 class StaticObjectInterface a where
-    newActorData :: Text -> ModelData -> IO a
-    updateActorData :: a -> IO ()
+    createStaticObjectData :: T.Text -> StaticObjectCreateData -> IO a
+    getModelData :: a -> ModelData
+    updateStaticObjectData :: a -> IO ()
 
 instance StaticObjectInterface StaticObjectData where
-    newActorData name modelData = do
-        nameRef <- newIORef name
+    createStaticObjectData :: T.Text -> StaticObjectCreateData -> IO StaticObjectData
+    createStaticObjectData staticObjectName staticObjectCreateData = do
         transformObjectData <- newTransformObjectData
-        setPosition transformObjectData (vec3 0 0 0)
+        setPosition transformObjectData $ _position' staticObjectCreateData
         return StaticObjectData
-            { _name = nameRef
-            , _modelData = modelData
+            { _staticObjectName = staticObjectName
+            , _modelData = _modelData' staticObjectCreateData
             , _transformObject = transformObjectData
             }
 
-    updateActorData actorData = return ()
+    getModelData :: StaticObjectData -> ModelData
+    getModelData staticObjectData = _modelData staticObjectData
+
+    updateStaticObjectData :: StaticObjectData -> IO ()
+    updateStaticObjectData staticObjectData = return ()
 

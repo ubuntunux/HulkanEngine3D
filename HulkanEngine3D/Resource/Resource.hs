@@ -13,6 +13,7 @@ import qualified Data.Text as Text
 import System.FilePath.Posix
 
 import qualified HulkanEngine3D.Constants as Constants
+import {-# SOURCE #-} HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Mesh
 import qualified HulkanEngine3D.Render.Model as Model
 import HulkanEngine3D.Render.MaterialInstance
@@ -32,6 +33,7 @@ import HulkanEngine3D.Utilities.System
 
 type FrameBufferDataMap = HashTable.BasicHashTable Text.Text FrameBufferData
 type MaterialInstanceDataMap = HashTable.BasicHashTable Text.Text MaterialInstanceData
+type SceneManagerDataMap = HashTable.BasicHashTable Text.Text SceneManagerData
 type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
 type ModelDataMap = HashTable.BasicHashTable Text.Text Model.ModelData
 type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
@@ -59,6 +61,9 @@ class ResourceInterface a where
 
     loadGraphicsDatas :: a -> RendererData -> IO ()
     unloadGraphicsDatas :: a -> RendererData -> IO ()
+
+    loadSceneManagerDatas :: a -> RendererData -> IO ()
+    unloadSceneManagerDatas :: a -> RendererData -> IO ()
 
     loadModelDatas :: a -> RendererData -> IO ()
     unloadModelDatas :: a -> RendererData -> IO ()
@@ -138,6 +143,13 @@ instance ResourceInterface ResourceData where
     unloadGraphicsDatas :: ResourceData -> RendererData -> IO ()
     unloadGraphicsDatas resourceData rendererData = do
         unloadFrameBufferDatas resourceData rendererData
+
+    -- SceneManagerData
+    loadSceneManagerDatas :: ResourceData -> RendererData -> IO ()
+    loadSceneManagerDatas resourceData rendererData = return ()
+
+    unloadSceneManagerDatas :: ResourceData -> RendererData -> IO ()
+    unloadSceneManagerDatas resourceData rendererData = return ()
 
     -- Model Loader
     loadModelDatas :: ResourceData -> RendererData -> IO ()

@@ -26,7 +26,7 @@ import qualified HulkanEngine3D.Application.SceneManager as SceneManager
 import HulkanEngine3D.Render.Camera
 import qualified HulkanEngine3D.Render.Renderer as Renderer
 import HulkanEngine3D.Render.TransformObject
-import HulkanEngine3D.Resource.Resource
+import qualified HulkanEngine3D.Resource.Resource as Resource
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan.Device
@@ -52,7 +52,7 @@ data ApplicationData = ApplicationData
     , _mouseInputDataRef :: IORef MouseInputData
     , _sceneManagerData :: SceneManager.SceneManagerData
     , _rendererData :: Renderer.RendererData
-    , _resourceData :: ResourceData
+    , _resourceData :: Resource.ResourceData
     } deriving (Show)
 
 
@@ -213,7 +213,7 @@ initializeApplication = do
         isConcurrentMode = True
         msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
 
-    resourceData <- createNewResourceData
+    resourceData <- Resource.createNewResourceData
     rendererData <- Renderer.createRenderer
         window
         progName
@@ -223,13 +223,7 @@ initializeApplication = do
         requireExtensions
         msaaSampleCount
         resourceData
-    initializeResourceData resourceData rendererData
-
-    let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
-        cameraCreateData = getDefaultCameraCreateData { aspect = aspect, position = vec3 0 0 10 }
-
     sceneManagerData <- SceneManager.newSceneManagerData rendererData resourceData
-    SceneManager.loadSceneManagerData sceneManagerData cameraCreateData
 
     -- init system variables
     currentTime <- getSystemTime
@@ -243,7 +237,7 @@ initializeApplication = do
         , _deltaTime = 0.0
         }
 
-    return ApplicationData
+    let applicationData = ApplicationData
             { _window = window
             , _windowSizeChangedRef = windowSizeChangedRef
             , _windowSizeRef = windowSizeRef
@@ -255,6 +249,16 @@ initializeApplication = do
             , _rendererData = rendererData
             , _resourceData = resourceData
             }
+
+    -- initlaize managers
+    Resource.initializeResourceData resourceData rendererData
+
+    let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
+        cameraCreateData = getDefaultCameraCreateData { aspect = aspect, position = vec3 0 0 10 }
+
+    SceneManager.openSceneManagerData sceneManagerData cameraCreateData
+
+    return applicationData
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ()) -> IO ()
 updateLoop applicationData loopAction = do
@@ -286,7 +290,7 @@ terminateApplication applicationData = do
     -- waiting
     Renderer.deviceWaitIdle (_rendererData applicationData)
 
-    destroyResourceData (_resourceData applicationData) (_rendererData applicationData)
+    Resource.destroyResourceData (_resourceData applicationData) (_rendererData applicationData)
     Renderer.destroyRenderer (_rendererData applicationData)
     destroyGLFWWindow (_window applicationData)
 
