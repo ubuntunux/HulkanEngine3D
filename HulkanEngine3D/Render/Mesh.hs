@@ -25,11 +25,13 @@ data MeshData = MeshData
     , _boundBox :: Bool
     , _skeletonDatas :: [Bool]
     , _animationDatas :: [Bool]
-    , _geometryBufferDatas :: GeometryDataList
+    , _geometryBufferDatas :: IORef GeometryDataList
     } deriving (Show)
 
 class MeshInterface a where
     newMeshData :: Text.Text -> [GeometryData] -> IO a
+    getGeometryCount :: a -> IO Int
+    getGeometryDataList :: a -> IO GeometryDataList
     getGeometryData :: a -> Int -> IO GeometryData
     updateMeshData :: a -> IO ()
 
@@ -40,16 +42,27 @@ instance MeshInterface MeshData where
         geometryBufferDataList <- MVector.new (length geometryBufferDatas)
         forM_ (zip [0..] geometryBufferDatas) $ \(index, geometryBufferData) ->
             MVector.write geometryBufferDataList index geometryBufferData
+        geometryBufferDatasRef <- newIORef geometryBufferDataList
         return MeshData
             { _name = nameRef
             , _boundBox = False
             , _skeletonDatas = []
             , _animationDatas = []
-            , _geometryBufferDatas = geometryBufferDataList
+            , _geometryBufferDatas = geometryBufferDatasRef
             }
 
+    getGeometryCount :: MeshData -> IO Int
+    getGeometryCount meshData = do
+        geometryBufferDatasList <- readIORef (_geometryBufferDatas meshData)
+        return $ MVector.length geometryBufferDatasList
+
+    getGeometryDataList :: MeshData -> IO GeometryDataList
+    getGeometryDataList meshData = readIORef (_geometryBufferDatas meshData)
+
     getGeometryData :: MeshData -> Int -> IO GeometryData
-    getGeometryData meshData n = MVector.read (_geometryBufferDatas meshData) n
+    getGeometryData meshData n = do
+        geometryBufferDatasList <- readIORef (_geometryBufferDatas meshData)
+        MVector.read geometryBufferDatasList n
 
     updateMeshData :: MeshData -> IO ()
     updateMeshData meshData = return ()

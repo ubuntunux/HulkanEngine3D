@@ -142,14 +142,9 @@ instance ResourceInterface ResourceData where
         HashTable.mapM_ (\(k, v) -> (action rendererData k v)) (_meshDataMap resourceData)
         where
             action rendererData name meshData = do
-                let count = MVector.length (_geometryBufferDatas meshData)
-                    loop x
-                        | x < count = do
-                            geometryBufferData <- MVector.unsafeRead (_geometryBufferDatas meshData) x
-                            destroyGeometryBuffer rendererData geometryBufferData
-                            loop (x+1)
-                        | otherwise = return ()
-                loop 0
+                geometryDataList <- getGeometryDataList meshData
+                forM_  (MVector. geometryDataList $ \geometryData ->
+                    destroyGeometryBuffer rendererData geometryData
 
     getMeshData :: ResourceData -> Text.Text -> IO (Maybe MeshData)
     getMeshData resourceData resourceName =

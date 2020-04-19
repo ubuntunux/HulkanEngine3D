@@ -17,9 +17,9 @@ import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Utilities.System ()
 
 data ModelData = ModelData
-    { _name :: IORef Text
+    { _modelDataName :: IORef Text
     , _meshData :: MeshData
-    , _materialInstances :: MaterialInstanceDataList
+    , _materialInstances :: IORef MaterialInstanceDataList
     } deriving Show
 
 
@@ -29,13 +29,14 @@ class ModelInterface a where
 
 instance ModelInterface ModelData where
     newModelData name meshData = do
-        nameRef <- newIORef name
-        let geometryBufferDataCount = MVector.length (_geometryBufferDatas meshData)
+        modelDataName <- newIORef name
+        geometryBufferDataCount <- getGeometryCount meshData
         materialInstances <- MVector.new geometryBufferDataCount
+        materialInstancesRef <- newIORef materialInstances
         return ModelData
-            { _name = nameRef
+            { _modelDataName = modelDataName
             , _meshData = meshData
-            , _materialInstances = materialInstances
+            , _materialInstances = materialInstancesRef
             }
 
     updateModelData modelData = return ()
