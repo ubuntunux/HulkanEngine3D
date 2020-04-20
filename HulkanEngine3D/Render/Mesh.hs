@@ -12,10 +12,8 @@ module HulkanEngine3D.Render.Mesh
     , GeometryDataList
     ) where
 
-import Control.Monad
 import Data.IORef
 import qualified Data.Text as Text
-import qualified Data.Vector.Mutable as MVector
 
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Utilities.System ()
@@ -39,10 +37,7 @@ instance MeshInterface MeshData where
     newMeshData :: Text.Text -> [GeometryData] -> IO MeshData
     newMeshData meshName geometryBufferDatas = do
         nameRef <- newIORef meshName
-        geometryBufferDataList <- MVector.new (length geometryBufferDatas)
-        forM_ (zip [0..] geometryBufferDatas) $ \(index, geometryBufferData) ->
-            MVector.write geometryBufferDataList index geometryBufferData
-        geometryBufferDatasRef <- newIORef geometryBufferDataList
+        geometryBufferDatasRef <- newIORef geometryBufferDatas
         return MeshData
             { _name = nameRef
             , _boundBox = False
@@ -54,7 +49,7 @@ instance MeshInterface MeshData where
     getGeometryDataCount :: MeshData -> IO Int
     getGeometryDataCount meshData = do
         geometryBufferDatasList <- readIORef (_geometryBufferDatas meshData)
-        return $ MVector.length geometryBufferDatasList
+        return $ length geometryBufferDatasList
 
     getGeometryDataList :: MeshData -> IO GeometryDataList
     getGeometryDataList meshData = readIORef (_geometryBufferDatas meshData)
@@ -62,7 +57,7 @@ instance MeshInterface MeshData where
     getGeometryData :: MeshData -> Int -> IO GeometryData
     getGeometryData meshData n = do
         geometryBufferDatasList <- readIORef (_geometryBufferDatas meshData)
-        MVector.read geometryBufferDatasList n
+        return $ geometryBufferDatasList !! n
 
     updateMeshData :: MeshData -> IO ()
     updateMeshData meshData = return ()

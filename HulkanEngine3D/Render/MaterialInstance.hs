@@ -12,7 +12,6 @@ module HulkanEngine3D.Render.MaterialInstance
     ) where
 
 import Control.Monad
-import qualified Data.Vector.Mutable as MVector
 
 import Graphics.Vulkan
 
@@ -20,7 +19,7 @@ import qualified HulkanEngine3D.Vulkan.RenderPass as RenderPass
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import qualified HulkanEngine3D.Resource.MaterialInstanceCreateInfo as MaterialInstanceCreateInfo
 
-type MaterialInstanceDataList = MVector.IOVector MaterialInstanceData
+type MaterialInstanceDataList = [MaterialInstanceData]
 
 data MaterialInstanceData = MaterialInstanceData
     { _renderPassData :: RenderPass.RenderPassData

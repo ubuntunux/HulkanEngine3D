@@ -11,7 +11,6 @@ module HulkanEngine3D.Render.Model
 
 import Data.IORef
 import qualified Data.Text as T
-import qualified Data.Vector.Mutable as MVector
 
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Mesh
@@ -25,7 +24,7 @@ data ModelData = ModelData
 
 
 class ModelInterface a where
-    newModelData :: T.Text -> MeshData -> MVector.IOVector MaterialInstanceData -> IO a
+    newModelData :: T.Text -> MeshData -> [MaterialInstanceData] -> IO a
     destroyModelData :: a -> IO ()
     getMeshData :: a -> MeshData
     getMaterialInstanceDataCount :: a -> IO Int
@@ -34,7 +33,7 @@ class ModelInterface a where
     updateModelData :: a -> IO ()
 
 instance ModelInterface ModelData where
-    newModelData :: T.Text -> MeshData -> MVector.IOVector MaterialInstanceData -> IO ModelData
+    newModelData :: T.Text -> MeshData -> [MaterialInstanceData] -> IO ModelData
     newModelData name meshData materialInstanceDatas = do
         modelDataName <- newIORef name
         materialInstanceDatasRef <- newIORef materialInstanceDatas
@@ -47,7 +46,7 @@ instance ModelInterface ModelData where
     destroyModelData :: ModelData -> IO ()
     destroyModelData modelData = do
         materialInstanceDatas <- readIORef (_materialInstanceDatas modelData)
-        MVector.clear materialInstanceDatas
+        return ()
 
     getMeshData :: ModelData -> MeshData
     getMeshData modelData = _meshData modelData
@@ -55,7 +54,7 @@ instance ModelInterface ModelData where
     getMaterialInstanceDataCount :: ModelData -> IO Int
     getMaterialInstanceDataCount modelData = do
         materialInstanceDatas <- readIORef (_materialInstanceDatas modelData)
-        return $ MVector.length materialInstanceDatas
+        return $ length materialInstanceDatas
 
     getMaterialInstanceDataList :: ModelData -> IO MaterialInstanceDataList
     getMaterialInstanceDataList modelData = readIORef (_materialInstanceDatas modelData)
@@ -63,7 +62,7 @@ instance ModelInterface ModelData where
     getMaterialInstanceData :: ModelData -> Int -> IO MaterialInstanceData
     getMaterialInstanceData modelData n = do
         materialInstanceDatas <- readIORef (_materialInstanceDatas modelData)
-        MVector.read materialInstanceDatas n
+        return $ materialInstanceDatas !! n
 
     updateModelData :: ModelData -> IO ()
     updateModelData modelData = return ()

@@ -38,7 +38,6 @@ import Foreign.Ptr (castPtr)
 import Foreign.Storable
 import Codec.Wavefront
 import Data.Maybe
-import qualified Data.Vector.Mutable as MVector
 
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
@@ -66,7 +65,7 @@ data Tri = Tri {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
                {-# UNPACK #-}!FaceIndex
 
-type GeometryDataList = MVector.IOVector GeometryData
+type GeometryDataList = [GeometryData]
 
 data GeometryData = GeometryData
     { _geometryName :: Text.Text

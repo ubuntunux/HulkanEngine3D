@@ -8,7 +8,6 @@ module HulkanEngine3D.Resource.Resource
 
 import Control.Monad
 import qualified Data.HashTable.IO as HashTable
-import qualified Data.Vector.Mutable as MVector
 import qualified Data.Text as Text
 import System.FilePath.Posix
 
@@ -158,7 +157,7 @@ instance ResourceInterface ResourceData where
         Just materialInstanceData <- getDefaultMaterialInstanceData resourceData
         let modelName = "suzan"::Text.Text
         geometryBufferDataCount <- getGeometryDataCount meshData
-        materialInstances <- MVector.replicate geometryBufferDataCount materialInstanceData
+        let materialInstances = replicate geometryBufferDataCount materialInstanceData
         modelData <- Model.newModelData modelName meshData materialInstances
         HashTable.insert (_modelDataMap resourceData) modelName modelData
 
