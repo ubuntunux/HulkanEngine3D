@@ -14,7 +14,6 @@ module HulkanEngine3D.Render.Renderer
   , initializeRenderer
   , resizeWindow
   , recreateSwapChain
-  , recordCommandBuffer
   , renderScene
   ) where
 
@@ -385,19 +384,6 @@ renderScene rendererData@RendererData{..} sceneManagerData = do
         renderFinishedSemaphore = _renderFinishedSemaphores !! frameIndex
     swapChainData@SwapChainData {..} <- getSwapChainData rendererData
 
-    -- prepare render scene
-    mainCamera <- SceneManager.getMainCamera sceneManagerData
-    viewMatrix <- readIORef (_viewMatrix mainCamera)
-    projectionMatrix <- readIORef (_projectionMatrix mainCamera)
-
-    (Just staticObjectData) <- SceneManager.getStaticObject sceneManagerData "suzan"
-    let meshData = Model._meshData . _modelData $ staticObjectData
-    materialInstanceData <- Model.getMaterialInstanceData (_modelData staticObjectData) 0
-    geometryBufferData <- (getGeometryData meshData 0)
-
-    let descriptorSets = _descriptorSets materialInstanceData
-        sceneConstantsBufferMemories = _uniformBufferMemories . _sceneConstantsBufferData $ _uniformBufferDatas
-
     -- Begin Render
     acquireNextImageResult <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
     imageIndexValue <- peek _imageIndexPtr
@@ -408,17 +394,20 @@ renderScene rendererData@RendererData{..} sceneManagerData = do
 
     result <- case acquireNextImageResult of
         VK_SUCCESS -> do
-            -- RenderScene
-            let vertexBuffer = _vertexBuffer geometryBufferData
-                vertexIndexCount = _vertexIndexCount geometryBufferData
-                indexBuffer = _indexBuffer geometryBufferData
-                sceneConstantsMemory = sceneConstantsBufferMemories !! imageIndex
+            -- Render Scene
+            mainCamera <- SceneManager.getMainCamera sceneManagerData
+            viewMatrix <- readIORef (_viewMatrix mainCamera)
+            projectionMatrix <- readIORef (_projectionMatrix mainCamera)
+
+            -- Upload Uniform Buffers
+            let sceneConstantsMemory = (_uniformBufferMemories . _sceneConstantsBufferData $ _uniformBufferDatas) !! imageIndex
                 sceneConstantsData = SceneConstantsData
                     { _VIEW = viewMatrix
                     , _PROJECTION = projectionMatrix
                     }
             updateBufferData _device sceneConstantsMemory sceneConstantsData
-            recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (vertexIndexCount, indexBuffer) descriptorSets
+
+            renderSolid rendererData commandBuffer imageIndex sceneManagerData
 
             -- End Render
             presentResult <- presentSwapChain rendererData commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore
@@ -445,20 +434,27 @@ recreateSwapChain rendererData@RendererData {..} window = do
     createCommandBuffers _device _commandPool _commandBufferCount _commandBuffersPtr
 
 
-recordCommandBuffer :: RendererData
-                    -> VkCommandBuffer
-                    -> Int
-                    -> VkBuffer -- vertex data
-                    -> (Word32, VkBuffer) -- nr of indices and index data
-                    -> [VkDescriptorSet]
-                    -> IO ()
-recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCount, indexBuffer) descriptorSets = do
-    Just defaultRenderPassData <- getDefaultRenderPassData (_resourceData rendererData)
-    Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (_renderPassDataName defaultRenderPassData)
-    let renderPass = _renderPass defaultRenderPassData
+renderSolid :: RendererData
+            -> VkCommandBuffer
+            -> Int
+            -> SceneManager.SceneManagerData
+            -> IO ()
+renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
+    (Just staticObjectData) <- SceneManager.getStaticObject sceneManagerData "suzan"
+    let meshData = Model._meshData . _modelData $ staticObjectData
+    geometryBufferData <- (getGeometryData meshData 0)
+    let vertexBuffer = _vertexBuffer geometryBufferData
+        indexBuffer = _indexBuffer geometryBufferData
+        indexCount = _vertexIndexCount geometryBufferData
+
+    materialInstanceData <- Model.getMaterialInstanceData (_modelData staticObjectData) 0
+    let renderPassData = _renderPassData materialInstanceData
+
+    Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (_renderPassDataName renderPassData)
+    let renderPass = _renderPass renderPassData
         renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
-        descriptorSet = descriptorSets !! imageIndex
-    Just pipelineData <- getPipelineData defaultRenderPassData "RenderTriangle"
+        descriptorSet = (_descriptorSets materialInstanceData) !! imageIndex
+    Just pipelineData <- getPipelineData renderPassData "RenderTriangle"
     let pipelineLayout = _pipelineLayout pipelineData
         pipeline = _pipeline pipelineData
     seconds <- getSystemTime
@@ -487,6 +483,7 @@ recordCommandBuffer rendererData commandBuffer imageIndex vertexBuffer (indexCou
     let phaseTau = snd (properFraction $ seconds * 0.0625::(Int, Double))
         modelMatrix = rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
         pushConstantData = PushConstantData { modelMatrix = modelMatrix }
+
     with modelMatrix $ \modelMatrixPtr ->
         vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
 
