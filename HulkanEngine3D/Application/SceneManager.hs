@@ -95,26 +95,24 @@ instance SceneManagerInterface SceneManagerData where
         mainCamera <- getMainCamera sceneManagerData
         updateCameraObjectData mainCamera
 
-        forM_ [(0::Int)..10000] $ \t -> do
-            flip HashTable.mapM_ _staticObjectMap $ \(_, staticObjectData) ->
-                RenderObject.updateStaticObjectData staticObjectData
+        flip HashTable.mapM_ _staticObjectMap $ \(_, staticObjectData) ->
+            RenderObject.updateStaticObjectData staticObjectData
 
-            writeIORef _staticObjectRenderElements []
-            flip HashTable.mapM_ _staticObjectMap $ \(_, staticObjectData) -> do
-                staticObjectRenderElements <- readIORef _staticObjectRenderElements
-                geometryBufferDatas <- readIORef (Mesh._geometryBufferDatas . Model._meshData . RenderObject._modelData $ staticObjectData)
-                materialInstanceDatas <- readIORef (Model._materialInstanceDatas . RenderObject._modelData $ staticObjectData)
-                let geometryDataCount = length geometryBufferDatas
-                renderElementList <- forM [0..(geometryDataCount-1)] $ \index -> do
-                    let geometryData = geometryBufferDatas !! index
-                    let materialInstanceData = materialInstanceDatas !! index
-                    return RenderElement.RenderElementData
-                        { _renderObject = staticObjectData
-                        , _geometryData = geometryData
-                        , _materialInstanceData = materialInstanceData
-                        }
-                writeIORef _staticObjectRenderElements (staticObjectRenderElements ++ renderElementList)
-        return ()
+        writeIORef _staticObjectRenderElements []
+        flip HashTable.mapM_ _staticObjectMap $ \(_, staticObjectData) -> do
+            staticObjectRenderElements <- readIORef _staticObjectRenderElements
+            geometryBufferDatas <- readIORef (Mesh._geometryBufferDatas . Model._meshData . RenderObject._modelData $ staticObjectData)
+            materialInstanceDatas <- readIORef (Model._materialInstanceDatas . RenderObject._modelData $ staticObjectData)
+            let geometryDataCount = length geometryBufferDatas
+            renderElementList <- forM [0..(geometryDataCount-1)] $ \index -> do
+                let geometryData = geometryBufferDatas !! index
+                let materialInstanceData = materialInstanceDatas !! index
+                return RenderElement.RenderElementData
+                    { _renderObject = staticObjectData
+                    , _geometryData = geometryData
+                    , _materialInstanceData = materialInstanceData
+                    }
+            writeIORef _staticObjectRenderElements (staticObjectRenderElements ++ renderElementList)
 
 generateObjectName :: HashTable.BasicHashTable T.Text v -> T.Text -> IO T.Text
 generateObjectName objectMap objectName = do
