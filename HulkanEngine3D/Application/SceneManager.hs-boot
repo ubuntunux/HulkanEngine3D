@@ -2,7 +2,7 @@ module HulkanEngine3D.Application.SceneManager where
 
 import qualified Data.Text as T
 
-import HulkanEngine3D.Render.Actor
+import HulkanEngine3D.Render.RenderObject
 import HulkanEngine3D.Render.Camera
 import {-# SOURCE #-} qualified HulkanEngine3D.Render.Renderer as Renderer
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource

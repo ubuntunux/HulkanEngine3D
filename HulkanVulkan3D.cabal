@@ -26,7 +26,6 @@ executable main
                       HulkanEngine3D.Application.Editor
                       HulkanEngine3D.Application.SceneManager
                       HulkanEngine3D.Constants
-                      HulkanEngine3D.Render.Actor
                       HulkanEngine3D.Render.Camera
                       HulkanEngine3D.Render.ImageSampler
                       HulkanEngine3D.Render.MaterialInstance
@@ -35,6 +34,7 @@ executable main
                       HulkanEngine3D.Render.RenderTarget
                       HulkanEngine3D.Render.Renderer
                       HulkanEngine3D.Render.RenderElement
+                      HulkanEngine3D.Render.RenderObject
                       HulkanEngine3D.Render.TransformObject
                       HulkanEngine3D.Render.UniformBufferDatas
                       HulkanEngine3D.Resource.ObjLoader

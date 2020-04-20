@@ -2,16 +2,14 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module HulkanEngine3D.Render.RenderElement
-    ( RenderElementData (..)
-    , defaultRenderElementData
-    ) where
+module HulkanEngine3D.Render.RenderElement where
+
+import HulkanEngine3D.Render.MaterialInstance
+import HulkanEngine3D.Render.RenderObject
+import HulkanEngine3D.Vulkan.GeometryBuffer
 
 data RenderElementData = RenderElementData
-    {
-    } deriving (Eq, Show)
-
-defaultRenderElementData :: RenderElementData
-defaultRenderElementData = RenderElementData
-    {
-    }
+    { _renderObject :: StaticObjectData
+    , _geometryData :: GeometryData
+    , _materialInstanceData :: MaterialInstanceData
+    } deriving Show

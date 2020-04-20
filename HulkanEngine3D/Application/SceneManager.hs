@@ -5,19 +5,24 @@
 
 module HulkanEngine3D.Application.SceneManager where
 
+import Control.Monad
 import qualified Data.HashTable.IO as HashTable
 import qualified Data.Text as T
 import Data.IORef
+import qualified Data.Vector.Mutable as MVector
 
 import Numeric.DataFrame
 
-import HulkanEngine3D.Render.Actor
+import qualified HulkanEngine3D.Render.RenderObject as RenderObject
 import HulkanEngine3D.Render.Camera
+import qualified HulkanEngine3D.Render.Mesh as Mesh
+import qualified HulkanEngine3D.Render.Model as Model
+import qualified HulkanEngine3D.Render.RenderElement as RenderElement
 import qualified HulkanEngine3D.Render.Renderer as Renderer
 import qualified HulkanEngine3D.Resource.Resource as Resource
 
 type CameraObjectMap = HashTable.BasicHashTable T.Text CameraObjectData
-type StaticObjectMap = HashTable.BasicHashTable T.Text StaticObjectData
+type StaticObjectMap = HashTable.BasicHashTable T.Text RenderObject.StaticObjectData
 
 data SceneManagerData = SceneManagerData
     { _rendererData :: Renderer.RendererData
@@ -25,6 +30,7 @@ data SceneManagerData = SceneManagerData
     , _mainCamera :: IORef CameraObjectData
     , _cameraObjectMap :: CameraObjectMap
     , _staticObjectMap :: StaticObjectMap
+    , _staticObjectRenderElements :: IORef [RenderElement.RenderElementData]
     } deriving (Show)
 
 class SceneManagerInterface a where
@@ -32,8 +38,8 @@ class SceneManagerInterface a where
     openSceneManagerData :: a -> CameraCreateData -> IO ()
     getMainCamera :: a -> IO CameraObjectData
     addCameraObject :: a -> T.Text -> CameraCreateData -> IO CameraObjectData
-    addStaticObject :: a -> T.Text -> StaticObjectCreateData -> IO StaticObjectData
-    getStaticObject :: a -> T.Text -> IO (Maybe StaticObjectData)
+    addStaticObject :: a -> T.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
+    getStaticObject :: a -> T.Text -> IO (Maybe RenderObject.StaticObjectData)
     updateSceneManagerData :: a -> IO ()
 
 instance SceneManagerInterface SceneManagerData where
@@ -42,12 +48,14 @@ instance SceneManagerInterface SceneManagerData where
         mainCameraRef <- newIORef (undefined::CameraObjectData)
         cameraObjectMap <- HashTable.new
         staticObjectMap <- HashTable.new
+        staticObjectRenderElements <- newIORef []
         return SceneManagerData
             { _rendererData = rendererData
             , _resourceData = resourceData
             , _mainCamera = mainCameraRef
             , _cameraObjectMap = cameraObjectMap
             , _staticObjectMap = staticObjectMap
+            , _staticObjectRenderElements = staticObjectRenderElements
             }
 
     openSceneManagerData :: SceneManagerData -> CameraCreateData -> IO ()
@@ -56,9 +64,9 @@ instance SceneManagerInterface SceneManagerData where
         writeIORef _mainCamera mainCamera
 
         Just modelData <- Resource.getModelData _resourceData "suzan"
-        let staticObjectCreateData = StaticObjectCreateData
-                { _modelData' = modelData
-                , _position' = vec3 0 0 0
+        let staticObjectCreateData = RenderObject.StaticObjectCreateData
+                { RenderObject._modelData' = modelData
+                , RenderObject._position' = vec3 0 0 0
                 }
         addStaticObject sceneManagerData "suzan" staticObjectCreateData
         return ()
@@ -73,23 +81,39 @@ instance SceneManagerInterface SceneManagerData where
         HashTable.insert (_cameraObjectMap sceneManagerData) newObjectName cameraObjectData
         return cameraObjectData
 
-    addStaticObject :: SceneManagerData -> T.Text -> StaticObjectCreateData -> IO StaticObjectData
+    addStaticObject :: SceneManagerData -> T.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
     addStaticObject sceneManagerData objectName staticObjectCreateData = do
         newObjectName <- generateObjectName (_staticObjectMap sceneManagerData) objectName
-        staticObjectData <- createStaticObjectData newObjectName staticObjectCreateData
+        staticObjectData <- RenderObject.createStaticObjectData newObjectName staticObjectCreateData
         HashTable.insert (_staticObjectMap sceneManagerData) newObjectName staticObjectData
         return staticObjectData
 
-    getStaticObject :: SceneManagerData -> T.Text -> IO (Maybe StaticObjectData)
+    getStaticObject :: SceneManagerData -> T.Text -> IO (Maybe RenderObject.StaticObjectData)
     getStaticObject sceneManagerData objectName = HashTable.lookup (_staticObjectMap sceneManagerData) objectName
     
     updateSceneManagerData :: SceneManagerData -> IO ()
-    updateSceneManagerData sceneManagerData = do
+    updateSceneManagerData sceneManagerData@SceneManagerData {..} = do
         mainCamera <- getMainCamera sceneManagerData
         updateCameraObjectData mainCamera
 
-        HashTable.mapM_ (\(k, v) -> updateStaticObjectData v) (_staticObjectMap sceneManagerData)
-    
+        flip HashTable.mapM_ _staticObjectMap $ \(_, staticObjectData) ->
+            RenderObject.updateStaticObjectData staticObjectData
+
+        writeIORef _staticObjectRenderElements []
+        flip HashTable.mapM_ _staticObjectMap $ \(_, staticObjectData) -> do
+            staticObjectRenderElements <- readIORef _staticObjectRenderElements
+            geometryBufferDatas <- readIORef (Mesh._geometryBufferDatas . Model._meshData . RenderObject._modelData $ staticObjectData)
+            materialInstanceDatas <- readIORef (Model._materialInstanceDatas . RenderObject._modelData $ staticObjectData)
+            let geometryDataCount = MVector.length geometryBufferDatas
+            renderElementList <- forM [0..(geometryDataCount-1)] $ \index -> do
+                geometryData <- MVector.read geometryBufferDatas index
+                materialInstanceData <- MVector.read materialInstanceDatas index
+                return RenderElement.RenderElementData
+                    { _renderObject = staticObjectData
+                    , _geometryData = geometryData
+                    , _materialInstanceData = materialInstanceData
+                    }
+            writeIORef _staticObjectRenderElements (staticObjectRenderElements ++ renderElementList)
 
 generateObjectName :: HashTable.BasicHashTable T.Text v -> T.Text -> IO T.Text
 generateObjectName objectMap objectName = do

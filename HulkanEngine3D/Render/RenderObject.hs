@@ -5,7 +5,7 @@
 {-# LANGUAGE DuplicateRecordFields  #-}
 {-# LANGUAGE InstanceSigs           #-}
 
-module HulkanEngine3D.Render.Actor where
+module HulkanEngine3D.Render.RenderObject where
 
 import qualified Data.Text as T
 

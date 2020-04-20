@@ -47,7 +47,7 @@ import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Mesh
 import qualified HulkanEngine3D.Render.Model as Model
-import HulkanEngine3D.Render.Actor
+import HulkanEngine3D.Render.RenderObject
 import HulkanEngine3D.Render.UniformBufferDatas
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.Logger
@@ -394,7 +394,6 @@ renderScene rendererData@RendererData{..} sceneManagerData = do
 
     result <- case acquireNextImageResult of
         VK_SUCCESS -> do
-            -- Render Scene
             mainCamera <- SceneManager.getMainCamera sceneManagerData
             viewMatrix <- readIORef (_viewMatrix mainCamera)
             projectionMatrix <- readIORef (_projectionMatrix mainCamera)
@@ -407,7 +406,20 @@ renderScene rendererData@RendererData{..} sceneManagerData = do
                     }
             updateBufferData _device sceneConstantsMemory sceneConstantsData
 
+            -- Begin command buffer
+            let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
+                    $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+                    &* set @"pNext" VK_NULL
+                    &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
+            withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
+                result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
+                validationVK result "vkBeginCommandBuffer failed!"
+
+            -- Render
             renderSolid rendererData commandBuffer imageIndex sceneManagerData
+
+            -- End command buffer
+            vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
 
             -- End Render
             presentResult <- presentSwapChain rendererData commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore
@@ -459,16 +471,6 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
         pipeline = _pipeline pipelineData
     seconds <- getSystemTime
 
-    -- begin command buffer
-    let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
-            $  set @"sType" VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-            &* set @"pNext" VK_NULL
-            &* set @"flags" VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
-
-    withPtr commandBufferBeginInfo $ \commandBufferBeginInfoPtr -> do
-        result <- vkBeginCommandBuffer commandBuffer commandBufferBeginInfoPtr
-        validationVK result "vkBeginCommandBuffer failed!"
-
     -- begin renderpass
     withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
         vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
@@ -497,9 +499,7 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
         vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
     vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
 
-    -- end renderpass & command buffer
     vkCmdEndRenderPass commandBuffer
-    vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
 
 presentSwapChain :: RendererData -> Ptr VkCommandBuffer -> Ptr VkFence -> VkSemaphore -> VkSemaphore -> IO VkResult
 presentSwapChain rendererData@RendererData {..} commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore = do
