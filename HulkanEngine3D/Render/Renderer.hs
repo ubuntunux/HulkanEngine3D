@@ -45,9 +45,9 @@ import HulkanEngine3D.Render.Camera
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Render.MaterialInstance
-import HulkanEngine3D.Render.Mesh
-import qualified HulkanEngine3D.Render.Model as Model
-import HulkanEngine3D.Render.RenderObject
+import qualified HulkanEngine3D.Render.RenderElement as RenderElement
+import qualified HulkanEngine3D.Render.RenderObject as RenderObject
+import qualified HulkanEngine3D.Render.TransformObject as TransformObject
 import HulkanEngine3D.Render.UniformBufferDatas
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.Logger
@@ -452,52 +452,57 @@ renderSolid :: RendererData
             -> SceneManager.SceneManagerData
             -> IO ()
 renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
-    (Just staticObjectData) <- SceneManager.getStaticObject sceneManagerData "suzan"
-    let meshData = Model._meshData . _modelData $ staticObjectData
-    geometryBufferData <- (getGeometryData meshData 0)
-    let vertexBuffer = _vertexBuffer geometryBufferData
-        indexBuffer = _indexBuffer geometryBufferData
-        indexCount = _vertexIndexCount geometryBufferData
+    staticObjectRenderElements <- SceneManager.getStaticObjectRenderElements sceneManagerData
+    forM_ (zip [(0::Int)..] staticObjectRenderElements) $ \(index, renderElement) -> do
+        let renderObject = RenderElement._renderObject renderElement
+            geometryBufferData = RenderElement._geometryData renderElement
+            vertexBuffer = _vertexBuffer geometryBufferData
+            indexBuffer = _indexBuffer geometryBufferData
+            indexCount = _vertexIndexCount geometryBufferData
+            materialInstanceData = RenderElement._materialInstanceData renderElement
+            renderPassData = _renderPassData materialInstanceData
 
-    materialInstanceData <- Model.getMaterialInstanceData (_modelData staticObjectData) 0
-    let renderPassData = _renderPassData materialInstanceData
+        Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (_renderPassDataName renderPassData)
+        let renderPass = _renderPass renderPassData
+            renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
+            descriptorSet = (_descriptorSets materialInstanceData) !! imageIndex
+        Just pipelineData <- getPipelineData renderPassData "RenderTriangle"
+        let pipelineLayout = _pipelineLayout pipelineData
+            pipeline = _pipeline pipelineData
 
-    Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (_renderPassDataName renderPassData)
-    let renderPass = _renderPass renderPassData
-        renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
-        descriptorSet = (_descriptorSets materialInstanceData) !! imageIndex
-    Just pipelineData <- getPipelineData renderPassData "RenderTriangle"
-    let pipelineLayout = _pipelineLayout pipelineData
-        pipeline = _pipeline pipelineData
-    seconds <- getSystemTime
+        when (0 == index) $ do
+            -- begin renderpass
+            withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
+                vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
 
-    -- begin renderpass
-    withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
-        vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
+            -- set viewport
+            withPtr (_frameBufferViewPort frameBufferData) $ \viewPortPtr ->
+                vkCmdSetViewport commandBuffer 0 1 viewPortPtr
+            withPtr (_frameBufferScissorRect frameBufferData) $ \scissorRectPtr ->
+                vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
 
-    -- set viewport
-    withPtr (_frameBufferViewPort frameBufferData) $ \viewPortPtr ->
-        vkCmdSetViewport commandBuffer 0 1 viewPortPtr
-    withPtr (_frameBufferScissorRect frameBufferData) $ \scissorRectPtr ->
-        vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
+            -- bind pipeline
+            vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
 
-    -- update model view matrix
-    let phaseTau = snd (properFraction $ seconds * 0.0625::(Int, Double))
-        modelMatrix = rotate (vec3 0 1 0) (realToFrac phaseTau * 2 * pi)
-        pushConstantData = PushConstantData { modelMatrix = modelMatrix }
+            -- bind descriptorset
+            with descriptorSet $ \descriptorSetPtr ->
+                vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
 
-    with modelMatrix $ \modelMatrixPtr ->
-        vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
+        -- update model view matrix
+        modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
+        let pushConstantData = PushConstantData { modelMatrix = modelMatrix }
 
-    -- drawing commands
-    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
-    with vertexBuffer $ \vertexBufferPtr ->
-        with 0 $ \vertexOffsetPtr ->
-            vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
-    vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
-    with descriptorSet $ \descriptorSetPtr ->
-        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
-    vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
+        with modelMatrix $ \modelMatrixPtr ->
+            vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
+
+        -- drawing commands
+        with vertexBuffer $ \vertexBufferPtr ->
+            with 0 $ \vertexOffsetPtr ->
+                vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
+
+        vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
+
+        vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
 
     vkCmdEndRenderPass commandBuffer
 

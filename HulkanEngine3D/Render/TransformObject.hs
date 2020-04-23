@@ -4,7 +4,7 @@
 {-# LANGUAGE NegativeLiterals    #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE RecordWildCards     #-}
-
+{-# LANGUAGE InstanceSigs        #-}
 
 module HulkanEngine3D.Render.TransformObject
   ( TransformObjectData (..)
@@ -56,6 +56,8 @@ data TransformObjectData = TransformObjectData
 
 class TransformObjectInterface a where
     newTransformObjectData :: IO a
+    getMatrix :: a -> IO Mat44f
+    getInverseMatrix :: a -> IO Mat44f
     setPosition :: a -> Vec3f -> IO ()
     moveFunc :: a -> Vec3f -> Float -> IO ()
     moveLeft :: a -> Float -> IO ()
@@ -101,18 +103,15 @@ instance TransformObjectInterface TransformObjectData where
 
         return TransformObjectData
             { _updated = updated
-
             , _front = front
             , _left = left
             , _up = up
-
             , _position = position
             , _rotation = rotation
             , _scale = scale
             , _eulerToQuaternion = eulerToQuaternion
             , _quaternion = quaternion
             , _fianlQuaternion = fianlQuaternion
-
             , _prevPosition = prevPosition
             , _prevPositionStore = prevPositionStore
             , _prevRotation = prevRotation
@@ -120,16 +119,20 @@ instance TransformObjectInterface TransformObjectData where
             , _prevEulerToQuaternion = prevEulerToQuaternion
             , _prevQuaternion = prevQuaternion
             , _prevFianlQuaternion = prevFianlQuaternion
-
             , _quaternionMatrix = quaternionMatrix
             , _eulerMatrix = eulerMatrix
             , _rotationMatrix  = rotationMatrix
-
             , _matrix = matrix
             , _inverseMatrix = inverseMatrix
             , _prevMatrix = prevMatrix
             , _prevInverseMatrix = prevInverseMatrix
             }
+
+    getMatrix :: TransformObjectData -> IO Mat44f
+    getMatrix transformObjectData = readIORef (_matrix transformObjectData)
+
+    getInverseMatrix :: TransformObjectData -> IO Mat44f
+    getInverseMatrix transformObjectData = readIORef (_inverseMatrix transformObjectData)
 
     setPosition transformObjectData vector = do
         writeIORef (_position transformObjectData) vector

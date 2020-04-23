@@ -330,6 +330,7 @@ runApplication = do
     -- Main Loop
     updateLoop applicationData $ \applicationData -> do
         updateTimeData $ _timeDataRef applicationData
+        deltaTime <- getDeltaTime applicationData
 
         let rendererData = _rendererData applicationData
             resourceData = _resourceData applicationData
@@ -348,7 +349,7 @@ runApplication = do
             setAspect mainCamera aspect
 
         -- update renderer data
-        SceneManager.updateSceneManagerData sceneManagerData
+        SceneManager.updateSceneManagerData sceneManagerData deltaTime
 
         -- render scene
         Renderer.renderScene rendererData sceneManagerData
