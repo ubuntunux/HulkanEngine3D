@@ -205,19 +205,24 @@ instance TransformObjectInterface TransformObjectData where
 
         when updatedRotation $ do
             let (# pitch, yaw, roll #) = unpackV3# rotation
-                (sin_pitch, cos_pitch) = (sin pitch, cos pitch)
-                (sin_yaw, cos_yaw) = (sin yaw, cos yaw)
-                front = normalized $ vec3 (cos_pitch * sin_yaw) (-sin_pitch) (cos_pitch * cos_yaw)
-                left = normalized $ cross (vec3 0 1 0) front
-                up = normalized $ cross front left
-                (# lX, lY, lZ #) = unpackV3# left
-                (# uX, uY, uZ #) = unpackV3# up
-                (# fX, fY, fZ #) = unpackV3# front
-                rotationMatrix = DF4
-                    (vec4 lX lY lZ 0)
-                    (vec4 uX uY uZ 0)
-                    (vec4 fX fY fZ 0)
-                    (vec4 0  0  0  1)
+                rotationMatrix = rotateEuler pitch yaw roll
+                left = fromHom (rotationMatrix ! (0:*U))
+                up = fromHom (rotationMatrix ! (1:*U))
+                front = fromHom (rotationMatrix ! (2:*U))
+--                look at algorithm
+--                (sin_pitch, cos_pitch) = (sin pitch, cos pitch)
+--                (sin_yaw, cos_yaw) = (sin yaw, cos yaw)
+--                front = normalized $ vec3 (cos_pitch * sin_yaw) (-sin_pitch) (cos_pitch * cos_yaw)
+--                left = normalized $ cross (vec3 0 1 0) front
+--                up = normalized $ cross front left
+--                (# lX, lY, lZ #) = unpackV3# left
+--                (# uX, uY, uZ #) = unpackV3# up
+--                (# fX, fY, fZ #) = unpackV3# front
+--                rotationMatrix = DF4
+--                    (vec4 lX lY lZ 0)
+--                    (vec4 uX uY uZ 0)
+--                    (vec4 fX fY fZ 0)
+--                    (vec4 0  0  0  1)
             writeIORef _rotationMatrix rotationMatrix
             writeIORef _left left
             writeIORef _up up
