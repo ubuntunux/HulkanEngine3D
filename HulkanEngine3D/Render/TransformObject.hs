@@ -230,9 +230,9 @@ instance TransformObjectInterface TransformObjectData where
 
         when updated $ do
             rotationMatrix <- readIORef _rotationMatrix
-            writeIORef _matrix $ transform_matrix position rotationMatrix scale
+            let matrix = transform_matrix position rotationMatrix scale
+            writeIORef _matrix matrix
             when updateInverseMatrix $ do
-                writeIORef _inverseMatrix $ inverse_transform_matrix position rotationMatrix scale
---                matrix <- readIORef _matrix
---                writeIORef _inverseMatrix $ inverse matrix
+--                writeIORef _inverseMatrix $ inverse_transform_matrix position rotationMatrix scale
+                writeIORef _inverseMatrix (inverse matrix)
         writeIORef _updated updated

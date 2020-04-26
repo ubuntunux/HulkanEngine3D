@@ -39,6 +39,12 @@ type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
 type RenderPassDataMap = HashTable.BasicHashTable Text.Text RenderPassData
 type DescriptorDataMap = HashTable.BasicHashTable Text.Text DescriptorData
 
+gatherAllFiles :: Bool
+gatherAllFiles = False
+
+meshFilePath :: FilePath
+meshFilePath = "Resource/Externals/Meshes"
+
 textureFilePath :: FilePath
 textureFilePath = "Resource/Externals/Textures"
 
@@ -153,13 +159,13 @@ instance ResourceInterface ResourceData where
     -- Model Loader
     loadModelDatas :: ResourceData -> RendererData -> IO ()
     loadModelDatas resourceData rendererData = do
-        Just meshData <- getMeshData resourceData "suzan"
-        Just materialInstanceData <- getDefaultMaterialInstanceData resourceData
-        let modelName = "suzan"::Text.Text
-        geometryBufferDataCount <- getGeometryDataCount meshData
-        let materialInstances = replicate geometryBufferDataCount materialInstanceData
-        modelData <- Model.newModelData modelName meshData materialInstances
-        HashTable.insert (_modelDataMap resourceData) modelName modelData
+        flip HashTable.mapM_ (_meshDataMap resourceData) $ \(meshName, meshData) -> do
+            Just materialInstanceData <- getDefaultMaterialInstanceData resourceData
+            let modelName = meshName
+            geometryBufferDataCount <- getGeometryDataCount meshData
+            let materialInstances = replicate geometryBufferDataCount materialInstanceData
+            modelData <- Model.newModelData modelName meshData materialInstances
+            HashTable.insert (_modelDataMap resourceData) modelName modelData
 
     unloadModelDatas :: ResourceData -> RendererData -> IO ()
     unloadModelDatas resourceData rendererData = do
@@ -172,11 +178,16 @@ instance ResourceInterface ResourceData where
     -- Mesh Loader
     loadMeshDatas :: ResourceData -> RendererData -> IO ()
     loadMeshDatas resourceData rendererData = do
-        let name = "suzan"::Text.Text
-        (vertices, indices) <- loadModel "Resource/Externals/Meshes/suzan.obj"
-        geometryBufferData <- createGeometryBuffer rendererData name vertices indices
-        meshData <- newMeshData name [geometryBufferData]
-        HashTable.insert (_meshDataMap resourceData) name meshData
+        meshFiles <- if gatherAllFiles then
+                walkDirectory meshFilePath [".obj"]
+            else
+                return ["Resource/Externals/Meshes/suzan.obj"]
+        forM_ meshFiles $ \meshFile -> do
+            let meshName = Text.pack $ drop (length meshFilePath + 1) (dropExtension meshFile)
+            (vertices, indices) <- loadModel meshFile
+            geometryBufferData <- createGeometryBuffer rendererData meshName vertices indices
+            meshData <- newMeshData meshName [geometryBufferData]
+            HashTable.insert (_meshDataMap resourceData) meshName meshData
 
     unloadMeshDatas :: ResourceData -> RendererData -> IO ()
     unloadMeshDatas resourceData rendererData = do
@@ -195,7 +206,10 @@ instance ResourceInterface ResourceData where
     -- TextureLoader
     loadTextureDatas :: ResourceData -> RendererData -> IO ()
     loadTextureDatas resourceData rendererData = do
-        textureFiles <- walkDirectory textureFilePath [".jpg"]
+        textureFiles <- if gatherAllFiles then
+                walkDirectory textureFilePath [".jpg", ".png"]
+            else
+                return ["Resource/Externals/Textures/texture.jpg"]
         forM_ textureFiles $ \textureFile -> do
             let textureDataName = Text.pack $ drop (length textureFilePath + 1) (dropExtension textureFile)
             textureData <- createTexture rendererData textureDataName textureFile

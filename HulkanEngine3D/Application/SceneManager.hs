@@ -67,12 +67,12 @@ instance SceneManagerInterface SceneManagerData where
 
         Just modelData <- Resource.getModelData _resourceData "suzan"
 
-        addStaticObject sceneManagerData "suzan" $ RenderObject.StaticObjectCreateData
+        addStaticObject sceneManagerData "suzan0" $ RenderObject.StaticObjectCreateData
                     { RenderObject._modelData' = modelData
                     , RenderObject._position' = vec3 4 0 0
                     }
 
-        addStaticObject sceneManagerData "suzan2" $ RenderObject.StaticObjectCreateData
+        addStaticObject sceneManagerData "suzan1" $ RenderObject.StaticObjectCreateData
                     { RenderObject._modelData' = modelData
                     , RenderObject._position' = vec3 -4 0 0
                     }
