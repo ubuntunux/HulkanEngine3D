@@ -10,5 +10,4 @@
                         'default',
                         'default',
                         'default'],
- 'mesh': 'axis_gizmo',
- 'object_type': 'Model'}
+ 'mesh': 'axis_gizmo'}
