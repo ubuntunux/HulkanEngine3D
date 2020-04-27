@@ -178,10 +178,7 @@ instance ResourceInterface ResourceData where
     -- Mesh Loader
     loadMeshDatas :: ResourceData -> RendererData -> IO ()
     loadMeshDatas resourceData rendererData = do
-        meshFiles <- if gatherAllFiles then
-                walkDirectory meshFilePath [".obj"]
-            else
-                return ["Resource/Externals/Meshes/suzan.obj"]
+        meshFiles <- walkDirectory meshFilePath [".obj"]
         forM_ meshFiles $ \meshFile -> do
             let meshName = Text.pack $ drop (length meshFilePath + 1) (dropExtension meshFile)
             (vertices, indices) <- loadModel meshFile
@@ -206,10 +203,7 @@ instance ResourceInterface ResourceData where
     -- TextureLoader
     loadTextureDatas :: ResourceData -> RendererData -> IO ()
     loadTextureDatas resourceData rendererData = do
-        textureFiles <- if gatherAllFiles then
-                walkDirectory textureFilePath [".jpg", ".png"]
-            else
-                return ["Resource/Externals/Textures/texture.jpg"]
+        textureFiles <- walkDirectory textureFilePath [".jpg", ".png"]
         forM_ textureFiles $ \textureFile -> do
             let textureDataName = Text.pack $ drop (length textureFilePath + 1) (dropExtension textureFile)
             textureData <- createTexture rendererData textureDataName textureFile
@@ -266,7 +260,7 @@ instance ResourceInterface ResourceData where
     loadMaterialInstanceDatas resourceData rendererData = do
         Just renderPassData <- getRenderPassData resourceData "defaultRenderPass"
         Just pipelineData <- getPipelineData renderPassData "RenderTriangle"
-        Just textureData <- getTextureData resourceData "texture"
+        Just textureData <- getTextureData resourceData "common/default"
 
         let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . _uniformBufferDatas $ rendererData
             descriptorImageInfo = _descriptorImageInfo textureData
