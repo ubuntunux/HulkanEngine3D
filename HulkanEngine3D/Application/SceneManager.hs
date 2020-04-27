@@ -65,15 +65,21 @@ instance SceneManagerInterface SceneManagerData where
         mainCamera <- addCameraObject sceneManagerData "MainCamera" cameraCreateData
         writeIORef _mainCamera mainCamera
 
-        Just modelData <- Resource.getModelData _resourceData "suzan"
+        Just modelData0 <- Resource.getModelData _resourceData "suzan"
+        Just modelData1 <- Resource.getModelData _resourceData "axis_gizmo"
+        Just modelData2 <- Resource.getModelData _resourceData "sphere"
 
-        addStaticObject sceneManagerData "suzan0" $ RenderObject.StaticObjectCreateData
-                    { RenderObject._modelData' = modelData
+        addStaticObject sceneManagerData "suzan_0" $ RenderObject.StaticObjectCreateData
+                    { RenderObject._modelData' = modelData0
                     , RenderObject._position' = vec3 4 0 0
                     }
 
-        addStaticObject sceneManagerData "suzan1" $ RenderObject.StaticObjectCreateData
-                    { RenderObject._modelData' = modelData
+        addStaticObject sceneManagerData "suzan_0" $ RenderObject.StaticObjectCreateData
+                    { RenderObject._modelData' = modelData1
+                    , RenderObject._position' = vec3 0 0 0
+                    }
+        addStaticObject sceneManagerData "suzan_0" $ RenderObject.StaticObjectCreateData
+                    { RenderObject._modelData' = modelData2
                     , RenderObject._position' = vec3 -4 0 0
                     }
         return ()
@@ -143,7 +149,8 @@ generateObjectName objectMap objectName = do
         otherwise -> generator objectMap objectName (0::Int)
     where
         generator sceneManagerData objectName index = do
-            objectData <- HashTable.lookup objectMap objectName
+            let newObjectName = T.append objectName $ T.append (T.pack "_") (T.pack . show $ index)
+            objectData <- HashTable.lookup objectMap newObjectName
             case objectData of
-                Nothing -> pure $ T.append objectName $ T.append (T.pack "_") (T.pack . show $ index)
+                Nothing -> return newObjectName
                 otherwise -> generator objectMap objectName (index + 1)

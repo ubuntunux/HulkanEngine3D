@@ -45,6 +45,9 @@ gatherAllFiles = False
 meshFilePath :: FilePath
 meshFilePath = "Resource/Externals/Meshes"
 
+modelFilePath :: FilePath
+modelFilePath = "Resource/Model"
+
 textureFilePath :: FilePath
 textureFilePath = "Resource/Externals/Textures"
 

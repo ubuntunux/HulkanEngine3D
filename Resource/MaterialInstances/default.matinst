@@ -1,0 +1,11 @@
+{"material_name": "default",
+ "shader_name": "default",
+ "parameters": {"brightness": 1.0,
+                "diffuse_color": [1.0, 1.0, 1.0, 1.0],
+                "emissive_color": [1.0, 1.0, 1.0, 1.0],
+                "metallic": 1.0,
+                "reflectance": 0.0,
+                "roughness": 0.0,
+                "texture_diffuse": "common.flat_white",
+                "texture_normal": "common.flat_normal",
+                "texture_material": "common.flat_white"}}
