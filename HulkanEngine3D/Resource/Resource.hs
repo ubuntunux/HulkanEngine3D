@@ -37,14 +37,15 @@ import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
 
 
-type FrameBufferDataMap = HashTable.BasicHashTable Text.Text FrameBufferData
-type MaterialInstanceDataMap = HashTable.BasicHashTable Text.Text MaterialInstanceData
-type SceneManagerDataMap = HashTable.BasicHashTable Text.Text SceneManagerData
-type MeshDataMap = HashTable.BasicHashTable Text.Text MeshData
-type ModelDataMap = HashTable.BasicHashTable Text.Text Model.ModelData
-type TextureDataMap = HashTable.BasicHashTable Text.Text TextureData
-type RenderPassDataMap = HashTable.BasicHashTable Text.Text RenderPassData
-type DescriptorDataMap = HashTable.BasicHashTable Text.Text DescriptorData
+type ResourceDataMap a = HashTable.BasicHashTable Text.Text a
+type FrameBufferDataMap = ResourceDataMap FrameBufferData
+type MaterialInstanceDataMap = ResourceDataMap MaterialInstanceData
+type SceneManagerDataMap = ResourceDataMap SceneManagerData
+type MeshDataMap = ResourceDataMap MeshData
+type ModelDataMap = ResourceDataMap Model.ModelData
+type TextureDataMap = ResourceDataMap TextureData
+type RenderPassDataMap = ResourceDataMap RenderPassData
+type DescriptorDataMap = ResourceDataMap DescriptorData
 
 gatherAllFiles :: Bool
 gatherAllFiles = False
@@ -69,6 +70,17 @@ data ResourceData = ResourceData
     } deriving (Show)
 
 
+getResourceData :: ResourceDataMap r -> Text.Text -> Text.Text -> IO r
+getResourceData resourceDataMap resourceName defaultResourceName = do
+    HashTable.lookup resourceDataMap resourceName
+    maybeData <- HashTable.lookup resourceDataMap resourceName
+    case maybeData of
+        Nothing -> getDefaultResourceData
+        otherwise -> return (Maybe.fromJust maybeData)
+    where
+        getDefaultResourceData = Maybe.fromJust <$> HashTable.lookup resourceDataMap "default"
+
+
 class ResourceInterface a where
     createNewResourceData :: IO a
     initializeResourceData :: a -> RendererData -> IO ()
@@ -90,7 +102,7 @@ class ResourceInterface a where
 
     loadTextureDatas :: a -> RendererData -> IO ()
     unloadTextureDatas :: a -> RendererData -> IO ()
-    getTextureData :: a -> Text.Text -> IO (Maybe TextureData)
+    getTextureData :: a -> Text.Text -> IO TextureData
 
     loadFrameBufferDatas :: a -> RendererData -> IO ()
     unloadFrameBufferDatas :: a -> RendererData -> IO ()
@@ -227,9 +239,9 @@ instance ResourceInterface ResourceData where
     unloadTextureDatas resourceData rendererData =
         HashTable.mapM_ (\(k, v) -> destroyTexture rendererData v) (_textureDataMap resourceData)
 
-    getTextureData :: ResourceData -> Text.Text -> IO (Maybe TextureData)
+    getTextureData :: ResourceData -> Text.Text -> IO TextureData
     getTextureData resourceData resourceName =
-        HashTable.lookup (_textureDataMap resourceData) resourceName
+        getResourceData (_textureDataMap resourceData) resourceName "default"
 
     -- FrameBuffer
     loadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
@@ -274,7 +286,7 @@ instance ResourceInterface ResourceData where
     loadMaterialInstanceDatas resourceData rendererData = do
         Just renderPassData <- getRenderPassData resourceData "defaultRenderPass"
         Just pipelineData <- getPipelineData renderPassData "RenderTriangle"
-        Just textureData <- getTextureData resourceData "common/default"
+        textureData <- getTextureData resourceData "common/default"
 
         let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . _uniformBufferDatas $ rendererData
             descriptorImageInfo = _descriptorImageInfo textureData
@@ -294,13 +306,8 @@ instance ResourceInterface ResourceData where
         HashTable.mapM_ (\(k, v) -> destroyMaterialInstance (getDevice rendererData) v) (_materialInstanceDataMap resourceData)
 
     getMaterialInstanceData :: ResourceData -> Text.Text -> IO MaterialInstanceData
-    getMaterialInstanceData resourceData resourceName = do
-        maybeMaterialInstanceData <- HashTable.lookup (_materialInstanceDataMap resourceData) resourceName
-        case maybeMaterialInstanceData of
-            Nothing -> getDefaultMaterialInstanceData
-            otherwise -> return (Maybe.fromJust maybeMaterialInstanceData)
-        where
-            getDefaultMaterialInstanceData = Maybe.fromJust <$> HashTable.lookup (_materialInstanceDataMap resourceData) "default"
+    getMaterialInstanceData resourceData resourceName =
+        getResourceData (_materialInstanceDataMap resourceData) resourceName "default"
 
     -- DescriptorDatas
     getDescriptorData :: ResourceData -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO DescriptorData

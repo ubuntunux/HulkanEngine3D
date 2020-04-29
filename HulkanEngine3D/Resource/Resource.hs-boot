@@ -36,7 +36,7 @@ class ResourceInterface a where
 
     loadTextureDatas :: a -> RendererData -> IO ()
     unloadTextureDatas :: a -> RendererData -> IO ()
-    getTextureData :: a -> Text.Text -> IO (Maybe TextureData)
+    getTextureData :: a -> Text.Text -> IO TextureData
 
     loadFrameBufferDatas :: a -> RendererData -> IO ()
     unloadFrameBufferDatas :: a -> RendererData -> IO ()
