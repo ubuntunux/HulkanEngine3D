@@ -4,10 +4,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE InstanceSigs        #-}
 
-module HulkanEngine3D.Render.Model
-    ( ModelData (..)
-    , ModelInterface (..)
-    ) where
+module HulkanEngine3D.Render.Model where
 
 import Data.IORef
 import qualified Data.Text as T
@@ -16,10 +13,17 @@ import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Utilities.System ()
 
+
+data ModelCreateInfo = ModelCreateInfo
+    { _modelDataName' :: T.Text
+    , _meshData' :: MeshData
+    , _materialInstanceDatas' :: [MaterialInstanceData]
+    } deriving Show
+
 data ModelData = ModelData
     { _modelDataName :: IORef T.Text
     , _meshData :: MeshData
-    , _materialInstanceDatas :: IORef MaterialInstanceDataList
+    , _materialInstanceDatas :: IORef [MaterialInstanceData]
     } deriving Show
 
 
@@ -28,7 +32,7 @@ class ModelInterface a where
     destroyModelData :: a -> IO ()
     getMeshData :: a -> MeshData
     getMaterialInstanceDataCount :: a -> IO Int
-    getMaterialInstanceDataList :: a -> IO MaterialInstanceDataList
+    getMaterialInstanceDataList :: a -> IO [MaterialInstanceData]
     getMaterialInstanceData :: a -> Int -> IO MaterialInstanceData
     updateModelData :: a -> IO ()
 
@@ -56,7 +60,7 @@ instance ModelInterface ModelData where
         materialInstanceDatas <- readIORef (_materialInstanceDatas modelData)
         return $ length materialInstanceDatas
 
-    getMaterialInstanceDataList :: ModelData -> IO MaterialInstanceDataList
+    getMaterialInstanceDataList :: ModelData -> IO [MaterialInstanceData]
     getMaterialInstanceDataList modelData = readIORef (_materialInstanceDatas modelData)
 
     getMaterialInstanceData :: ModelData -> Int -> IO MaterialInstanceData

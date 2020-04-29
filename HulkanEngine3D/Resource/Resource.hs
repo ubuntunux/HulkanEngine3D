@@ -1,5 +1,6 @@
 {-# LANGUAGE InstanceSigs       #-}
 {-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE DeriveGeneric      #-}
 
 module HulkanEngine3D.Resource.Resource
     ( ResourceData (..)
@@ -8,8 +9,14 @@ module HulkanEngine3D.Resource.Resource
 
 import Control.Monad
 import qualified Data.HashTable.IO as HashTable
+import qualified Data.ByteString as ByteString
+import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 import System.FilePath.Posix
+import qualified Data.Aeson as Aeson
+--import Data.Aeson.Types
+import qualified Data.HashMap.Strict as HashMap
 
 import qualified HulkanEngine3D.Constants as Constants
 import {-# SOURCE #-} HulkanEngine3D.Application.SceneManager
@@ -46,7 +53,7 @@ meshFilePath :: FilePath
 meshFilePath = "Resource/Externals/Meshes"
 
 modelFilePath :: FilePath
-modelFilePath = "Resource/Model"
+modelFilePath = "Resource/Models"
 
 textureFilePath :: FilePath
 textureFilePath = "Resource/Externals/Textures"
@@ -96,8 +103,7 @@ class ResourceInterface a where
 
     loadMaterialInstanceDatas :: a -> RendererData -> IO ()
     unloadMaterialInstanceDatas :: a -> RendererData -> IO ()
-    getMaterialInstanceData :: a -> Text.Text -> IO (Maybe MaterialInstanceData)
-    getDefaultMaterialInstanceData :: a -> IO (Maybe MaterialInstanceData)
+    getMaterialInstanceData :: a -> Text.Text -> IO MaterialInstanceData
 
     getDescriptorData :: a -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO DescriptorData
     unloadDescriptorDatas :: a -> RendererData -> IO ()
@@ -162,12 +168,17 @@ instance ResourceInterface ResourceData where
     -- Model Loader
     loadModelDatas :: ResourceData -> RendererData -> IO ()
     loadModelDatas resourceData rendererData = do
-        flip HashTable.mapM_ (_meshDataMap resourceData) $ \(meshName, meshData) -> do
-            Just materialInstanceData <- getDefaultMaterialInstanceData resourceData
-            let modelName = meshName
-            geometryBufferDataCount <- getGeometryDataCount meshData
-            let materialInstances = replicate geometryBufferDataCount materialInstanceData
-            modelData <- Model.newModelData modelName meshData materialInstances
+        modelFiles <- walkDirectory modelFilePath [".model"]
+        forM_ modelFiles $ \modelFile -> do
+            let modelName = Text.pack $ drop (length modelFilePath + 1) (dropExtension modelFile)
+            contents <- ByteString.readFile modelFile
+            let Just (Aeson.Object modelCreateInfoMap) = Aeson.decodeStrict contents
+                Just (Aeson.Array materialInstanceNames) = HashMap.lookup "material_instances" modelCreateInfoMap
+                Just (Aeson.String meshName) = HashMap.lookup "mesh" modelCreateInfoMap
+            materialInstanceDatas <- forM (Vector.toList materialInstanceNames) $ \(Aeson.String materialInstanceName) -> do
+                getMaterialInstanceData resourceData materialInstanceName
+            Just meshData <- getMeshData resourceData meshName
+            modelData <- Model.newModelData modelName meshData materialInstanceDatas
             HashTable.insert (_modelDataMap resourceData) modelName modelData
 
     unloadModelDatas :: ResourceData -> RendererData -> IO ()
@@ -282,12 +293,14 @@ instance ResourceInterface ResourceData where
     unloadMaterialInstanceDatas resourceData rendererData =
         HashTable.mapM_ (\(k, v) -> destroyMaterialInstance (getDevice rendererData) v) (_materialInstanceDataMap resourceData)
 
-    getMaterialInstanceData :: ResourceData -> Text.Text -> IO (Maybe MaterialInstanceData)
-    getMaterialInstanceData resourceData resourceName =
-        HashTable.lookup (_materialInstanceDataMap resourceData) resourceName
-
-    getDefaultMaterialInstanceData :: ResourceData -> IO (Maybe MaterialInstanceData)
-    getDefaultMaterialInstanceData resourceData = getMaterialInstanceData resourceData "default"
+    getMaterialInstanceData :: ResourceData -> Text.Text -> IO MaterialInstanceData
+    getMaterialInstanceData resourceData resourceName = do
+        maybeMaterialInstanceData <- HashTable.lookup (_materialInstanceDataMap resourceData) resourceName
+        case maybeMaterialInstanceData of
+            Nothing -> getDefaultMaterialInstanceData
+            otherwise -> return (Maybe.fromJust maybeMaterialInstanceData)
+        where
+            getDefaultMaterialInstanceData = Maybe.fromJust <$> HashTable.lookup (_materialInstanceDataMap resourceData) "default"
 
     -- DescriptorDatas
     getDescriptorData :: ResourceData -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO DescriptorData
