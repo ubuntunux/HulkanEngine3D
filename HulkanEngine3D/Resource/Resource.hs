@@ -30,6 +30,7 @@ import qualified HulkanEngine3D.Resource.MaterialInstanceCreateInfo as MaterialI
 import HulkanEngine3D.Resource.RenderPassCreateInfo
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
+import qualified HulkanEngine3D.Vulkan.GeometryBuffer as GeometryBuffer
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.UniformBuffer
@@ -59,6 +60,19 @@ modelFilePath = "Resource/Models"
 textureFilePath :: FilePath
 textureFilePath = "Resource/Externals/Textures"
 
+defaultMeshName :: Text.Text
+defaultMeshName = "quad"
+
+defaultModelName :: Text.Text
+defaultModelName = "quad"
+
+defaultTextureName :: Text.Text
+defaultTextureName = "default"
+
+defaultMaterialInstanceName :: Text.Text
+defaultMaterialInstanceName = "default"
+
+
 data ResourceData = ResourceData
     { _meshDataMap :: MeshDataMap
     , _modelDataMap :: ModelDataMap
@@ -72,13 +86,17 @@ data ResourceData = ResourceData
 
 getResourceData :: ResourceDataMap r -> Text.Text -> Text.Text -> IO r
 getResourceData resourceDataMap resourceName defaultResourceName = do
-    HashTable.lookup resourceDataMap resourceName
     maybeData <- HashTable.lookup resourceDataMap resourceName
     case maybeData of
         Nothing -> getDefaultResourceData
         otherwise -> return (Maybe.fromJust maybeData)
     where
-        getDefaultResourceData = Maybe.fromJust <$> HashTable.lookup resourceDataMap "default"
+        getDefaultResourceData = Maybe.fromJust <$> HashTable.lookup resourceDataMap defaultResourceName
+
+getResourceNameFromFilepath :: ResourceDataMap r -> FilePath -> FilePath -> IO Text.Text
+getResourceNameFromFilepath resourceDataMap resourcePath resourceFilePath = do
+    let resourceName = Text.pack $ drop (length resourcePath + 1) (dropExtension resourceFilePath)
+    generateUniqueName resourceDataMap resourceName
 
 
 class ResourceInterface a where
@@ -94,11 +112,11 @@ class ResourceInterface a where
 
     loadModelDatas :: a -> RendererData -> IO ()
     unloadModelDatas :: a -> RendererData -> IO ()
-    getModelData :: a -> Text.Text -> IO (Maybe Model.ModelData)
+    getModelData :: a -> Text.Text -> IO Model.ModelData
 
     loadMeshDatas :: a -> RendererData -> IO ()
     unloadMeshDatas :: a -> RendererData -> IO ()
-    getMeshData :: a -> Text.Text -> IO (Maybe MeshData)
+    getMeshData :: a -> Text.Text -> IO MeshData
 
     loadTextureDatas :: a -> RendererData -> IO ()
     unloadTextureDatas :: a -> RendererData -> IO ()
@@ -182,14 +200,14 @@ instance ResourceInterface ResourceData where
     loadModelDatas resourceData rendererData = do
         modelFiles <- walkDirectory modelFilePath [".model"]
         forM_ modelFiles $ \modelFile -> do
-            let modelName = Text.pack $ drop (length modelFilePath + 1) (dropExtension modelFile)
+            modelName <- getResourceNameFromFilepath (_modelDataMap resourceData) modelFilePath modelFile
             contents <- ByteString.readFile modelFile
             let Just (Aeson.Object modelCreateInfoMap) = Aeson.decodeStrict contents
                 Just (Aeson.Array materialInstanceNames) = HashMap.lookup "material_instances" modelCreateInfoMap
                 Just (Aeson.String meshName) = HashMap.lookup "mesh" modelCreateInfoMap
             materialInstanceDatas <- forM (Vector.toList materialInstanceNames) $ \(Aeson.String materialInstanceName) -> do
                 getMaterialInstanceData resourceData materialInstanceName
-            Just meshData <- getMeshData resourceData meshName
+            meshData <- getMeshData resourceData meshName
             modelData <- Model.newModelData modelName meshData materialInstanceDatas
             HashTable.insert (_modelDataMap resourceData) modelName modelData
 
@@ -197,20 +215,25 @@ instance ResourceInterface ResourceData where
     unloadModelDatas resourceData rendererData = do
         HashTable.mapM_ (\(k, v) -> Model.destroyModelData v) (_modelDataMap resourceData)
 
-    getModelData :: ResourceData -> Text.Text -> IO (Maybe Model.ModelData)
-    getModelData resourceData resourceName =
-        HashTable.lookup (_modelDataMap resourceData) resourceName
+    getModelData :: ResourceData -> Text.Text -> IO Model.ModelData
+    getModelData resourceData resourceName = do
+        getResourceData (_modelDataMap resourceData) resourceName defaultModelName
 
     -- Mesh Loader
     loadMeshDatas :: ResourceData -> RendererData -> IO ()
     loadMeshDatas resourceData rendererData = do
+        registMeshData (_meshDataMap resourceData) defaultMeshName GeometryBuffer.quadVertices GeometryBuffer.quadIndices
+
         meshFiles <- walkDirectory meshFilePath [".obj"]
         forM_ meshFiles $ \meshFile -> do
-            let meshName = Text.pack $ drop (length meshFilePath + 1) (dropExtension meshFile)
-            (vertices, indices) <- loadModel meshFile
-            geometryBufferData <- createGeometryBuffer rendererData meshName vertices indices
-            meshData <- newMeshData meshName [geometryBufferData]
-            HashTable.insert (_meshDataMap resourceData) meshName meshData
+            meshName <- getResourceNameFromFilepath (_meshDataMap resourceData) meshFilePath meshFile
+            (vertices, indices) <- loadMesh meshFile
+            registMeshData (_meshDataMap resourceData) meshName vertices indices
+        where
+            registMeshData meshDataMap meshName vertices indices = do
+                geometryBufferData <- createGeometryBuffer rendererData meshName vertices indices
+                meshData <- newMeshData meshName [geometryBufferData]
+                HashTable.insert (_meshDataMap resourceData) meshName meshData
 
     unloadMeshDatas :: ResourceData -> RendererData -> IO ()
     unloadMeshDatas resourceData rendererData = do
@@ -222,16 +245,16 @@ instance ResourceInterface ResourceData where
                     geometryData <- getGeometryData meshData index
                     destroyGeometryBuffer rendererData geometryData
 
-    getMeshData :: ResourceData -> Text.Text -> IO (Maybe MeshData)
+    getMeshData :: ResourceData -> Text.Text -> IO MeshData
     getMeshData resourceData resourceName =
-        HashTable.lookup (_meshDataMap resourceData) resourceName
+        getResourceData (_meshDataMap resourceData) resourceName defaultMeshName
 
     -- TextureLoader
     loadTextureDatas :: ResourceData -> RendererData -> IO ()
     loadTextureDatas resourceData rendererData = do
         textureFiles <- walkDirectory textureFilePath [".jpg", ".png"]
         forM_ textureFiles $ \textureFile -> do
-            let textureDataName = Text.pack $ drop (length textureFilePath + 1) (dropExtension textureFile)
+            textureDataName <- getResourceNameFromFilepath (_textureDataMap resourceData) textureFilePath textureFile
             textureData <- createTexture rendererData textureDataName textureFile
             HashTable.insert (_textureDataMap resourceData) textureDataName textureData
 
@@ -241,7 +264,7 @@ instance ResourceInterface ResourceData where
 
     getTextureData :: ResourceData -> Text.Text -> IO TextureData
     getTextureData resourceData resourceName =
-        getResourceData (_textureDataMap resourceData) resourceName "default"
+        getResourceData (_textureDataMap resourceData) resourceName defaultTextureName
 
     -- FrameBuffer
     loadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
@@ -299,7 +322,7 @@ instance ResourceInterface ResourceData where
                 , MaterialInstanceCreateInfo._descriptorBufferOrImageInfosList = descriptorBufferOrImageInfosList
                 }
         materialInstance <- createMaterialInstance (getDevice rendererData) materialInstanceCreateInfo
-        HashTable.insert (_materialInstanceDataMap resourceData) "default" materialInstance
+        HashTable.insert (_materialInstanceDataMap resourceData) defaultMaterialInstanceName materialInstance
 
     unloadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
     unloadMaterialInstanceDatas resourceData rendererData =
@@ -307,7 +330,7 @@ instance ResourceInterface ResourceData where
 
     getMaterialInstanceData :: ResourceData -> Text.Text -> IO MaterialInstanceData
     getMaterialInstanceData resourceData resourceName =
-        getResourceData (_materialInstanceDataMap resourceData) resourceName "default"
+        getResourceData (_materialInstanceDataMap resourceData) resourceName defaultMaterialInstanceName
 
     -- DescriptorDatas
     getDescriptorData :: ResourceData -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO DescriptorData

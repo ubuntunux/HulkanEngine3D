@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module HulkanEngine3D.Resource.ObjLoader
-  ( loadModel
+  ( loadMesh
   ) where
 
 import Codec.Wavefront
@@ -26,9 +26,9 @@ import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Vulkan.GeometryBuffer
 
 
-loadModel :: FilePath -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])
-loadModel file = do
-    logInfo $ "Loading model: " ++ file
+loadMesh :: FilePath -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])
+loadMesh file = do
+    logInfo $ "Loading mesh: " ++ file
     obj <- either throwVKMsg pure =<< Codec.Wavefront.fromFile file
     (vertices, indices) <- objVertices obj
     return (vertices, indices)

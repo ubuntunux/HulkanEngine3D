@@ -19,6 +19,8 @@ import Data.Char
 import Data.IORef
 import qualified Data.Time.Clock.System as SystemTime
 import qualified Data.Vector.Mutable as MVector
+import qualified Data.HashTable.IO as HashTable
+import qualified Data.Text as Text
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -167,3 +169,18 @@ walkDirectory currentDirectory filter = do
                 return []
         )
     return $ concat [filepath | filepath <- filepaths, not (null filepath)]
+
+
+generateUniqueName :: HashTable.BasicHashTable Text.Text v -> Text.Text -> IO Text.Text
+generateUniqueName objectMap objectName = do
+    objectData <- HashTable.lookup objectMap objectName
+    case objectData of
+        Nothing -> return objectName
+        otherwise -> generator objectMap objectName (0::Int)
+    where
+        generator sceneManagerData objectName index = do
+            let newObjectName = Text.append objectName $ Text.append (Text.pack "_") (Text.pack . show $ index)
+            objectData <- HashTable.lookup objectMap newObjectName
+            case objectData of
+                Nothing -> return newObjectName
+                otherwise -> generator objectMap objectName (index + 1)

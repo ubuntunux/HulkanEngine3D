@@ -10,25 +10,9 @@
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE TypeSynonymInstances   #-}
 {-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE NegativeLiterals       #-}
 
-module HulkanEngine3D.Vulkan.GeometryBuffer
-  ( Vertex (..)
-  , Tri (..)
-  , GeometryDataList
-  , GeometryData(..)
-  , atLeastThree
-  , dataFrameLength
-  , triangleToFaceIndices
-  , faceToTriangles
-  , rectVertices
-  , rectIndices
-  , vertexInputBindDescription
-  , vertexInputAttributeDescriptions
-  , createGeometryData
-  , destroyGeometryData
-  , createVertexBuffer
-  , createIndexBuffer
-  ) where
+module HulkanEngine3D.Vulkan.GeometryBuffer where
 
 import GHC.Generics (Generic)
 import qualified Control.Monad.ST as ST
@@ -54,16 +38,16 @@ import HulkanEngine3D.Vulkan.Buffer
 
 -- | Preparing Vertex data to make an interleaved array.
 data Vertex = Vertex
-  { pos      :: Vec3f
-  , color    :: Vec3f
-  , texCoord :: Vec2f
-  } deriving (Eq, Ord, Show, Generic)
+    { pos      :: Vec3f
+    , color    :: Vec3f
+    , texCoord :: Vec2f
+    } deriving (Eq, Ord, Show, Generic)
 
 instance PrimBytes Vertex
 
-data Tri = Tri {-# UNPACK #-}!Wavefront.FaceIndex
-               {-# UNPACK #-}!Wavefront.FaceIndex
-               {-# UNPACK #-}!Wavefront.FaceIndex
+data Triangle = Triangle {-# UNPACK #-}!Wavefront.FaceIndex
+                         {-# UNPACK #-}!Wavefront.FaceIndex
+                         {-# UNPACK #-}!Wavefront.FaceIndex
 
 type GeometryDataList = [GeometryData]
 
@@ -85,12 +69,12 @@ atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough poin
              . constrainDF
 
 -- reversal here for correct culling in combination with the (-y) below
-triangleToFaceIndices :: Tri -> [Wavefront.FaceIndex]
-triangleToFaceIndices (Tri a b c) = [c, b, a]
+triangleToFaceIndices :: Triangle -> [Wavefront.FaceIndex]
+triangleToFaceIndices (Triangle a b c) = [c, b, a]
 
-faceToTriangles :: Wavefront.Face -> [Tri]
-faceToTriangles (Wavefront.Face a b c []) = [Tri a b c]
-faceToTriangles (Wavefront.Face a b c is) = pairwise (Tri a) (b:c:is)
+faceToTriangles :: Wavefront.Face -> [Triangle]
+faceToTriangles (Wavefront.Face a b c []) = [Triangle a b c]
+faceToTriangles (Wavefront.Face a b c is) = pairwise (Triangle a) (b:c:is)
   where pairwise f xs = zipWith f xs (tail xs)
 
 -- | Interleaved array of vertices containing at least 3 entries.
@@ -105,34 +89,16 @@ faceToTriangles (Wavefront.Face a b c is) = pairwise (Tri a) (b:c:is)
 --   Note: in this program, `n >= 3` requirement is also forced in `Lib/Vulkan/VertexBuffer.hs`,
 --         where it is not strictly necessary but allows to avoid specifying DataFrame constraints
 --         in function signatures (such as, e.g. `KnownDim n`).
-rectVertices :: DataFrame Vertex '[XN 3]
-rectVertices = XFrame $
-    square
-    `appendDF`
-    withPos (+ vec4 0 0 0.5 0) square
-    `appendDF`
-    withPos (\p -> p %* rotateX (pi/2) + vec4 0 0 (-0.5) 0) square
-    where
-        square :: Vector Vertex 4
-        square = fromFlatList (D4 :* U) (Vertex 0 0 0)
-            [ Vertex (vec3 (-0.5) (-0.5) 0) (vec3 1 0 0) (vec2 0 0)
-            , Vertex (vec3   0.4  (-0.5) 0) (vec3 0 1 0) (vec2 1 0)
-            , Vertex (vec3   0.4    0.4  0) (vec3 0 0 1) (vec2 1 1)
-            , Vertex (vec3 (-0.5)   0.4  0) (vec3 1 1 1) (vec2 0 1)
-            ]
-        withPos :: (Vec4f -> Vec4f) -> Vector Vertex 4 -> Vector Vertex 4
-        withPos f = ewmap (\(S v) -> S v { pos = fromHom . f . toHomPoint $ pos v })
+quadVertices :: DataFrame Vertex '[XN 3]
+quadVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0)
+    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 1 0 0) (vec2 0 0)
+    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (vec2 1 0)
+    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 0 1) (vec2 1 1)
+    , Vertex (vec3 -1.0  1.0  0.0) (vec3 1 1 1) (vec2 0 1)
+    ]
 
-rectIndices :: DataFrame Word32 '[XN 3]
-rectIndices = atLeastThree $ fromList $
-    oneRectIndices
-    ++
-    map (+4) oneRectIndices
-    ++
-    map (+8) oneRectIndices
-    where
-        -- indices for one rectangle
-        oneRectIndices = [0, 3, 2, 2, 1, 0]
+quadIndices :: DataFrame Word32 '[XN 3]
+quadIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
 
 vertexInputBindDescription :: VkVertexInputBindingDescription
 vertexInputBindDescription = createVk @VkVertexInputBindingDescription

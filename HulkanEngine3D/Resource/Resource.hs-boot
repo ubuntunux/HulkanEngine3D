@@ -28,11 +28,11 @@ class ResourceInterface a where
 
     loadModelDatas :: a -> RendererData -> IO ()
     unloadModelDatas :: a -> RendererData -> IO ()
-    getModelData :: a -> Text.Text -> IO (Maybe Model.ModelData)
+    getModelData :: a -> Text.Text -> IO Model.ModelData
 
     loadMeshDatas :: a -> RendererData -> IO ()
     unloadMeshDatas :: a -> RendererData -> IO ()
-    getMeshData :: a -> Text.Text -> IO (Maybe MeshData)
+    getMeshData :: a -> Text.Text -> IO MeshData
 
     loadTextureDatas :: a -> RendererData -> IO ()
     unloadTextureDatas :: a -> RendererData -> IO ()

@@ -24,7 +24,7 @@ data MeshData = MeshData
     , _skeletonDatas :: [Bool]
     , _animationDatas :: [Bool]
     , _geometryBufferDatas :: IORef GeometryDataList
-    } deriving (Show)
+    } deriving (Eq, Show)
 
 class MeshInterface a where
     newMeshData :: Text.Text -> [GeometryData] -> IO a

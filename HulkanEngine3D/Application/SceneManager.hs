@@ -21,6 +21,7 @@ import qualified HulkanEngine3D.Render.RenderElement as RenderElement
 import qualified HulkanEngine3D.Render.Renderer as Renderer
 import qualified HulkanEngine3D.Resource.Resource as Resource
 import qualified HulkanEngine3D.Render.TransformObject as TransformObject
+import qualified HulkanEngine3D.Utilities.System as System
 
 type CameraObjectMap = HashTable.BasicHashTable T.Text CameraObjectData
 type StaticObjectMap = HashTable.BasicHashTable T.Text RenderObject.StaticObjectData
@@ -65,9 +66,9 @@ instance SceneManagerInterface SceneManagerData where
         mainCamera <- addCameraObject sceneManagerData "MainCamera" cameraCreateData
         writeIORef _mainCamera mainCamera
 
-        Just modelData0 <- Resource.getModelData _resourceData "suzan"
-        Just modelData1 <- Resource.getModelData _resourceData "axis_gizmo"
-        Just modelData2 <- Resource.getModelData _resourceData "sphere"
+        modelData0 <- Resource.getModelData _resourceData "quad"
+        modelData1 <- Resource.getModelData _resourceData "axis_gizmo"
+        modelData2 <- Resource.getModelData _resourceData "sphere"
 
         addStaticObject sceneManagerData "suzan_0" $ RenderObject.StaticObjectCreateData
                     { RenderObject._modelData' = modelData0
@@ -89,14 +90,14 @@ instance SceneManagerInterface SceneManagerData where
 
     addCameraObject :: SceneManagerData -> T.Text -> CameraCreateData -> IO CameraObjectData
     addCameraObject sceneManagerData objectName cameraCreateData = do
-        newObjectName <- generateObjectName (_cameraObjectMap sceneManagerData) objectName
+        newObjectName <- System.generateUniqueName (_cameraObjectMap sceneManagerData) objectName
         cameraObjectData <- createCameraObjectData newObjectName cameraCreateData
         HashTable.insert (_cameraObjectMap sceneManagerData) newObjectName cameraObjectData
         return cameraObjectData
 
     addStaticObject :: SceneManagerData -> T.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
     addStaticObject sceneManagerData objectName staticObjectCreateData = do
-        newObjectName <- generateObjectName (_staticObjectMap sceneManagerData) objectName
+        newObjectName <- System.generateUniqueName (_staticObjectMap sceneManagerData) objectName
         staticObjectData <- RenderObject.createStaticObjectData newObjectName staticObjectCreateData
         HashTable.insert (_staticObjectMap sceneManagerData) newObjectName staticObjectData
         return staticObjectData
@@ -141,16 +142,4 @@ instance SceneManagerInterface SceneManagerData where
                     }
             writeIORef _staticObjectRenderElements (staticObjectRenderElements ++ renderElementList)
 
-generateObjectName :: HashTable.BasicHashTable T.Text v -> T.Text -> IO T.Text
-generateObjectName objectMap objectName = do
-    objectData <- HashTable.lookup objectMap objectName
-    case objectData of
-        Nothing -> return objectName
-        otherwise -> generator objectMap objectName (0::Int)
-    where
-        generator sceneManagerData objectName index = do
-            let newObjectName = T.append objectName $ T.append (T.pack "_") (T.pack . show $ index)
-            objectData <- HashTable.lookup objectMap newObjectName
-            case objectData of
-                Nothing -> return newObjectName
-                otherwise -> generator objectMap objectName (index + 1)
+
