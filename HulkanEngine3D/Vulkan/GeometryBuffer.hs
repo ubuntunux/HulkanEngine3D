@@ -36,7 +36,7 @@ import Data.Bits
 import qualified Data.Text as Text
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
-import Codec.Wavefront
+import qualified Codec.Wavefront as Wavefront
 import Data.Maybe
 
 import Graphics.Vulkan.Core_1_0
@@ -61,9 +61,9 @@ data Vertex = Vertex
 
 instance PrimBytes Vertex
 
-data Tri = Tri {-# UNPACK #-}!FaceIndex
-               {-# UNPACK #-}!FaceIndex
-               {-# UNPACK #-}!FaceIndex
+data Tri = Tri {-# UNPACK #-}!Wavefront.FaceIndex
+               {-# UNPACK #-}!Wavefront.FaceIndex
+               {-# UNPACK #-}!Wavefront.FaceIndex
 
 type GeometryDataList = [GeometryData]
 
@@ -85,12 +85,12 @@ atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough poin
              . constrainDF
 
 -- reversal here for correct culling in combination with the (-y) below
-triangleToFaceIndices :: Tri -> [FaceIndex]
+triangleToFaceIndices :: Tri -> [Wavefront.FaceIndex]
 triangleToFaceIndices (Tri a b c) = [c, b, a]
 
-faceToTriangles :: Face -> [Tri]
-faceToTriangles (Face a b c []) = [Tri a b c]
-faceToTriangles (Face a b c is) = pairwise (Tri a) (b:c:is)
+faceToTriangles :: Wavefront.Face -> [Tri]
+faceToTriangles (Wavefront.Face a b c []) = [Tri a b c]
+faceToTriangles (Wavefront.Face a b c is) = pairwise (Tri a) (b:c:is)
   where pairwise f xs = zipWith f xs (tail xs)
 
 -- | Interleaved array of vertices containing at least 3 entries.
