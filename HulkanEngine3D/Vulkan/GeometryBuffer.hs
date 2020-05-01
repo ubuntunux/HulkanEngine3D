@@ -38,8 +38,9 @@ import HulkanEngine3D.Vulkan.Buffer
 
 -- | Preparing Vertex data to make an interleaved array.
 data Vertex = Vertex
-    { pos      :: Vec3f
-    , color    :: Vec3f
+    { pos :: Vec3f
+    , normal :: Vec3f
+    , color :: Vec3f
     , texCoord :: Vec2f
     } deriving (Eq, Ord, Show, Generic)
 
@@ -81,11 +82,11 @@ atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough poin
 --         where it is not strictly necessary but allows to avoid specifying DataFrame constraints
 --         in function signatures (such as, e.g. `KnownDim n`).
 quadVertices :: DataFrameAtLeastThree Vertex
-quadVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0)
-    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 1 0 0) (vec2 0 0)
-    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (vec2 1 0)
-    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 0 1) (vec2 1 1)
-    , Vertex (vec3 -1.0  1.0  0.0) (vec3 1 1 1) (vec2 0 1)
+quadVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0 0)
+    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 0 1 0) (vec3 1 0 0) (vec2 0 0)
+    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (vec3 0 1 0) (vec2 1 0)
+    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 1 0) (vec3 0 0 1) (vec2 1 1)
+    , Vertex (vec3 -1.0  1.0  0.0) (vec3 0 1 0) (vec3 1 1 1) (vec2 0 1)
     ]
 
 quadIndices :: DataFrameAtLeastThree Word32
@@ -102,7 +103,7 @@ vertexInputBindDescription = createVk @VkVertexInputBindingDescription
 -- a vulkan function with no copy.
 --
 -- However, we must make sure the created DataFrame is pinned!
-vertexInputAttributeDescriptions :: Vector VkVertexInputAttributeDescription 3
+vertexInputAttributeDescriptions :: Vector VkVertexInputAttributeDescription 4
 vertexInputAttributeDescriptions = ST.runST $ do
     mv <- ST.newPinnedDataFrame
     ST.writeDataFrame mv 0 . scalar $ createVk
@@ -114,11 +115,14 @@ vertexInputAttributeDescriptions = ST.runST $ do
         $  set @"location" 1
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"color" @Vertex undefined)
-                          -- Now we can use bFieldOffsetOf derived
-                          -- in PrimBytes via Generics. How cool is that!
+        &* set @"offset" (bFieldOffsetOf @"normal" @Vertex undefined)
     ST.writeDataFrame mv 2 . scalar $ createVk
         $  set @"location" 2
+        &* set @"binding" 0
+        &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
+        &* set @"offset" (bFieldOffsetOf @"color" @Vertex undefined)
+    ST.writeDataFrame mv 3 . scalar $ createVk
+        $  set @"location" 3
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32_SFLOAT
         &* set @"offset" (bFieldOffsetOf @"texCoord" @Vertex undefined)

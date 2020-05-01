@@ -303,7 +303,7 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"vertexBindingDescriptionCount" 1
             &* setDFRef @"pVertexBindingDescriptions" (scalar vertexInputBindDescription)
-            &* set @"vertexAttributeDescriptionCount" (fromIntegral . totalDim $ dims `inSpaceOf` vertexInputAttributeDescriptions)
+            &* set @"vertexAttributeDescriptionCount" (fromIntegral . totalDim $ inSpaceOf dims vertexInputAttributeDescriptions)
             &* setDFRef @"pVertexAttributeDescriptions" vertexInputAttributeDescriptions
         inputAssembly = createVk @VkPipelineInputAssemblyStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO
