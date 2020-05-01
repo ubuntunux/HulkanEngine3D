@@ -49,7 +49,7 @@ data Triangle = Triangle {-# UNPACK #-}!Wavefront.FaceIndex
                          {-# UNPACK #-}!Wavefront.FaceIndex
                          {-# UNPACK #-}!Wavefront.FaceIndex
 
-type GeometryDataList = [GeometryData]
+type DataFrameAtLeastThree a = DataFrame a '[XN 3]
 
 data GeometryData = GeometryData
     { _geometryName :: Text.Text
@@ -68,15 +68,6 @@ atLeastThree :: (All KnownXNatType ns, BoundedDims ns)
 atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough points")
              . constrainDF
 
--- reversal here for correct culling in combination with the (-y) below
-triangleToFaceIndices :: Triangle -> [Wavefront.FaceIndex]
-triangleToFaceIndices (Triangle a b c) = [c, b, a]
-
-faceToTriangles :: Wavefront.Face -> [Triangle]
-faceToTriangles (Wavefront.Face a b c []) = [Triangle a b c]
-faceToTriangles (Wavefront.Face a b c is) = pairwise (Triangle a) (b:c:is)
-  where pairwise f xs = zipWith f xs (tail xs)
-
 -- | Interleaved array of vertices containing at least 3 entries.
 --
 --   Obviously, in real world vertices come from a separate file and not known at compile time.
@@ -89,7 +80,7 @@ faceToTriangles (Wavefront.Face a b c is) = pairwise (Triangle a) (b:c:is)
 --   Note: in this program, `n >= 3` requirement is also forced in `Lib/Vulkan/VertexBuffer.hs`,
 --         where it is not strictly necessary but allows to avoid specifying DataFrame constraints
 --         in function signatures (such as, e.g. `KnownDim n`).
-quadVertices :: DataFrame Vertex '[XN 3]
+quadVertices :: DataFrameAtLeastThree Vertex
 quadVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0)
     [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 1 0 0) (vec2 0 0)
     , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (vec2 1 0)
@@ -97,7 +88,7 @@ quadVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0)
     , Vertex (vec3 -1.0  1.0  0.0) (vec3 1 1 1) (vec2 0 1)
     ]
 
-quadIndices :: DataFrame Word32 '[XN 3]
+quadIndices :: DataFrameAtLeastThree Word32
 quadIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
 
 vertexInputBindDescription :: VkVertexInputBindingDescription
@@ -139,8 +130,8 @@ createGeometryData :: VkPhysicalDevice
                    -> VkQueue
                    -> VkCommandPool
                    -> Text.Text
-                   -> DataFrame Vertex '[XN 3]
-                   -> DataFrame Word32 '[XN 3]
+                   -> DataFrameAtLeastThree Vertex
+                   -> DataFrameAtLeastThree Word32
                    -> IO GeometryData
 createGeometryData physicalDevice device graphicsQueue commandPool geometryName vertices indices = do
     logInfo $ "createGeometryBuffer : " ++ (Text.unpack geometryName)
@@ -166,7 +157,7 @@ createVertexBuffer :: VkPhysicalDevice
                    -> VkDevice
                    -> VkQueue
                    -> VkCommandPool
-                   -> DataFrame Vertex '[XN 3]
+                   -> DataFrameAtLeastThree Vertex
                    -> IO (VkDeviceMemory, VkBuffer)
 createVertexBuffer physicalDevice device graphicsQueue commandPool (XFrame vertices) = do
     let bufferSize = bSizeOf vertices
@@ -199,7 +190,7 @@ createIndexBuffer :: VkPhysicalDevice
                   -> VkDevice
                   -> VkQueue
                   -> VkCommandPool
-                  -> DataFrame Word32 '[XN 3]
+                  -> DataFrameAtLeastThree Word32
                   -> IO (VkDeviceMemory, VkBuffer)
 createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indices) = do
     let bufferSize = bSizeOf indices

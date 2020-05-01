@@ -9,10 +9,10 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module HulkanEngine3D.Resource.ObjLoader
-  ( loadMesh
-  ) where
+    ( loadMesh
+    ) where
 
-import Codec.Wavefront
+import qualified Codec.Wavefront as Wavefront
 import Data.Foldable (toList)
 import Data.Maybe
 import qualified Data.Set as Set
@@ -29,12 +29,21 @@ import HulkanEngine3D.Vulkan.GeometryBuffer
 loadMesh :: FilePath -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])
 loadMesh file = do
     logInfo $ "Loading mesh: " ++ file
-    obj <- either throwVKMsg pure =<< Codec.Wavefront.fromFile file
+    obj <- either throwVKMsg pure =<< Wavefront.fromFile file
     (vertices, indices) <- objVertices obj
     return (vertices, indices)
 
-objVertices :: WavefrontOBJ -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])
-objVertices WavefrontOBJ {..}
+-- reversal here for correct culling in combination with the (-y) below
+triangleToFaceIndices :: Triangle -> [Wavefront.FaceIndex]
+triangleToFaceIndices (Triangle a b c) = [c, b, a]
+
+faceToTriangles :: Wavefront.Face -> [Triangle]
+faceToTriangles (Wavefront.Face a b c []) = [Triangle a b c]
+faceToTriangles (Wavefront.Face a b c is) = pairwise (Triangle a) (b:c:is)
+    where pairwise f xs = zipWith f xs (tail xs)
+
+objVertices :: Wavefront.WavefrontOBJ -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3])
+objVertices Wavefront.WavefrontOBJ {..}
     | XFrame objLocs  <- fromList . map fromLoc  $ toList objLocations
     , XFrame objTexCs <- fromList . map fromTexC $ toList objTexCoords
       -- the two lines below let GHC know the value length of objLocs and objTexCs
@@ -49,10 +58,10 @@ objVertices WavefrontOBJ {..}
             )
     | otherwise = error "objVertices: impossible arguments"
     where
-        triangles = concatMap (faceToTriangles . elValue) $ toList objFaces
+        triangles = concatMap (\face -> faceToTriangles $ Wavefront.elValue face) $ toList objFaces
         faceIndices = concatMap triangleToFaceIndices triangles
-        fromLoc (Location x y z _) = vec3 x y z
-        fromTexC (TexCoord r s _) = vec2 r (1 - s)
+        fromLoc (Wavefront.Location x y z _) = vec3 x y z
+        fromTexC (Wavefront.TexCoord r s _) = vec2 r (1 - s)
         {- Note, we need to substract 1 from all indices, because Wavefron OBJ indices
            are 1-based (rather than 0-based indices of vector or easytensor packages).
 
@@ -62,9 +71,9 @@ objVertices WavefrontOBJ {..}
         mkVertex :: ( KnownDim n, KnownDim m)
                  => Matrix Float n 3
                  -> Matrix Float m 2
-                 -> FaceIndex
+                 -> Wavefront.FaceIndex
                  -> Vertex
-        mkVertex objLocs objTexCs faceIndex@FaceIndex {..} = Vertex
+        mkVertex objLocs objTexCs faceIndex@Wavefront.FaceIndex {..} = Vertex
           { pos      = objLocs ! fromIntegral (faceLocIndex - 1)
           , color    = vec3 1 1 1
           , texCoord = objTexCs ! fromIntegral (fromJust faceTexCoordIndex - 1)

@@ -6,11 +6,7 @@
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE InstanceSigs           #-}
 
-module HulkanEngine3D.Render.Mesh
-    ( MeshData (..)
-    , MeshInterface (..)
-    , GeometryDataList
-    ) where
+module HulkanEngine3D.Render.Mesh where
 
 import Data.IORef
 import qualified Data.Text as Text
@@ -23,13 +19,13 @@ data MeshData = MeshData
     , _boundBox :: Bool
     , _skeletonDatas :: [Bool]
     , _animationDatas :: [Bool]
-    , _geometryBufferDatas :: IORef GeometryDataList
+    , _geometryBufferDatas :: IORef [GeometryData]
     } deriving (Eq, Show)
 
 class MeshInterface a where
     newMeshData :: Text.Text -> [GeometryData] -> IO a
     getGeometryDataCount :: a -> IO Int
-    getGeometryDataList :: a -> IO GeometryDataList
+    getGeometryDataList :: a -> IO [GeometryData]
     getGeometryData :: a -> Int -> IO GeometryData
     updateMeshData :: a -> IO ()
 
@@ -51,7 +47,7 @@ instance MeshInterface MeshData where
         geometryBufferDatasList <- readIORef (_geometryBufferDatas meshData)
         return $ length geometryBufferDatasList
 
-    getGeometryDataList :: MeshData -> IO GeometryDataList
+    getGeometryDataList :: MeshData -> IO [GeometryData]
     getGeometryDataList meshData = readIORef (_geometryBufferDatas meshData)
 
     getGeometryData :: MeshData -> Int -> IO GeometryData
