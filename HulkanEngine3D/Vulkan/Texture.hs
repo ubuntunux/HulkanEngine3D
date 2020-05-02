@@ -53,6 +53,7 @@ data TextureData = TextureData
     , _imageHeight :: Int
     , _imageDepth :: Int
     , _imageMipLevels :: Int
+    , _imageSampleCount :: VkSampleCountFlagBits
     , _descriptorImageInfo :: VkDescriptorImageInfo
     } deriving (Eq, Show)
 
@@ -392,7 +393,8 @@ createImage physicalDevice device width height mipLevels samples format tiling u
             &* setVk @"extent"
                 (  set @"width" width
                 &* set @"height" height
-                &* set @"depth" 1)
+                &* set @"depth" 1
+                )
             &* set @"mipLevels" mipLevels
             &* set @"arrayLayers" 1
             &* set @"format" format
@@ -496,6 +498,7 @@ createDepthTexture textureDataName physicalDevice device commandBufferPool queue
             , _imageWidth = fromIntegral width
             , _imageHeight = fromIntegral height
             , _imageDepth = 1
+            , _imageSampleCount = samples
             , _imageMipLevels = fromIntegral mipLevels
             , _descriptorImageInfo = descriptorImageInfo
             }
@@ -525,7 +528,8 @@ createColorTexture textureDataName physicalDevice device commandBufferPool queue
         width
         height
         mipLevels
-        samples format
+        samples
+        format
         VK_IMAGE_TILING_OPTIMAL
         -- not sure why tutorial uses VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
         (VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT .|. VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
@@ -548,6 +552,7 @@ createColorTexture textureDataName physicalDevice device commandBufferPool queue
             , _imageWidth = fromIntegral width
             , _imageHeight = fromIntegral height
             , _imageDepth = 1
+            , _imageSampleCount = samples
             , _imageMipLevels = fromIntegral mipLevels
             , _descriptorImageInfo = descriptorImageInfo
             }
@@ -575,6 +580,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
         bufferSize = (fromIntegral imageDataLen)::VkDeviceSize
         mipLevels = (floor . logBase (2::Float) . fromIntegral $ max imageWidth imageHeight) + 1
         format = VK_FORMAT_R8G8B8A8_UNORM
+        samples = VK_SAMPLE_COUNT_1_BIT
     -- we don't need to access the VkDeviceMemory of the image, copyBufferToImage works with the VkImage
     (imageMemory, image) <- createImage
         physicalDevice
@@ -582,7 +588,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
         (fromIntegral imageWidth)
         (fromIntegral imageHeight)
         mipLevels
-        VK_SAMPLE_COUNT_1_BIT
+        samples
         format
         VK_IMAGE_TILING_OPTIMAL
         (VK_IMAGE_USAGE_TRANSFER_SRC_BIT .|. VK_IMAGE_USAGE_TRANSFER_DST_BIT .|. VK_IMAGE_USAGE_SAMPLED_BIT)
@@ -632,6 +638,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
             , _imageWidth = imageWidth
             , _imageHeight = imageHeight
             , _imageDepth = imageDepth
+            , _imageSampleCount = samples
             , _imageMipLevels = fromIntegral mipLevels
             , _descriptorImageInfo = descriptorImageInfo
             }

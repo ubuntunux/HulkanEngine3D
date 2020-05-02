@@ -476,9 +476,9 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
                 vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
 
             -- set viewport
-            withPtr (_frameBufferViewPort frameBufferData) $ \viewPortPtr ->
+            withPtr (_frameBufferViewPort . _frameBufferInfo $ frameBufferData) $ \viewPortPtr ->
                 vkCmdSetViewport commandBuffer 0 1 viewPortPtr
-            withPtr (_frameBufferScissorRect frameBufferData) $ \scissorRectPtr ->
+            withPtr (_frameBufferScissorRect . _frameBufferInfo $ frameBufferData) $ \scissorRectPtr ->
                 vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
 
             -- bind pipeline

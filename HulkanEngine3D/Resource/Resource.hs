@@ -1,6 +1,8 @@
-{-# LANGUAGE InstanceSigs       #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE DuplicateRecordFields      #-}
+{-# LANGUAGE DisambiguateRecordFields   #-}
+{-# LANGUAGE InstanceSigs               #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE DeriveGeneric              #-}
 
 module HulkanEngine3D.Resource.Resource
     ( ResourceData (..)
@@ -26,8 +28,9 @@ import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.UniformBufferDatas
 import HulkanEngine3D.Resource.ObjLoader
+import qualified HulkanEngine3D.Resource.FrameBufferCreateInfo as FrameBufferCreateInfo
 import qualified HulkanEngine3D.Resource.MaterialInstanceCreateInfo as MaterialInstanceCreateInfo
-import HulkanEngine3D.Resource.RenderPassCreateInfo
+import qualified HulkanEngine3D.Resource.RenderPassCreateInfo as RenderPassCreateInfo
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import qualified HulkanEngine3D.Vulkan.GeometryBuffer as GeometryBuffer
@@ -67,10 +70,16 @@ defaultModelName :: Text.Text
 defaultModelName = "quad"
 
 defaultTextureName :: Text.Text
-defaultTextureName = "default"
+defaultTextureName = "common/default"
 
 defaultMaterialInstanceName :: Text.Text
 defaultMaterialInstanceName = "default"
+
+defaultFrameBufferName :: Text.Text
+defaultFrameBufferName = "default"
+
+defaultRenderPassName :: Text.Text
+defaultRenderPassName = "default"
 
 
 data ResourceData = ResourceData
@@ -269,11 +278,11 @@ instance ResourceInterface ResourceData where
     -- FrameBuffer
     loadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
     loadFrameBufferDatas resourceData rendererData = do
-        defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData
-        let frameBufferDataCreateInfo = _frameBufferDataCreateInfo defaultRenderPassDataCreateInfo
-        Just defaultRenderPassData <- getRenderPassData resourceData (_renderPassCreateInfoName defaultRenderPassDataCreateInfo)
-        defaultFrameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass defaultRenderPassData) frameBufferDataCreateInfo
-        HashTable.insert (_frameBufferDataMap resourceData) (_frameBufferName frameBufferDataCreateInfo) defaultFrameBufferData
+        Just renderPassData <- getRenderPassData resourceData "default"
+        let frameBufferName = _renderPassFrameBufferName (renderPassData::RenderPassData)
+        frameBufferDataCreateInfo <- FrameBufferCreateInfo.getFrameBufferDataCreateInfo rendererData frameBufferName
+        frameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass renderPassData) frameBufferDataCreateInfo
+        HashTable.insert (_frameBufferDataMap resourceData) frameBufferName frameBufferData
 
     unloadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
     unloadFrameBufferDatas resourceData rendererData =
@@ -286,10 +295,10 @@ instance ResourceInterface ResourceData where
     -- RenderPassLoader
     loadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     loadRenderPassDatas resourceData rendererData = do
-        defaultRenderPassDataCreateInfo <- getRenderPassDataCreateInfo rendererData
-        descriptorDatas <- forM (_pipelineDataCreateInfos defaultRenderPassDataCreateInfo) $ \pipelineDataCreateInfo ->
-            getDescriptorData resourceData rendererData (_renderPassCreateInfoName defaultRenderPassDataCreateInfo) pipelineDataCreateInfo
-        defaultRenderPassData <- createRenderPassData (getDevice rendererData) defaultRenderPassDataCreateInfo descriptorDatas
+        renderPassDataCreateInfo <- RenderPassCreateInfo.getRenderPassDataCreateInfo rendererData "default"
+        descriptorDatas <- forM (_pipelineDataCreateInfos renderPassDataCreateInfo) $ \pipelineDataCreateInfo ->
+            getDescriptorData resourceData rendererData (_renderPassCreateInfoName renderPassDataCreateInfo) pipelineDataCreateInfo
+        defaultRenderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo descriptorDatas
         HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
 
     unloadRenderPassDatas :: ResourceData -> RendererData -> IO ()
@@ -302,14 +311,14 @@ instance ResourceInterface ResourceData where
 
     getDefaultRenderPassData :: ResourceData -> IO (Maybe RenderPassData)
     getDefaultRenderPassData resourceData =
-        getRenderPassData resourceData "defaultRenderPass"
+        getRenderPassData resourceData defaultRenderPassName
 
     -- MaterialInstanceDatas
     loadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
     loadMaterialInstanceDatas resourceData rendererData = do
-        Just renderPassData <- getRenderPassData resourceData "defaultRenderPass"
+        Just renderPassData <- getRenderPassData resourceData defaultRenderPassName
         Just pipelineData <- getPipelineData renderPassData "RenderTriangle"
-        textureData <- getTextureData resourceData "common/default"
+        textureData <- getTextureData resourceData defaultTextureName
 
         let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . _uniformBufferDatas $ rendererData
             descriptorImageInfo = _descriptorImageInfo textureData

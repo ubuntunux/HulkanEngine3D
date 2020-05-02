@@ -1,24 +1,11 @@
-{-# LANGUAGE DuplicateRecordFields  #-}
-{-# LANGUAGE DataKinds              #-}
-{-# LANGUAGE RecordWildCards        #-}
-{-# LANGUAGE Strict                 #-}
-{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE DuplicateRecordFields      #-}
+{-# LANGUAGE DisambiguateRecordFields   #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE Strict                     #-}
+{-# LANGUAGE TypeApplications           #-}
 
-module HulkanEngine3D.Vulkan.RenderPass
-    ( ImageAttachmentDescription (..)
-    , RenderPassDataCreateInfo (..)
-    , PipelineDataCreateInfo (..)
-    , DepthStencilStateCreateInfo (..)
-    , PipelineData (..)
-    , RenderPassData (..)
-    , defaultDepthStencilStateCreateInfo
-    , defaultAttachmentDescription
-    , createRenderPassData
-    , destroyRenderPassData
-    , getPipelineData
-    , createGraphicsPipelineData
-    , destroyPipelineData
-    ) where
+module HulkanEngine3D.Vulkan.RenderPass where
 
 import Data.Bits
 import Control.Monad
@@ -35,14 +22,13 @@ import Numeric.DataFrame
 import Numeric.Dimensions
 
 import qualified HulkanEngine3D.Constants as Constants
-import HulkanEngine3D.Utilities.Logger
-import HulkanEngine3D.Utilities.Math
-import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Vulkan.Descriptor
-import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.PushConstant
 import HulkanEngine3D.Vulkan.Shader
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.Math
+import HulkanEngine3D.Utilities.System
 
 
 data ImageAttachmentDescription = ImageAttachmentDescription
@@ -59,11 +45,11 @@ data ImageAttachmentDescription = ImageAttachmentDescription
 
 data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     { _renderPassCreateInfoName :: Text.Text
+    , _renderPassFrameBufferName :: Text.Text
     , _colorAttachmentDescriptions :: [ImageAttachmentDescription]
     , _depthAttachmentDescriptions :: [ImageAttachmentDescription]
     , _resolveAttachmentDescriptions :: [ImageAttachmentDescription]
     , _pipelineDataCreateInfos :: [PipelineDataCreateInfo]
-    , _frameBufferDataCreateInfo :: FrameBufferDataCreateInfo
     }  deriving (Eq, Show)
 
 data DepthStencilStateCreateInfo = DepthStencilStateCreateInfo
@@ -92,10 +78,12 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     , _vertexShaderFile :: String
     , _fragmentShaderFile :: String
     , _pipelineDynamicStateList :: [VkDynamicState]
-    , _pipelineMultisampleCount :: VkSampleCountFlagBits
+    , _pipelineSampleCount :: VkSampleCountFlagBits
     , _pipelinePolygonMode :: VkPolygonMode
     , _pipelineCullMode :: VkCullModeFlagBits
     , _pipelineFrontFace :: VkFrontFace
+    , _pipelineViewport :: VkViewport
+    , _pipelineScissorRect :: VkRect2D
     , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
     , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
     , _descriptorDataCreateInfoList :: [DescriptorDataCreateInfo]
@@ -115,6 +103,7 @@ type PipelineDataMap = HashTable.BasicHashTable Text.Text PipelineData
 data RenderPassData = RenderPassData
     { _renderPassDataName :: Text.Text
     , _renderPass :: VkRenderPass
+    , _renderPassFrameBufferName :: Text.Text
     , _pipelineDataMap :: PipelineDataMap
     } deriving Show
 
@@ -154,11 +143,12 @@ defaultAttachmentDescription = ImageAttachmentDescription
     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
     }
 
+
 createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> [DescriptorData] -> IO RenderPassData
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} descriptorDatas = do
     renderPass <- createRenderPass device renderPassDataCreateInfo
     pipelineDataList <- forM (zip _pipelineDataCreateInfos descriptorDatas) $ \(pipelineDataCreateInfo, descriptorData) -> do
-        graphicsPipelineData <- createGraphicsPipelineData device renderPass pipelineDataCreateInfo _frameBufferDataCreateInfo descriptorData
+        graphicsPipelineData <- createGraphicsPipelineData device renderPass pipelineDataCreateInfo descriptorData
         return graphicsPipelineData
     pipelineDataMap <- HashTable.new
     forM_ pipelineDataList $ \pipelineData ->
@@ -167,6 +157,7 @@ createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {.
     return RenderPassData
         { _renderPassDataName = _renderPassCreateInfoName
         , _renderPass = renderPass
+        , _renderPassFrameBufferName = _renderPassFrameBufferName
         , _pipelineDataMap = pipelineDataMap
         }
 
@@ -281,10 +272,9 @@ destroyPipelineLayout device pipelineLayout = do
 createGraphicsPipelineData :: VkDevice
                            -> VkRenderPass
                            -> PipelineDataCreateInfo
-                           -> FrameBufferDataCreateInfo
                            -> DescriptorData
                            -> IO PipelineData
-createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} frameBufferDataCreateInfo descriptorData = do
+createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} descriptorData = do
     vertexShaderCreateInfo <- createShaderStageCreateInfo device _vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device _fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
 
@@ -324,9 +314,9 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"viewportCount" 1
-            &* setVkRef @"pViewports" (_frameBufferViewPort frameBufferDataCreateInfo)
+            &* setVkRef @"pViewports" _pipelineViewport
             &* set @"scissorCount" 1
-            &* setVkRef @"pScissors" (_frameBufferScissorRect frameBufferDataCreateInfo)
+            &* setVkRef @"pScissors" _pipelineScissorRect
         rasterizer = createVk @VkPipelineRasterizationStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -346,7 +336,7 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"sampleShadingEnable" VK_FALSE
-            &* set @"rasterizationSamples" _pipelineMultisampleCount
+            &* set @"rasterizationSamples" _pipelineSampleCount
             &* set @"minSampleShading" 1.0
             &* set @"pSampleMask" VK_NULL
             &* set @"alphaToCoverageEnable" VK_FALSE
