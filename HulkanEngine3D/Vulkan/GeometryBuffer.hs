@@ -40,7 +40,7 @@ import HulkanEngine3D.Vulkan.Buffer
 data Vertex = Vertex
     { pos :: Vec3f
     , normal :: Vec3f
-    , color :: Vec3f
+    , color :: Vec4f
     , texCoord :: Vec2f
     } deriving (Eq, Ord, Show, Generic)
 
@@ -83,14 +83,25 @@ atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough poin
 --         in function signatures (such as, e.g. `KnownDim n`).
 quadVertices :: DataFrameAtLeastThree Vertex
 quadVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0 0)
-    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 0 1 0) (vec3 1 0 0) (vec2 0 0)
-    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (vec3 0 1 0) (vec2 1 0)
-    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 1 0) (vec3 0 0 1) (vec2 1 1)
-    , Vertex (vec3 -1.0  1.0  0.0) (vec3 0 1 0) (vec3 1 1 1) (vec2 0 1)
+    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 0 0)
+    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 1 0)
+    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 1 1)
+    , Vertex (vec3 -1.0  1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 0 1)
     ]
 
 quadIndices :: DataFrameAtLeastThree Word32
 quadIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
+
+cubeVertices :: DataFrameAtLeastThree Vertex
+cubeVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0 0)
+    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 0 0)
+    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 1 0)
+    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 1 1)
+    , Vertex (vec3 -1.0  1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 0 1)
+    ]
+
+cubeIndices :: DataFrameAtLeastThree Word32
+cubeIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
 
 vertexInputBindDescription :: VkVertexInputBindingDescription
 vertexInputBindDescription = createVk @VkVertexInputBindingDescription
@@ -119,7 +130,7 @@ vertexInputAttributeDescriptions = ST.runST $ do
     ST.writeDataFrame mv 2 . scalar $ createVk
         $  set @"location" 2
         &* set @"binding" 0
-        &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
+        &* set @"format" VK_FORMAT_R8G8B8A8_UNORM
         &* set @"offset" (bFieldOffsetOf @"color" @Vertex undefined)
     ST.writeDataFrame mv 3 . scalar $ createVk
         $  set @"location" 3
