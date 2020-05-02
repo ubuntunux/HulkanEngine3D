@@ -1,10 +1,12 @@
-{-# LANGUAGE DataKinds              #-}
-{-# LANGUAGE RecordWildCards        #-}
-{-# LANGUAGE Strict                 #-}
-{-# LANGUAGE TypeApplications       #-}
-{-# LANGUAGE TemplateHaskell        #-}
-{-# LANGUAGE OverloadedStrings      #-}
-{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE DuplicateRecordFields      #-}
+{-# LANGUAGE DisambiguateRecordFields   #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE Strict                     #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 module HulkanEngine3D.Render.Renderer
   ( RendererData (..)
@@ -60,7 +62,7 @@ import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Queue
 import HulkanEngine3D.Vulkan.PushConstant
-import HulkanEngine3D.Vulkan.RenderPass
+import qualified HulkanEngine3D.Vulkan.RenderPass as RenderPass
 import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Sync
 import HulkanEngine3D.Vulkan.Texture
@@ -462,13 +464,13 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
             materialInstanceData = RenderElement._materialInstanceData renderElement
             renderPassData = _renderPassData materialInstanceData
 
-        Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (_renderPassDataName renderPassData)
-        let renderPass = _renderPass renderPassData
+        Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (RenderPass._renderPassFrameBufferName (renderPassData::RenderPass.RenderPassData))
+        let renderPass = RenderPass._renderPass renderPassData
             renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
             descriptorSet = (_descriptorSets materialInstanceData) !! imageIndex
-        Just pipelineData <- getPipelineData renderPassData "RenderTriangle"
-        let pipelineLayout = _pipelineLayout pipelineData
-            pipeline = _pipeline pipelineData
+        pipelineData <- RenderPass.getPipelineData renderPassData "RenderTriangle"
+        let pipelineLayout = RenderPass._pipelineLayout pipelineData
+            pipeline = RenderPass._pipeline pipelineData
 
         when (0 == index) $ do
             -- begin renderpass

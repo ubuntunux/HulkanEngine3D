@@ -10,6 +10,7 @@ module HulkanEngine3D.Vulkan.RenderPass where
 import Data.Bits
 import Control.Monad
 import qualified Data.Text as Text
+import qualified Data.Maybe as Maybe
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 import qualified Data.HashTable.IO as HashTable
@@ -238,10 +239,9 @@ destroyRenderPass device renderPass renderPassName = do
     logInfo $ "Destroy RenderPass : " ++ Text.unpack renderPassName ++ " " ++ show renderPass
     vkDestroyRenderPass device renderPass VK_NULL
 
-
-getPipelineData :: RenderPassData -> Text.Text -> IO (Maybe PipelineData)
+getPipelineData :: RenderPassData -> Text.Text -> IO PipelineData
 getPipelineData renderPassData pipelineDataName = do
-    HashTable.lookup (_pipelineDataMap renderPassData) pipelineDataName
+    Maybe.fromJust <$> HashTable.lookup (_pipelineDataMap renderPassData) pipelineDataName
 
 
 createPipelineLayout :: VkDevice -> [VkPushConstantRange] -> [VkDescriptorSetLayout] -> IO VkPipelineLayout

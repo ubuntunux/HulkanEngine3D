@@ -317,7 +317,7 @@ instance ResourceInterface ResourceData where
     loadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
     loadMaterialInstanceDatas resourceData rendererData = do
         Just renderPassData <- getRenderPassData resourceData defaultRenderPassName
-        Just pipelineData <- getPipelineData renderPassData "RenderTriangle"
+        pipelineData <- getPipelineData renderPassData "RenderTriangle"
         textureData <- getTextureData resourceData defaultTextureName
 
         let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . _uniformBufferDatas $ rendererData
