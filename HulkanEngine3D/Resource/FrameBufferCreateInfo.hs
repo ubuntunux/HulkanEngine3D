@@ -20,24 +20,21 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
         renderTargets@RenderTargets {..} <- readIORef (_renderTargets rendererData)
         swapChainData <- readIORef (_swapChainDataRef rendererData)
         return defaultFrameBufferDataCreateInfo
-            { _frameBufferName = Text.pack "default"
+            { _frameBufferName = frameBufferName
             , _frameBufferWidth = _imageWidth _sceneColorTexture
             , _frameBufferHeight = _imageHeight _sceneColorTexture
             , _frameBufferDepth = _imageDepth _sceneColorTexture
             , _frameBufferSampleCount = _imageSampleCount _sceneColorTexture
             , _frameBufferViewPort = createViewport 0 0 (fromIntegral $ _imageWidth _sceneColorTexture) (fromIntegral $ _imageHeight _sceneColorTexture) 0 1
             , _frameBufferScissorRect = createScissorRect 0 0 (fromIntegral $ _imageWidth _sceneColorTexture) (fromIntegral $ _imageHeight _sceneColorTexture)
-            , _frameBufferImageFormatList =
-                [ _imageFormat _sceneColorTexture
-                , _imageFormat _sceneDepthTexture
-                , _swapChainImageFormat swapChainData
-                ]
+            , _frameBufferColorAttachmentFormats = [_imageFormat _sceneColorTexture]
+            , _frameBufferDepthAttachmentFormats = [_imageFormat _sceneDepthTexture]
+            , _frameBufferResolveAttachmentFormats = [_swapChainImageFormat swapChainData]
             , _frameBufferImageViewsList =
                 [[ _imageView _sceneColorTexture
                  , _imageView _sceneDepthTexture
                  , (_swapChainImageViews swapChainData) !! index
-                 ] | index <- Constants.swapChainImageIndices
-                ]
+                 ] | index <- Constants.swapChainImageIndices]
             , _frameBufferClearValues =
                 [ getColorClearValue [0.0, 0.0, 0.2, 1.0]
                 , getDepthStencilClearValue 1.0 0

@@ -28,7 +28,9 @@ data FrameBufferDataCreateInfo = FrameBufferDataCreateInfo
     , _frameBufferSampleCount :: VkSampleCountFlagBits
     , _frameBufferViewPort :: VkViewport
     , _frameBufferScissorRect :: VkRect2D
-    , _frameBufferImageFormatList :: [VkFormat]
+    , _frameBufferColorAttachmentFormats :: [VkFormat]
+    , _frameBufferDepthAttachmentFormats :: [VkFormat]
+    , _frameBufferResolveAttachmentFormats :: [VkFormat]
     , _frameBufferImageViewsList :: [[VkImageView]]
     , _frameBufferClearValues :: [VkClearValue]
     }  deriving (Eq, Show)
@@ -42,7 +44,9 @@ defaultFrameBufferDataCreateInfo = FrameBufferDataCreateInfo
     , _frameBufferSampleCount = VK_SAMPLE_COUNT_1_BIT
     , _frameBufferViewPort = createViewport 0 0 1024 768 0 1
     , _frameBufferScissorRect = createScissorRect 0 0 1024 768
-    , _frameBufferImageFormatList = []
+    , _frameBufferColorAttachmentFormats = []
+    , _frameBufferDepthAttachmentFormats = []
+    , _frameBufferResolveAttachmentFormats = []
     , _frameBufferImageViewsList = []
     , _frameBufferClearValues = []
     }

@@ -22,33 +22,33 @@ getRenderPassDataCreateInfo rendererData renderPassName
         let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
             colorAttachmentDescriptions =
                 [ defaultAttachmentDescription
-                    { _attachmentImageFormat = (_frameBufferImageFormatList frameBufferDataCreateInfo) !! 0
+                    { _attachmentImageFormat = format
                     , _attachmentImageSamples = sampleCount
                     , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
                     , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
                     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
                     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                    }
+                    } | format <- _frameBufferColorAttachmentFormats frameBufferDataCreateInfo
                 ]
             depthAttachmentDescriptions =
                 [ defaultAttachmentDescription
-                    { _attachmentImageFormat = (_frameBufferImageFormatList frameBufferDataCreateInfo) !! 1
+                    { _attachmentImageFormat = format
                     , _attachmentImageSamples = sampleCount
                     , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
                     , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
                     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
                     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                    }
+                    } | format <- _frameBufferDepthAttachmentFormats frameBufferDataCreateInfo
                 ]
             resolveAttachmentDescriptions =
                 [ defaultAttachmentDescription
-                    { _attachmentImageFormat = (_frameBufferImageFormatList frameBufferDataCreateInfo) !! 2
+                    { _attachmentImageFormat = format
                     , _attachmentImageSamples = VK_SAMPLE_COUNT_1_BIT
                     , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
                     , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
                     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
                     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                    }
+                    } | format <- _frameBufferResolveAttachmentFormats frameBufferDataCreateInfo
                 ]
             pipelineDataCreateInfos =
                 [ PipelineDataCreateInfo
