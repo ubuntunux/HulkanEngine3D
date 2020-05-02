@@ -44,11 +44,11 @@ type FrameBufferDataCreateInfo = FrameBufferData
 defaultFrameBufferDataCreateInfo :: FrameBufferDataCreateInfo
 defaultFrameBufferDataCreateInfo = FrameBufferData
     { _frameBufferName = ""
-    , _frameBufferWidth = 0
-    , _frameBufferHeight = 0
+    , _frameBufferWidth = 1024
+    , _frameBufferHeight = 768
     , _frameBufferDepth = 1
-    , _frameBufferViewPort = createViewport 0 0 0 0 0 0
-    , _frameBufferScissorRect = createScissorRect 0 0 0 0
+    , _frameBufferViewPort = createViewport 0 0 1024 768 0 1
+    , _frameBufferScissorRect = createScissorRect 0 0 1024 768
     , _frameBufferImageViewsList = []
     , _frameBufferClearValues = []
     , _frameBuffers = []
