@@ -77,6 +77,6 @@ objVertices Wavefront.WavefrontOBJ {..}
         mkVertex objLocs objNorms objTexCs faceIndex@Wavefront.FaceIndex {..} = Vertex
           { pos = objLocs ! fromIntegral (faceLocIndex - 1)
           , normal = objNorms ! fromIntegral (fromJust faceNorIndex - 1)
-          , color = vec3 1 1 1
+          , color = vec4 1 1 1 1
           , texCoord = objTexCs ! fromIntegral (fromJust faceTexCoordIndex - 1)
           }
