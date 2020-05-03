@@ -234,7 +234,7 @@ instance ResourceInterface ResourceData where
     -- Mesh Loader
     loadMeshDatas :: ResourceData -> RendererData -> IO ()
     loadMeshDatas resourceData rendererData = do
-        registMeshData (_meshDataMap resourceData) defaultMeshName GeometryBuffer.quadVertices GeometryBuffer.quadIndices
+        registMeshData (_meshDataMap resourceData) "quad" GeometryBuffer.quadVertices GeometryBuffer.quadIndices
         registMeshData (_meshDataMap resourceData) "cube" GeometryBuffer.cubeVertices GeometryBuffer.cubeIndices
 
         meshFiles <- walkDirectory meshFilePath [".obj"]
