@@ -250,9 +250,9 @@ instance ResourceInterface ResourceData where
 
     unloadMeshDatas :: ResourceData -> RendererData -> IO ()
     unloadMeshDatas resourceData rendererData = do
-        HashTable.mapM_ (\(k, v) -> (action rendererData k v)) (_meshDataMap resourceData)
+        HashTable.mapM_ (\(k, v) -> (destroyGeometryData rendererData k v)) (_meshDataMap resourceData)
         where
-            action rendererData name meshData = do
+            destroyGeometryData rendererData name meshData = do
                 geometryDataCount <- getGeometryDataCount meshData
                 forM_  [0..(geometryDataCount-1)] $ \index -> do
                     geometryData <- getGeometryData meshData index
