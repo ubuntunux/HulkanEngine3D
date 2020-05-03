@@ -93,15 +93,39 @@ quadIndices :: DataFrameAtLeastThree Word32
 quadIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
 
 cubeVertices :: DataFrameAtLeastThree Vertex
-cubeVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0 0)
-    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 0 0)
-    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 1 0)
-    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 1 1)
-    , Vertex (vec3 -1.0  1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 0 1)
-    ]
+cubeVertices =
+    let positions = [vec3 x y z | position@(x, y, z) <- [
+            (-1, 1, 1), (-1, -1, 1), (1, -1, 1), (1, 1, 1),
+            (1, 1, 1), (1, -1, 1), (1, -1, -1), (1, 1, -1),
+            (1, 1, -1), (1, -1, -1), (-1, -1, -1), (-1, 1, -1),
+            (-1, 1, -1), (-1, -1, -1), (-1, -1, 1), (-1, 1, 1),
+            (-1, 1, -1), (-1, 1, 1), (1, 1, 1), (1, 1, -1),
+            (-1, -1, 1), (-1, -1, -1), (1, -1, -1), (1, -1, 1)]]
+        normals = [vec3 x y z | normal@(x, y, z) <- [
+            (0, 0, 1), (0, 0, 1), (0, 0, 1), (0, 0, 1),
+            (1, 0, 0), (1, 0, 0), (1, 0, 0), (1, 0, 0),
+            (0, 0, -1), (0, 0, -1), (0, 0, -1), (0, 0, -1),
+            (-1, 0, 0), (-1, 0, 0), (-1, 0, 0), (-1, 0, 0),
+            (0, 1, 0), (0, 1, 0), (0, 1, 0), (0, 1, 0),
+            (0, -1, 0), (0, -1, 0), (0, -1, 0), (0, -1, 0)]]
+        texcoords = [vec2 x y | texcoord@(x, y) <- [
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1)]]
+        vertexCount = length positions
+    in
+        XFrame $ fromFlatList (D24 :* U) (Vertex 0 0 0 0) [Vertex (positions !! i) (normals !! i) (vec4 1 1 1 1) (texcoords !! i) | i <- [0..(vertexCount - 1)]]
 
 cubeIndices :: DataFrameAtLeastThree Word32
-cubeIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
+cubeIndices = atLeastThree . fromList $ [ 0, 2, 1, 0, 3, 2,
+                                          4, 6, 5, 4, 7, 6,
+                                          8, 10, 9, 8, 11, 10,
+                                          12, 14, 13, 12, 15, 14,
+                                          16, 18, 17, 16, 19, 18,
+                                          20, 22, 21, 20, 23, 22 ]
 
 vertexInputBindDescription :: VkVertexInputBindingDescription
 vertexInputBindDescription = createVk @VkVertexInputBindingDescription

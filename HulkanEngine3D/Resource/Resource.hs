@@ -211,14 +211,17 @@ instance ResourceInterface ResourceData where
         forM_ modelFiles $ \modelFile -> do
             modelName <- getResourceNameFromFilepath (_modelDataMap resourceData) modelFilePath modelFile
             contents <- ByteString.readFile modelFile
-            let Just (Aeson.Object modelCreateInfoMap) = Aeson.decodeStrict contents
-                Just (Aeson.Array materialInstanceNames) = HashMap.lookup "material_instances" modelCreateInfoMap
-                Just (Aeson.String meshName) = HashMap.lookup "mesh" modelCreateInfoMap
-            materialInstanceDatas <- forM (Vector.toList materialInstanceNames) $ \(Aeson.String materialInstanceName) -> do
-                getMaterialInstanceData resourceData materialInstanceName
-            meshData <- getMeshData resourceData meshName
-            modelData <- Model.newModelData modelName meshData materialInstanceDatas
-            HashTable.insert (_modelDataMap resourceData) modelName modelData
+            registModelData (_modelDataMap resourceData) modelName contents
+        where
+            registModelData modelDataMap modelName contents = do
+                let Just (Aeson.Object modelCreateInfoMap) = Aeson.decodeStrict contents
+                    Just (Aeson.Array materialInstanceNames) = HashMap.lookup "material_instances" modelCreateInfoMap
+                    Just (Aeson.String meshName) = HashMap.lookup "mesh" modelCreateInfoMap
+                materialInstanceDatas <- forM (Vector.toList materialInstanceNames) $ \(Aeson.String materialInstanceName) -> do
+                    getMaterialInstanceData resourceData materialInstanceName
+                meshData <- getMeshData resourceData meshName
+                modelData <- Model.newModelData modelName meshData materialInstanceDatas
+                HashTable.insert modelDataMap modelName modelData
 
     unloadModelDatas :: ResourceData -> RendererData -> IO ()
     unloadModelDatas resourceData rendererData = do
@@ -232,6 +235,7 @@ instance ResourceInterface ResourceData where
     loadMeshDatas :: ResourceData -> RendererData -> IO ()
     loadMeshDatas resourceData rendererData = do
         registMeshData (_meshDataMap resourceData) defaultMeshName GeometryBuffer.quadVertices GeometryBuffer.quadIndices
+        registMeshData (_meshDataMap resourceData) "cube" GeometryBuffer.cubeVertices GeometryBuffer.cubeIndices
 
         meshFiles <- walkDirectory meshFilePath [".obj"]
         forM_ meshFiles $ \meshFile -> do

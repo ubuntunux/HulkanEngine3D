@@ -67,19 +67,19 @@ instance SceneManagerInterface SceneManagerData where
         writeIORef _mainCamera mainCamera
 
         modelData0 <- Resource.getModelData _resourceData "quad"
-        modelData1 <- Resource.getModelData _resourceData "axis_gizmo"
+        modelData1 <- Resource.getModelData _resourceData "cube"
         modelData2 <- Resource.getModelData _resourceData "sphere"
 
-        addStaticObject sceneManagerData "suzan_0" $ RenderObject.StaticObjectCreateData
+        addStaticObject sceneManagerData "object0" $ RenderObject.StaticObjectCreateData
                     { RenderObject._modelData' = modelData0
                     , RenderObject._position' = vec3 4 0 0
                     }
 
-        addStaticObject sceneManagerData "suzan_0" $ RenderObject.StaticObjectCreateData
+        addStaticObject sceneManagerData "object1" $ RenderObject.StaticObjectCreateData
                     { RenderObject._modelData' = modelData1
                     , RenderObject._position' = vec3 0 0 0
                     }
-        addStaticObject sceneManagerData "suzan_0" $ RenderObject.StaticObjectCreateData
+        addStaticObject sceneManagerData "object2" $ RenderObject.StaticObjectCreateData
                     { RenderObject._modelData' = modelData2
                     , RenderObject._position' = vec3 -4 0 0
                     }
