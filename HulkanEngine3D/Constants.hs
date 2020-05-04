@@ -12,6 +12,12 @@ vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]
 requireDeviceExtensions :: [CString]
 requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
 
+depthFomats :: [VkFormat]
+depthFomats = [VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM_S8_UINT, VK_FORMAT_D16_UNORM]
+
+depthStencilFormats :: [VkFormat]
+depthStencilFormats = [VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT]
+
 invalidQueueIndex :: Word32
 invalidQueueIndex = maxBound
 
@@ -20,6 +26,9 @@ swapChainImageCount = 3
 
 swapChainImageIndices :: [Int]
 swapChainImageIndices = [0..(swapChainImageCount-1)]
+
+swapChainImageFormat :: VkFormat
+swapChainImageFormat = VK_FORMAT_B8G8R8A8_UNORM
 
 maxFrameCount :: Int
 maxFrameCount = 2

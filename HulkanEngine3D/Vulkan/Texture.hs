@@ -9,8 +9,6 @@
 module HulkanEngine3D.Vulkan.Texture
     ( TextureData (..)
     , createDescriptorImageInfo
-    , findDepthFormat
-    , isDepthFormat
     , findSupportedFormat
     , createImageSampler
     , destroyImageSampler
@@ -36,10 +34,11 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
-import HulkanEngine3D.Utilities.Logger
-import HulkanEngine3D.Utilities.System
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
+import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.System
 
 
 data TextureData = TextureData
@@ -240,17 +239,13 @@ generateMipmaps physicalDevice image format width height mipLevels commandBuffer
                     0 VK_NULL
                     1 barrierPtr
 
-
-depthFomats :: [VkFormat]
-depthFomats = [VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM_S8_UINT, VK_FORMAT_D16_UNORM]
-
 findSupportedFormat :: VkPhysicalDevice
-                    -> [VkFormat]
+                    -> VkFormat
                     -> VkImageTiling
                     -> VkFormatFeatureFlags
                     -> IO VkFormat
-findSupportedFormat physicalDevice formats tiling features = do
-    goodCands <- flip filterM formats $ \format -> do
+findSupportedFormat physicalDevice requireFormat tiling features = do
+    goodCands <- flip filterM Constants.depthFomats $ \format -> do
         props <- allocaPeek $ \propsPtr ->
             vkGetPhysicalDeviceFormatProperties physicalDevice format propsPtr
         return $ case tiling of
@@ -258,19 +253,9 @@ findSupportedFormat physicalDevice formats tiling features = do
             VK_IMAGE_TILING_OPTIMAL -> getField @"optimalTilingFeatures" props .&. features == features
             otherwise -> False
     case goodCands of
-        x:_ -> return x
+        x:_ -> return $ if elem requireFormat goodCands then requireFormat else x
         []  -> throwVKMsg "failed to find supported format"
 
-findDepthFormat :: VkPhysicalDevice -> IO VkFormat
-findDepthFormat physicalDevice =
-    findSupportedFormat
-        physicalDevice
-        depthFomats
-        VK_IMAGE_TILING_OPTIMAL
-        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-
-isDepthFormat :: VkFormat -> Bool
-isDepthFormat format = elem format depthFomats
 
 createImageSampler :: VkDevice -> Word32 -> VkFilter -> VkFilter -> VkSamplerAddressMode -> VkBool32 -> IO VkSampler
 createImageSampler device mipLevels minFilter magFilter samplerAddressMode anisotropyEnable = do
@@ -341,12 +326,11 @@ transitionImageLayout :: VkImage
                       -> IO ()
 transitionImageLayout image format transition mipLevels commandBuffer = do
     let TransitionDependent {..} = transitionDependent transition
-        hasStencilFormats = [VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT]
         aspectMask = case _newLayout of
             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                | elem format hasStencilFormats -> VK_IMAGE_ASPECT_DEPTH_BIT .|. VK_IMAGE_ASPECT_STENCIL_BIT
+                | elem format Constants.depthStencilFormats -> VK_IMAGE_ASPECT_DEPTH_BIT .|. VK_IMAGE_ASPECT_STENCIL_BIT
                 | otherwise -> VK_IMAGE_ASPECT_DEPTH_BIT
-            _ -> VK_IMAGE_ASPECT_COLOR_BIT
+            otherwise -> VK_IMAGE_ASPECT_COLOR_BIT
         barrier = createVk @VkImageMemoryBarrier
             $  set @"sType" VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER
             &* set @"pNext" VK_NULL
@@ -461,14 +445,15 @@ createDepthTexture :: Text.Text
                    -> VkDevice
                    -> VkCommandPool
                    -> VkQueue
+                   -> VkFormat
                    -> VkExtent2D
                    -> VkSampleCountFlagBits
                    -> IO TextureData
-createDepthTexture textureDataName physicalDevice device commandBufferPool queue extent samples = do
+createDepthTexture textureDataName physicalDevice device commandBufferPool queue format extent samples = do
     let width = getField @"width" extent
         height = getField @"height" extent
         mipLevels = 1
-    depthFormat <- findDepthFormat physicalDevice
+    depthFormat <- findSupportedFormat physicalDevice format VK_IMAGE_TILING_OPTIMAL VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
     (depthImageMemory, depthImage) <- createImage
         physicalDevice
         device

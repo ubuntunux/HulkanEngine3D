@@ -44,8 +44,8 @@ data SwapChainData = SwapChainData
     } deriving (Eq, Show)
 
 
-chooseSwapSurfaceFormat :: SwapChainSupportDetails -> IO VkSurfaceFormatKHR
-chooseSwapSurfaceFormat swapChainSupportDetails =
+chooseSwapSurfaceFormat :: SwapChainSupportDetails -> VkFormat -> IO VkSurfaceFormatKHR
+chooseSwapSurfaceFormat swapChainSupportDetails requireFormat =
     findAvailableFormat (_formats swapChainSupportDetails)
     where
         formats = _formats swapChainSupportDetails
@@ -53,10 +53,10 @@ chooseSwapSurfaceFormat swapChainSupportDetails =
         getColorSpace = getField @"colorSpace"
         findAvailableFormat :: [VkSurfaceFormatKHR] -> IO VkSurfaceFormatKHR
         findAvailableFormat [] = newVkData $ \surfaceFormatPtr -> do
-            writeField @"format" surfaceFormatPtr VK_FORMAT_B8G8R8A8_UNORM
+            writeField @"format" surfaceFormatPtr requireFormat
             writeField @"colorSpace" surfaceFormatPtr VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
         findAvailableFormat (x:xs) =
-            if (VK_FORMAT_B8G8R8A8_UNORM == getFormat x || VK_FORMAT_UNDEFINED == getFormat x) && VK_COLOR_SPACE_SRGB_NONLINEAR_KHR == getColorSpace x
+            if (requireFormat == getFormat x || VK_FORMAT_UNDEFINED == getFormat x) && VK_COLOR_SPACE_SRGB_NONLINEAR_KHR == getColorSpace x
             then return x
             else findAvailableFormat xs
 
@@ -112,7 +112,7 @@ createSwapChainData :: VkDevice
                     -> Bool
                     -> IO SwapChainData
 createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface immediateMode = do
-  surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails
+  surfaceFormat <- chooseSwapSurfaceFormat swapChainSupportDetails Constants.swapChainImageFormat
   presentMode <- if not immediateMode then chooseSwapPresentMode swapChainSupportDetails else return VK_PRESENT_MODE_IMMEDIATE_KHR
   imageExtent <- chooseSwapExtent swapChainSupportDetails
   queueFamilyIndicesPtr <- newArray (_queueFamilyIndexList queueFamilyDatas)

@@ -20,22 +20,26 @@ import HulkanEngine3D.Vulkan.Texture
 data RenderTargets = RenderTargets
     { _sceneColorTexture :: TextureData
     , _sceneDepthTexture :: TextureData
+    , _backBufferTexture :: TextureData
     } deriving (Show)
 
 
 createRenderTargets :: RendererData -> IO RenderTargets
 createRenderTargets rendererData = do
     swapChainData <- getSwapChainData rendererData
-    let format = _swapChainImageFormat swapChainData
-        extent = _swapChainExtent swapChainData
+    let windowSize = _swapChainExtent swapChainData
         samples = min VK_SAMPLE_COUNT_4_BIT (_msaaSamples . _renderFeatures $ rendererData)
-    sceneColor <- createRenderTarget rendererData "sceneColor" format extent samples
-    sceneDepth <- createDepthTarget rendererData "sceneDepth" extent samples
+    sceneColor <- createRenderTarget rendererData "sceneColor" VK_FORMAT_B8G8R8A8_UNORM windowSize samples
+    sceneDepth <- createDepthTarget rendererData "sceneDepth" VK_FORMAT_D32_SFLOAT windowSize samples
+    backBuffer <- createRenderTarget rendererData "backBuffer" VK_FORMAT_B8G8R8A8_UNORM windowSize samples
     return RenderTargets
         { _sceneColorTexture = sceneColor
-        , _sceneDepthTexture = sceneDepth }
+        , _sceneDepthTexture = sceneDepth
+        , _backBufferTexture = backBuffer
+        }
 
 destroyRenderTargets :: RendererData -> RenderTargets -> IO ()
 destroyRenderTargets rendererData renderTargets = do
     destroyTexture rendererData (_sceneColorTexture renderTargets)
     destroyTexture rendererData (_sceneDepthTexture renderTargets)
+    destroyTexture rendererData (_backBufferTexture renderTargets)

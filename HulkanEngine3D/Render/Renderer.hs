@@ -106,7 +106,7 @@ class RendererInterface a where
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
     createRenderTarget :: a -> Text.Text -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
-    createDepthTarget :: a -> Text.Text -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
+    createDepthTarget :: a -> Text.Text -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createTexture :: a -> Text.Text -> FilePath -> IO TextureData
     destroyTexture :: a -> TextureData -> IO ()
     createGeometryBuffer :: a -> Text.Text -> DataFrame Vertex '[XN 3] -> DataFrame Word32 '[XN 3] -> IO GeometryData
@@ -138,13 +138,14 @@ instance RendererInterface RendererData where
             extent
             samples
 
-    createDepthTarget rendererData textureDataName extent samples =
+    createDepthTarget rendererData textureDataName format extent samples =
         createDepthTexture
             textureDataName
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)
             (_graphicsQueue (_queueFamilyDatas rendererData))
+            format
             extent
             samples
 
