@@ -488,6 +488,7 @@ createDepthTexture textureDataName physicalDevice device commandBufferPool queue
             , _descriptorImageInfo = descriptorImageInfo
             }
     logInfo "createDepthTexture"
+    logInfo $ "    Name : " ++ Text.unpack textureDataName
     logInfo $ "    Format : " ++ show depthFormat
     logInfo $ "    Size : " ++ show extent
     logInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
@@ -542,6 +543,7 @@ createColorTexture textureDataName physicalDevice device commandBufferPool queue
             , _descriptorImageInfo = descriptorImageInfo
             }
     logInfo "createColorTexture"
+    logInfo $ "    Name : " ++ Text.unpack textureDataName
     logInfo $ "    Format : " ++ show format
     logInfo $ "    MultiSampleCount : " ++ show samples
     logInfo $ "    Size : " ++ show extent
