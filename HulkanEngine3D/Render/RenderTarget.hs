@@ -9,6 +9,8 @@ module HulkanEngine3D.Render.RenderTarget
     , destroyRenderTargets
     ) where
 
+import Graphics.Vulkan.Core_1_0
+
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.SwapChain
@@ -26,7 +28,7 @@ createRenderTargets rendererData = do
     swapChainData <- getSwapChainData rendererData
     let format = _swapChainImageFormat swapChainData
         extent = _swapChainExtent swapChainData
-        samples = _msaaSamples (_renderFeatures rendererData)
+        samples = min VK_SAMPLE_COUNT_4_BIT (_msaaSamples . _renderFeatures $ rendererData)
     sceneColor <- createRenderTarget rendererData "sceneColor" format extent samples
     sceneDepth <- createDepthTarget rendererData "sceneDepth" extent samples
     return RenderTargets

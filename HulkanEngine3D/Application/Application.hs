@@ -210,7 +210,6 @@ initializeApplication = do
         engineName = Constants.engineName
         enableValidationLayer = Constants.enableValidationLayer
         isConcurrentMode = Constants.isConcurrentMode
-        msaaSampleCount = Constants.msaaSampleCount
 
     resourceData <- Resource.createNewResourceData
     rendererData <- Renderer.createRenderer
@@ -220,7 +219,6 @@ initializeApplication = do
         enableValidationLayer
         isConcurrentMode
         requireExtensions
-        msaaSampleCount
         resourceData
     sceneManagerData <- SceneManager.newSceneManagerData rendererData resourceData
 

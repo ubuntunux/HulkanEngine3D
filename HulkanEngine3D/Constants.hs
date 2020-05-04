@@ -33,9 +33,6 @@ enableValidationLayer = True
 isConcurrentMode :: Bool
 isConcurrentMode = True
 
-msaaSampleCount :: VkSampleCountFlagBits
-msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
-
 meterPerUnit :: Float
 meterPerUnit = 1.0::Float
 

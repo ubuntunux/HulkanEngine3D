@@ -262,10 +262,9 @@ createRenderer :: GLFW.Window
                -> Bool
                -> Bool
                -> [CString]
-               -> VkSampleCountFlagBits
                -> ResourceData
                -> IO RendererData
-createRenderer window progName engineName enableValidationLayer isConcurrentMode requireExtensions requireMSAASampleCount resourceData = do
+createRenderer window progName engineName enableValidationLayer isConcurrentMode requireExtensions resourceData = do
     let validationLayers = if enableValidationLayer then Constants.vulkanLayers else []
     if enableValidationLayer
     then logInfo $ "Enable validation layers : " ++ show validationLayers
@@ -278,7 +277,7 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     (physicalDevice, Just swapChainSupportDetails, supportedFeatures) <-
         selectPhysicalDevice vkInstance (Just vkSurface)
     deviceProperties <- getPhysicalDeviceProperties physicalDevice
-    msaaSamples <- (min requireMSAASampleCount) <$> (getMaxUsableSampleCount deviceProperties)
+    msaaSamples <- getMaxUsableSampleCount deviceProperties
     queueFamilyIndices <- getQueueFamilyIndices physicalDevice vkSurface isConcurrentMode
     let renderFeatures = RenderFeatures
             { _anisotropyEnable = getField @"samplerAnisotropy" supportedFeatures
