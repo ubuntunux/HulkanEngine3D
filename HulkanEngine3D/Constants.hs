@@ -3,6 +3,9 @@ module HulkanEngine3D.Constants where
 import Graphics.Vulkan
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
+engineName :: String
+engineName = "HulkanEngine3D"
+
 vulkanLayers :: [String]
 vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]
 
@@ -23,6 +26,15 @@ maxFrameCount = 2
 
 enableImmediateMode :: Bool
 enableImmediateMode = True
+
+enableValidationLayer :: Bool
+enableValidationLayer = True
+
+isConcurrentMode :: Bool
+isConcurrentMode = True
+
+msaaSampleCount :: VkSampleCountFlagBits
+msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
 
 meterPerUnit :: Float
 meterPerUnit = 1.0::Float

@@ -16,7 +16,6 @@ import Data.IORef
 import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
-import Graphics.Vulkan.Core_1_0
 import Numeric.DataFrame
 import Numeric.Dimensions
 
@@ -207,11 +206,11 @@ initializeApplication = do
     checkExtensionResult <- checkExtensionSupport instanceExtensionNames requireExtensions
     unless checkExtensionResult (throwVKMsg "Failed to initialize GLFW window.")
 
-    let progName = "Hulkan App"
-        engineName = "HulkanEngine3D"
-        enableValidationLayer = True
-        isConcurrentMode = True
-        msaaSampleCount = VK_SAMPLE_COUNT_4_BIT
+    let progName = Constants.engineName
+        engineName = Constants.engineName
+        enableValidationLayer = Constants.enableValidationLayer
+        isConcurrentMode = Constants.isConcurrentMode
+        msaaSampleCount = Constants.msaaSampleCount
 
     resourceData <- Resource.createNewResourceData
     rendererData <- Renderer.createRenderer
