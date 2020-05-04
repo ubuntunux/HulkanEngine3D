@@ -49,7 +49,7 @@ defaultUniformBufferDatas = UniformBufferDatas
 
 createUniformBufferDatas :: VkPhysicalDevice -> VkDevice -> IO UniformBufferDatas
 createUniformBufferDatas physicalDevice device = do
-    sceneConstantsBufferData <- createUniformBufferData physicalDevice device (bSizeOf @SceneConstantsData undefined)
+    sceneConstantsBufferData <- createUniformBufferData physicalDevice device "SceneConstantsData" (bSizeOf @SceneConstantsData undefined)
     return UniformBufferDatas
         { _sceneConstantsBufferData = sceneConstantsBufferData
         }
