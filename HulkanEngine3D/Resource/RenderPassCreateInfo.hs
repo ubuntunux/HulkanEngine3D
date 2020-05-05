@@ -18,7 +18,7 @@ import HulkanEngine3D.Vulkan.RenderPass
 getRenderPassDataCreateInfo :: RendererData -> Text.Text -> IO RenderPassDataCreateInfo
 getRenderPassDataCreateInfo rendererData renderPassName
     | "default" == renderPassName = do
-        frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData "default"
+        frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
         let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
             colorAttachmentDescriptions =
                 [ defaultAttachmentDescription
@@ -52,7 +52,7 @@ getRenderPassDataCreateInfo rendererData renderPassName
                 ]
             pipelineDataCreateInfos =
                 [ PipelineDataCreateInfo
-                    { _pipelineDataCreateInfoName = "RenderTriangle"
+                    { _pipelineDataCreateInfoName = "RenderSolid"
                     , _vertexShaderFile = "Resource/Shaders/triangle.vert"
                     , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
                     , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
@@ -78,8 +78,8 @@ getRenderPassDataCreateInfo rendererData renderPassName
             , _resolveAttachmentDescriptions = resolveAttachmentDescriptions
             , _pipelineDataCreateInfos = pipelineDataCreateInfos
             }
-    | "render_hdr" == renderPassName = do
-        frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData "default"
+    | "render_final" == renderPassName = do
+        frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
         let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
             colorAttachmentDescriptions =
                 [ defaultAttachmentDescription
@@ -113,7 +113,7 @@ getRenderPassDataCreateInfo rendererData renderPassName
                 ]
             pipelineDataCreateInfos =
                 [ PipelineDataCreateInfo
-                    { _pipelineDataCreateInfoName = "RenderTriangle"
+                    { _pipelineDataCreateInfoName = "RenderSolid"
                     , _vertexShaderFile = "Resource/Shaders/triangle.vert"
                     , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
                     , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]

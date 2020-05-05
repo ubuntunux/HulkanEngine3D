@@ -105,6 +105,7 @@ data RenderPassData = RenderPassData
     { _renderPassDataName :: Text.Text
     , _renderPass :: VkRenderPass
     , _renderPassFrameBufferName :: Text.Text
+    , _defaultPipelineData :: PipelineData
     , _pipelineDataMap :: PipelineDataMap
     } deriving Show
 
@@ -159,6 +160,7 @@ createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {.
         { _renderPassDataName = _renderPassCreateInfoName
         , _renderPass = renderPass
         , _renderPassFrameBufferName = _renderPassFrameBufferName
+        , _defaultPipelineData = pipelineDataList !! 0
         , _pipelineDataMap = pipelineDataMap
         }
 

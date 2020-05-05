@@ -321,15 +321,13 @@ instance ResourceInterface ResourceData where
     loadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
     loadMaterialInstanceDatas resourceData rendererData = do
         Just renderPassData <- getRenderPassData resourceData defaultRenderPassName
-        pipelineData <- getPipelineData renderPassData "RenderTriangle"
+        pipelineData <- getPipelineData renderPassData "RenderSolid"
         textureData <- getTextureData resourceData defaultTextureName
 
         let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . _uniformBufferDatas $ rendererData
             descriptorImageInfo = _descriptorImageInfo textureData
-
-        descriptorBufferOrImageInfosList <- forM descriptorBufferInfos $ \descriptorBufferInfo ->
-            return [DescriptorBufferInfo descriptorBufferInfo, DescriptorImageInfo descriptorImageInfo]
-        let materialInstanceCreateInfo = MaterialInstanceCreateInfo.MaterialInstanceCreateInfo
+            descriptorBufferOrImageInfosList = [[DescriptorBufferInfo descriptorBufferInfo, DescriptorImageInfo descriptorImageInfo] | descriptorBufferInfo <- descriptorBufferInfos]
+            materialInstanceCreateInfo = MaterialInstanceCreateInfo.MaterialInstanceCreateInfo
                 { MaterialInstanceCreateInfo._renderPassData = renderPassData
                 , MaterialInstanceCreateInfo._pipelineData = pipelineData
                 , MaterialInstanceCreateInfo._descriptorBufferOrImageInfosList = descriptorBufferOrImageInfosList

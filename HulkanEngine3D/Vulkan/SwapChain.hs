@@ -160,7 +160,7 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface im
       validationVK result "vkGetSwapchainImagesKHR error"
 
   let swapChainImageFormat = getField @"imageFormat" swapChainCreateInfo
-      swapChainExtent = (getField @"imageExtent" swapChainCreateInfo)
+      swapChainExtent = getField @"imageExtent" swapChainCreateInfo
 
   touchVkData swapChainCreateInfo
   free queueFamilyIndicesPtr

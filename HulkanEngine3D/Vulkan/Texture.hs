@@ -48,10 +48,10 @@ data TextureData = TextureData
     , _imageMemory :: VkDeviceMemory
     , _imageSampler ::VkSampler
     , _imageFormat :: VkFormat
-    , _imageWidth :: Int
-    , _imageHeight :: Int
-    , _imageDepth :: Int
-    , _imageMipLevels :: Int
+    , _imageWidth :: Word32
+    , _imageHeight :: Word32
+    , _imageDepth :: Word32
+    , _imageMipLevels :: Word32
     , _imageSampleCount :: VkSampleCountFlagBits
     , _descriptorImageInfo :: VkDescriptorImageInfo
     } deriving (Eq, Show)
@@ -614,7 +614,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
     imageView <- createImageView device image format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
     imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL imageView imageSampler
-        imageDepth = 1
+        imageDepth = 1::Word32
         textureData@TextureData {..} = TextureData
             { _textureDataName = textureDataName
             , _image = image
@@ -622,9 +622,9 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
             , _imageMemory = imageMemory
             , _imageSampler = imageSampler
             , _imageFormat = format
-            , _imageWidth = imageWidth
-            , _imageHeight = imageHeight
-            , _imageDepth = imageDepth
+            , _imageWidth = fromIntegral imageWidth
+            , _imageHeight = fromIntegral imageHeight
+            , _imageDepth = fromIntegral imageDepth
             , _imageSampleCount = samples
             , _imageMipLevels = fromIntegral mipLevels
             , _descriptorImageInfo = descriptorImageInfo

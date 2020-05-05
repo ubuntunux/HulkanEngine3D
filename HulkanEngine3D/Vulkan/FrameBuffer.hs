@@ -22,9 +22,9 @@ import HulkanEngine3D.Utilities.Logger
 
 data FrameBufferDataCreateInfo = FrameBufferDataCreateInfo
     { _frameBufferName :: Text.Text
-    , _frameBufferWidth :: Int
-    , _frameBufferHeight :: Int
-    , _frameBufferDepth :: Int
+    , _frameBufferWidth :: Word32
+    , _frameBufferHeight :: Word32
+    , _frameBufferDepth :: Word32
     , _frameBufferSampleCount :: VkSampleCountFlagBits
     , _frameBufferViewPort :: VkViewport
     , _frameBufferScissorRect :: VkRect2D
@@ -80,8 +80,8 @@ createFrameBufferData device renderPass frameBufferDataCreateInfo = do
                         &* set @"y" 0
                         )
                 &* setVk @"extent"
-                    (  set @"width" (fromIntegral $ _frameBufferWidth frameBufferDataCreateInfo)
-                    &* set @"height" (fromIntegral $ _frameBufferHeight frameBufferDataCreateInfo)
+                    (  set @"width" (_frameBufferWidth frameBufferDataCreateInfo)
+                    &* set @"height" (_frameBufferHeight frameBufferDataCreateInfo)
                     )
                 )
             &* set @"clearValueCount" (fromIntegral . length $  _frameBufferClearValues frameBufferDataCreateInfo)

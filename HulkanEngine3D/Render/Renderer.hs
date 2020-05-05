@@ -465,11 +465,10 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
             renderPassData = _renderPassData materialInstanceData
 
         Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (RenderPass._renderPassFrameBufferName (renderPassData::RenderPass.RenderPassData))
-        let renderPass = RenderPass._renderPass renderPassData
-            renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
+        let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
             descriptorSet = (_descriptorSets materialInstanceData) !! imageIndex
-        pipelineData <- RenderPass.getPipelineData renderPassData "RenderTriangle"
-        let pipelineLayout = RenderPass._pipelineLayout pipelineData
+            pipelineData = RenderPass._defaultPipelineData renderPassData
+            pipelineLayout = RenderPass._pipelineLayout pipelineData
             pipeline = RenderPass._pipeline pipelineData
 
         when (0 == index) $ do

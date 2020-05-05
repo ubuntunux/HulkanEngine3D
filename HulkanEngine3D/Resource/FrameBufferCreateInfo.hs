@@ -1,10 +1,15 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeApplications   #-}
+{-# LANGUAGE DataKinds          #-}
 
 module HulkanEngine3D.Resource.FrameBufferCreateInfo where
 
 import Data.IORef
 import qualified Data.Text as Text
+
+import Graphics.Vulkan
+
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.Renderer
@@ -19,14 +24,15 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
     | "default" == frameBufferName = do
         renderTargets@RenderTargets {..} <- readIORef (_renderTargets rendererData)
         swapChainData <- readIORef (_swapChainDataRef rendererData)
+        let (width, height, depth) = (_imageWidth _sceneColorTexture, _imageHeight _sceneColorTexture, _imageDepth _sceneColorTexture)
         return defaultFrameBufferDataCreateInfo
             { _frameBufferName = frameBufferName
-            , _frameBufferWidth = _imageWidth _sceneColorTexture
-            , _frameBufferHeight = _imageHeight _sceneColorTexture
-            , _frameBufferDepth = _imageDepth _sceneColorTexture
+            , _frameBufferWidth = width
+            , _frameBufferHeight = height
+            , _frameBufferDepth = depth
             , _frameBufferSampleCount = _imageSampleCount _sceneColorTexture
-            , _frameBufferViewPort = createViewport 0 0 (fromIntegral $ _imageWidth _sceneColorTexture) (fromIntegral $ _imageHeight _sceneColorTexture) 0 1
-            , _frameBufferScissorRect = createScissorRect 0 0 (fromIntegral $ _imageWidth _sceneColorTexture) (fromIntegral $ _imageHeight _sceneColorTexture)
+            , _frameBufferViewPort = createViewport 0 0 width height 0 1
+            , _frameBufferScissorRect = createScissorRect 0 0 width height
             , _frameBufferColorAttachmentFormats = [_imageFormat _sceneColorTexture]
             , _frameBufferDepthAttachmentFormats = [_imageFormat _sceneDepthTexture]
             , _frameBufferResolveAttachmentFormats = [_swapChainImageFormat swapChainData]
@@ -39,5 +45,20 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
                 [ getColorClearValue [0.0, 0.0, 0.2, 1.0]
                 , getDepthStencilClearValue 1.0 0
                 ]
+            }
+    | "render_final" == frameBufferName = do
+        swapChainData <- readIORef (_swapChainDataRef rendererData)
+        let imageSize = _swapChainExtent swapChainData
+            width = getField @"width" imageSize
+            height = getField @"height" imageSize
+        return defaultFrameBufferDataCreateInfo
+            { _frameBufferName = frameBufferName
+            , _frameBufferWidth = width
+            , _frameBufferHeight = height
+            , _frameBufferViewPort = createViewport 0 0 width height 0 1
+            , _frameBufferScissorRect = createScissorRect 0 0 width height
+            , _frameBufferColorAttachmentFormats = [_swapChainImageFormat swapChainData]
+            , _frameBufferImageViewsList =
+                [[(_swapChainImageViews swapChainData) !! index] | index <- Constants.swapChainImageIndices]
             }
     | otherwise = return undefined
