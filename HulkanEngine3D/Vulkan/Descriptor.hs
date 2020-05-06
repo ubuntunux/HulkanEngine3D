@@ -4,7 +4,7 @@
 
 
 module HulkanEngine3D.Vulkan.Descriptor
-  ( DescriptorBufferOrImageInfo (..)
+  ( DescriptorResourceInfo (..)
   , DescriptorDataCreateInfo
   , DescriptorData (..)
   , defaultDescriptorData
@@ -32,7 +32,11 @@ import Graphics.Vulkan.Marshal.Create
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 
-data DescriptorBufferOrImageInfo = DescriptorBufferInfo VkDescriptorBufferInfo | DescriptorImageInfo VkDescriptorImageInfo deriving (Eq, Show)
+data DescriptorResourceInfo =
+    DescriptorBufferInfo VkDescriptorBufferInfo |
+    DescriptorImageInfo VkDescriptorImageInfo
+    deriving (Eq, Show)
+
 type DescriptorDataCreateInfo = (VkDescriptorType, VkShaderStageFlagBits)
 
 data DescriptorData = DescriptorData
@@ -167,15 +171,15 @@ destroyDescriptorSet device descriptorPool descriptorSets descriptorSetPtr = do
 updateDescriptorSets :: VkDevice
                      -> VkDescriptorSet
                      -> [VkDescriptorSetLayoutBinding]
-                     -> [DescriptorBufferOrImageInfo]
+                     -> [DescriptorResourceInfo]
                      -> IO ()
-updateDescriptorSets device descriptorSet descriptorSetLayoutBindingList descriptorBufferOrImageInfos = do
-    let descriptorWrites = zipWith3 writeDescriptorSet [0..] descriptorSetLayoutBindingList descriptorBufferOrImageInfos
+updateDescriptorSets device descriptorSet descriptorSetLayoutBindingList descriptorResourceInfos = do
+    let descriptorWrites = zipWith3 writeDescriptorSet [0..] descriptorSetLayoutBindingList descriptorResourceInfos
     withVkArrayLen descriptorWrites $ \count descriptorWritesPtr ->
         vkUpdateDescriptorSets device count descriptorWritesPtr 0 VK_NULL
     where
-        writeDescriptorSet :: Word32 -> VkDescriptorSetLayoutBinding -> DescriptorBufferOrImageInfo -> VkWriteDescriptorSet
-        writeDescriptorSet index descriptorSetLayoutBinding descriptorBufferOrImageInfo =
+        writeDescriptorSet :: Word32 -> VkDescriptorSetLayoutBinding -> DescriptorResourceInfo -> VkWriteDescriptorSet
+        writeDescriptorSet index descriptorSetLayoutBinding descriptorResourceInfo =
             createVk @VkWriteDescriptorSet
                 $  set @"sType" VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
                 &* set @"pNext" VK_NULL
@@ -184,7 +188,7 @@ updateDescriptorSets device descriptorSet descriptorSetLayoutBindingList descrip
                 &* set @"dstArrayElement" 0
                 &* set @"descriptorType" (getField @"descriptorType" descriptorSetLayoutBinding)
                 &* set @"descriptorCount" 1
-                &* case descriptorBufferOrImageInfo of
+                &* case descriptorResourceInfo of
                         DescriptorBufferInfo bufferInfo ->
                             setVkRef @"pBufferInfo" bufferInfo
                             &* set @"pImageInfo" VK_NULL

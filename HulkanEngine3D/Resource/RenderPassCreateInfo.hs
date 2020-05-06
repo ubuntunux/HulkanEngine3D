@@ -52,7 +52,7 @@ getRenderPassDataCreateInfo rendererData renderPassName
                 ]
             pipelineDataCreateInfos =
                 [ PipelineDataCreateInfo
-                    { _pipelineDataCreateInfoName = "RenderSolid"
+                    { _pipelineDataCreateInfoName = "render_solid"
                     , _vertexShaderFile = "Resource/Shaders/triangle.vert"
                     , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
                     , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
@@ -85,7 +85,7 @@ getRenderPassDataCreateInfo rendererData renderPassName
                 [ defaultAttachmentDescription
                     { _attachmentImageFormat = format
                     , _attachmentImageSamples = sampleCount
-                    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
+                    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
                     , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
                     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
                     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
@@ -93,7 +93,7 @@ getRenderPassDataCreateInfo rendererData renderPassName
                 ]
             pipelineDataCreateInfos =
                 [ PipelineDataCreateInfo
-                    { _pipelineDataCreateInfoName = "RenderQuad"
+                    { _pipelineDataCreateInfoName = "render_quad"
                     , _vertexShaderFile = "Resource/Shaders/render_quad.vert"
                     , _fragmentShaderFile = "Resource/Shaders/render_quad.frag"
                     , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]

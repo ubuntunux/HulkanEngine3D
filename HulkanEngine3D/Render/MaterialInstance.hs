@@ -12,8 +12,6 @@ import Graphics.Vulkan
 
 import qualified HulkanEngine3D.Vulkan.RenderPass as RenderPass
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
-import qualified HulkanEngine3D.Resource.MaterialInstanceCreateInfo as MaterialInstanceCreateInfo
-
 
 data MaterialInstanceData = MaterialInstanceData
     { _renderPassData :: RenderPass.RenderPassData
@@ -22,16 +20,16 @@ data MaterialInstanceData = MaterialInstanceData
     } deriving Show
 
 
-createMaterialInstance :: VkDevice -> MaterialInstanceCreateInfo.MaterialInstanceCreateInfo -> IO MaterialInstanceData
-createMaterialInstance device materialInstanceCreateInfo = do
-    let renderPassData = MaterialInstanceCreateInfo._renderPassData materialInstanceCreateInfo
-        pipelineData = MaterialInstanceCreateInfo._pipelineData materialInstanceCreateInfo
-        descriptorBufferOrImageInfosList = MaterialInstanceCreateInfo._descriptorBufferOrImageInfosList materialInstanceCreateInfo
-
+createMaterialInstance :: VkDevice
+                       -> RenderPass.RenderPassData
+                       -> RenderPass.PipelineData
+                       -> [[Descriptor.DescriptorResourceInfo]]
+                       -> IO MaterialInstanceData
+createMaterialInstance device renderPassData pipelineData descriptorResourceInfosList = do
     descriptorSets <- Descriptor.createDescriptorSet device (RenderPass._descriptorData pipelineData)
 
-    forM_ (zip descriptorSets descriptorBufferOrImageInfosList) $ \(descriptorSet, descriptorBufferOrImageInfos) ->
-        Descriptor.updateDescriptorSets device descriptorSet (Descriptor._descriptorSetLayoutBindingList . RenderPass._descriptorData $ pipelineData) descriptorBufferOrImageInfos
+    forM_ (zip descriptorSets descriptorResourceInfosList) $ \(descriptorSet, descriptorResourceInfos) ->
+        Descriptor.updateDescriptorSets device descriptorSet (Descriptor._descriptorSetLayoutBindingList . RenderPass._descriptorData $ pipelineData) descriptorResourceInfos
 
     return MaterialInstanceData
         { _renderPassData = renderPassData

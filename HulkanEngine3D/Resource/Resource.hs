@@ -320,20 +320,34 @@ instance ResourceInterface ResourceData where
     -- MaterialInstanceDatas
     loadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
     loadMaterialInstanceDatas resourceData rendererData = do
-        Just renderPassData <- getRenderPassData resourceData defaultRenderPassName
-        pipelineData <- getPipelineData renderPassData "RenderSolid"
-        textureData <- getTextureData resourceData defaultTextureName
+        registMaterialInstanceData rendererData $ MaterialInstanceCreateInfo.getMaterialInstanceCreateInfo "default"
+        where
+            registMaterialInstanceData :: RendererData -> MaterialInstanceCreateInfo.MaterialInstanceCreateInfo -> IO ()
+            registMaterialInstanceData rendererData materialInstanceCreateInfo = do
+                let materialInstanceName = MaterialInstanceCreateInfo._materialInstanceName' materialInstanceCreateInfo
+                    renderPassDataName = MaterialInstanceCreateInfo._materialInstanceRenderPassName' materialInstanceCreateInfo
+                    pipelineDataName = MaterialInstanceCreateInfo._materialInstancePipelineName' materialInstanceCreateInfo
+                    materialParameterTypes = MaterialInstanceCreateInfo._materialParameterTypes' materialInstanceCreateInfo
+                Just renderPassData <- getRenderPassData resourceData renderPassDataName
+                pipelineData <- case pipelineDataName of
+                    "" -> return $ getDefaultPipelineData renderPassData
+                    otherwise -> getPipelineData renderPassData pipelineDataName
 
-        let descriptorBufferInfos = _descriptorBufferInfos . _sceneConstantsBufferData . _uniformBufferDatas $ rendererData
-            descriptorImageInfo = _descriptorImageInfo textureData
-            descriptorBufferOrImageInfosList = [[DescriptorBufferInfo descriptorBufferInfo, DescriptorImageInfo descriptorImageInfo] | descriptorBufferInfo <- descriptorBufferInfos]
-            materialInstanceCreateInfo = MaterialInstanceCreateInfo.MaterialInstanceCreateInfo
-                { MaterialInstanceCreateInfo._renderPassData = renderPassData
-                , MaterialInstanceCreateInfo._pipelineData = pipelineData
-                , MaterialInstanceCreateInfo._descriptorBufferOrImageInfosList = descriptorBufferOrImageInfosList
-                }
-        materialInstance <- createMaterialInstance (getDevice rendererData) materialInstanceCreateInfo
-        HashTable.insert (_materialInstanceDataMap resourceData) defaultMaterialInstanceName materialInstance
+                descriptorResourceInfosList <- forM Constants.swapChainImageIndices $ \index -> do
+                    forM materialParameterTypes $ \materialParameterType -> do
+                        case materialParameterType of
+                            MaterialInstanceCreateInfo.MaterialParameter_UniformBuffer resourceName -> do
+                                -- TODO : get uniform buffer from map
+                                let uniformBufferData = _sceneConstantsBufferData . _uniformBufferDatas $ rendererData
+                                    descriptorBufferInfo = (_descriptorBufferInfos uniformBufferData) !! index
+                                return $ DescriptorBufferInfo descriptorBufferInfo
+                            MaterialInstanceCreateInfo.MaterialParameter_Texture resourceName -> do
+                                textureData <- getTextureData resourceData resourceName
+                                return $ DescriptorImageInfo (_descriptorImageInfo textureData)
+                            MaterialInstanceCreateInfo.MaterialParameter_RenderTarget resourceName ->
+                                return undefined
+                materialInstance <- createMaterialInstance (getDevice rendererData) renderPassData pipelineData descriptorResourceInfosList
+                HashTable.insert (_materialInstanceDataMap resourceData) materialInstanceName materialInstance
 
     unloadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
     unloadMaterialInstanceDatas resourceData rendererData =

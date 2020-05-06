@@ -10,7 +10,6 @@ import qualified Data.Text as Text
 
 import Graphics.Vulkan
 
-import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Vulkan.Vulkan
@@ -39,8 +38,9 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
             , _frameBufferImageViewsList =
                 [[ _imageView _sceneColorTexture
                  , _imageView _sceneDepthTexture
-                 , (_swapChainImageViews swapChainData) !! index
-                 ] | index <- Constants.swapChainImageIndices]
+                 , swapChainImageView
+                 ] | swapChainImageView <- _swapChainImageViews swapChainData
+                ]
             , _frameBufferClearValues =
                 [ getColorClearValue [0.0, 0.0, 0.2, 1.0]
                 , getDepthStencilClearValue 1.0 0
@@ -58,7 +58,6 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
             , _frameBufferViewPort = createViewport 0 0 width height 0 1
             , _frameBufferScissorRect = createScissorRect 0 0 width height
             , _frameBufferColorAttachmentFormats = [_swapChainImageFormat swapChainData]
-            , _frameBufferImageViewsList =
-                [[(_swapChainImageViews swapChainData) !! index] | index <- Constants.swapChainImageIndices]
+            , _frameBufferImageViewsList = [_swapChainImageViews swapChainData]
             }
     | otherwise = return undefined

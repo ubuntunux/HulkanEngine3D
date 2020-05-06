@@ -515,7 +515,8 @@ renderPostProcess :: RendererData
                   -> IO ()
 renderPostProcess rendererData commandBuffer imageIndex = do
     quadMeshData <- getMeshData (_resourceData rendererData) "quad"
-    renderFinalMaterialInstanceData <- getMaterialInstanceData (_resourceData rendererData) "renderFinal"
+    renderFinalMaterialInstanceData <- getMaterialInstanceData (_resourceData rendererData) "render_final"
+    print renderFinalMaterialInstanceData
     geometryBufferData <- Mesh.getGeometryData quadMeshData 0
 
     let vertexBuffer = _vertexBuffer geometryBufferData
