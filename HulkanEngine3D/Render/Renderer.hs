@@ -20,7 +20,7 @@ module HulkanEngine3D.Render.Renderer
   ) where
 
 import Control.Monad
-import Data.Maybe (fromMaybe)
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.DList as DList
@@ -50,6 +50,7 @@ import HulkanEngine3D.Render.MaterialInstance
 import qualified HulkanEngine3D.Render.RenderElement as RenderElement
 import qualified HulkanEngine3D.Render.RenderObject as RenderObject
 import qualified HulkanEngine3D.Render.TransformObject as TransformObject
+import qualified HulkanEngine3D.Render.Mesh as Mesh
 import HulkanEngine3D.Render.UniformBufferDatas
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.Logger
@@ -255,6 +256,7 @@ initializeRenderer rendererData@RendererData {..} = do
 
     renderTargets <- createRenderTargets rendererData
     writeIORef _renderTargets renderTargets
+
     return rendererData
 
 createRenderer :: GLFW.Window
@@ -290,8 +292,8 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     queueMap <- createQueues device queueFamilyIndexList
     let defaultQueue = (Map.elems queueMap) !! 0
         queueFamilyDatas = QueueFamilyDatas
-            { _graphicsQueue = fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex queueMap
-            , _presentQueue = fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
+            { _graphicsQueue = Maybe.fromMaybe defaultQueue $ Map.lookup graphicsQueueIndex queueMap
+            , _presentQueue = Maybe.fromMaybe defaultQueue $ Map.lookup presentQueueIndex queueMap
             , _queueFamilyIndexList = queueFamilyIndexList
             , _queueFamilyCount = fromIntegral $ length queueMap
             , _queueFamilyIndices = queueFamilyIndices }
@@ -312,22 +314,22 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     uniformBufferDatas <- createUniformBufferDatas physicalDevice device
 
     let rendererData = defaultRendererData
-          { _imageAvailableSemaphores = imageAvailableSemaphores
-          , _renderFinishedSemaphores = renderFinishedSemaphores
-          , _vkInstance = vkInstance
-          , _vkSurface = vkSurface
-          , _device = device
-          , _physicalDevice = physicalDevice
-          , _queueFamilyDatas = queueFamilyDatas
-          , _frameFencesPtr = frameFencesPtr
-          , _commandPool = commandPool
-          , _commandBuffersPtr = commandBuffersPtr
-          , _commandBufferCount = commandBufferCount
-          , _swapChainDataRef = swapChainDataRef
-          , _swapChainSupportDetailsRef = swapChainSupportDetailsRef
-          , _renderFeatures = renderFeatures
-          , _uniformBufferDatas = uniformBufferDatas
-          }
+            { _imageAvailableSemaphores = imageAvailableSemaphores
+            , _renderFinishedSemaphores = renderFinishedSemaphores
+            , _vkInstance = vkInstance
+            , _vkSurface = vkSurface
+            , _device = device
+            , _physicalDevice = physicalDevice
+            , _queueFamilyDatas = queueFamilyDatas
+            , _frameFencesPtr = frameFencesPtr
+            , _commandPool = commandPool
+            , _commandBuffersPtr = commandBuffersPtr
+            , _commandBufferCount = commandBufferCount
+            , _swapChainDataRef = swapChainDataRef
+            , _swapChainSupportDetailsRef = swapChainSupportDetailsRef
+            , _renderFeatures = renderFeatures
+            , _uniformBufferDatas = uniformBufferDatas
+            }
 
     initializeRenderer rendererData
 
@@ -419,6 +421,7 @@ renderScene rendererData@RendererData{..} sceneManagerData = do
 
             -- Render
             renderSolid rendererData commandBuffer imageIndex sceneManagerData
+            --renderPostProcess rendererData commandBuffer imageIndex
 
             -- End command buffer
             vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
@@ -502,9 +505,50 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
                 vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
 
         vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
-
         vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
+    vkCmdEndRenderPass commandBuffer
 
+
+renderPostProcess :: RendererData
+                  -> VkCommandBuffer
+                  -> Int
+                  -> IO ()
+renderPostProcess rendererData commandBuffer imageIndex = do
+    quadMeshData <- getMeshData (_resourceData rendererData) "quad"
+    renderFinalMaterialInstanceData <- getMaterialInstanceData (_resourceData rendererData) "renderFinal"
+    geometryBufferData <- Mesh.getGeometryData quadMeshData 0
+
+    let vertexBuffer = _vertexBuffer geometryBufferData
+        indexBuffer = _indexBuffer geometryBufferData
+        indexCount = _vertexIndexCount geometryBufferData
+        renderPassData = _renderPassData renderFinalMaterialInstanceData
+
+    Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (RenderPass.getRenderPassFrameBufferName renderPassData)
+    let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
+        descriptorSet = (_descriptorSets renderFinalMaterialInstanceData) !! imageIndex
+        pipelineData = RenderPass.getDefaultPipelineData renderPassData
+        pipelineLayout = RenderPass._pipelineLayout pipelineData
+        pipeline = RenderPass._pipeline pipelineData
+
+    withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
+        vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
+
+    withPtr (_frameBufferViewPort . _frameBufferInfo $ frameBufferData) $ \viewPortPtr ->
+        vkCmdSetViewport commandBuffer 0 1 viewPortPtr
+    withPtr (_frameBufferScissorRect . _frameBufferInfo $ frameBufferData) $ \scissorRectPtr ->
+        vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
+
+    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
+
+    with descriptorSet $ \descriptorSetPtr ->
+        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
+
+    with vertexBuffer $ \vertexBufferPtr ->
+        with 0 $ \vertexOffsetPtr ->
+            vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
+
+    vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
+    vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
     vkCmdEndRenderPass commandBuffer
 
 presentSwapChain :: RendererData -> Ptr VkCommandBuffer -> Ptr VkFence -> VkSemaphore -> VkSemaphore -> IO VkResult

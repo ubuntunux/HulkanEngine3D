@@ -25,17 +25,29 @@ data RenderFeatures = RenderFeatures
     , _msaaSamples :: VkSampleCountFlagBits
     } deriving (Eq, Show)
 
+data BlendMode = BlendMode_None | BlendMode_AlphaBlend
 
-getColorBlendMode_None :: VkPipelineColorBlendAttachmentState
-getColorBlendMode_None = createVk @VkPipelineColorBlendAttachmentState
-    $  set @"colorWriteMask" ( VK_COLOR_COMPONENT_R_BIT .|. VK_COLOR_COMPONENT_G_BIT .|. VK_COLOR_COMPONENT_B_BIT .|. VK_COLOR_COMPONENT_A_BIT )
-    &* set @"blendEnable" VK_FALSE
-    &* set @"srcColorBlendFactor" VK_BLEND_FACTOR_ONE
-    &* set @"dstColorBlendFactor" VK_BLEND_FACTOR_ZERO
-    &* set @"colorBlendOp" VK_BLEND_OP_ADD
-    &* set @"srcAlphaBlendFactor" VK_BLEND_FACTOR_ONE
-    &* set @"dstAlphaBlendFactor" VK_BLEND_FACTOR_ZERO
-    &* set @"alphaBlendOp" VK_BLEND_OP_ADD
+getColorBlendMode :: BlendMode -> VkPipelineColorBlendAttachmentState
+getColorBlendMode blendMode =
+    case blendMode of
+        BlendMode_None -> createVk @VkPipelineColorBlendAttachmentState
+            $  set @"colorWriteMask" ( VK_COLOR_COMPONENT_R_BIT .|. VK_COLOR_COMPONENT_G_BIT .|. VK_COLOR_COMPONENT_B_BIT )
+            &* set @"blendEnable" VK_FALSE
+            &* set @"srcColorBlendFactor" VK_BLEND_FACTOR_ONE
+            &* set @"dstColorBlendFactor" VK_BLEND_FACTOR_ZERO
+            &* set @"colorBlendOp" VK_BLEND_OP_ADD
+            &* set @"srcAlphaBlendFactor" VK_BLEND_FACTOR_ONE
+            &* set @"dstAlphaBlendFactor" VK_BLEND_FACTOR_ZERO
+            &* set @"alphaBlendOp" VK_BLEND_OP_ADD
+        BlendMode_AlphaBlend -> createVk @VkPipelineColorBlendAttachmentState
+             $  set @"colorWriteMask" ( VK_COLOR_COMPONENT_R_BIT .|. VK_COLOR_COMPONENT_G_BIT .|. VK_COLOR_COMPONENT_B_BIT )
+             &* set @"blendEnable" VK_TRUE
+             &* set @"srcColorBlendFactor" VK_BLEND_FACTOR_SRC_ALPHA
+             &* set @"dstColorBlendFactor" VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+             &* set @"colorBlendOp" VK_BLEND_OP_ADD
+             &* set @"srcAlphaBlendFactor" VK_BLEND_FACTOR_ONE
+             &* set @"dstAlphaBlendFactor" VK_BLEND_FACTOR_ZERO
+             &* set @"alphaBlendOp" VK_BLEND_OP_ADD
 
 getColorClearValue :: [Float] -> VkClearValue
 getColorClearValue colors = createVk @VkClearValue

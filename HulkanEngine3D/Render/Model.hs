@@ -12,6 +12,7 @@ import qualified Data.Text as T
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Mesh
 import HulkanEngine3D.Utilities.System ()
+import HulkanEngine3D.Utilities.Logger
 
 
 data ModelCreateInfo = ModelCreateInfo
@@ -39,6 +40,7 @@ class ModelInterface a where
 instance ModelInterface ModelData where
     newModelData :: T.Text -> MeshData -> [MaterialInstanceData] -> IO ModelData
     newModelData name meshData materialInstanceDatas = do
+        logInfo $ "newModelData : " ++ T.unpack name
         modelDataName <- newIORef name
         materialInstanceDatasRef <- newIORef materialInstanceDatas
         return ModelData

@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE Strict                     #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE InstanceSigs               #-}
 
 module HulkanEngine3D.Vulkan.RenderPass where
 
@@ -108,6 +109,30 @@ data RenderPassData = RenderPassData
     , _defaultPipelineData :: PipelineData
     , _pipelineDataMap :: PipelineDataMap
     } deriving Show
+
+class RenderPassInterface a where
+    getRenderPassDataName :: a -> Text.Text
+    getRenderPass :: a -> VkRenderPass
+    getRenderPassFrameBufferName :: a -> Text.Text
+    getDefaultPipelineData :: a -> PipelineData
+    getPipelineData :: a -> Text.Text -> IO PipelineData
+
+instance RenderPassInterface RenderPassData where
+    getRenderPassDataName :: RenderPassData -> Text.Text
+    getRenderPassDataName renderPassData = _renderPassDataName renderPassData
+
+    getRenderPass :: RenderPassData -> VkRenderPass
+    getRenderPass renderPassData = _renderPass renderPassData
+
+    getRenderPassFrameBufferName :: RenderPassData -> Text.Text
+    getRenderPassFrameBufferName renderPassData = _renderPassFrameBufferName (renderPassData::RenderPassData)
+
+    getDefaultPipelineData :: RenderPassData -> PipelineData
+    getDefaultPipelineData renderPassData = _defaultPipelineData renderPassData
+
+    getPipelineData :: RenderPassData -> Text.Text -> IO PipelineData
+    getPipelineData renderPassData pipelineDataName =
+        Maybe.fromJust <$> HashTable.lookup (_pipelineDataMap renderPassData) pipelineDataName
 
 
 defaultDepthStencilStateCreateInfo :: DepthStencilStateCreateInfo
@@ -240,10 +265,6 @@ destroyRenderPass :: VkDevice -> VkRenderPass -> Text.Text -> IO ()
 destroyRenderPass device renderPass renderPassName = do
     logInfo $ "Destroy RenderPass : " ++ Text.unpack renderPassName ++ " " ++ show renderPass
     vkDestroyRenderPass device renderPass VK_NULL
-
-getPipelineData :: RenderPassData -> Text.Text -> IO PipelineData
-getPipelineData renderPassData pipelineDataName = do
-    Maybe.fromJust <$> HashTable.lookup (_pipelineDataMap renderPassData) pipelineDataName
 
 
 createPipelineLayout :: VkDevice -> [VkPushConstantRange] -> [VkDescriptorSetLayout] -> IO VkPipelineLayout
