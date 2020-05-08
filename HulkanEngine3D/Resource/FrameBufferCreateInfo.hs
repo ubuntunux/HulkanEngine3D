@@ -58,6 +58,6 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
             , _frameBufferViewPort = createViewport 0 0 width height 0 1
             , _frameBufferScissorRect = createScissorRect 0 0 width height
             , _frameBufferColorAttachmentFormats = [_swapChainImageFormat swapChainData]
-            , _frameBufferImageViewsList = [_swapChainImageViews swapChainData]
+            , _frameBufferImageViewsList = [[swapChainImageView] | swapChainImageView <- _swapChainImageViews swapChainData]
             }
     | otherwise = return undefined

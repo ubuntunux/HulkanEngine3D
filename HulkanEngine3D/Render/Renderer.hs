@@ -429,7 +429,7 @@ renderScene rendererData@RendererData{..} sceneManagerData = do
 
             -- Render
             renderSolid rendererData commandBuffer imageIndex sceneManagerData
-            --renderPostProcess rendererData commandBuffer imageIndex
+            renderPostProcess rendererData commandBuffer imageIndex
 
             -- End command buffer
             vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
@@ -524,7 +524,6 @@ renderPostProcess :: RendererData
 renderPostProcess rendererData commandBuffer imageIndex = do
     quadMeshData <- getMeshData (_resourceData rendererData) "quad"
     renderFinalMaterialInstanceData <- getMaterialInstanceData (_resourceData rendererData) "render_final"
-    print renderFinalMaterialInstanceData
     geometryBufferData <- Mesh.getGeometryData quadMeshData 0
 
     let vertexBuffer = _vertexBuffer geometryBufferData

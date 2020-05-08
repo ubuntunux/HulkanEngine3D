@@ -284,11 +284,14 @@ instance ResourceInterface ResourceData where
     -- FrameBuffer
     loadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
     loadFrameBufferDatas resourceData rendererData = do
-        Just renderPassData <- getRenderPassData resourceData "default"
-        let frameBufferName = _renderPassFrameBufferName (renderPassData::RenderPassData)
-        frameBufferDataCreateInfo <- FrameBufferCreateInfo.getFrameBufferDataCreateInfo rendererData frameBufferName
-        frameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass renderPassData) frameBufferDataCreateInfo
-        HashTable.insert (_frameBufferDataMap resourceData) frameBufferName frameBufferData
+        HashTable.mapM_ (\(k, v) -> registFrameBufferData k) (_renderPassDataMap resourceData)
+        where
+            registFrameBufferData renderPassName = do
+                Just renderPassData <- getRenderPassData resourceData renderPassName
+                let frameBufferName = _renderPassFrameBufferName (renderPassData::RenderPassData)
+                frameBufferDataCreateInfo <- FrameBufferCreateInfo.getFrameBufferDataCreateInfo rendererData frameBufferName
+                frameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass renderPassData) frameBufferDataCreateInfo
+                HashTable.insert (_frameBufferDataMap resourceData) frameBufferName frameBufferData
 
     unloadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
     unloadFrameBufferDatas resourceData rendererData =
@@ -301,11 +304,15 @@ instance ResourceInterface ResourceData where
     -- RenderPassLoader
     loadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     loadRenderPassDatas resourceData rendererData = do
-        renderPassDataCreateInfo <- RenderPassCreateInfo.getRenderPassDataCreateInfo rendererData "default"
-        descriptorDatas <- forM (_pipelineDataCreateInfos renderPassDataCreateInfo) $ \pipelineDataCreateInfo ->
-            getDescriptorData resourceData rendererData (_renderPassCreateInfoName renderPassDataCreateInfo) pipelineDataCreateInfo
-        defaultRenderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo descriptorDatas
-        HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
+        registRenderPassData "default"
+        registRenderPassData "render_final"
+        where
+            registRenderPassData renderPassName = do
+                renderPassDataCreateInfo <- RenderPassCreateInfo.getRenderPassDataCreateInfo rendererData renderPassName
+                descriptorDatas <- forM (_pipelineDataCreateInfos renderPassDataCreateInfo) $ \pipelineDataCreateInfo ->
+                    getDescriptorData resourceData rendererData (_renderPassCreateInfoName renderPassDataCreateInfo) pipelineDataCreateInfo
+                defaultRenderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo descriptorDatas
+                HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
 
     unloadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     unloadRenderPassDatas resourceData rendererData =
