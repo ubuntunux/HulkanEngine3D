@@ -32,19 +32,6 @@ import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
 
-
-data ImageAttachmentDescription = ImageAttachmentDescription
-    { _attachmentImageFormat :: VkFormat
-    , _attachmentImageSamples :: VkSampleCountFlagBits
-    , _attachmentLoadOperation :: VkAttachmentLoadOp
-    , _attachmentStoreOperation :: VkAttachmentStoreOp
-    , _attachmentStencilLoadOperation :: VkAttachmentLoadOp
-    , _attachmentStencilStoreOperation :: VkAttachmentStoreOp
-    , _attachmentInitialLayout :: VkImageLayout
-    , _attachmentFinalLayout :: VkImageLayout
-    , _attachmentReferenceLayout :: VkImageLayout
-    } deriving (Eq, Show)
-
 data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     { _renderPassCreateInfoName :: Text.Text
     , _renderPassFrameBufferName :: Text.Text
@@ -52,6 +39,22 @@ data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     , _depthAttachmentDescriptions :: [ImageAttachmentDescription]
     , _resolveAttachmentDescriptions :: [ImageAttachmentDescription]
     , _pipelineDataCreateInfos :: [PipelineDataCreateInfo]
+    }  deriving (Eq, Show)
+
+data PipelineDataCreateInfo = PipelineDataCreateInfo
+    { _pipelineDataCreateInfoName :: Text.Text
+    , _vertexShaderFile :: String
+    , _fragmentShaderFile :: String
+    , _pipelineDynamicStateList :: [VkDynamicState]
+    , _pipelineSampleCount :: VkSampleCountFlagBits
+    , _pipelinePolygonMode :: VkPolygonMode
+    , _pipelineCullMode :: VkCullModeFlagBits
+    , _pipelineFrontFace :: VkFrontFace
+    , _pipelineViewport :: VkViewport
+    , _pipelineScissorRect :: VkRect2D
+    , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
+    , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
+    , _descriptorDataCreateInfoList :: [DescriptorDataCreateInfo]
     }  deriving (Eq, Show)
 
 data DepthStencilStateCreateInfo = DepthStencilStateCreateInfo
@@ -75,21 +78,52 @@ data DepthStencilStateCreateInfo = DepthStencilStateCreateInfo
     , _backReference :: Word32
     } deriving (Eq, Show)
 
-data PipelineDataCreateInfo = PipelineDataCreateInfo
-    { _pipelineDataCreateInfoName :: Text.Text
-    , _vertexShaderFile :: String
-    , _fragmentShaderFile :: String
-    , _pipelineDynamicStateList :: [VkDynamicState]
-    , _pipelineSampleCount :: VkSampleCountFlagBits
-    , _pipelinePolygonMode :: VkPolygonMode
-    , _pipelineCullMode :: VkCullModeFlagBits
-    , _pipelineFrontFace :: VkFrontFace
-    , _pipelineViewport :: VkViewport
-    , _pipelineScissorRect :: VkRect2D
-    , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
-    , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
-    , _descriptorDataCreateInfoList :: [DescriptorDataCreateInfo]
-    }  deriving (Eq, Show)
+defaultDepthStencilStateCreateInfo :: DepthStencilStateCreateInfo
+defaultDepthStencilStateCreateInfo = DepthStencilStateCreateInfo
+   { _depthTestEnable = VK_TRUE
+   , _depthWriteEnable = VK_TRUE
+   , _depthCompareOp = VK_COMPARE_OP_LESS
+   , _stencilTestEnable = VK_FALSE
+   , _frontFailOp = VK_STENCIL_OP_KEEP
+   , _frontPassOp = VK_STENCIL_OP_KEEP
+   , _frontDepthFailOp = VK_STENCIL_OP_KEEP
+   , _frontCompareOp = VK_COMPARE_OP_NEVER
+   , _frontCompareMask = 0
+   , _frontWriteMask = 0
+   , _frontReference = 0
+   , _backFailOp = VK_STENCIL_OP_KEEP
+   , _backPassOp = VK_STENCIL_OP_KEEP
+   , _backDepthFailOp = VK_STENCIL_OP_KEEP
+   , _backCompareOp = VK_COMPARE_OP_NEVER
+   , _backCompareMask = 0
+   , _backWriteMask = 0
+   , _backReference = 0
+   }
+
+data ImageAttachmentDescription = ImageAttachmentDescription
+    { _attachmentImageFormat :: VkFormat
+    , _attachmentImageSamples :: VkSampleCountFlagBits
+    , _attachmentLoadOperation :: VkAttachmentLoadOp
+    , _attachmentStoreOperation :: VkAttachmentStoreOp
+    , _attachmentStencilLoadOperation :: VkAttachmentLoadOp
+    , _attachmentStencilStoreOperation :: VkAttachmentStoreOp
+    , _attachmentInitialLayout :: VkImageLayout
+    , _attachmentFinalLayout :: VkImageLayout
+    , _attachmentReferenceLayout :: VkImageLayout
+    } deriving (Eq, Show)
+
+defaultAttachmentDescription :: ImageAttachmentDescription
+defaultAttachmentDescription = ImageAttachmentDescription
+    { _attachmentImageFormat = VK_FORMAT_UNDEFINED
+    , _attachmentImageSamples = VK_SAMPLE_COUNT_1_BIT
+    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
+    , _attachmentStencilLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+    , _attachmentStencilStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
+    , _attachmentInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_UNDEFINED
+    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
+    }
 
 data PipelineData = PipelineData
     { _pipelineDataName :: Text.Text
@@ -131,45 +165,11 @@ instance RenderPassInterface RenderPassData where
     getDefaultPipelineData renderPassData = _defaultPipelineData renderPassData
 
     getPipelineData :: RenderPassData -> Text.Text -> IO PipelineData
-    getPipelineData renderPassData pipelineDataName =
-        Maybe.fromJust <$> HashTable.lookup (_pipelineDataMap renderPassData) pipelineDataName
-
-
-defaultDepthStencilStateCreateInfo :: DepthStencilStateCreateInfo
-defaultDepthStencilStateCreateInfo = DepthStencilStateCreateInfo
-   { _depthTestEnable = VK_TRUE
-   , _depthWriteEnable = VK_TRUE
-   , _depthCompareOp = VK_COMPARE_OP_LESS
-   , _stencilTestEnable = VK_FALSE
-   , _frontFailOp = VK_STENCIL_OP_KEEP
-   , _frontPassOp = VK_STENCIL_OP_KEEP
-   , _frontDepthFailOp = VK_STENCIL_OP_KEEP
-   , _frontCompareOp = VK_COMPARE_OP_NEVER
-   , _frontCompareMask = 0
-   , _frontWriteMask = 0
-   , _frontReference = 0
-   , _backFailOp = VK_STENCIL_OP_KEEP
-   , _backPassOp = VK_STENCIL_OP_KEEP
-   , _backDepthFailOp = VK_STENCIL_OP_KEEP
-   , _backCompareOp = VK_COMPARE_OP_NEVER
-   , _backCompareMask = 0
-   , _backWriteMask = 0
-   , _backReference = 0
-   }
-
-defaultAttachmentDescription :: ImageAttachmentDescription
-defaultAttachmentDescription = ImageAttachmentDescription
-    { _attachmentImageFormat = VK_FORMAT_UNDEFINED
-    , _attachmentImageSamples = VK_SAMPLE_COUNT_1_BIT
-    , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
-    , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
-    , _attachmentStencilLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
-    , _attachmentStencilStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
-    , _attachmentInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED
-    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_UNDEFINED
-    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
-    }
-
+    getPipelineData renderPassData pipelineDataName = do
+        maybePipelineData <- HashTable.lookup (_pipelineDataMap renderPassData) pipelineDataName
+        return $ case maybePipelineData of
+            Nothing -> getDefaultPipelineData renderPassData
+            otherwise -> Maybe.fromJust maybePipelineData
 
 createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> [DescriptorData] -> IO RenderPassData
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} descriptorDatas = do

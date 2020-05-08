@@ -40,7 +40,6 @@ executable main
                       HulkanEngine3D.Resource.ObjLoader
                       HulkanEngine3D.Resource.Resource
                       HulkanEngine3D.Resource.FrameBufferCreateInfo
-                      HulkanEngine3D.Resource.MaterialInstanceCreateInfo
                       HulkanEngine3D.Resource.RenderPassCreateInfo
                       HulkanEngine3D.Utilities.Logger
                       HulkanEngine3D.Utilities.Math

@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE KindSignatures         #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE Strict                 #-}
 {-# LANGUAGE TypeApplications       #-}
@@ -10,30 +11,15 @@ module HulkanEngine3D.Render.UniformBufferDatas where
 import GHC.Generics (Generic)
 
 import Graphics.Vulkan
+import qualified Data.Text as Text
+import qualified Data.HashTable.IO as HashTable
+
 import Numeric.DataFrame
 
 import HulkanEngine3D.Vulkan.UniformBuffer
 
-data UniformBufferDatas = UniformBufferDatas
-    { _sceneConstantsBufferData :: UniformBufferData
-    } deriving (Eq, Show)
+type UniformBufferDataMap = HashTable.BasicHashTable Text.Text UniformBufferData
 
-{- |
-  Here, in the `view` matrix, we have to decide on our world coordinates.
-  This should always be a right-triple, which is forced by lookAt matrix and
-  many others. So, here are popular options
-    right  up   forward
-     x     y      -z     <-- classical OpenGL approach, coincides with projection space
-     x     z       y     <-- all positive, z being "up" is kind of intuitive
-     ... and a few others, e.g.
-     y     z      -x
-
-  I stick x-z-y, because the same triple is used in chalet.obj from the tutorial.
-  This affects the choice of axis rotation and lookAt up vector below.
-
-  More about these transformtions can be found be the link:
-  https://en.wikibooks.org/wiki/GLSL_Programming/Vertex_Transformations
- -}
 data SceneConstantsData = SceneConstantsData
   { _VIEW  :: Mat44f
   , _PROJECTION  :: Mat44f
@@ -42,18 +28,14 @@ data SceneConstantsData = SceneConstantsData
 instance PrimBytes SceneConstantsData
 
 
-defaultUniformBufferDatas :: UniformBufferDatas
-defaultUniformBufferDatas = UniformBufferDatas
-    { _sceneConstantsBufferData = defaultUniformBufferData
-    }
+registUniformBufferDatas :: VkPhysicalDevice -> VkDevice -> UniformBufferDataMap -> IO ()
+registUniformBufferDatas physicalDevice device uniformBufferDataMap = do
+    registUniformBufferData uniformBufferDataMap "SceneConstantsData" (bSizeOf @SceneConstantsData undefined)
+    where
+        registUniformBufferData uniformBufferDataMap uniformBufferName sizeOfUniformBuffer = do
+            uniformBufferData <- createUniformBufferData physicalDevice device uniformBufferName sizeOfUniformBuffer
+            HashTable.insert uniformBufferDataMap uniformBufferName uniformBufferData
 
-createUniformBufferDatas :: VkPhysicalDevice -> VkDevice -> IO UniformBufferDatas
-createUniformBufferDatas physicalDevice device = do
-    sceneConstantsBufferData <- createUniformBufferData physicalDevice device "SceneConstantsData" (bSizeOf @SceneConstantsData undefined)
-    return UniformBufferDatas
-        { _sceneConstantsBufferData = sceneConstantsBufferData
-        }
-
-destroyUniformBufferDatas :: VkDevice -> UniformBufferDatas -> IO ()
-destroyUniformBufferDatas device uniformBufferDatas = do
-    destroyUniformBufferData device (_sceneConstantsBufferData uniformBufferDatas)
+destroyUniformBufferDatas :: VkDevice -> UniformBufferDataMap -> IO ()
+destroyUniformBufferDatas device uniformBufferDataMap = do
+    HashTable.mapM_ (\(k, v) -> destroyUniformBufferData device v) uniformBufferDataMap

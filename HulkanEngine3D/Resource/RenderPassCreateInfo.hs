@@ -10,10 +10,10 @@ import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Resource.FrameBufferCreateInfo
+import HulkanEngine3D.Vulkan.RenderPass
+import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.FrameBuffer
-import HulkanEngine3D.Vulkan.RenderPass
-
 
 getRenderPassDataCreateInfo :: RendererData -> Text.Text -> IO RenderPassDataCreateInfo
 getRenderPassDataCreateInfo rendererData renderPassName
@@ -65,8 +65,8 @@ getRenderPassDataCreateInfo rendererData renderPassName
                     , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
                     , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
                     , _descriptorDataCreateInfoList =
-                        [ (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-                        , (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+                        [ DescriptorDataCreateInfo "SceneConstantsData" VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER VK_SHADER_STAGE_VERTEX_BIT
+                        , DescriptorDataCreateInfo "texSampler" VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         ]
                     }
                 ]
@@ -106,8 +106,8 @@ getRenderPassDataCreateInfo rendererData renderPassName
                     , _pipelineColorBlendModes = [getColorBlendMode BlendMode_AlphaBlend]
                     , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo  { _depthWriteEnable = VK_FALSE }
                     , _descriptorDataCreateInfoList =
-                        [ (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-                        , (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+                        [ DescriptorDataCreateInfo "SceneConstantsData" VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER VK_SHADER_STAGE_VERTEX_BIT
+                        , DescriptorDataCreateInfo "texSampler" VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         ]
                     }
                 ]

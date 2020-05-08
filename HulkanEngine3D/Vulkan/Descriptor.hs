@@ -5,7 +5,7 @@
 
 module HulkanEngine3D.Vulkan.Descriptor
   ( DescriptorResourceInfo (..)
-  , DescriptorDataCreateInfo
+  , DescriptorDataCreateInfo (..)
   , DescriptorData (..)
   , defaultDescriptorData
   , createDescriptorPool
@@ -22,6 +22,7 @@ module HulkanEngine3D.Vulkan.Descriptor
   ) where
 
 import Control.Monad
+import qualified Data.Text as Text
 import Foreign.Ptr
 import Foreign.Marshal.Array
 
@@ -34,13 +35,19 @@ import HulkanEngine3D.Utilities.Logger
 
 data DescriptorResourceInfo =
     DescriptorBufferInfo VkDescriptorBufferInfo |
-    DescriptorImageInfo VkDescriptorImageInfo
+    DescriptorImageInfo VkDescriptorImageInfo |
+    InvalidDescriptorInfo
     deriving (Eq, Show)
 
-type DescriptorDataCreateInfo = (VkDescriptorType, VkShaderStageFlagBits)
+data DescriptorDataCreateInfo = DescriptorDataCreateInfo
+    { _descriptorName' :: Text.Text
+    , _descriptorType' :: VkDescriptorType
+    , _descriptorShaderStage' :: VkShaderStageFlagBits
+    } deriving (Eq, Show)
 
 data DescriptorData = DescriptorData
-    { _descriptorSetLayoutBindingList :: [VkDescriptorSetLayoutBinding]
+    { _descriptorDataCreateInfoList :: [DescriptorDataCreateInfo]
+    , _descriptorSetLayoutBindingList :: [VkDescriptorSetLayoutBinding]
     , _descriptorPoolSizeList :: [VkDescriptorPoolSize]
     , _descriptorPool :: VkDescriptorPool
     , _descriptorSetLayout :: VkDescriptorSetLayout
@@ -49,7 +56,8 @@ data DescriptorData = DescriptorData
 
 defaultDescriptorData :: DescriptorData
 defaultDescriptorData = DescriptorData
-    { _descriptorSetLayoutBindingList = []
+    { _descriptorDataCreateInfoList = []
+    , _descriptorSetLayoutBindingList = []
     , _descriptorPoolSizeList = []
     , _descriptorPool = VK_NULL
     , _descriptorSetLayout = VK_NULL
@@ -113,12 +121,14 @@ destroyDescriptorSetLayout device descriptorSetLayout = do
 
 
 createDescriptorData :: VkDevice
-                        -> [DescriptorDataCreateInfo]
-                        -> Int
-                        -> IO DescriptorData
+                     -> [DescriptorDataCreateInfo]
+                     -> Int
+                     -> IO DescriptorData
 createDescriptorData device descriptorDataCreateInfoList descriptorCount = do
-    descriptorLayoutBindingWithPoolSizeList <- forM (zip descriptorDataCreateInfoList [0..]) $ \((descriptorType, shaderStageFlags), binding) -> do
-        let descriptorLayoutBinding = createDescriptorSetLayoutBinding binding descriptorType shaderStageFlags
+    descriptorLayoutBindingWithPoolSizeList <- forM (zip descriptorDataCreateInfoList [0..]) $ \(descriptorDataCreateInfo, binding) -> do
+        let descriptorType = _descriptorType' descriptorDataCreateInfo
+            shaderStageFlagBits = _descriptorShaderStage' descriptorDataCreateInfo
+            descriptorLayoutBinding = createDescriptorSetLayoutBinding binding descriptorType shaderStageFlagBits
             descriptorPoolSize = createDescriptorPoolSize descriptorType descriptorCount
         return (descriptorLayoutBinding, descriptorPoolSize)
     let (descriptorSetLayoutBindingList, descriptorPoolSizeList) = unzip descriptorLayoutBindingWithPoolSizeList
@@ -126,7 +136,8 @@ createDescriptorData device descriptorDataCreateInfoList descriptorCount = do
     descriptorSetLayout <- createDescriptorSetLayout device descriptorSetLayoutBindingList
     descriptorPool <- createDescriptorPool device descriptorPoolSizeList descriptorCount
     let descriptorData = DescriptorData
-            { _descriptorSetLayoutBindingList = descriptorSetLayoutBindingList
+            { _descriptorDataCreateInfoList = descriptorDataCreateInfoList
+            , _descriptorSetLayoutBindingList = descriptorSetLayoutBindingList
             , _descriptorPoolSizeList = descriptorPoolSizeList
             , _descriptorPool = descriptorPool
             , _descriptorSetLayout = descriptorSetLayout
@@ -195,6 +206,9 @@ updateDescriptorSets device descriptorSet descriptorSetLayoutBindingList descrip
                         DescriptorImageInfo imageInfo ->
                             set @"pBufferInfo" VK_NULL
                             &* setVkRef @"pImageInfo" imageInfo
+                        otherwise ->
+                            set @"pBufferInfo" VK_NULL
+                            &* set @"pImageInfo" VK_NULL
                 &* set @"pTexelBufferView" VK_NULL
 
 

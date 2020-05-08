@@ -7,6 +7,7 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE InstanceSigs               #-}
 
 module HulkanEngine3D.Render.Renderer
   ( RendererData (..)
@@ -25,6 +26,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.DList as DList
 import qualified Data.Text as Text
+import qualified Data.HashTable.IO as HashTable
 import Data.IORef
 import Foreign.Marshal.Array
 import Foreign.Marshal.Alloc
@@ -90,7 +92,7 @@ data RendererData = RendererData
     , _renderFeatures :: RenderFeatures
     , _imageSamplers :: IORef ImageSamplers
     , _renderTargets :: IORef RenderTargets
-    , _uniformBufferDatas :: UniformBufferDatas
+    , _uniformBufferDataMap :: UniformBufferDataMap
     , _resourceData :: ResourceData
     } deriving (Show)
 
@@ -106,6 +108,7 @@ class RendererInterface a where
     getCommandBuffer :: a -> Int -> IO VkCommandBuffer
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
+    getUniformBufferData :: a -> Text.Text -> IO UniformBufferData
     createRenderTarget :: a -> Text.Text -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createDepthTarget :: a -> Text.Text -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
     createTexture :: a -> Text.Text -> FilePath -> IO TextureData
@@ -127,6 +130,10 @@ instance RendererInterface RendererData where
         return $ commandBuffers !! index
     getGraphicsQueue rendererData = (_graphicsQueue (_queueFamilyDatas rendererData))
     getPresentQueue rendererData = (_presentQueue (_queueFamilyDatas rendererData))
+
+    getUniformBufferData :: RendererData -> Text.Text -> IO UniformBufferData
+    getUniformBufferData rendererData uniformBufferDataName =
+        Maybe.fromJust <$> HashTable.lookup (_uniformBufferDataMap rendererData) uniformBufferDataName
 
     createRenderTarget rendererData textureDataName format extent samples =
         createColorTexture
@@ -220,6 +227,7 @@ defaultRendererData resourceData = do
     renderPassDataListRef <- newIORef (DList.fromList [])
     swapChainDataRef <- newIORef defaultSwapChainData
     swapChainSupportDetailsRef <- newIORef defaultSwapChainSupportDetails
+    uniformBufferDataMap <- HashTable.new
 
     return RendererData
         { _frameIndexRef = frameIndexRef
@@ -241,7 +249,7 @@ defaultRendererData resourceData = do
         , _renderFeatures = defaultRenderFeatures
         , _imageSamplers = imageSamplers
         , _renderTargets = renderTargets
-        , _uniformBufferDatas = defaultUniformBufferDatas
+        , _uniformBufferDataMap = uniformBufferDataMap
         , _resourceData = resourceData
         }
 
@@ -250,6 +258,8 @@ initializeRenderer rendererData@RendererData {..} = do
     poke _imageIndexPtr 0
     writeIORef _frameIndexRef (0::Int)
     writeIORef _needRecreateSwapChainRef False
+
+    registUniformBufferDatas _physicalDevice _device _uniformBufferDataMap
 
     imageSamplers <- createImageSamplers _device
     writeIORef _imageSamplers imageSamplers
@@ -311,8 +321,6 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     createCommandBuffers device commandPool commandBufferCount commandBuffersPtr
     commandBuffers <- peekArray commandBufferCount commandBuffersPtr
 
-    uniformBufferDatas <- createUniformBufferDatas physicalDevice device
-
     let rendererData = defaultRendererData
             { _imageAvailableSemaphores = imageAvailableSemaphores
             , _renderFinishedSemaphores = renderFinishedSemaphores
@@ -328,14 +336,13 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
             , _swapChainDataRef = swapChainDataRef
             , _swapChainSupportDetailsRef = swapChainSupportDetailsRef
             , _renderFeatures = renderFeatures
-            , _uniformBufferDatas = uniformBufferDatas
             }
 
     initializeRenderer rendererData
 
 destroyRenderer :: RendererData -> IO ()
 destroyRenderer rendererData@RendererData {..} = do
-    destroyUniformBufferDatas _device _uniformBufferDatas
+    destroyUniformBufferDatas _device _uniformBufferDataMap
 
     imageSamplers <- readIORef _imageSamplers
     destroyImageSamplers _device imageSamplers
@@ -403,7 +410,8 @@ renderScene rendererData@RendererData{..} sceneManagerData = do
             projectionMatrix <- readIORef (_projectionMatrix mainCamera)
 
             -- Upload Uniform Buffers
-            let sceneConstantsMemory = (_uniformBufferMemories . _sceneConstantsBufferData $ _uniformBufferDatas) !! imageIndex
+            sceneConstantsBufferData <- getUniformBufferData rendererData "SceneConstantsData"
+            let sceneConstantsMemory = (_uniformBufferMemories sceneConstantsBufferData) !! imageIndex
                 sceneConstantsData = SceneConstantsData
                     { _VIEW = viewMatrix
                     , _PROJECTION = projectionMatrix
