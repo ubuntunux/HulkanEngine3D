@@ -5,6 +5,7 @@
 
 module HulkanEngine3D.Vulkan.Descriptor
   ( DescriptorResourceInfo (..)
+  , DescriptorResourceType (..)
   , DescriptorDataCreateInfo (..)
   , DescriptorData (..)
   , defaultDescriptorData
@@ -39,8 +40,15 @@ data DescriptorResourceInfo =
     InvalidDescriptorInfo
     deriving (Eq, Show)
 
+data DescriptorResourceType =
+    DescriptorResourceType_UniformBuffer |
+    DescriptorResourceType_Texture |
+    DescriptorResourceType_RenderTarget
+    deriving (Eq, Show)
+
 data DescriptorDataCreateInfo = DescriptorDataCreateInfo
     { _descriptorName' :: Text.Text
+    , _descriptorResourceType' :: DescriptorResourceType
     , _descriptorType' :: VkDescriptorType
     , _descriptorShaderStage' :: VkShaderStageFlagBits
     } deriving (Eq, Show)

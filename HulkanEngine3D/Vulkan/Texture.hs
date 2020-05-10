@@ -17,8 +17,7 @@ module HulkanEngine3D.Vulkan.Texture
     , createImage
     , destroyImage
     , copyBufferToImage
-    , createDepthTexture
-    , createColorTexture
+    , createRenderTarget
     , createTextureData
     , destroyTextureData
     ) where
@@ -440,7 +439,7 @@ copyBufferToImage device commandBufferPool commandQueue buffer image width heigh
         in withPtr region $ \regionPtr ->
             vkCmdCopyBufferToImage commandBuffer buffer image VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 1 regionPtr
 
-createDepthTexture :: Text.Text
+createRenderTarget :: Text.Text
                    -> VkPhysicalDevice
                    -> VkDevice
                    -> VkCommandPool
@@ -448,93 +447,57 @@ createDepthTexture :: Text.Text
                    -> VkFormat
                    -> VkExtent2D
                    -> VkSampleCountFlagBits
+                   -> VkFilter
+                   -> VkFilter
+                   -> VkSamplerAddressMode
                    -> IO TextureData
-createDepthTexture textureDataName physicalDevice device commandBufferPool queue format extent samples = do
+createRenderTarget textureDataName physicalDevice device commandBufferPool queue format extent samples minFilter magFilter wrapMode = do
     let width = getField @"width" extent
         height = getField @"height" extent
         mipLevels = 1
-    depthFormat <- findSupportedFormat physicalDevice format VK_IMAGE_TILING_OPTIMAL VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-    (depthImageMemory, depthImage) <- createImage
-        physicalDevice
-        device
-        width
-        height
-        mipLevels
-        samples
-        depthFormat
-        VK_IMAGE_TILING_OPTIMAL
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-
-    runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
-        transitionImageLayout depthImage depthFormat TransferUndef_DepthStencilAttachemnt mipLevels commandBuffer
-
-    let anisotropyEnable = VK_FALSE
-    imageView <- createImageView device depthImage depthFormat VK_IMAGE_ASPECT_DEPTH_BIT mipLevels
-    imageSampler <- createImageSampler device mipLevels VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE anisotropyEnable
-    let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
-        textureData@TextureData {..} = TextureData
-            { _textureDataName = textureDataName
-            , _imageView = imageView
-            , _image = depthImage
-            , _imageMemory = depthImageMemory
-            , _imageSampler = imageSampler
-            , _imageFormat = depthFormat
-            , _imageWidth = fromIntegral width
-            , _imageHeight = fromIntegral height
-            , _imageDepth = 1
-            , _imageSampleCount = samples
-            , _imageMipLevels = fromIntegral mipLevels
-            , _descriptorImageInfo = descriptorImageInfo
-            }
-    logInfo "createDepthTexture"
-    logInfo $ "    Name : " ++ Text.unpack textureDataName
-    logInfo $ "    Format : " ++ show depthFormat
-    logInfo $ "    Size : " ++ show extent
-    logInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
-    return textureData
-
-
-createColorTexture :: Text.Text
-                   -> VkPhysicalDevice
-                   -> VkDevice
-                   -> VkCommandPool
-                   -> VkQueue
-                   -> VkFormat
-                   -> VkExtent2D
-                   -> VkSampleCountFlagBits
-                   -> IO TextureData
-createColorTexture textureDataName physicalDevice device commandBufferPool queue format extent samples = do
-    let width = getField @"width" extent
-        height = getField @"height" extent
-        mipLevels = 1
-    (colorImageMemory, colorImage) <- createImage
-        physicalDevice
-        device
-        width
-        height
-        mipLevels
-        samples
-        format
-        VK_IMAGE_TILING_OPTIMAL
+        isDepthFormat = elem format Constants.depthFomats
         -- not sure why tutorial uses VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
-        (VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT .|. VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+    (imageUsage, imageAspect, imageLayoutTransition, imageFormat) <- if isDepthFormat then do
+        depthFormat <- findSupportedFormat physicalDevice format VK_IMAGE_TILING_OPTIMAL VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        return
+            ( VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+            , VK_IMAGE_ASPECT_DEPTH_BIT
+            , TransferUndef_DepthStencilAttachemnt
+            , depthFormat
+            )
+    else
+        return
+            ( VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT .|. VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+            , VK_IMAGE_ASPECT_COLOR_BIT
+            , TransferUndef_ColorAttachemnt
+            , format
+            )
+    (imageMemory, image) <- createImage
+        physicalDevice
+        device
+        width
+        height
+        mipLevels
+        samples
+        imageFormat
+        VK_IMAGE_TILING_OPTIMAL
+        imageUsage
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
-        transitionImageLayout colorImage format TransferUndef_ColorAttachemnt mipLevels commandBuffer
+        transitionImageLayout image imageFormat imageLayoutTransition mipLevels commandBuffer
 
     let anisotropyEnable = VK_FALSE
-    imageView <- createImageView device colorImage format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
+    imageView <- createImageView device image imageFormat imageAspect mipLevels
     imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
-        textureData@TextureData {..} = TextureData
+        textureData = TextureData
             { _textureDataName = textureDataName
             , _imageView = imageView
-            , _image = colorImage
-            , _imageMemory = colorImageMemory
+            , _image = image
+            , _imageMemory = imageMemory
             , _imageSampler = imageSampler
-            , _imageFormat = format
+            , _imageFormat = imageFormat
             , _imageWidth = fromIntegral width
             , _imageHeight = fromIntegral height
             , _imageDepth = 1
@@ -542,12 +505,12 @@ createColorTexture textureDataName physicalDevice device commandBufferPool queue
             , _imageMipLevels = fromIntegral mipLevels
             , _descriptorImageInfo = descriptorImageInfo
             }
-    logInfo "createColorTexture"
+    logInfo "createRenderTarget"
     logInfo $ "    Name : " ++ Text.unpack textureDataName
-    logInfo $ "    Format : " ++ show format
+    logInfo $ "    Format : " ++ show imageFormat
     logInfo $ "    MultiSampleCount : " ++ show samples
     logInfo $ "    Size : " ++ show extent
-    logInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
+    logInfo $ "    TextureData : image " ++ show image ++ ", imageView " ++ show imageView ++ ", imageMemory " ++ show imageMemory ++ ", sampler " ++ show imageSampler
     return textureData
 
 

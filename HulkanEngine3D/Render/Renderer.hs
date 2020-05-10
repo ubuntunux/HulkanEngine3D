@@ -68,7 +68,7 @@ import HulkanEngine3D.Vulkan.PushConstant
 import qualified HulkanEngine3D.Vulkan.RenderPass as RenderPass
 import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Sync
-import HulkanEngine3D.Vulkan.Texture
+import qualified HulkanEngine3D.Vulkan.Texture as Texture
 import HulkanEngine3D.Vulkan.UniformBuffer
 
 
@@ -91,7 +91,7 @@ data RendererData = RendererData
     , _commandBuffersPtr :: Ptr VkCommandBuffer
     , _renderFeatures :: RenderFeatures
     , _imageSamplers :: IORef ImageSamplers
-    , _renderTargets :: IORef RenderTargets
+    , _renderTargetDataMap :: RenderTargetDataMap
     , _uniformBufferDataMap :: UniformBufferDataMap
     , _resourceData :: ResourceData
     } deriving (Show)
@@ -109,10 +109,10 @@ class RendererInterface a where
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
     getUniformBufferData :: a -> Text.Text -> IO UniformBufferData
-    createRenderTarget :: a -> Text.Text -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
-    createDepthTarget :: a -> Text.Text -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> IO TextureData
-    createTexture :: a -> Text.Text -> FilePath -> IO TextureData
-    destroyTexture :: a -> TextureData -> IO ()
+    createRenderTarget :: a -> Text.Text -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> VkFilter -> VkFilter -> VkSamplerAddressMode -> IO Texture.TextureData
+    createTexture :: a -> Text.Text -> FilePath -> IO Texture.TextureData
+    destroyTexture :: a -> Texture.TextureData -> IO ()
+    getRenderTarget :: a -> Text.Text -> IO Texture.TextureData
     createGeometryBuffer :: a -> Text.Text -> DataFrame Vertex '[XN 3] -> DataFrame Word32 '[XN 3] -> IO GeometryData
     destroyGeometryBuffer :: a -> GeometryData -> IO ()
     deviceWaitIdle :: a -> IO ()
@@ -135,8 +135,8 @@ instance RendererInterface RendererData where
     getUniformBufferData rendererData uniformBufferDataName =
         Maybe.fromJust <$> HashTable.lookup (_uniformBufferDataMap rendererData) uniformBufferDataName
 
-    createRenderTarget rendererData textureDataName format extent samples =
-        createColorTexture
+    createRenderTarget rendererData textureDataName format extent samples minFilter magFilter wrapMode =
+        Texture.createRenderTarget
             textureDataName
             (_physicalDevice rendererData)
             (_device rendererData)
@@ -145,20 +145,12 @@ instance RendererInterface RendererData where
             format
             extent
             samples
-
-    createDepthTarget rendererData textureDataName format extent samples =
-        createDepthTexture
-            textureDataName
-            (_physicalDevice rendererData)
-            (_device rendererData)
-            (_commandPool rendererData)
-            (_graphicsQueue (_queueFamilyDatas rendererData))
-            format
-            extent
-            samples
+            minFilter
+            magFilter
+            wrapMode
 
     createTexture rendererData textureDataName filePath =
-        createTextureData
+        Texture.createTextureData
             textureDataName
             (_physicalDevice rendererData)
             (_device rendererData)
@@ -168,7 +160,10 @@ instance RendererInterface RendererData where
             filePath
 
     destroyTexture rendererData textureData =
-        destroyTextureData (_device rendererData) textureData
+        Texture.destroyTextureData (_device rendererData) textureData
+
+    getRenderTarget rendererData renderTargetName =
+        Maybe.fromJust <$> HashTable.lookup (_renderTargetDataMap rendererData) renderTargetName
 
     createGeometryBuffer rendererData bufferName vertices indices = do
         createGeometryData
@@ -223,10 +218,10 @@ defaultRendererData resourceData = do
     frameIndexRef <- newIORef (0::Int)
     needRecreateSwapChainRef <- newIORef False
     imageSamplers <- newIORef defaultImageSamplers
-    renderTargets <- newIORef (undefined::RenderTargets)
     renderPassDataListRef <- newIORef (DList.fromList [])
     swapChainDataRef <- newIORef defaultSwapChainData
     swapChainSupportDetailsRef <- newIORef defaultSwapChainSupportDetails
+    renderTargetDataMap <- HashTable.new
     uniformBufferDataMap <- HashTable.new
 
     return RendererData
@@ -248,7 +243,7 @@ defaultRendererData resourceData = do
         , _commandBuffersPtr = VK_NULL
         , _renderFeatures = defaultRenderFeatures
         , _imageSamplers = imageSamplers
-        , _renderTargets = renderTargets
+        , _renderTargetDataMap = renderTargetDataMap
         , _uniformBufferDataMap = uniformBufferDataMap
         , _resourceData = resourceData
         }
@@ -264,8 +259,7 @@ initializeRenderer rendererData@RendererData {..} = do
     imageSamplers <- createImageSamplers _device
     writeIORef _imageSamplers imageSamplers
 
-    renderTargets <- createRenderTargets rendererData
-    writeIORef _renderTargets renderTargets
+    renderTargets <- createRenderTargets rendererData _renderTargetDataMap
 
     return rendererData
 
@@ -347,8 +341,7 @@ destroyRenderer rendererData@RendererData {..} = do
     imageSamplers <- readIORef _imageSamplers
     destroyImageSamplers _device imageSamplers
 
-    renderTargets <- readIORef _renderTargets
-    destroyRenderTargets rendererData renderTargets
+    destroyRenderTargets rendererData _renderTargetDataMap
 
     destroySemaphores _device _renderFinishedSemaphores
     destroySemaphores _device _imageAvailableSemaphores
@@ -373,14 +366,12 @@ resizeWindow window rendererData@RendererData {..} = do
     -- destroy swapchain & graphics resources
     unloadGraphicsDatas _resourceData rendererData
 
-    renderTargets <- readIORef _renderTargets
-    destroyRenderTargets rendererData renderTargets
+    destroyRenderTargets rendererData _renderTargetDataMap
 
     -- recreate swapchain & graphics resources
     recreateSwapChain rendererData window
 
-    renderTargets <- createRenderTargets rendererData
-    writeIORef _renderTargets renderTargets
+    renderTargets <- createRenderTargets rendererData _renderTargetDataMap
 
     loadGraphicsDatas _resourceData rendererData
 

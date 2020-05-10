@@ -309,7 +309,7 @@ instance ResourceInterface ResourceData where
         where
             registRenderPassData renderPassName = do
                 renderPassDataCreateInfo <- RenderPassCreateInfo.getRenderPassDataCreateInfo rendererData renderPassName
-                descriptorDatas <- forM (_pipelineDataCreateInfos renderPassDataCreateInfo) $ \pipelineDataCreateInfo ->
+                descriptorDatas <- forM (_pipelineDataCreateInfos renderPassDataCreateInfo) $ \pipelineDataCreateInfo -> do
                     getDescriptorData resourceData rendererData (_renderPassCreateInfoName renderPassDataCreateInfo) pipelineDataCreateInfo
                 defaultRenderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo descriptorDatas
                 HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
@@ -349,15 +349,19 @@ instance ResourceInterface ResourceData where
                     descriptorResourceInfos <- forM descriptorDataCreateInfoList $ \descriptorDataCreateInfo -> do
                         let materialParameterName = Descriptor._descriptorName' descriptorDataCreateInfo
                             materialParameterType = Descriptor._descriptorType' descriptorDataCreateInfo
+                            materialParameterResourceType = Descriptor._descriptorResourceType' descriptorDataCreateInfo
                             maybeMaterialParameter = HashMap.lookup materialParameterName materialParameterMap
-                        case materialParameterType of
-                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER -> do
+                        case (materialParameterType, materialParameterResourceType) of
+                            (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, Descriptor.DescriptorResourceType_UniformBuffer) -> do
                                 uniformBufferData <- getUniformBufferData rendererData materialParameterName
                                 return $ Descriptor.DescriptorBufferInfo (_descriptorBufferInfos uniformBufferData !! index)
-                            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -> do
+                            (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_Texture) -> do
                                 textureData <- case maybeMaterialParameter of
                                     Just (Aeson.String value) -> getTextureData resourceData value
                                     otherwise -> getTextureData resourceData defaultTextureName
+                                return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
+                            (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_RenderTarget) -> do
+                                textureData <- getRenderTarget rendererData materialParameterName
                                 return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
                             otherwise -> return Descriptor.InvalidDescriptorInfo
                     return $ filter (/= Descriptor.InvalidDescriptorInfo) descriptorResourceInfos

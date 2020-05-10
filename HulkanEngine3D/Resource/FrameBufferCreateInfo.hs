@@ -10,7 +10,6 @@ import qualified Data.Text as Text
 
 import Graphics.Vulkan
 
-import HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.FrameBuffer
@@ -21,23 +20,24 @@ import HulkanEngine3D.Vulkan.SwapChain
 getFrameBufferDataCreateInfo :: RendererData -> Text.Text -> IO FrameBufferDataCreateInfo
 getFrameBufferDataCreateInfo rendererData frameBufferName
     | "default" == frameBufferName = do
-        renderTargets@RenderTargets {..} <- readIORef (_renderTargets rendererData)
+        textureSceneColor <- getRenderTarget rendererData "SceneColor"
+        textureSceneDepth <- getRenderTarget rendererData "SceneDepth"
         swapChainData <- readIORef (_swapChainDataRef rendererData)
-        let (width, height, depth) = (_imageWidth _sceneColorTexture, _imageHeight _sceneColorTexture, _imageDepth _sceneColorTexture)
+        let (width, height, depth) = (_imageWidth textureSceneColor, _imageHeight textureSceneColor, _imageDepth textureSceneColor)
         return defaultFrameBufferDataCreateInfo
             { _frameBufferName = frameBufferName
             , _frameBufferWidth = width
             , _frameBufferHeight = height
             , _frameBufferDepth = depth
-            , _frameBufferSampleCount = _imageSampleCount _sceneColorTexture
+            , _frameBufferSampleCount = _imageSampleCount textureSceneColor
             , _frameBufferViewPort = createViewport 0 0 width height 0 1
             , _frameBufferScissorRect = createScissorRect 0 0 width height
-            , _frameBufferColorAttachmentFormats = [_imageFormat _sceneColorTexture]
-            , _frameBufferDepthAttachmentFormats = [_imageFormat _sceneDepthTexture]
+            , _frameBufferColorAttachmentFormats = [_imageFormat textureSceneColor]
+            , _frameBufferDepthAttachmentFormats = [_imageFormat textureSceneDepth]
             , _frameBufferResolveAttachmentFormats = [_swapChainImageFormat swapChainData]
             , _frameBufferImageViewsList =
-                [[ _imageView _sceneColorTexture
-                 , _imageView _sceneDepthTexture
+                [[ _imageView textureSceneColor
+                 , _imageView textureSceneDepth
                  , swapChainImageView
                  ] | swapChainImageView <- _swapChainImageViews swapChainData
                 ]
