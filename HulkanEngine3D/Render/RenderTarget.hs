@@ -21,24 +21,19 @@ type RenderTargetDataMap = HashTable.BasicHashTable Text.Text Texture.TextureDat
 createRenderTargets :: RendererData -> RenderTargetDataMap -> IO ()
 createRenderTargets rendererData renderTargetDataMap = do
     swapChainData <- getSwapChainData rendererData
-    let windowSize = _swapChainExtent swapChainData
+    let windowWidth = getField @"width" (_swapChainExtent swapChainData)
+        windowHeight = getField @"height" (_swapChainExtent swapChainData)
         samples = min VK_SAMPLE_COUNT_4_BIT (_msaaSamples . _renderFeatures $ rendererData)
-    registRenderTarget rendererData renderTargetDataMap "SceneColor" VK_FORMAT_B8G8R8A8_UNORM windowSize samples VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-    registRenderTarget rendererData renderTargetDataMap "SceneDepth" VK_FORMAT_D32_SFLOAT windowSize samples VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-    registRenderTarget rendererData renderTargetDataMap "BackBuffer" VK_FORMAT_B8G8R8A8_UNORM windowSize samples VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+    registRenderTarget rendererData renderTargetDataMap "SceneColor" $
+        Texture.RenderTargetCreateInfo windowWidth windowHeight 1 VK_FORMAT_B8G8R8A8_UNORM samples VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE False False
+    registRenderTarget rendererData renderTargetDataMap "SceneDepth" $
+        Texture.RenderTargetCreateInfo windowWidth windowHeight 1 VK_FORMAT_D32_SFLOAT samples VK_FILTER_NEAREST VK_FILTER_NEAREST VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE False False
+    registRenderTarget rendererData renderTargetDataMap "BackBuffer" $
+        Texture.RenderTargetCreateInfo windowWidth windowHeight 1 VK_FORMAT_B8G8R8A8_UNORM samples VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE False False
     where
-        registRenderTarget :: RendererData
-                           -> RenderTargetDataMap
-                           -> Text.Text
-                           -> VkFormat
-                           -> VkExtent2D
-                           -> VkSampleCountFlagBits
-                           -> VkFilter
-                           -> VkFilter
-                           -> VkSamplerAddressMode
-                           -> IO ()
-        registRenderTarget rendererData renderTargetDataMap renderTargetName format size sampleCount minFilter magFilter wrapMode = do
-            textureData <- createRenderTarget rendererData renderTargetName format size sampleCount minFilter magFilter wrapMode
+        registRenderTarget :: RendererData -> RenderTargetDataMap -> Text.Text -> Texture.RenderTargetCreateInfo -> IO ()
+        registRenderTarget rendererData renderTargetDataMap renderTargetName renderTargetCreateInfo = do
+            textureData <- createRenderTarget rendererData renderTargetName renderTargetCreateInfo
             HashTable.insert renderTargetDataMap renderTargetName textureData
 
 destroyRenderTargets :: RendererData -> RenderTargetDataMap -> IO ()

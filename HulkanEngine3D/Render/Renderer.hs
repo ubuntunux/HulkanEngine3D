@@ -109,7 +109,7 @@ class RendererInterface a where
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
     getUniformBufferData :: a -> Text.Text -> IO UniformBufferData
-    createRenderTarget :: a -> Text.Text -> VkFormat -> VkExtent2D -> VkSampleCountFlagBits -> VkFilter -> VkFilter -> VkSamplerAddressMode -> IO Texture.TextureData
+    createRenderTarget :: a -> Text.Text -> Texture.RenderTargetCreateInfo -> IO Texture.TextureData
     createTexture :: a -> Text.Text -> FilePath -> IO Texture.TextureData
     destroyTexture :: a -> Texture.TextureData -> IO ()
     getRenderTarget :: a -> Text.Text -> IO Texture.TextureData
@@ -135,19 +135,14 @@ instance RendererInterface RendererData where
     getUniformBufferData rendererData uniformBufferDataName =
         Maybe.fromJust <$> HashTable.lookup (_uniformBufferDataMap rendererData) uniformBufferDataName
 
-    createRenderTarget rendererData textureDataName format extent samples minFilter magFilter wrapMode =
+    createRenderTarget rendererData textureDataName renderTargetCreateInfo =
         Texture.createRenderTarget
             textureDataName
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)
             (_graphicsQueue (_queueFamilyDatas rendererData))
-            format
-            extent
-            samples
-            minFilter
-            magFilter
-            wrapMode
+            renderTargetCreateInfo
 
     createTexture rendererData textureDataName filePath =
         Texture.createTextureData
