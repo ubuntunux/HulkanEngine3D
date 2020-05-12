@@ -8,7 +8,7 @@
 
 module HulkanEngine3D.Vulkan.RenderPass where
 
-import Data.Bits
+--import Data.Bits
 import Control.Monad
 import qualified Data.Text as Text
 import qualified Data.Maybe as Maybe
@@ -38,6 +38,7 @@ data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     , _colorAttachmentDescriptions :: [ImageAttachmentDescription]
     , _depthAttachmentDescriptions :: [ImageAttachmentDescription]
     , _resolveAttachmentDescriptions :: [ImageAttachmentDescription]
+    , _subpassDependencies :: [VkSubpassDependency]
     , _pipelineDataCreateInfos :: [PipelineDataCreateInfo]
     }  deriving (Eq, Show)
 
@@ -124,7 +125,6 @@ defaultAttachmentDescription = ImageAttachmentDescription
     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_UNDEFINED
     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
     }
-
 data PipelineData = PipelineData
     { _pipelineDataName :: Text.Text
     , _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
@@ -171,6 +171,26 @@ instance RenderPassInterface RenderPassData where
             Nothing -> getDefaultPipelineData renderPassData
             otherwise -> Maybe.fromJust maybePipelineData
 
+
+createSubpassDependency :: Word32
+                        -> Word32
+                        -> VkPipelineStageFlags
+                        -> VkPipelineStageFlags
+                        -> VkAccessFlags
+                        -> VkAccessFlags
+                        -> VkDependencyFlags
+                        -> VkSubpassDependency
+createSubpassDependency srcSubpass dstSubpass srcStageMask dstStageMask srcAccessMask dstAccessMask dependencyFlags =
+    createVk @VkSubpassDependency
+        $  set @"srcSubpass" srcSubpass
+        &* set @"dstSubpass" dstSubpass
+        &* set @"srcStageMask" srcStageMask
+        &* set @"dstStageMask" dstStageMask
+        &* set @"srcAccessMask" srcAccessMask
+        &* set @"dstAccessMask" dstAccessMask
+        &* set @"dependencyFlags" dependencyFlags
+
+
 createRenderPassData :: VkDevice -> RenderPassDataCreateInfo -> [DescriptorData] -> IO RenderPassData
 createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} descriptorDatas = do
     renderPass <- createRenderPass device renderPassDataCreateInfo
@@ -179,7 +199,7 @@ createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {.
         return graphicsPipelineData
     pipelineDataMap <- HashTable.new
     forM_ pipelineDataList $ \pipelineData ->
-        HashTable.insert pipelineDataMap  (_pipelineDataName pipelineData) pipelineData
+        HashTable.insert pipelineDataMap (_pipelineDataName pipelineData) pipelineData
     logInfo $ "CreateRenderPassData : " ++ (Text.unpack _renderPassCreateInfoName)
     return RenderPassData
         { _renderPassDataName = _renderPassCreateInfoName
@@ -192,7 +212,7 @@ createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {.
 destroyRenderPassData :: VkDevice -> RenderPassData -> IO ()
 destroyRenderPassData device renderPassData@RenderPassData {..} = do
     logInfo "DestroyRenderPassData"
-    HashTable.mapM_ (\(k, v) -> destroyPipelineData device v) _pipelineDataMap
+    clearHashTable _pipelineDataMap (\(k, v) -> destroyPipelineData device v)
     destroyRenderPass device _renderPass _renderPassDataName
 
 
@@ -235,14 +255,6 @@ createRenderPass device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} =
                 otherwise -> setListRef @"pResolveAttachments" resolveAttachmentReferences
             &* set @"pPreserveAttachments" VK_NULL
             &* set @"pInputAttachments" VK_NULL
-        dependency = createVk @VkSubpassDependency
-            $  set @"srcSubpass" VK_SUBPASS_EXTERNAL
-            &* set @"dstSubpass" 0
-            &* set @"srcStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-            &* set @"dstStageMask" VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-            &* set @"srcAccessMask" VK_ZERO_FLAGS
-            &* set @"dstAccessMask" (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT .|. VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
-            &* set @"dependencyFlags" VK_DEPENDENCY_BY_REGION_BIT
         renderPassCreateInfo = createVk @VkRenderPassCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -250,14 +262,14 @@ createRenderPass device renderPassDataCreateInfo@RenderPassDataCreateInfo {..} =
             &* setListRef @"pAttachments" imageAttachments
             &* set @"subpassCount" 1
             &* setVkRef @"pSubpasses" subpass
-            &* set @"dependencyCount" 1
-            &* setVkRef @"pDependencies" dependency
+            &* set @"dependencyCount" (fromIntegral . length $ _subpassDependencies)
+            &* setListRef @"pDependencies" _subpassDependencies
     renderPass <- alloca $ \renderPassPtr -> do
         result <- vkCreateRenderPass device (unsafePtr renderPassCreateInfo) VK_NULL renderPassPtr
         validationVK result "vkCreatePipelineLayout failed!"
         peek renderPassPtr
     touchVkData renderPassCreateInfo
-    logInfo $ "Create RenderPass: " ++ show (fmap _attachmentImageFormat attachmentDescriptions)
+    logInfo $ "Create RenderPass : " ++ Text.unpack _renderPassCreateInfoName ++ " " ++ show renderPass
     return renderPass
 
 
@@ -426,14 +438,15 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
             &* set @"basePipelineHandle" VK_NULL_HANDLE
             &* set @"basePipelineIndex" (-1)
 
-    logInfo $ "createGraphicsPipeline"
-    logInfo $ "    vertexShader : " ++ show _vertexShaderFile
-    logInfo $ "    fragmentShader : " ++ show _fragmentShaderFile
     graphicsPipeline <- alloca $ \graphicsPipelinePtr -> do
         withPtr graphicsPipelineCreateInfo $ \graphicsPipelineCreateInfoPtr -> do
             result <- vkCreateGraphicsPipelines device VK_NULL_HANDLE 1 graphicsPipelineCreateInfoPtr VK_NULL graphicsPipelinePtr
             validationVK result "vkCreateGraphicsPipelines failed!"
         peek graphicsPipelinePtr
+
+    logInfo $ "createGraphicsPipeline : " ++ show graphicsPipeline
+    logInfo $ "    vertexShader : " ++ show _vertexShaderFile
+    logInfo $ "    fragmentShader : " ++ show _fragmentShaderFile
 
     return PipelineData
         { _pipelineDataName = _pipelineDataCreateInfoName

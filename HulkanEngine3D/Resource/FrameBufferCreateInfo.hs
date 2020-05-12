@@ -10,6 +10,7 @@ import qualified Data.Text as Text
 
 import Graphics.Vulkan
 
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.FrameBuffer
@@ -22,7 +23,6 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
     | "default" == frameBufferName = do
         textureSceneColor <- getRenderTarget rendererData "SceneColor"
         textureSceneDepth <- getRenderTarget rendererData "SceneDepth"
-        swapChainData <- readIORef (_swapChainDataRef rendererData)
         let (width, height, depth) = (_imageWidth textureSceneColor, _imageHeight textureSceneColor, _imageDepth textureSceneColor)
         return defaultFrameBufferDataCreateInfo
             { _frameBufferName = frameBufferName
@@ -34,13 +34,8 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
             , _frameBufferScissorRect = createScissorRect 0 0 width height
             , _frameBufferColorAttachmentFormats = [_imageFormat textureSceneColor]
             , _frameBufferDepthAttachmentFormats = [_imageFormat textureSceneDepth]
-            , _frameBufferResolveAttachmentFormats = [_swapChainImageFormat swapChainData]
             , _frameBufferImageViewsList =
-                [[ _imageView textureSceneColor
-                 , _imageView textureSceneDepth
-                 , swapChainImageView
-                 ] | swapChainImageView <- _swapChainImageViews swapChainData
-                ]
+                replicate Constants.swapChainImageCount [_imageView textureSceneColor, _imageView textureSceneDepth]
             , _frameBufferClearValues =
                 [ getColorClearValue [0.0, 0.0, 0.2, 1.0]
                 , getDepthStencilClearValue 1.0 0

@@ -144,6 +144,7 @@ class ResourceInterface a where
 
     loadMaterialInstanceDatas :: a -> RendererData -> IO ()
     unloadMaterialInstanceDatas :: a -> RendererData -> IO ()
+    reloadMaterialInstanceDatas :: a -> RendererData -> IO ()
     getMaterialInstanceData :: a -> Text.Text -> IO MaterialInstanceData
 
     getDescriptorData :: a -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO Descriptor.DescriptorData
@@ -193,11 +194,19 @@ instance ResourceInterface ResourceData where
     -- GraphicsDatas
     loadGraphicsDatas :: ResourceData -> RendererData -> IO ()
     loadGraphicsDatas resourceData rendererData = do
+        logInfo "ResourceData::loadGraphicsDatas"
+        loadRenderPassDatas resourceData rendererData
         loadFrameBufferDatas resourceData rendererData
+        loadMaterialInstanceDatas resourceData rendererData
+        reloadMaterialInstanceDatas resourceData rendererData
 
     unloadGraphicsDatas :: ResourceData -> RendererData -> IO ()
     unloadGraphicsDatas resourceData rendererData = do
+        logInfo "ResourceData::unloadGraphicsDatas"
+        unloadMaterialInstanceDatas resourceData rendererData
         unloadFrameBufferDatas resourceData rendererData
+        unloadRenderPassDatas resourceData rendererData
+        unloadDescriptorDatas resourceData rendererData
 
     -- SceneManagerData
     loadSceneManagerDatas :: ResourceData -> RendererData -> IO ()
@@ -227,7 +236,7 @@ instance ResourceInterface ResourceData where
 
     unloadModelDatas :: ResourceData -> RendererData -> IO ()
     unloadModelDatas resourceData rendererData = do
-        HashTable.mapM_ (\(k, v) -> Model.destroyModelData v) (_modelDataMap resourceData)
+        clearHashTable (_modelDataMap resourceData) (\(k, v) -> Model.destroyModelData v)
 
     getModelData :: ResourceData -> Text.Text -> IO Model.ModelData
     getModelData resourceData resourceName = do
@@ -275,7 +284,7 @@ instance ResourceInterface ResourceData where
 
     unloadTextureDatas :: ResourceData -> RendererData -> IO ()
     unloadTextureDatas resourceData rendererData =
-        HashTable.mapM_ (\(k, v) -> destroyTexture rendererData v) (_textureDataMap resourceData)
+        clearHashTable (_textureDataMap resourceData) (\(k, v) -> destroyTexture rendererData v)
 
     getTextureData :: ResourceData -> Text.Text -> IO TextureData
     getTextureData resourceData resourceName =
@@ -295,7 +304,7 @@ instance ResourceInterface ResourceData where
 
     unloadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
     unloadFrameBufferDatas resourceData rendererData =
-        HashTable.mapM_ (\(k, v) -> destroyFrameBufferData (getDevice rendererData) v) (_frameBufferDataMap resourceData)
+        clearHashTable (_frameBufferDataMap resourceData) (\(k, v) -> destroyFrameBufferData (getDevice rendererData) v)
 
     getFrameBufferData :: ResourceData -> Text.Text -> IO (Maybe FrameBufferData)
     getFrameBufferData resourceData resourceName =
@@ -316,7 +325,7 @@ instance ResourceInterface ResourceData where
 
     unloadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     unloadRenderPassDatas resourceData rendererData =
-        HashTable.mapM_ (\(k, v) -> destroyRenderPassData (getDevice rendererData) v) (_renderPassDataMap resourceData)
+        clearHashTable (_renderPassDataMap resourceData) (\(k, v) -> destroyRenderPassData (getDevice rendererData) v)
 
     getRenderPassData :: ResourceData -> Text.Text -> IO (Maybe RenderPassData)
     getRenderPassData resourceData resourceName =
@@ -365,12 +374,20 @@ instance ResourceInterface ResourceData where
                                 return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
                             otherwise -> return Descriptor.InvalidDescriptorInfo
                     return $ filter (/= Descriptor.InvalidDescriptorInfo) descriptorResourceInfos
-                materialInstance <- createMaterialInstance (getDevice rendererData) renderPassData pipelineData descriptorResourceInfosList
+                materialInstance <- createMaterialInstance (getDevice rendererData) materialInstanceName renderPassData pipelineData descriptorResourceInfosList
                 HashTable.insert (_materialInstanceDataMap resourceData) materialInstanceName materialInstance
 
     unloadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
     unloadMaterialInstanceDatas resourceData rendererData =
-        HashTable.mapM_ (\(k, v) -> destroyMaterialInstance (getDevice rendererData) v) (_materialInstanceDataMap resourceData)
+        clearHashTable (_materialInstanceDataMap resourceData) (\(k, v) -> destroyMaterialInstance (getDevice rendererData) v)
+
+    reloadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
+    reloadMaterialInstanceDatas resourceData rendererData =
+        flip HashTable.mapM_ (_modelDataMap resourceData) $ \(k, modelData) -> do
+            materialInstances <- Model.getMaterialInstanceDataList modelData
+            newMaterialInstances <- forM materialInstances $ \materialInstance ->
+                getMaterialInstanceData resourceData (_materialInstanceName materialInstance)
+            Model.setMaterialInstanceDataList modelData newMaterialInstances
 
     getMaterialInstanceData :: ResourceData -> Text.Text -> IO MaterialInstanceData
     getMaterialInstanceData resourceData resourceName =
@@ -391,5 +408,5 @@ instance ResourceInterface ResourceData where
                 return descriptorData
 
     unloadDescriptorDatas :: ResourceData -> RendererData -> IO ()
-    unloadDescriptorDatas resourceData rendererData =
-        HashTable.mapM_ (\(k, v) -> Descriptor.destroyDescriptorData (getDevice rendererData) v) (_descriptorDataMap resourceData)
+    unloadDescriptorDatas resourceData rendererData = do
+        clearHashTable (_descriptorDataMap resourceData) (\(k, v) -> Descriptor.destroyDescriptorData (getDevice rendererData) v)

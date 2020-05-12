@@ -472,22 +472,23 @@ createRenderTarget textureDataName physicalDevice device commandBufferPool queue
             True -> (floor $ logBase (2::Float) (fromIntegral maxImageSize)) + 1
             False -> 1
         isDepthFormat = elem _renderTargetFormat' Constants.depthFomats
-    (imageUsage, imageAspect, imageLayoutTransition, imageFormat) <- if isDepthFormat then do
-        depthFormat <- findSupportedFormat physicalDevice _renderTargetFormat' VK_IMAGE_TILING_OPTIMAL VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-        return
-            ( VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-            , VK_IMAGE_ASPECT_DEPTH_BIT
-            , TransferUndef_DepthStencilAttachemnt
-            , depthFormat
-            )
-    else
-        return
-            -- not sure why tutorial uses VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
-            ( VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT .|. VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-            , VK_IMAGE_ASPECT_COLOR_BIT
-            , TransferUndef_ColorAttachemnt
-            , _renderTargetFormat'
-            )
+        commonUsage = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT .|. VK_IMAGE_USAGE_TRANSFER_SRC_BIT .|. VK_IMAGE_USAGE_TRANSFER_DST_BIT .|. VK_IMAGE_USAGE_SAMPLED_BIT
+    (imageUsage, imageAspect, imageLayoutTransition, imageFormat) <-
+        if isDepthFormat then do
+            depthFormat <- findSupportedFormat physicalDevice _renderTargetFormat' VK_IMAGE_TILING_OPTIMAL VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+            return
+                ( commonUsage .|. VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+                , VK_IMAGE_ASPECT_DEPTH_BIT
+                , TransferUndef_DepthStencilAttachemnt
+                , depthFormat
+                )
+        else
+            return
+                ( commonUsage .|. VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                , VK_IMAGE_ASPECT_COLOR_BIT
+                , TransferUndef_ColorAttachemnt
+                , _renderTargetFormat'
+                )
     (imageMemory, image) <- createImage
         physicalDevice
         device

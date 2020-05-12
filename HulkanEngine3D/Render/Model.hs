@@ -34,6 +34,7 @@ class ModelInterface a where
     getMeshData :: a -> MeshData
     getMaterialInstanceDataCount :: a -> IO Int
     getMaterialInstanceDataList :: a -> IO [MaterialInstanceData]
+    setMaterialInstanceDataList :: a -> [MaterialInstanceData] -> IO ()
     getMaterialInstanceData :: a -> Int -> IO MaterialInstanceData
     updateModelData :: a -> IO ()
 
@@ -64,6 +65,9 @@ instance ModelInterface ModelData where
 
     getMaterialInstanceDataList :: ModelData -> IO [MaterialInstanceData]
     getMaterialInstanceDataList modelData = readIORef (_materialInstanceDatas modelData)
+
+    setMaterialInstanceDataList :: ModelData -> [MaterialInstanceData] -> IO ()
+    setMaterialInstanceDataList modelData materialInstanceDatas = writeIORef (_materialInstanceDatas modelData) materialInstanceDatas
 
     getMaterialInstanceData :: ModelData -> Int -> IO MaterialInstanceData
     getMaterialInstanceData modelData n = do

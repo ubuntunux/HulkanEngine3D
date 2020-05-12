@@ -17,6 +17,8 @@ import qualified Data.HashTable.IO as HashTable
 import Numeric.DataFrame
 
 import HulkanEngine3D.Vulkan.UniformBuffer
+import HulkanEngine3D.Utilities.System
+
 
 type UniformBufferDataMap = HashTable.BasicHashTable Text.Text UniformBufferData
 
@@ -38,4 +40,4 @@ registUniformBufferDatas physicalDevice device uniformBufferDataMap = do
 
 destroyUniformBufferDatas :: VkDevice -> UniformBufferDataMap -> IO ()
 destroyUniformBufferDatas device uniformBufferDataMap = do
-    HashTable.mapM_ (\(k, v) -> destroyUniformBufferData device v) uniformBufferDataMap
+    clearHashTable uniformBufferDataMap (\(k, v) -> destroyUniformBufferData device v)
