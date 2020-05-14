@@ -36,8 +36,8 @@ maxFrameCount = 2
 descriptorSetCountAtOnce :: Int
 descriptorSetCountAtOnce = swapChainImageCount
 
-maxDescriptorSetNum :: Int
-maxDescriptorSetNum = 100
+maxDescriptorPoolAllocCount :: Int
+maxDescriptorPoolAllocCount = 100
 
 enableImmediateMode :: Bool
 enableImmediateMode = True

@@ -398,12 +398,12 @@ instance ResourceInterface ResourceData where
     getDescriptorData resourceData rendererData renderPassName pipelineDataCreateInfo = do
         let descriptorName = Text.append renderPassName (_pipelineDataCreateInfoName pipelineDataCreateInfo)
             descriptorDataCreateInfoList = _descriptorDataCreateInfoList (pipelineDataCreateInfo::PipelineDataCreateInfo)
-            descriptorCount = Constants.maxDescriptorSetNum * Constants.descriptorSetCountAtOnce
+            maxDescriptorPoolCount = Constants.maxDescriptorPoolAllocCount * Constants.descriptorSetCountAtOnce
         maybeDescriptorData <- HashTable.lookup (_descriptorDataMap resourceData) descriptorName
         case maybeDescriptorData of
             (Just descriptorData) -> return descriptorData
             otherwise -> do
-                descriptorData <- Descriptor.createDescriptorData (getDevice rendererData) descriptorDataCreateInfoList descriptorCount
+                descriptorData <- Descriptor.createDescriptorData (getDevice rendererData) descriptorDataCreateInfoList maxDescriptorPoolCount
                 HashTable.insert (_descriptorDataMap resourceData) descriptorName descriptorData
                 return descriptorData
 

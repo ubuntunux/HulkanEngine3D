@@ -22,6 +22,7 @@ import qualified HulkanEngine3D.Render.Renderer as Renderer
 import qualified HulkanEngine3D.Resource.Resource as Resource
 import qualified HulkanEngine3D.Render.TransformObject as TransformObject
 import qualified HulkanEngine3D.Utilities.System as System
+--import HulkanEngine3D.Utilities.Logger
 
 type CameraObjectMap = HashTable.BasicHashTable T.Text CameraObjectData
 type StaticObjectMap = HashTable.BasicHashTable T.Text RenderObject.StaticObjectData

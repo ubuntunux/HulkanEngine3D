@@ -482,9 +482,9 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
             -- bind pipeline
             vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
 
-            -- bind descriptorset
-            with descriptorSet $ \descriptorSetPtr ->
-                vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
+        -- bind descriptorset
+        with descriptorSet $ \descriptorSetPtr ->
+            vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
 
         -- update model view matrix
         modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)

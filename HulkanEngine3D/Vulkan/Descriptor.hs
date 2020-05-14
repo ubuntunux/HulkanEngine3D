@@ -60,7 +60,7 @@ data DescriptorData = DescriptorData
     , _descriptorPoolSizeList :: [VkDescriptorPoolSize]
     , _descriptorPool :: VkDescriptorPool
     , _descriptorSetLayout :: VkDescriptorSetLayout
-    , _descriptorCount :: Int
+    , _maxDescriptorSetsCount :: Int
     } deriving (Eq, Show)
 
 defaultDescriptorData :: DescriptorData
@@ -70,18 +70,18 @@ defaultDescriptorData = DescriptorData
     , _descriptorPoolSizeList = []
     , _descriptorPool = VK_NULL
     , _descriptorSetLayout = VK_NULL
-    , _descriptorCount = 0
+    , _maxDescriptorSetsCount = 0
     }
 
 createDescriptorPool :: VkDevice -> [VkDescriptorPoolSize] -> Int -> IO VkDescriptorPool
-createDescriptorPool device poolSizeList descriptorCount = do
+createDescriptorPool device poolSizeList maxDescriptorSetsCount = do
     let poolCreateInfo = createVk @VkDescriptorPoolCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"flags" VK_ZERO_FLAGS -- manually free descriptorSets - VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
             &* set @"poolSizeCount" (fromIntegral $ length poolSizeList)
             &* setListRef @"pPoolSizes" poolSizeList
-            &* set @"maxSets" (fromIntegral descriptorCount)
+            &* set @"maxSets" (fromIntegral maxDescriptorSetsCount)
     descriptorPool <- allocaPeek $ \descriptorPoolPtr ->
         withPtr poolCreateInfo $ \poolCreateInfoPtr ->
             vkCreateDescriptorPool device poolCreateInfoPtr VK_NULL descriptorPoolPtr
@@ -133,24 +133,24 @@ createDescriptorData :: VkDevice
                      -> [DescriptorDataCreateInfo]
                      -> Int
                      -> IO DescriptorData
-createDescriptorData device descriptorDataCreateInfoList descriptorCount = do
+createDescriptorData device descriptorDataCreateInfoList maxDescriptorSetsCount = do
     logInfo "createDescriptorData"
     descriptorLayoutBindingWithPoolSizeList <- forM (zip descriptorDataCreateInfoList [0..]) $ \(descriptorDataCreateInfo, binding) -> do
         let descriptorType = _descriptorType' descriptorDataCreateInfo
             shaderStageFlagBits = _descriptorShaderStage' descriptorDataCreateInfo
             descriptorLayoutBinding = createDescriptorSetLayoutBinding binding descriptorType shaderStageFlagBits
-            descriptorPoolSize = createDescriptorPoolSize descriptorType descriptorCount
+            descriptorPoolSize = createDescriptorPoolSize descriptorType maxDescriptorSetsCount
         return (descriptorLayoutBinding, descriptorPoolSize)
     let (descriptorSetLayoutBindingList, descriptorPoolSizeList) = unzip descriptorLayoutBindingWithPoolSizeList
     descriptorSetLayout <- createDescriptorSetLayout device descriptorSetLayoutBindingList
-    descriptorPool <- createDescriptorPool device descriptorPoolSizeList descriptorCount
+    descriptorPool <- createDescriptorPool device descriptorPoolSizeList maxDescriptorSetsCount
     let descriptorData = DescriptorData
             { _descriptorDataCreateInfoList = descriptorDataCreateInfoList
             , _descriptorSetLayoutBindingList = descriptorSetLayoutBindingList
             , _descriptorPoolSizeList = descriptorPoolSizeList
             , _descriptorPool = descriptorPool
             , _descriptorSetLayout = descriptorSetLayout
-            , _descriptorCount = descriptorCount
+            , _maxDescriptorSetsCount = maxDescriptorSetsCount
             }
     return descriptorData
 
@@ -178,10 +178,12 @@ createDescriptorSet device descriptorData@DescriptorData {..} = do
         descriptorSets <- allocaPeekArray Constants.descriptorSetCountAtOnce $ \descriptorSetPtr ->
             withPtr allocateInfo $ \allocateInfoPtr ->
                 vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
+        logInfo $ "    createDescriptorSet : " ++ show descriptorSets
         return descriptorSets
 
 destroyDescriptorSet :: VkDevice -> VkDescriptorPool -> [VkDescriptorSet] -> Ptr VkDescriptorSet -> IO ()
 destroyDescriptorSet device descriptorPool descriptorSets descriptorSetPtr = do
+    logInfo $ "    destroyDescriptorSet : " ++ show descriptorSets
     -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for vkFreeDescriptorSets
     when (descriptorSetPtr /= VK_NULL) $
         vkFreeDescriptorSets device descriptorPool (fromIntegral . length $ descriptorSets) descriptorSetPtr
