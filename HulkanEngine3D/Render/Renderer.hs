@@ -372,8 +372,8 @@ resizeWindow window rendererData@RendererData {..} = do
 
 
 
-renderScene :: RendererData -> SceneManager.SceneManagerData -> IO ()
-renderScene rendererData@RendererData{..} sceneManagerData = do
+renderScene :: RendererData -> SceneManager.SceneManagerData -> Double -> Float -> IO ()
+renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime = do
     -- frame index
     frameIndex <- readIORef _frameIndexRef
     let frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
@@ -401,6 +401,10 @@ renderScene rendererData@RendererData{..} sceneManagerData = do
                 sceneConstantsData = SceneConstantsData
                     { _VIEW = viewMatrix
                     , _PROJECTION = projectionMatrix
+                    , _TIME = realToFrac elapsedTime
+                    , _SceneConstantsDummy0 = 0.0
+                    , _SceneConstantsDummy1 = 0.0
+                    , _SceneConstantsDummy2 = 0.0
                     }
             updateBufferData _device sceneConstantsMemory sceneConstantsData
 

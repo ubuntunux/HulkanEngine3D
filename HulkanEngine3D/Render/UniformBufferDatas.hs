@@ -25,6 +25,10 @@ type UniformBufferDataMap = HashTable.BasicHashTable Text.Text UniformBufferData
 data SceneConstantsData = SceneConstantsData
   { _VIEW  :: Mat44f
   , _PROJECTION  :: Mat44f
+  , _TIME :: Scalar Float
+  , _SceneConstantsDummy0 :: Scalar Float
+  , _SceneConstantsDummy1 :: Scalar Float
+  , _SceneConstantsDummy2 :: Scalar Float
   } deriving (Show, Generic)
 
 instance PrimBytes SceneConstantsData

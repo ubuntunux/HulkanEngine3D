@@ -18,6 +18,6 @@ class SceneManagerInterface a where
     addStaticObject :: a -> T.Text -> StaticObjectCreateData -> IO StaticObjectData
     getStaticObject :: a -> T.Text -> IO (Maybe StaticObjectData)
     getStaticObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
-    updateSceneManagerData :: a -> Float -> IO ()
+    updateSceneManagerData :: a -> Double -> Float -> IO ()
 
 instance SceneManagerInterface SceneManagerData where

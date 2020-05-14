@@ -56,12 +56,17 @@ data ApplicationData = ApplicationData
 
 
 class ApplicationInterface a where
-    getDeltaTime :: a -> IO Float
+    getDeltaTime :: a -> IO Double
+    getElapsedTime :: a -> IO Double
 
 instance ApplicationInterface ApplicationData where
     getDeltaTime applicationData = do
         timeData <- readIORef (_timeDataRef applicationData)
-        return . realToFrac . _deltaTime $ timeData
+        return $ _deltaTime timeData
+
+    getElapsedTime applicationData = do
+        timeData <- readIORef (_timeDataRef applicationData)
+        return $ _elapsedTime timeData
 
 
 mouseButtonCallback :: IORef MouseInputData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> IO ()
@@ -145,7 +150,7 @@ destroyGLFWWindow window = do
 
 updateEvent :: ApplicationData -> IO ()
 updateEvent applicationData = do
-    deltaTime <- getDeltaTime applicationData
+    deltaTime <- realToFrac <$> getDeltaTime applicationData
     keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
     mouseInputData <- readIORef (_mouseInputDataRef applicationData)
     mouseMoveData <- readIORef (_mouseMoveDataRef applicationData)
@@ -327,7 +332,8 @@ runApplication = do
     -- Main Loop
     updateLoop applicationData $ \applicationData -> do
         updateTimeData $ _timeDataRef applicationData
-        deltaTime <- getDeltaTime applicationData
+        deltaTime <- realToFrac <$> getDeltaTime applicationData
+        elapsedTime <- getElapsedTime applicationData
 
         let rendererData = _rendererData applicationData
             resourceData = _resourceData applicationData
@@ -346,9 +352,9 @@ runApplication = do
             setAspect mainCamera aspect
 
         -- update renderer data
-        SceneManager.updateSceneManagerData sceneManagerData deltaTime
+        SceneManager.updateSceneManagerData sceneManagerData elapsedTime deltaTime
 
         -- render scene
-        Renderer.renderScene rendererData sceneManagerData
+        Renderer.renderScene rendererData sceneManagerData elapsedTime deltaTime
 
     terminateApplication applicationData

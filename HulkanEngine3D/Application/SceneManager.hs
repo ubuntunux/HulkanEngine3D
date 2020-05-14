@@ -44,7 +44,7 @@ class SceneManagerInterface a where
     addStaticObject :: a -> T.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
     getStaticObject :: a -> T.Text -> IO (Maybe RenderObject.StaticObjectData)
     getStaticObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
-    updateSceneManagerData :: a -> Float -> IO ()
+    updateSceneManagerData :: a -> Double -> Float -> IO ()
 
 instance SceneManagerInterface SceneManagerData where
     newSceneManagerData :: Renderer.RendererData -> Resource.ResourceData -> IO SceneManagerData
@@ -108,8 +108,8 @@ instance SceneManagerInterface SceneManagerData where
     getStaticObjectRenderElements :: SceneManagerData -> IO [RenderElement.RenderElementData]
     getStaticObjectRenderElements sceneManagerData = readIORef (_staticObjectRenderElements sceneManagerData)
     
-    updateSceneManagerData :: SceneManagerData -> Float -> IO ()
-    updateSceneManagerData sceneManagerData@SceneManagerData {..} deltaTime = do
+    updateSceneManagerData :: SceneManagerData -> Double -> Float -> IO ()
+    updateSceneManagerData sceneManagerData@SceneManagerData {..} elapsedTime deltaTime = do
         -- update camera
         mainCamera <- getMainCamera sceneManagerData
         updateCameraObjectData mainCamera
