@@ -33,6 +33,7 @@ import Graphics.Vulkan.Marshal.Create
 
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
+import qualified HulkanEngine3D.Constants as Constants
 
 data DescriptorResourceInfo =
     DescriptorBufferInfo VkDescriptorBufferInfo |
@@ -84,12 +85,12 @@ createDescriptorPool device poolSizeList descriptorCount = do
     descriptorPool <- allocaPeek $ \descriptorPoolPtr ->
         withPtr poolCreateInfo $ \poolCreateInfoPtr ->
             vkCreateDescriptorPool device poolCreateInfoPtr VK_NULL descriptorPoolPtr
-    logInfo $ "createDescriptorPool : " ++ show descriptorPool
+    logInfo $ "    createDescriptorPool : " ++ show descriptorPool
     return descriptorPool
 
 destroyDescriptorPool :: VkDevice -> VkDescriptorPool -> IO ()
 destroyDescriptorPool device descriptorPool = do
-    logInfo $ "destroyDescriptorPool : " ++ show descriptorPool
+    logInfo $ "    destroyDescriptorPool : " ++ show descriptorPool
     vkDestroyDescriptorPool device descriptorPool VK_NULL
 
 createDescriptorPoolSize :: VkDescriptorType -> Int -> VkDescriptorPoolSize
@@ -118,13 +119,13 @@ createDescriptorSetLayout device layoutBindingList = do
     descriptorSetLayout <- allocaPeek $ \descriptorSetLayoutPtr ->
         withPtr layoutCreateInfo $ \layoutCreateInfoPtr ->
             vkCreateDescriptorSetLayout device layoutCreateInfoPtr VK_NULL descriptorSetLayoutPtr
-    logInfo $ "createDescriptorSetLayout : " ++ show descriptorSetLayout
+    logInfo $ "    createDescriptorSetLayout : " ++ show descriptorSetLayout
     return descriptorSetLayout
 
 
 destroyDescriptorSetLayout :: VkDevice -> VkDescriptorSetLayout -> IO ()
 destroyDescriptorSetLayout device descriptorSetLayout = do
-    logInfo $ "destroyDescriptorSetLayout : " ++ show descriptorSetLayout
+    logInfo $ "    destroyDescriptorSetLayout : " ++ show descriptorSetLayout
     vkDestroyDescriptorSetLayout device descriptorSetLayout VK_NULL
 
 
@@ -133,6 +134,7 @@ createDescriptorData :: VkDevice
                      -> Int
                      -> IO DescriptorData
 createDescriptorData device descriptorDataCreateInfoList descriptorCount = do
+    logInfo "createDescriptorData"
     descriptorLayoutBindingWithPoolSizeList <- forM (zip descriptorDataCreateInfoList [0..]) $ \(descriptorDataCreateInfo, binding) -> do
         let descriptorType = _descriptorType' descriptorDataCreateInfo
             shaderStageFlagBits = _descriptorShaderStage' descriptorDataCreateInfo
@@ -140,7 +142,6 @@ createDescriptorData device descriptorDataCreateInfoList descriptorCount = do
             descriptorPoolSize = createDescriptorPoolSize descriptorType descriptorCount
         return (descriptorLayoutBinding, descriptorPoolSize)
     let (descriptorSetLayoutBindingList, descriptorPoolSizeList) = unzip descriptorLayoutBindingWithPoolSizeList
-
     descriptorSetLayout <- createDescriptorSetLayout device descriptorSetLayoutBindingList
     descriptorPool <- createDescriptorPool device descriptorPoolSizeList descriptorCount
     let descriptorData = DescriptorData
@@ -151,7 +152,6 @@ createDescriptorData device descriptorDataCreateInfoList descriptorCount = do
             , _descriptorSetLayout = descriptorSetLayout
             , _descriptorCount = descriptorCount
             }
-    logInfo $ "createDescriptorData : pool " ++ show (_descriptorPool descriptorData) ++ ", layout " ++ show (_descriptorSetLayout descriptorData)
     return descriptorData
 
 
@@ -159,14 +159,14 @@ destroyDescriptorData :: VkDevice
                       -> DescriptorData
                       -> IO ()
 destroyDescriptorData device descriptorData@DescriptorData{..} = do
-    logInfo $ "destroyDescriptorData : pool " ++ show _descriptorPool ++ ", layout " ++ show _descriptorSetLayout
+    logInfo "destroyDescriptorData"
     destroyDescriptorSetLayout device _descriptorSetLayout
     destroyDescriptorPool device _descriptorPool
 
 
 createDescriptorSet :: VkDevice -> DescriptorData -> IO [VkDescriptorSet]
 createDescriptorSet device descriptorData@DescriptorData {..} = do
-    let descriptorSetLayouts = replicate _descriptorCount _descriptorSetLayout
+    let descriptorSetLayouts = replicate Constants.descriptorSetCountAtOnce _descriptorSetLayout
     allocaArray (length descriptorSetLayouts) $ \descriptorSetLayoutsPtr -> do
         pokeArray descriptorSetLayoutsPtr descriptorSetLayouts
         let allocateInfo = createVk @VkDescriptorSetAllocateInfo
@@ -175,7 +175,7 @@ createDescriptorSet device descriptorData@DescriptorData {..} = do
                 &* set @"descriptorPool" _descriptorPool
                 &* set @"descriptorSetCount" (fromIntegral . length $ descriptorSetLayouts)
                 &* set @"pSetLayouts" descriptorSetLayoutsPtr
-        descriptorSets <- allocaPeekArray _descriptorCount $ \descriptorSetPtr ->
+        descriptorSets <- allocaPeekArray Constants.descriptorSetCountAtOnce $ \descriptorSetPtr ->
             withPtr allocateInfo $ \allocateInfoPtr ->
                 vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
         return descriptorSets

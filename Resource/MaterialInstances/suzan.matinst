@@ -1,0 +1,3 @@
+{"render_pass_name": "default",
+ "pipeline_name": "render_solid",
+ "material_parameters": {"texSampler": "common/bricks_d"}}

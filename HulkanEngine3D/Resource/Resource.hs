@@ -398,7 +398,7 @@ instance ResourceInterface ResourceData where
     getDescriptorData resourceData rendererData renderPassName pipelineDataCreateInfo = do
         let descriptorName = Text.append renderPassName (_pipelineDataCreateInfoName pipelineDataCreateInfo)
             descriptorDataCreateInfoList = _descriptorDataCreateInfoList (pipelineDataCreateInfo::PipelineDataCreateInfo)
-            descriptorCount = Constants.swapChainImageCount
+            descriptorCount = Constants.maxDescriptorSetNum * Constants.descriptorSetCountAtOnce
         maybeDescriptorData <- HashTable.lookup (_descriptorDataMap resourceData) descriptorName
         case maybeDescriptorData of
             (Just descriptorData) -> return descriptorData

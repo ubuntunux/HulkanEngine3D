@@ -33,6 +33,12 @@ swapChainImageFormat = VK_FORMAT_B8G8R8A8_UNORM
 maxFrameCount :: Int
 maxFrameCount = 2
 
+descriptorSetCountAtOnce :: Int
+descriptorSetCountAtOnce = swapChainImageCount
+
+maxDescriptorSetNum :: Int
+maxDescriptorSetNum = 100
+
 enableImmediateMode :: Bool
 enableImmediateMode = True
 
