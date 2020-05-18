@@ -25,6 +25,10 @@ createRenderTargets rendererData renderTargetDataMap = do
     let windowWidth = getField @"width" (_swapChainExtent swapChainData)
         windowHeight = getField @"height" (_swapChainExtent swapChainData)
         samples = VK_SAMPLE_COUNT_1_BIT -- min VK_SAMPLE_COUNT_4_BIT (_msaaSamples . _renderFeatures $ rendererData)
+        enableMipmap = True
+        disableMipmap = False
+        enableAnisotropy = True
+        disableAnisotropy = False
     registRenderTarget rendererData renderTargetDataMap "SceneColor" $
         Texture.RenderTargetCreateInfo
             windowWidth
@@ -35,8 +39,8 @@ createRenderTargets rendererData renderTargetDataMap = do
             VK_FILTER_LINEAR
             VK_FILTER_LINEAR
             VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-            False
-            False
+            disableMipmap
+            disableAnisotropy
     registRenderTarget rendererData renderTargetDataMap "SceneDepth" $
         Texture.RenderTargetCreateInfo
             windowWidth
@@ -47,8 +51,8 @@ createRenderTargets rendererData renderTargetDataMap = do
             VK_FILTER_NEAREST
             VK_FILTER_NEAREST
             VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-            False
-            False
+            disableMipmap
+            disableAnisotropy
     registRenderTarget rendererData renderTargetDataMap "BackBuffer" $
         Texture.RenderTargetCreateInfo
             windowWidth
@@ -59,8 +63,44 @@ createRenderTargets rendererData renderTargetDataMap = do
             VK_FILTER_LINEAR
             VK_FILTER_LINEAR
             VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-            False
-            False
+            disableMipmap
+            disableAnisotropy
+    registRenderTarget rendererData renderTargetDataMap "SceneAlbedo" $
+        Texture.RenderTargetCreateInfo
+            windowWidth
+            windowHeight
+            1
+            VK_FORMAT_R8G8B8A8_UINT
+            VK_SAMPLE_COUNT_1_BIT
+            VK_FILTER_LINEAR
+            VK_FILTER_LINEAR
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+            disableMipmap
+            disableAnisotropy
+    registRenderTarget rendererData renderTargetDataMap "SceneNormal" $
+        Texture.RenderTargetCreateInfo
+            windowWidth
+            windowHeight
+            1
+            VK_FORMAT_R8G8B8A8_UINT
+            VK_SAMPLE_COUNT_1_BIT
+            VK_FILTER_NEAREST
+            VK_FILTER_NEAREST
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+            disableMipmap
+            disableAnisotropy
+    registRenderTarget rendererData renderTargetDataMap "SceneMaterial" $
+        Texture.RenderTargetCreateInfo
+            windowWidth
+            windowHeight
+            1
+            VK_FORMAT_R8G8B8A8_UINT
+            VK_SAMPLE_COUNT_1_BIT
+            VK_FILTER_NEAREST
+            VK_FILTER_NEAREST
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+            disableMipmap
+            disableAnisotropy
     where
         registRenderTarget :: RendererData -> RenderTargetDataMap -> Text.Text -> Texture.RenderTargetCreateInfo -> IO ()
         registRenderTarget rendererData renderTargetDataMap renderTargetName renderTargetCreateInfo = do
