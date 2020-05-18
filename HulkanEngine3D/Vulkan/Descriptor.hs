@@ -51,7 +51,7 @@ data DescriptorDataCreateInfo = DescriptorDataCreateInfo
     { _descriptorName' :: Text.Text
     , _descriptorResourceType' :: DescriptorResourceType
     , _descriptorType' :: VkDescriptorType
-    , _descriptorShaderStage' :: VkShaderStageFlagBits
+    , _descriptorShaderStage' :: VkShaderStageFlags
     } deriving (Eq, Show)
 
 data DescriptorData = DescriptorData
@@ -99,13 +99,13 @@ createDescriptorPoolSize descriptorType descriptorCount =
         $  set @"type" descriptorType
         &* set @"descriptorCount" (fromIntegral descriptorCount)
 
-createDescriptorSetLayoutBinding :: Int -> VkDescriptorType -> VkShaderStageFlagBits -> VkDescriptorSetLayoutBinding
+createDescriptorSetLayoutBinding :: Int -> VkDescriptorType -> VkShaderStageFlags -> VkDescriptorSetLayoutBinding
 createDescriptorSetLayoutBinding binding descriptorType shaderStageFlags =
     createVk @VkDescriptorSetLayoutBinding
         $  set @"binding" (fromIntegral binding)
         &* set @"descriptorType" descriptorType
         &* set @"descriptorCount" 1
-        &* set @"stageFlags" (bitToMask shaderStageFlags)
+        &* set @"stageFlags" shaderStageFlags
         &* set @"pImmutableSamplers" VK_NULL
 
 createDescriptorSetLayout :: VkDevice -> [VkDescriptorSetLayoutBinding] -> IO VkDescriptorSetLayout
@@ -137,8 +137,8 @@ createDescriptorData device descriptorDataCreateInfoList maxDescriptorSetsCount 
     logInfo "createDescriptorData"
     descriptorLayoutBindingWithPoolSizeList <- forM (zip descriptorDataCreateInfoList [0..]) $ \(descriptorDataCreateInfo, binding) -> do
         let descriptorType = _descriptorType' descriptorDataCreateInfo
-            shaderStageFlagBits = _descriptorShaderStage' descriptorDataCreateInfo
-            descriptorLayoutBinding = createDescriptorSetLayoutBinding binding descriptorType shaderStageFlagBits
+            shaderStageFlags = _descriptorShaderStage' descriptorDataCreateInfo
+            descriptorLayoutBinding = createDescriptorSetLayoutBinding binding descriptorType shaderStageFlags
             descriptorPoolSize = createDescriptorPoolSize descriptorType maxDescriptorSetsCount
         return (descriptorLayoutBinding, descriptorPoolSize)
     let (descriptorSetLayoutBindingList, descriptorPoolSizeList) = unzip descriptorLayoutBindingWithPoolSizeList

@@ -30,7 +30,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowWidth
             windowHeight
             1
-            VK_FORMAT_B8G8R8A8_UNORM
+            VK_FORMAT_R16G16B16A16_SFLOAT
             samples
             VK_FILTER_LINEAR
             VK_FILTER_LINEAR

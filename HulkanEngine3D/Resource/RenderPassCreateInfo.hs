@@ -74,7 +74,7 @@ getRenderPassDataCreateInfo rendererData renderPassName
                     , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
                     , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
                     , _descriptorDataCreateInfoList =
-                        [ DescriptorDataCreateInfo "SceneConstantsData" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VkShaderStageBitmask 17)
+                        [ DescriptorDataCreateInfo "SceneConstantsData" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
                         , DescriptorDataCreateInfo "texSampler0" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         , DescriptorDataCreateInfo "texSampler1" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         ]
@@ -127,7 +127,7 @@ getRenderPassDataCreateInfo rendererData renderPassName
                     , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
                     , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo  { _depthWriteEnable = VK_FALSE }
                     , _descriptorDataCreateInfoList =
-                        [ DescriptorDataCreateInfo "SceneConstantsData" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER VK_SHADER_STAGE_VERTEX_BIT
+                        [ DescriptorDataCreateInfo "SceneConstantsData" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
                         , DescriptorDataCreateInfo "texSampler" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         , DescriptorDataCreateInfo "SceneColor" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         ]

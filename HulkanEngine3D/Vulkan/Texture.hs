@@ -382,16 +382,17 @@ createImage :: VkPhysicalDevice
             -> VkImageUsageFlags
             -> VkMemoryPropertyFlags
             -> IO (VkDeviceMemory, VkImage)
-createImage physicalDevice device width height depth mipLevels samples format tiling usage flags = do
-    let getImageType width height depth
+createImage physicalDevice device width height depth mipLevels samples format tiling usage memoryPropertyFlags = do
+    let imageType
             | (height <= 1), (depth <= 1) = VK_IMAGE_TYPE_1D
             | (depth <= 1) = VK_IMAGE_TYPE_2D
             | otherwise = VK_IMAGE_TYPE_3D
+        imageCreateFlags = VK_ZERO_FLAGS
         imageCreateInfo = createVk @VkImageCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO
             &* set @"pNext" VK_NULL
-            &* set @"flags" VK_ZERO_FLAGS
-            &* set @"imageType" (getImageType width height depth)
+            &* set @"flags" imageCreateFlags
+            &* set @"imageType" imageType
             &* setVk @"extent"
                 (  set @"width" width
                 &* set @"height" height
@@ -407,11 +408,14 @@ createImage physicalDevice device width height depth mipLevels samples format ti
             &* set @"samples" samples
             &* set @"queueFamilyIndexCount" 0
             &* set @"pQueueFamilyIndices" VK_NULL
+
+    imageFormatProperties <- allocaPeek $ \pImageFormatProperties ->
+        throwingVK "vkGetPhysicalDeviceImageFormatProperties failed!" $ vkGetPhysicalDeviceImageFormatProperties physicalDevice format imageType tiling usage imageCreateFlags pImageFormatProperties
     image <- withPtr imageCreateInfo $ \imageCreateInfoPtr -> allocaPeek $ \imagePtr ->
-        vkCreateImage device imageCreateInfoPtr VK_NULL imagePtr
+        throwingVK "vkCreateImage failed!" $ vkCreateImage device imageCreateInfoPtr VK_NULL imagePtr
     memoryRequirements <- allocaPeek $ \memoryRequirementsPtr ->
         vkGetImageMemoryRequirements device image memoryRequirementsPtr
-    memoryType <- findMemoryType physicalDevice(getField @"memoryTypeBits" memoryRequirements) flags
+    memoryType <- findMemoryType physicalDevice(getField @"memoryTypeBits" memoryRequirements) memoryPropertyFlags
     let allocInfo = createVk @VkMemoryAllocateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO
             &* set @"pNext" VK_NULL
@@ -419,7 +423,7 @@ createImage physicalDevice device width height depth mipLevels samples format ti
             &* set @"memoryTypeIndex" memoryType
     imageMemory <- withPtr allocInfo $ \allocInfoPtr ->
         allocaPeek $ \imageMemoryPtr ->
-            vkAllocateMemory device allocInfoPtr VK_NULL imageMemoryPtr
+            throwingVK "vkAllocateMemory failed!" $ vkAllocateMemory device allocInfoPtr VK_NULL imageMemoryPtr
     vkBindImageMemory device image imageMemory 0
     return (imageMemory, image)
 
@@ -476,19 +480,17 @@ createRenderTarget textureDataName physicalDevice device commandBufferPool queue
     (imageUsage, imageAspect, imageLayoutTransition, imageFormat) <-
         if isDepthFormat then do
             depthFormat <- findSupportedFormat physicalDevice _renderTargetFormat' VK_IMAGE_TILING_OPTIMAL VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-            return
-                ( commonUsage .|. VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-                , VK_IMAGE_ASPECT_DEPTH_BIT
-                , TransferUndef_DepthStencilAttachemnt
-                , depthFormat
-                )
+            return ( commonUsage .|. VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+                   , VK_IMAGE_ASPECT_DEPTH_BIT
+                   , TransferUndef_DepthStencilAttachemnt
+                   , depthFormat
+                   )
         else
-            return
-                ( commonUsage .|. VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-                , VK_IMAGE_ASPECT_COLOR_BIT
-                , TransferUndef_ColorAttachemnt
-                , _renderTargetFormat'
-                )
+            return ( commonUsage .|. VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                   , VK_IMAGE_ASPECT_COLOR_BIT
+                   , TransferUndef_ColorAttachemnt
+                   , _renderTargetFormat'
+                   )
     (imageMemory, image) <- createImage
         physicalDevice
         device
