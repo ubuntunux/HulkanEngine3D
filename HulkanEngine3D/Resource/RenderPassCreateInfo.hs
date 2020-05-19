@@ -18,7 +18,7 @@ import HulkanEngine3D.Vulkan.FrameBuffer
 
 getRenderPassDataCreateInfo :: RendererData -> Text.Text -> IO RenderPassDataCreateInfo
 getRenderPassDataCreateInfo rendererData renderPassName
-    | "default" == renderPassName = do
+    | "render_default" == renderPassName = do
         frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
         let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
             colorAttachmentDescriptions =
@@ -62,8 +62,8 @@ getRenderPassDataCreateInfo rendererData renderPassName
             pipelineDataCreateInfos =
                 [ PipelineDataCreateInfo
                     { _pipelineDataCreateInfoName = "render_solid"
-                    , _vertexShaderFile = "Resource/Shaders/triangle.vert"
-                    , _fragmentShaderFile = "Resource/Shaders/triangle.frag"
+                    , _vertexShaderFile = "Resource/Shaders/render_object.vert"
+                    , _fragmentShaderFile = "Resource/Shaders/render_object.frag"
                     , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
                     , _pipelineSampleCount = sampleCount
                     , _pipelinePolygonMode = VK_POLYGON_MODE_FILL
@@ -71,12 +71,13 @@ getRenderPassDataCreateInfo rendererData renderPassName
                     , _pipelineFrontFace = VK_FRONT_FACE_CLOCKWISE
                     , _pipelineViewport = _frameBufferViewPort frameBufferDataCreateInfo
                     , _pipelineScissorRect = _frameBufferScissorRect frameBufferDataCreateInfo
-                    , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
+                    , _pipelineColorBlendModes = replicate (length colorAttachmentDescriptions) $ getColorBlendMode BlendMode_None
                     , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
                     , _descriptorDataCreateInfoList =
                         [ DescriptorDataCreateInfo "SceneConstantsData" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                        , DescriptorDataCreateInfo "texSampler0" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
-                        , DescriptorDataCreateInfo "texSampler1" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo "textureAlbedo" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo "textureMaterial" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo "textureNormal" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         ]
                     }
                 ]
@@ -89,7 +90,7 @@ getRenderPassDataCreateInfo rendererData renderPassName
             , _subpassDependencies = subpassDependencies
             , _pipelineDataCreateInfos = pipelineDataCreateInfos
             }
-    | "render_final" == renderPassName = do
+    | "composite_gbuffer" == renderPassName = do
         frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
         let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
             colorAttachmentDescriptions =
@@ -114,9 +115,9 @@ getRenderPassDataCreateInfo rendererData renderPassName
                 ]
             pipelineDataCreateInfos =
                 [ PipelineDataCreateInfo
-                    { _pipelineDataCreateInfoName = "render_quad"
+                    { _pipelineDataCreateInfoName = "composite_gbuffer"
                     , _vertexShaderFile = "Resource/Shaders/render_quad.vert"
-                    , _fragmentShaderFile = "Resource/Shaders/render_quad.frag"
+                    , _fragmentShaderFile = "Resource/Shaders/composite_gbuffer.frag"
                     , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
                     , _pipelineSampleCount = sampleCount
                     , _pipelinePolygonMode = VK_POLYGON_MODE_FILL
@@ -128,8 +129,9 @@ getRenderPassDataCreateInfo rendererData renderPassName
                     , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo  { _depthWriteEnable = VK_FALSE }
                     , _descriptorDataCreateInfoList =
                         [ DescriptorDataCreateInfo "SceneConstantsData" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                        , DescriptorDataCreateInfo "texSampler" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
-                        , DescriptorDataCreateInfo "SceneColor" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo "SceneAlbedo" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo "SceneMaterial" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo "SceneNormal" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         ]
                     }
                 ]

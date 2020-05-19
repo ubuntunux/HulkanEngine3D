@@ -75,13 +75,13 @@ defaultTextureName :: Text.Text
 defaultTextureName = "common/default"
 
 defaultMaterialInstanceName :: Text.Text
-defaultMaterialInstanceName = "default"
+defaultMaterialInstanceName = "render_default"
 
 defaultFrameBufferName :: Text.Text
-defaultFrameBufferName = "default"
+defaultFrameBufferName = "render_default"
 
 defaultRenderPassName :: Text.Text
-defaultRenderPassName = "default"
+defaultRenderPassName = "render_default"
 
 
 data ResourceData = ResourceData
@@ -313,8 +313,8 @@ instance ResourceInterface ResourceData where
     -- RenderPassLoader
     loadRenderPassDatas :: ResourceData -> RendererData -> IO ()
     loadRenderPassDatas resourceData rendererData = do
-        registRenderPassData "default"
-        registRenderPassData "render_final"
+        registRenderPassData defaultRenderPassName
+        registRenderPassData "composite_gbuffer"
         where
             registRenderPassData renderPassName = do
                 renderPassDataCreateInfo <- RenderPassCreateInfo.getRenderPassDataCreateInfo rendererData renderPassName

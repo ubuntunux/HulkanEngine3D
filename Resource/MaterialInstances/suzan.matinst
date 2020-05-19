@@ -1,3 +1,3 @@
-{"render_pass_name": "default",
+{"render_pass_name": "render_default",
  "pipeline_name": "render_solid",
- "material_parameters": {"texSampler0": "common/wood_d", "texSampler1": "common/cliff_d"}}
+ "material_parameters": {"textureAlbedo": "common/cliff_d", "textureMaterial": "common/default_m", "textureNormal": "common/cliff_n"}}

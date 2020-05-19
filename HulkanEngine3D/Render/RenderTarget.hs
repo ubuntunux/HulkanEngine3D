@@ -70,7 +70,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowWidth
             windowHeight
             1
-            VK_FORMAT_R8G8B8A8_UINT
+            VK_FORMAT_R16G16B16A16_SFLOAT
             VK_SAMPLE_COUNT_1_BIT
             VK_FILTER_LINEAR
             VK_FILTER_LINEAR
@@ -82,7 +82,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowWidth
             windowHeight
             1
-            VK_FORMAT_R8G8B8A8_UINT
+            VK_FORMAT_R16G16B16A16_SFLOAT
             VK_SAMPLE_COUNT_1_BIT
             VK_FILTER_NEAREST
             VK_FILTER_NEAREST
@@ -94,7 +94,19 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowWidth
             windowHeight
             1
-            VK_FORMAT_R8G8B8A8_UINT
+            VK_FORMAT_R16G16B16A16_SFLOAT
+            VK_SAMPLE_COUNT_1_BIT
+            VK_FILTER_NEAREST
+            VK_FILTER_NEAREST
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+            disableMipmap
+            disableAnisotropy
+    registRenderTarget rendererData renderTargetDataMap "SceneVelocity" $
+        Texture.RenderTargetCreateInfo
+            windowWidth
+            windowHeight
+            1
+            VK_FORMAT_R16G16B16A16_SFLOAT
             VK_SAMPLE_COUNT_1_BIT
             VK_FILTER_NEAREST
             VK_FILTER_NEAREST

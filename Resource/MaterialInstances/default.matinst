@@ -1,3 +1,3 @@
-{"render_pass_name": "default",
+{"render_pass_name": "render_default",
  "pipeline_name": "render_solid",
- "material_parameters": {"texSampler0": "common/default", "texSampler1": "common/water_caustic_00"}}
+ "material_parameters": {"textureAlbedo": "common/default", "textureMaterial": "common/default_m", "textureNormal": "common/default_n"}}
