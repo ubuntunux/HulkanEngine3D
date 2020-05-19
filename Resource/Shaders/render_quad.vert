@@ -13,10 +13,6 @@ layout(location = 0) out vec4 vertexColor;
 layout(location = 1) out vec3 vertexNormal;
 layout(location = 2) out vec2 texCoord;
 
-out gl_PerVertex {
-    vec4 gl_Position;
-};
-
 void main() {
     gl_Position = vec4(inPosition, 1.0);
     vertexColor = inColor;

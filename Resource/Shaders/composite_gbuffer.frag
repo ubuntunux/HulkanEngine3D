@@ -12,8 +12,9 @@ layout(location = 2) in vec2 texCoord;
 layout(location = 0) out vec4 outColor;
 
 void main() {
-    outColor = texture(textureAlbedo, texCoord);
-    //outColor = texture(textureMaterial, texCoord);
-    //outColor = texture(textureNormal, texCoord);
+    vec3 albedo = texture(textureAlbedo, texCoord).xyz;
+    vec3 material = texture(textureMaterial, texCoord).xyz;
+    vec3 normal = texture(textureNormal, texCoord).xyz;
+    outColor.xyz = albedo * normal.y;
     outColor.w = 1.0;
 }

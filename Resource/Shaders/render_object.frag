@@ -8,18 +8,19 @@ layout(binding = 1) uniform sampler2D textureAlbedo;
 layout(binding = 2) uniform sampler2D textureMaterial;
 layout(binding = 3) uniform sampler2D textureNormal;
 
-layout(location = 0) in vec4 fragColor;
-layout(location = 1) in vec3 fragNormal;
-layout(location = 2) in vec2 fragTexCoord;
+layout(location = 0) in vec4 vertexColor;
+layout(location = 1) in vec3 vertexNormal;
+layout(location = 2) in vec2 texCoord;
 
 layout(location = 0) out vec4 outAlbedo;
 layout(location = 1) out vec4 outMaterial;
 layout(location = 2) out vec4 outNormal;
-layout(location = 3) out vec4 outVelocity;
+layout(location = 3) out vec2 outVelocity;
 
 void main() {
-    outAlbedo = texture(textureAlbedo, fragTexCoord);
-    outMaterial = texture(textureMaterial, fragTexCoord);
-    outNormal = texture(textureNormal, fragTexCoord);
-    outVelocity = vec4(0.0);
+    outAlbedo = texture(textureAlbedo, texCoord);
+    outMaterial = texture(textureMaterial, texCoord);
+    outNormal = texture(textureNormal, texCoord);
+    outNormal.xyz = normalize(vertexNormal.xyz);
+    outVelocity = vec2(0.0);
 }

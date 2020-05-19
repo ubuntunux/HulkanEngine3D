@@ -51,8 +51,15 @@ getColorBlendMode blendMode =
 
 getColorClearValue :: [Float] -> VkClearValue
 getColorClearValue colors = createVk @VkClearValue
-        $ setVk @"color"
-            $ setVec @"float32" (vec4 (colors !! 0) (colors !! 1) (colors !! 2) (colors !! 3))
+    $ setVk @"color"
+        $ setVec @"float32" (toColorVector colors)
+    where
+        toColorVector :: [Float] -> Vec4f
+        toColorVector (x:y:z:w:xs) = vec4 x y z w
+        toColorVector (x:y:z:xs) = vec4 x y z 0
+        toColorVector (x:y:xs) = vec4 x y 0 0
+        toColorVector (x:xs) = vec4 x 0 0 0
+        toColorVector _ = vec4 0 0 0 0
 
 getDepthStencilClearValue :: Float -> Word32 -> VkClearValue
 getDepthStencilClearValue depthClearValue stencilClearValue = createVk @VkClearValue

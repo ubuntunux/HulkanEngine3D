@@ -41,10 +41,10 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
             , _frameBufferImageViewsList =
                 replicate Constants.swapChainImageCount ([_imageView texture | texture <- textures] ++ [_imageView textureSceneDepth])
             , _frameBufferClearValues =
-                [ getColorClearValue [0.0, 0.0, 0.0, 0.0]
-                , getColorClearValue [0.0, 0.0, 0.0, 0.0]
-                , getColorClearValue [0.5, 0.5, 1.0, 0.0]
-                , getColorClearValue [0.0, 0.0, 0.0, 0.0]
+                [ getColorClearValue [0.0, 0.0, 0.0]
+                , getColorClearValue [0.0, 0.0, 0.0]
+                , getColorClearValue [0.5, 0.5, 1.0]
+                , getColorClearValue [0.0, 0.0]
                 , getDepthStencilClearValue 1.0 0
                 ]
             }
