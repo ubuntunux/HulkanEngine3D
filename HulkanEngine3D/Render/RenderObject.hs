@@ -53,5 +53,7 @@ instance StaticObjectInterface StaticObjectData where
     getTransformObjectData staticObjectData = _transformObject staticObjectData
 
     updateStaticObjectData :: StaticObjectData -> IO ()
-    updateStaticObjectData staticObjectData = updateTransformObject (_transformObject staticObjectData)
+    updateStaticObjectData staticObjectData = do
+        updateTransformObject (_transformObject staticObjectData)
+        return ()
 

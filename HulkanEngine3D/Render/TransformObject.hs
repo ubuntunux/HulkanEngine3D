@@ -58,16 +58,21 @@ class TransformObjectInterface a where
     newTransformObjectData :: IO a
     getMatrix :: a -> IO Mat44f
     getInverseMatrix :: a -> IO Mat44f
+    getPosition :: a -> IO Vec3f
     setPosition :: a -> Vec3f -> IO ()
     moveFunc :: a -> Vec3f -> Float -> IO ()
     moveLeft :: a -> Float -> IO ()
     moveUp :: a -> Float -> IO ()
     moveFront :: a -> Float -> IO ()
+    getRotation :: a -> IO Vec3f
+    setRotation :: a -> Vec3f -> IO ()
     rotationFunc :: a -> Word -> Float -> IO ()
     rotationPitch :: a -> Float -> IO ()
     rotationYaw :: a -> Float -> IO ()
     rotationRoll :: a -> Float -> IO ()
-    updateTransformObject :: a -> IO ()
+    getScale :: a -> IO Vec3f
+    setScale :: a -> Vec3f -> IO ()
+    updateTransformObject :: a -> IO Bool
 
 
 instance TransformObjectInterface TransformObjectData where
@@ -134,7 +139,10 @@ instance TransformObjectInterface TransformObjectData where
     getInverseMatrix :: TransformObjectData -> IO Mat44f
     getInverseMatrix transformObjectData = readIORef (_inverseMatrix transformObjectData)
 
-    setPosition transformObjectData vector = do
+    getPosition transformObjectData =
+        readIORef (_position transformObjectData)
+
+    setPosition transformObjectData vector =
         writeIORef (_position transformObjectData) vector
 
     moveFunc transformObjectData vector moveSpeed = do
@@ -153,6 +161,14 @@ instance TransformObjectInterface TransformObjectData where
         frontVector <- readIORef (_front transformObjectData)
         moveFunc transformObjectData frontVector moveSpeed
 
+    getRotation transformObjectData =
+        readIORef (_rotation transformObjectData)
+
+    setRotation transformObjectData vector = do
+        let (# pitch, yaw, roll #) = unpackV3# vector
+            rotation = vec3 (wrap_rotation pitch) (wrap_rotation yaw) (wrap_rotation roll)
+        writeIORef (_rotation transformObjectData) rotation
+
     rotationFunc transformObjectData index rotationSpeed = do
         rotation <- readIORef (_rotation transformObjectData)
         let pitch = scalar . wrap_rotation $ (unScalar $ rotation ! (Idx index:*U)) + rotationSpeed
@@ -166,6 +182,12 @@ instance TransformObjectInterface TransformObjectData where
 
     rotationRoll transformObjectData rotationSpeed = do
         rotationFunc transformObjectData 2 rotationSpeed
+
+    getScale transformObjectData =
+        readIORef (_scale transformObjectData)
+
+    setScale transformObjectData vector =
+        writeIORef (_scale transformObjectData) vector
 
     updateTransformObject transformObjectData@TransformObjectData {..} = do
         updateInverseMatrix <- pure True
@@ -236,3 +258,4 @@ instance TransformObjectInterface TransformObjectData where
 --                writeIORef _inverseMatrix $ inverse_transform_matrix position rotationMatrix scale
                 writeIORef _inverseMatrix (inverse matrix)
         writeIORef _updated updated
+        return updated

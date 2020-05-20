@@ -68,3 +68,18 @@ cameraPanSpeed = 0.01
 
 cameraRotationSpeed :: Float
 cameraRotationSpeed = 0.005
+
+shadowSamples :: Int
+shadowSamples = 16
+
+shadowExp :: Float
+shadowExp = 1000.0
+
+shadowBias :: Float
+shadowBias = 0.005
+
+shadowDistance :: Float
+shadowDistance = 50.0
+
+shadowUpdateDistance :: Float
+shadowUpdateDistance = 10.0
