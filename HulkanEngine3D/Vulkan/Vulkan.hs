@@ -27,6 +27,9 @@ data RenderFeatures = RenderFeatures
 
 data BlendMode = BlendMode_None | BlendMode_AlphaBlend
 
+getColor32 :: Word32 -> Word32 -> Word32 -> Word32 -> Scalar Word32
+getColor32 r g b a = scalar $ (min 255 r) .|. shift (min 255 g) 8 .|. shift (min 255 b) 16 .|. shift (min 255 a) 24
+
 getColorBlendMode :: BlendMode -> VkPipelineColorBlendAttachmentState
 getColorBlendMode blendMode =
     case blendMode of

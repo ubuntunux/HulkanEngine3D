@@ -23,6 +23,7 @@ import Numeric.Dimensions
 
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.GeometryBuffer
 
 
@@ -77,6 +78,6 @@ objVertices Wavefront.WavefrontOBJ {..}
         mkVertex objLocs objNorms objTexCs faceIndex@Wavefront.FaceIndex {..} = Vertex
           { pos = objLocs ! fromIntegral (faceLocIndex - 1)
           , normal = objNorms ! fromIntegral (fromJust faceNorIndex - 1)
-          , color = vec4 1 1 1 1
+          , color = getColor32 255 255 255 255
           , texCoord = objTexCs ! fromIntegral (fromJust faceTexCoordIndex - 1)
           }

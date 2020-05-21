@@ -34,13 +34,14 @@ import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Vulkan.Buffer
+import HulkanEngine3D.Vulkan.Vulkan
 
 
 -- | Preparing Vertex data to make an interleaved array.
 data Vertex = Vertex
     { pos :: Vec3f
     , normal :: Vec3f
-    , color :: Vec4f
+    , color :: Scalar Word32
     , texCoord :: Vec2f
     } deriving (Eq, Ord, Show, Generic)
 
@@ -83,10 +84,10 @@ atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough poin
 --         in function signatures (such as, e.g. `KnownDim n`).
 quadVertices :: DataFrameAtLeastThree Vertex
 quadVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0 0)
-    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 0 0)
-    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 1 0)
-    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 1 1)
-    , Vertex (vec3 -1.0  1.0  0.0) (vec3 0 1 0) (vec4 1 1 1 1) (vec2 0 1)
+    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 0 1 0) (getColor32 255 255 255 255) (vec2 0 0)
+    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (getColor32 255 255 255 255) (vec2 1 0)
+    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 1 0) (getColor32 255 255 255 255) (vec2 1 1)
+    , Vertex (vec3 -1.0  1.0  0.0) (vec3 0 1 0) (getColor32 255 255 255 255) (vec2 0 1)
     ]
 
 quadIndices :: DataFrameAtLeastThree Word32
@@ -94,7 +95,8 @@ quadIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
 
 cubeVertices :: DataFrameAtLeastThree Vertex
 cubeVertices =
-    let positions = [vec3 x y z | position@(x, y, z) <- [
+    let vertexColor = getColor32 255 255 255 255
+        positions = [vec3 x y z | position@(x, y, z) <- [
             (-1, 1, 1), (-1, -1, 1), (1, -1, 1), (1, 1, 1),
             (1, 1, 1), (1, -1, 1), (1, -1, -1), (1, 1, -1),
             (1, 1, -1), (1, -1, -1), (-1, -1, -1), (-1, 1, -1),
@@ -117,7 +119,7 @@ cubeVertices =
             (0, 1), (0, 0), (1, 0), (1, 1)]]
         vertexCount = length positions
     in
-        XFrame $ fromFlatList (D24 :* U) (Vertex 0 0 0 0) [Vertex (positions !! i) (normals !! i) (vec4 1 1 1 1) (texcoords !! i) | i <- [0..(vertexCount - 1)]]
+        XFrame $ fromFlatList (D24 :* U) (Vertex 0 0 0 0) [Vertex (positions !! i) (normals !! i) vertexColor (texcoords !! i) | i <- [0..(vertexCount - 1)]]
 
 cubeIndices :: DataFrameAtLeastThree Word32
 cubeIndices = atLeastThree . fromList $ [ 0, 2, 1, 0, 3, 2,

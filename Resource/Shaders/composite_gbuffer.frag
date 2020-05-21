@@ -15,6 +15,6 @@ void main() {
     vec3 albedo = texture(textureAlbedo, texCoord).xyz;
     vec3 material = texture(textureMaterial, texCoord).xyz;
     vec3 normal = texture(textureNormal, texCoord).xyz;
-    outColor.xyz = albedo * normal.y;
+    outColor.xyz = albedo;
     outColor.w = 1.0;
 }
