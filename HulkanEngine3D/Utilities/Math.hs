@@ -82,6 +82,19 @@ wrap_rotation rotation
     | twoPI < rotation || rotation < 0.0 = mod' rotation twoPI
     | otherwise = rotation
 
+matrixRotation :: Float -> Float -> Float -> Mat44f
+matrixRotation rx ry rz =
+    let ch = cos ry
+        sh = sin ry
+        ca = cos rz
+        sa = sin rz
+        cb = cos rx
+        sb = sin rx
+    in DF4 (vec4 (ch*ca) sa (-sh*ca) 0)
+           (vec4 (sh*sb - ch*sa*cb) (ca*cb) (sh*sa*cb + ch*sb) 0)
+           (vec4 (ch*sa*sb + sh*cb) (-ca*sb) (-sh*sa*sb + ch*cb) 0)
+           (vec4 0 0 0 1)
+
 transform_matrix :: Vec3f -> Mat44f -> Vec3f -> Mat44f
 transform_matrix translation rotation_matrix scale =
     let (# sx, sy, sz #) = unpackV3# scale

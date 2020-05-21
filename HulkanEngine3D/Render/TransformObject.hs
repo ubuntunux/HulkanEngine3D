@@ -227,10 +227,13 @@ instance TransformObjectInterface TransformObjectData where
 
         when updatedRotation $ do
             let (# pitch, yaw, roll #) = unpackV3# rotation
-                rotationMatrix = rotateEuler pitch yaw roll
-                left = fromHom (rotationMatrix ! (0:*U))
-                up = fromHom (rotationMatrix ! (1:*U))
-                front = fromHom (rotationMatrix ! (2:*U))
+                --rotationMatrix = rotateEuler pitch yaw roll
+                --rotationMatrix = contract (rotateX pitch) $ contract (rotateY yaw) (rotateZ roll)
+                rotationMatrix = matrixRotation pitch yaw roll
+
+                left = normalized $ fromHom (rotationMatrix ! (0:*U))
+                up = normalized $ fromHom (rotationMatrix ! (1:*U))
+                front = normalized $ fromHom (rotationMatrix ! (2:*U))
 --                look at algorithm
 --                (sin_pitch, cos_pitch) = (sin pitch, cos pitch)
 --                (sin_yaw, cos_yaw) = (sin yaw, cos yaw)

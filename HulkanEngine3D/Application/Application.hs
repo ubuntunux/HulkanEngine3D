@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE NegativeLiterals    #-}
 
 module HulkanEngine3D.Application.Application
     ( ApplicationData (..)
@@ -160,6 +161,8 @@ updateEvent applicationData = do
     pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
     pressed_key_Q <- getKeyPressed keyboardInputData GLFW.Key'Q
     pressed_key_E <- getKeyPressed keyboardInputData GLFW.Key'E
+    pressed_key_Z <- getKeyPressed keyboardInputData GLFW.Key'Z
+    pressed_key_C <- getKeyPressed keyboardInputData GLFW.Key'C
     mainCamera <- readIORef (SceneManager._mainCamera . _sceneManagerData $ applicationData)
     let mousePosDelta = _mousePosDelta mouseMoveData
         mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta ! (Idx 0:*U)) :: Float
@@ -177,6 +180,11 @@ updateEvent applicationData = do
     else when btn_right $ do
         rotationPitch cameraTransformObject (-rotationSpeed * mousePosDeltaY)
         rotationYaw cameraTransformObject (-rotationSpeed * mousePosDeltaX)
+
+    if pressed_key_Z then
+        rotationRoll cameraTransformObject (-rotationSpeed * 0.5)
+    else when pressed_key_C $
+        rotationRoll cameraTransformObject (rotationSpeed * 0.5)
 
     if pressed_key_W then
         moveFront cameraTransformObject (-moveSpeed)
