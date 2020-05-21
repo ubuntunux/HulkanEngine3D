@@ -18,7 +18,7 @@ layout(location = 1) out vec3 vertexNormal;
 layout(location = 2) out vec2 texCoord;
 
 void main() {
-    gl_Position = sceneConstants.PROJECTION * sceneConstants.VIEW * pushConstant.model * vec4(inPosition, 1.0);
+    gl_Position = sceneConstants.VIEW_PROJECTION * pushConstant.model * vec4(inPosition, 1.0);
     vertexColor = inColor;
     vertexNormal = inNormal;
     texCoord = inTexCoord;

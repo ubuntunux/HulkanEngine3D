@@ -392,8 +392,10 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
     result <- case acquireNextImageResult of
         VK_SUCCESS -> do
             mainCamera <- SceneManager.getMainCamera sceneManagerData
-            viewMatrix <- readIORef (_viewMatrix mainCamera)
-            projectionMatrix <- readIORef (_projectionMatrix mainCamera)
+            viewMatrix <- getViewMatrix mainCamera
+            projectionMatrix <- getProjectionMatrix mainCamera
+            viewProjectionMatrix <- getViewProjectionMatrix mainCamera
+            invViewProjectionMatrix <- getInvViewProjectionMatrix mainCamera
 
             -- Upload Uniform Buffers
             sceneConstantsBufferData <- getUniformBufferData rendererData "SceneConstantsData"
@@ -401,6 +403,8 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
                 sceneConstantsData = SceneConstantsData
                     { _VIEW = viewMatrix
                     , _PROJECTION = projectionMatrix
+                    , _VIEW_PROJECTION = viewProjectionMatrix
+                    , _INV_VIEW_PROJECTION = invViewProjectionMatrix
                     , _TIME = realToFrac elapsedTime
                     , _SceneConstantsDummy0 = 0.0
                     , _SceneConstantsDummy1 = 0.0

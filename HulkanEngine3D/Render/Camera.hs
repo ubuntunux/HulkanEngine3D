@@ -6,9 +6,12 @@
 
 module HulkanEngine3D.Render.Camera where
 
+--import Control.Monad
 import Data.IORef
 import qualified Data.Text as T
+
 import Numeric.DataFrame
+
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.TransformObject
 import HulkanEngine3D.Utilities.Logger
@@ -43,8 +46,12 @@ data CameraObjectData = CameraObjectData
     , _far :: IORef Float
     , _fov :: IORef Float
     , _aspect :: IORef Float
-    , _projectionMatrix :: IORef Mat44f
     , _viewMatrix :: IORef Mat44f
+    , _invViewMatrix :: IORef Mat44f
+    , _projectionMatrix :: IORef Mat44f
+    , _invProjectionMatrix :: IORef Mat44f
+    , _viewProjectionMatrix :: IORef Mat44f
+    , _invViewProjectionMatrix :: IORef Mat44f
     , _transformObject :: TransformObjectData
     } deriving (Show)
 
@@ -53,6 +60,8 @@ class CameraObjectInterface a where
     createCameraObjectData :: T.Text -> CameraCreateData -> IO a
     getViewMatrix :: a -> IO Mat44f
     getProjectionMatrix :: a -> IO Mat44f
+    getViewProjectionMatrix :: a -> IO Mat44f
+    getInvViewProjectionMatrix :: a -> IO Mat44f
     setAspect :: a -> Float -> IO ()
     updateCameraObjectData :: a -> IO ()
     updateProjectionMatrix :: a -> IO ()
@@ -67,8 +76,12 @@ instance CameraObjectInterface CameraObjectData where
         farRef <- newIORef (far cameraCreateData)
         fovRef <- newIORef (fov cameraCreateData)
         aspectRef <- newIORef (aspect cameraCreateData)
-        projectionMatrixRef <- newIORef matrix4x4_indentity
-        viewMatrixRef <- newIORef matrix4x4_indentity
+        viewMatrix <- newIORef matrix4x4_indentity
+        invViewMatrix <- newIORef matrix4x4_indentity
+        projectionMatrix <- newIORef matrix4x4_indentity
+        invProjectionMatrix <- newIORef matrix4x4_indentity
+        viewProjectionMatrix <- newIORef matrix4x4_indentity
+        invViewProjectionMatrix <- newIORef matrix4x4_indentity
         transformObjectData <- newTransformObjectData
         let cameraObjectData = CameraObjectData
                 { _name = nameRef
@@ -77,8 +90,12 @@ instance CameraObjectInterface CameraObjectData where
                 , _far = farRef
                 , _fov = fovRef
                 , _aspect = aspectRef
-                , _projectionMatrix = projectionMatrixRef
-                , _viewMatrix = viewMatrixRef
+                , _viewMatrix = viewMatrix
+                , _invViewMatrix = invViewMatrix
+                , _projectionMatrix = projectionMatrix
+                , _invProjectionMatrix = invProjectionMatrix
+                , _viewProjectionMatrix = viewProjectionMatrix
+                , _invViewProjectionMatrix = invViewProjectionMatrix
                 , _transformObject = transformObjectData
                 }
 
@@ -87,11 +104,10 @@ instance CameraObjectInterface CameraObjectData where
         updateProjectionMatrix cameraObjectData
         return cameraObjectData
 
-    getViewMatrix :: CameraObjectData -> IO Mat44f
     getViewMatrix cameraObjectData = readIORef (_viewMatrix cameraObjectData)
-
-    getProjectionMatrix :: CameraObjectData -> IO Mat44f
     getProjectionMatrix cameraObjectData = readIORef (_projectionMatrix cameraObjectData)
+    getViewProjectionMatrix cameraObjectData = readIORef (_viewProjectionMatrix cameraObjectData)
+    getInvViewProjectionMatrix cameraObjectData = readIORef (_invViewProjectionMatrix cameraObjectData)
 
     setAspect :: CameraObjectData -> Float -> IO ()
     setAspect cameraObjectData aspect = do
@@ -99,26 +115,23 @@ instance CameraObjectInterface CameraObjectData where
         updateProjectionMatrix cameraObjectData
 
     updateCameraObjectData :: CameraObjectData -> IO ()
-    updateCameraObjectData cameraObjectData = do
-        updateTransformObject (_transformObject cameraObjectData)
-        viewMatrix <- readIORef (_inverseMatrix._transformObject $ cameraObjectData)
-        writeIORef (_viewMatrix cameraObjectData) viewMatrix
+    updateCameraObjectData cameraObjectData@CameraObjectData {..} = do
+        updated <- updateTransformObject _transformObject
+        projectionMatrix <- readIORef _projectionMatrix
+        invProjectionMatrix <- readIORef _invProjectionMatrix
+        viewMatrix <- getInverseMatrix _transformObject
+        invViewMatrix <- getMatrix _transformObject
+        writeIORef _viewMatrix viewMatrix
+        writeIORef _invViewMatrix invViewMatrix
+        writeIORef _viewProjectionMatrix (contract viewMatrix projectionMatrix)
+        writeIORef _invViewProjectionMatrix (contract invProjectionMatrix invViewMatrix)
 
     updateProjectionMatrix :: CameraObjectData -> IO ()
-    updateProjectionMatrix cameraObjectData = do
-        fov <- readIORef $ _fov cameraObjectData
-        aspect <- readIORef $ _aspect cameraObjectData
-        near <- readIORef $ _near cameraObjectData
-        far <- readIORef $ _far cameraObjectData
-        writeIORef (_projectionMatrix cameraObjectData) (projectionMatrix fov aspect near far)
-        where
-            -- ... which is a normal perspective projection matrix that maps the view space
-            --     onto the clip space cube {x: -1..1, y: -1..1, z: -1..1}
-            projectionMatrix fov aspect near far = (perspective near far (fov/360.0 * 2.0 * pi) aspect) %* clipSpace
-            -- ... and a {clip space -> screen space} matrix that converts points into
-            --     the vulkan screen space {x: -1..1, y: 1..-1, z: 0..1}
-            clipSpace = DF4
-                (DF4 1   0   0   0)
-                (DF4 0 (-1)  0   0)
-                (DF4 0   0  0.5  0)
-                (DF4 0   0  0.5  1)
+    updateProjectionMatrix cameraObjectData@CameraObjectData {..} = do
+        fov <- readIORef _fov
+        aspect <- readIORef _aspect
+        near <- readIORef _near
+        far <- readIORef _far
+        let projectionMatrix = contract (perspective near far (fov/360.0 * 2.0 * pi) aspect) clipSpaceMatrix
+        writeIORef _projectionMatrix projectionMatrix
+        writeIORef _invProjectionMatrix (inverse projectionMatrix)

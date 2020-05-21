@@ -56,6 +56,15 @@ matrix4x4_indentity =
         (DF4 0 0 1 0)
         (DF4 0 0 0 1)
 
+-- ... and a {clip space -> screen space} matrix that converts points into
+--     the vulkan screen space {x: -1..1, y: 1..-1, z: 0..1}
+clipSpaceMatrix :: Mat44f
+clipSpaceMatrix = DF4
+    (DF4 1   0   0   0)
+    (DF4 0 (-1)  0   0)
+    (DF4 0   0  0.5  0)
+    (DF4 0   0  0.5  1)
+
 quaternion_identity :: Quater Float
 quaternion_identity = Quater 0 0 0 1
 
