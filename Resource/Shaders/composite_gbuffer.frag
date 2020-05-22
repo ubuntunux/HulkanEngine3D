@@ -1,5 +1,9 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "scene_constants.glsl"
+#include "utility.glsl"
 
 layout(binding = 3) uniform sampler2D textureAlbedo;
 layout(binding = 4) uniform sampler2D textureMaterial;
@@ -15,6 +19,7 @@ void main() {
     vec3 albedo = texture(textureAlbedo, texCoord).xyz;
     vec3 material = texture(textureMaterial, texCoord).xyz;
     vec3 normal = texture(textureNormal, texCoord).xyz;
-    outColor.xyz = albedo;
+    float lighting = saturate(dot(normal, lightConstants.LIGHT_DIRECTION));
+    outColor.xyz = albedo * lighting;
     outColor.w = 1.0;
 }

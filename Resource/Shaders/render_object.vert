@@ -3,23 +3,21 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "scene_constants.glsl"
+#include "render_object_common.glsl"
 
-layout( push_constant ) uniform PushConstant {
-  mat4 model;
-} pushConstant;
+layout(location = 0) in vec3 vs_input_position;
+layout(location = 1) in vec3 vs_input_normal;
+layout(location = 2) in vec4 vs_input_color;
+layout(location = 3) in vec2 vs_input_texCoord;
 
-layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inNormal;
-layout(location = 2) in vec4 inColor;
-layout(location = 3) in vec2 inTexCoord;
-
-layout(location = 0) out vec4 vertexColor;
-layout(location = 1) out vec3 vertexNormal;
-layout(location = 2) out vec2 texCoord;
+layout(location = 0) out VERTEX_OUTPUT vs_output;
 
 void main() {
-    gl_Position = viewProjectionConstants.VIEW_PROJECTION * pushConstant.model * vec4(inPosition, 1.0);
-    vertexColor = inColor;
-    vertexNormal = inNormal;
-    texCoord = inTexCoord;
+    // TODO : VIEW_ORIGIN_PROJECTION
+    vec4 projection_pos = viewProjectionConstants.VIEW_PROJECTION * pushConstant.localMatrix * vec4(vs_input_position, 1.0);
+    gl_Position = projection_pos;
+
+    vs_output.color = vs_input_color;
+    vs_output.normal = (pushConstant.localMatrix * vec4(vs_input_normal, 0.0)).xyz;
+    vs_output.texCoord = vs_input_texCoord;
 }

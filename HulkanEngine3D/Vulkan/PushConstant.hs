@@ -22,8 +22,8 @@ data PushConstantData = PushConstantData
 instance PrimBytes PushConstantData
 
 
-getPushConstantRange :: PushConstantData -> VkPushConstantRange
-getPushConstantRange pushConstantData = createVk @VkPushConstantRange
-    $ set @"stageFlags" VK_SHADER_STAGE_VERTEX_BIT
+getPushConstantRange :: PushConstantData -> VkShaderStageFlags -> VkPushConstantRange
+getPushConstantRange pushConstantData shaderStage = createVk @VkPushConstantRange
+    $ set @"stageFlags" shaderStage
     &* set @"size" (bSizeOf @PushConstantData pushConstantData)
     &* set @"offset" 0

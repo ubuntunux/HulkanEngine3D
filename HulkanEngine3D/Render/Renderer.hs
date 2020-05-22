@@ -410,6 +410,8 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
             shadowBias <- Light.getLightShadowBias mainLight
             shadowSamples <- Light.getLightShadowSamples mainLight
 
+            rotation <- TransformObject.getRotation $ Light._directionalLightTransformObject mainLight
+
             -- Upload Uniform Buffers
             sceneConstantsBufferData <- getUniformBufferData rendererData "SceneConstants"
             viewProjectionConstantsBufferData <- getUniformBufferData rendererData "ViewProjectionConstants"
@@ -531,7 +533,7 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
         let pushConstantData = PushConstantData { modelMatrix = modelMatrix }
 
         with modelMatrix $ \modelMatrixPtr ->
-            vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_VERTEX_BIT 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
+            vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_ALL 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
 
         -- drawing commands
         with vertexBuffer $ \vertexBufferPtr ->

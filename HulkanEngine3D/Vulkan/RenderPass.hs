@@ -315,7 +315,7 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
 
     let depthStencilStateCreateInfo@DepthStencilStateCreateInfo {..} = _depthStencilStateCreateInfo
         pushConstantData = PushConstantData { modelMatrix = matrix4x4_indentity }
-        pushConstantRange = getPushConstantRange pushConstantData
+        pushConstantRange = getPushConstantRange pushConstantData VK_SHADER_STAGE_ALL
         shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
         shaderStageInfoCount = length shaderStageInfos
         descriptorSetCount = Constants.swapChainImageCount

@@ -20,6 +20,7 @@ import Numeric.Quaternion
 
 import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System()
+--import HulkanEngine3D.Utilities.Logger
 
 data TransformObjectData = TransformObjectData
     { _updated :: IORef Bool
@@ -238,6 +239,7 @@ instance TransformObjectInterface TransformObjectData where
                 left = normalized $ fromHom (rotationMatrix ! (0:*U))
                 up = normalized $ fromHom (rotationMatrix ! (1:*U))
                 front = normalized $ fromHom (rotationMatrix ! (2:*U))
+
 --                look at algorithm
 --                (sin_pitch, cos_pitch) = (sin pitch, cos pitch)
 --                (sin_yaw, cos_yaw) = (sin yaw, cos yaw)
