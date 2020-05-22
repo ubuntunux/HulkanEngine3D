@@ -22,7 +22,7 @@ import HulkanEngine3D.Utilities.Math
 data LightCreateInfo = DirectionalLightCreateInfo
         { _directionalLightPosition' :: Vec3f
         , _directionalLightRotation' :: Vec3f
-        , _directionalLightLightColor' :: Vec3f
+        , _directionalLightColor' :: Vec3f
         , _directionalLightShadowSamples' :: Int
         , _directionalLightShadowExp' :: Float
         , _directionalLightShadowBias' :: Float
@@ -32,11 +32,11 @@ data LightCreateInfo = DirectionalLightCreateInfo
         } deriving (Show)
 
 
-getDefaultDirectionalLightCreateInfo :: LightCreateInfo
-getDefaultDirectionalLightCreateInfo = DirectionalLightCreateInfo
+defaultDirectionalLightCreateInfo :: LightCreateInfo
+defaultDirectionalLightCreateInfo = DirectionalLightCreateInfo
     { _directionalLightPosition' = vec3 0 0 0
     , _directionalLightRotation' = vec3 0 -1 0
-    , _directionalLightLightColor' = vec3 1 1 1
+    , _directionalLightColor' = vec3 1 1 1
     , _directionalLightShadowSamples' = Constants.shadowSamples
     , _directionalLightShadowExp' = Constants.shadowExp
     , _directionalLightShadowBias' = Constants.shadowBias
@@ -47,23 +47,29 @@ getDefaultDirectionalLightCreateInfo = DirectionalLightCreateInfo
 
 
 data DirectionalLightData = DirectionalLightData
-        { _directionalLightName :: IORef T.Text
-        , _directionalLightLightColor :: IORef Vec3f
-        , _directionalLightShadowSamples :: IORef Int
-        , _directionalLightShadowExp :: IORef Float
-        , _directionalLightShadowBias :: IORef Float
-        , _directionalLightShadowWidth :: IORef Float
-        , _directionalLightShadowHeight :: IORef Float
-        , _directionalLightShadowDepth :: IORef Float
-        , _directionalLightShadowProjection :: IORef Mat44f
-        , _directionalLightShadowViewProjection :: IORef Mat44f
-        , _directionalLightTransformObject :: TransformObjectData
-        , _directionalLightDataChanged :: IORef Bool
-        } deriving (Show)
+    { _directionalLightName :: IORef T.Text
+    , _directionalLightColor :: IORef Vec3f
+    , _directionalLightShadowSamples :: IORef Int
+    , _directionalLightShadowExp :: IORef Float
+    , _directionalLightShadowBias :: IORef Float
+    , _directionalLightShadowWidth :: IORef Float
+    , _directionalLightShadowHeight :: IORef Float
+    , _directionalLightShadowDepth :: IORef Float
+    , _directionalLightShadowProjection :: IORef Mat44f
+    , _directionalLightShadowViewProjection :: IORef Mat44f
+    , _directionalLightTransformObject :: TransformObjectData
+    , _directionalLightDataChanged :: IORef Bool
+    } deriving (Show)
 
 
 class LightInterface a where
     createLightData :: T.Text -> LightCreateInfo -> IO a
+    getLightPosition :: a -> IO Vec3f
+    getLightDirection :: a -> IO Vec3f
+    getLightColor :: a -> IO Vec3f
+    getLightShadowSamples :: a -> IO Int
+    getLightShadowExp :: a -> IO Float
+    getLightShadowBias :: a -> IO Float
     getShadowViewProjectionMatrix :: a -> IO Mat44f
     updateShadowOrthogonal :: a -> IO ()
     updateLightData :: a -> Vec3f -> IO ()
@@ -73,7 +79,7 @@ instance LightInterface DirectionalLightData where
     createLightData name directionalLightCreateData@DirectionalLightCreateInfo {..} = do
         logInfo $ "createLightData : " ++ T.unpack name
         directionalLightName <- newIORef name
-        lightColor <- newIORef _directionalLightLightColor'
+        lightColor <- newIORef _directionalLightColor'
         shadowSamples <- newIORef _directionalLightShadowSamples'
         shadowExp <- newIORef _directionalLightShadowExp'
         shadowBias <- newIORef _directionalLightShadowBias'
@@ -86,7 +92,7 @@ instance LightInterface DirectionalLightData where
         dataChanged <- newIORef False
         let lightData = DirectionalLightData
                 { _directionalLightName = directionalLightName
-                , _directionalLightLightColor = lightColor
+                , _directionalLightColor = lightColor
                 , _directionalLightShadowSamples = shadowSamples
                 , _directionalLightShadowExp = shadowExp
                 , _directionalLightShadowBias = shadowBias
@@ -102,6 +108,13 @@ instance LightInterface DirectionalLightData where
         setRotation transformObjectData _directionalLightRotation'
         updateLightData lightData float3_zero
         return lightData
+        
+    getLightPosition lightData = getPosition $ _directionalLightTransformObject lightData
+    getLightDirection lightData = getFront $ _directionalLightTransformObject lightData
+    getLightColor lightData = readIORef $ _directionalLightColor lightData
+    getLightShadowSamples lightData = readIORef $ _directionalLightShadowSamples lightData
+    getLightShadowExp lightData = readIORef $ _directionalLightShadowExp lightData
+    getLightShadowBias lightData = readIORef $ _directionalLightShadowBias lightData
 
     getShadowViewProjectionMatrix :: DirectionalLightData -> IO Mat44f
     getShadowViewProjectionMatrix lightData = readIORef $ _directionalLightShadowViewProjection lightData

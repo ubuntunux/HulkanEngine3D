@@ -58,6 +58,9 @@ class TransformObjectInterface a where
     newTransformObjectData :: IO a
     getMatrix :: a -> IO Mat44f
     getInverseMatrix :: a -> IO Mat44f
+    getLeft :: a -> IO Vec3f
+    getUp :: a -> IO Vec3f
+    getFront :: a -> IO Vec3f
     getPosition :: a -> IO Vec3f
     setPosition :: a -> Vec3f -> IO ()
     moveFunc :: a -> Vec3f -> Float -> IO ()
@@ -139,11 +142,12 @@ instance TransformObjectInterface TransformObjectData where
     getInverseMatrix :: TransformObjectData -> IO Mat44f
     getInverseMatrix transformObjectData = readIORef (_inverseMatrix transformObjectData)
 
-    getPosition transformObjectData =
-        readIORef (_position transformObjectData)
+    getLeft transformObjectData = readIORef (_left transformObjectData)
+    getUp transformObjectData = readIORef (_up transformObjectData)
+    getFront transformObjectData = readIORef (_front transformObjectData)
 
-    setPosition transformObjectData vector =
-        writeIORef (_position transformObjectData) vector
+    getPosition transformObjectData = readIORef (_position transformObjectData)
+    setPosition transformObjectData vector = writeIORef (_position transformObjectData) vector
 
     moveFunc transformObjectData vector moveSpeed = do
          position <- readIORef (_position transformObjectData)

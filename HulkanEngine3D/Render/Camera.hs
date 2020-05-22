@@ -58,6 +58,7 @@ data CameraObjectData = CameraObjectData
 
 class CameraObjectInterface a where
     createCameraObjectData :: T.Text -> CameraCreateData -> IO a
+    getCameraPosition :: a -> IO Vec3f
     getViewMatrix :: a -> IO Mat44f
     getProjectionMatrix :: a -> IO Mat44f
     getViewProjectionMatrix :: a -> IO Mat44f
@@ -104,6 +105,7 @@ instance CameraObjectInterface CameraObjectData where
         updateProjectionMatrix cameraObjectData
         return cameraObjectData
 
+    getCameraPosition cameraObjectData = getPosition $ _transformObject cameraObjectData
     getViewMatrix cameraObjectData = readIORef (_viewMatrix cameraObjectData)
     getProjectionMatrix cameraObjectData = readIORef (_projectionMatrix cameraObjectData)
     getViewProjectionMatrix cameraObjectData = readIORef (_viewProjectionMatrix cameraObjectData)

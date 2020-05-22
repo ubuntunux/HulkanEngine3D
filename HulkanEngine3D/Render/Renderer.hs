@@ -45,7 +45,8 @@ import Numeric.DataFrame
 
 import qualified HulkanEngine3D.Constants as Constants
 import {-# SOURCE #-} qualified HulkanEngine3D.Application.SceneManager as SceneManager
-import HulkanEngine3D.Render.Camera
+import qualified HulkanEngine3D.Render.Camera as Camera
+import qualified HulkanEngine3D.Render.Light as Light
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Render.MaterialInstance
@@ -393,12 +394,21 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
     result <- case acquireNextImageResult of
         VK_SUCCESS -> do
             mainCamera <- SceneManager.getMainCamera sceneManagerData
-            viewMatrix <- getViewMatrix mainCamera
-            projectionMatrix <- getProjectionMatrix mainCamera
-            viewProjectionMatrix <- getViewProjectionMatrix mainCamera
-            invViewProjectionMatrix <- getInvViewProjectionMatrix mainCamera
+            mainLight <- SceneManager.getMainLight sceneManagerData
+            viewMatrix <- Camera.getViewMatrix mainCamera
+            projectionMatrix <- Camera.getProjectionMatrix mainCamera
+            viewProjectionMatrix <- Camera.getViewProjectionMatrix mainCamera
+            invViewProjectionMatrix <- Camera.getInvViewProjectionMatrix mainCamera
             let screenWidth = fromIntegral $ getField @"width" _swapChainExtent :: Float
                 screenHeight = fromIntegral $ getField @"height" _swapChainExtent :: Float
+
+            shadowViewProjectionMatrix <- Light.getShadowViewProjectionMatrix mainLight
+            lightPosition <- Light.getLightPosition mainLight
+            lightDirection <- Light.getLightDirection mainLight
+            lightColor <- Light.getLightColor mainLight
+            shadowExp <- Light.getLightShadowExp mainLight
+            shadowBias <- Light.getLightShadowBias mainLight
+            shadowSamples <- Light.getLightShadowSamples mainLight
 
             -- Upload Uniform Buffers
             sceneConstantsBufferData <- getUniformBufferData rendererData "SceneConstants"
@@ -422,13 +432,13 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
                     , _INV_VIEW_PROJECTION = invViewProjectionMatrix
                     }
                 lightConstants = LightConstants
-                    { _SHADOW_VIEW_PROJECTION = matrix4x4_indentity
-                    , _LIGHT_POSITION = float3_zero
-                    , _SHADOW_EXP = float_zero
-                    , _LIGHT_DIRECTION = float3_zero
-                    , _SHADOW_BIAS = float_zero
-                    , _LIGHT_COLOR = float3_zero
-                    , _SHADOW_SAMPLES = 0
+                    { _SHADOW_VIEW_PROJECTION = shadowViewProjectionMatrix
+                    , _LIGHT_POSITION = lightPosition
+                    , _SHADOW_EXP = scalar shadowExp
+                    , _LIGHT_DIRECTION = lightDirection
+                    , _SHADOW_BIAS = scalar shadowBias
+                    , _LIGHT_COLOR = lightColor
+                    , _SHADOW_SAMPLES = scalar shadowSamples
                     }
             updateBufferData _device sceneConstantsBufferMemory sceneConstants
             updateBufferData _device viewProjectionConstantsBufferMemory viewProjectionConstants
