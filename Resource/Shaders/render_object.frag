@@ -2,11 +2,11 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : enable
 
-#include "SceneConstants.glsl"
+#include "scene_constants.glsl"
 
-layout(binding = 1) uniform sampler2D textureAlbedo;
-layout(binding = 2) uniform sampler2D textureMaterial;
-layout(binding = 3) uniform sampler2D textureNormal;
+layout(binding = 3) uniform sampler2D textureAlbedo;
+layout(binding = 4) uniform sampler2D textureMaterial;
+layout(binding = 5) uniform sampler2D textureNormal;
 
 layout(location = 0) in vec4 vertexColor;
 layout(location = 1) in vec3 vertexNormal;

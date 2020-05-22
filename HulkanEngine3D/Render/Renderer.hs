@@ -56,6 +56,7 @@ import qualified HulkanEngine3D.Render.Mesh as Mesh
 import HulkanEngine3D.Render.UniformBufferDatas
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.Buffer
@@ -396,21 +397,42 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
             projectionMatrix <- getProjectionMatrix mainCamera
             viewProjectionMatrix <- getViewProjectionMatrix mainCamera
             invViewProjectionMatrix <- getInvViewProjectionMatrix mainCamera
+            let screenWidth = fromIntegral $ getField @"width" _swapChainExtent :: Float
+                screenHeight = fromIntegral $ getField @"height" _swapChainExtent :: Float
 
             -- Upload Uniform Buffers
-            sceneConstantsBufferData <- getUniformBufferData rendererData "SceneConstantsData"
-            let sceneConstantsMemory = (_uniformBufferMemories sceneConstantsBufferData) !! imageIndex
-                sceneConstantsData = SceneConstantsData
+            sceneConstantsBufferData <- getUniformBufferData rendererData "SceneConstants"
+            viewProjectionConstantsBufferData <- getUniformBufferData rendererData "ViewProjectionConstants"
+            lightConstantsBufferData <- getUniformBufferData rendererData "LightConstants"
+            let sceneConstantsBufferMemory = (_uniformBufferMemories sceneConstantsBufferData) !! imageIndex
+                viewProjectionConstantsBufferMemory = (_uniformBufferMemories viewProjectionConstantsBufferData) !! imageIndex
+                lightConstantsBufferMemory = (_uniformBufferMemories lightConstantsBufferData) !! imageIndex
+                sceneConstants = SceneConstants
+                    { _SCREEN_SIZE = vec2 screenWidth screenHeight
+                    , _BACKBUFFER_SIZE = vec2 screenWidth screenHeight
+                    , _TIME = realToFrac elapsedTime
+                    , _DELTA_TIME = scalar deltaTime
+                    , _JITTER_FRAME = float_zero
+                    , _SceneConstantsDummy0 = 0
+                    }
+                viewProjectionConstants = ViewProjectionConstants
                     { _VIEW = viewMatrix
                     , _PROJECTION = projectionMatrix
                     , _VIEW_PROJECTION = viewProjectionMatrix
                     , _INV_VIEW_PROJECTION = invViewProjectionMatrix
-                    , _TIME = realToFrac elapsedTime
-                    , _SceneConstantsDummy0 = 0.0
-                    , _SceneConstantsDummy1 = 0.0
-                    , _SceneConstantsDummy2 = 0.0
                     }
-            updateBufferData _device sceneConstantsMemory sceneConstantsData
+                lightConstants = LightConstants
+                    { _SHADOW_VIEW_PROJECTION = matrix4x4_indentity
+                    , _LIGHT_POSITION = float3_zero
+                    , _SHADOW_EXP = float_zero
+                    , _LIGHT_DIRECTION = float3_zero
+                    , _SHADOW_BIAS = float_zero
+                    , _LIGHT_COLOR = float3_zero
+                    , _SHADOW_SAMPLES = 0
+                    }
+            updateBufferData _device sceneConstantsBufferMemory sceneConstants
+            updateBufferData _device viewProjectionConstantsBufferMemory viewProjectionConstants
+            updateBufferData _device lightConstantsBufferMemory lightConstants
 
             -- Begin command buffer
             let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo
