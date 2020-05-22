@@ -74,12 +74,12 @@ getRenderPassDataCreateInfo rendererData renderPassName
                     , _pipelineColorBlendModes = replicate (length colorAttachmentDescriptions) $ getColorBlendMode BlendMode_None
                     , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
                     , _descriptorDataCreateInfoList =
-                        [ DescriptorDataCreateInfo "SceneConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                        , DescriptorDataCreateInfo "ViewProjectionConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                        , DescriptorDataCreateInfo "LightConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                        , DescriptorDataCreateInfo "textureAlbedo" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
-                        , DescriptorDataCreateInfo "textureMaterial" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
-                        , DescriptorDataCreateInfo "textureNormal" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        [ DescriptorDataCreateInfo 0 "SceneConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
+                        , DescriptorDataCreateInfo 1 "ViewProjectionConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
+                        , DescriptorDataCreateInfo 2 "LightConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
+                        , DescriptorDataCreateInfo 3 "textureAlbedo" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo 4 "textureMaterial" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo 5 "textureNormal" DescriptorResourceType_Texture VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         ]
                     }
                 ]
@@ -130,12 +130,12 @@ getRenderPassDataCreateInfo rendererData renderPassName
                     , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
                     , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo  { _depthWriteEnable = VK_FALSE }
                     , _descriptorDataCreateInfoList =
-                        [ DescriptorDataCreateInfo "SceneConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                        , DescriptorDataCreateInfo "ViewProjectionConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                        , DescriptorDataCreateInfo "LightConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                        , DescriptorDataCreateInfo "SceneAlbedo" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
-                        , DescriptorDataCreateInfo "SceneMaterial" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
-                        , DescriptorDataCreateInfo "SceneNormal" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        [ DescriptorDataCreateInfo 0 "SceneConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
+                        , DescriptorDataCreateInfo 1 "ViewProjectionConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
+                        , DescriptorDataCreateInfo 2 "LightConstants" DescriptorResourceType_UniformBuffer VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
+                        , DescriptorDataCreateInfo 3 "SceneAlbedo" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo 4 "SceneMaterial" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
+                        , DescriptorDataCreateInfo 5 "SceneNormal" DescriptorResourceType_RenderTarget VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER VK_SHADER_STAGE_FRAGMENT_BIT
                         ]
                     }
                 ]

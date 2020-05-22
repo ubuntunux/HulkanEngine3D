@@ -35,8 +35,12 @@ createMaterialInstance device materialInstanceName renderPassData pipelineData d
     logInfo $ "    pipeline : " ++ Text.unpack (RenderPass._pipelineDataName pipelineData)
     descriptorSets <- Descriptor.createDescriptorSet device (RenderPass._descriptorData pipelineData)
 
+    let descriptorData = RenderPass._descriptorData $ pipelineData
+        descriptorBindingIndices = map Descriptor._descriptorBindingIndex' (Descriptor._descriptorDataCreateInfoList descriptorData)
+        descriptorSetLayoutBindingList = Descriptor._descriptorSetLayoutBindingList descriptorData
+
     forM_ (zip descriptorSets descriptorResourceInfosList) $ \(descriptorSet, descriptorResourceInfos) ->
-        Descriptor.updateDescriptorSets device descriptorSet (Descriptor._descriptorSetLayoutBindingList . RenderPass._descriptorData $ pipelineData) descriptorResourceInfos
+        Descriptor.updateDescriptorSets device descriptorSet descriptorBindingIndices descriptorSetLayoutBindingList descriptorResourceInfos
 
     return MaterialInstanceData
         { _materialInstanceName = materialInstanceName

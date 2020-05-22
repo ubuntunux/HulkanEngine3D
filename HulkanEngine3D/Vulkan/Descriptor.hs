@@ -48,7 +48,8 @@ data DescriptorResourceType =
     deriving (Eq, Show)
 
 data DescriptorDataCreateInfo = DescriptorDataCreateInfo
-    { _descriptorName' :: Text.Text
+    { _descriptorBindingIndex' :: Word32
+    , _descriptorName' :: Text.Text
     , _descriptorResourceType' :: DescriptorResourceType
     , _descriptorType' :: VkDescriptorType
     , _descriptorShaderStage' :: VkShaderStageFlags
@@ -99,10 +100,10 @@ createDescriptorPoolSize descriptorType descriptorCount =
         $  set @"type" descriptorType
         &* set @"descriptorCount" (fromIntegral descriptorCount)
 
-createDescriptorSetLayoutBinding :: Int -> VkDescriptorType -> VkShaderStageFlags -> VkDescriptorSetLayoutBinding
-createDescriptorSetLayoutBinding binding descriptorType shaderStageFlags =
+createDescriptorSetLayoutBinding :: Word32 -> VkDescriptorType -> VkShaderStageFlags -> VkDescriptorSetLayoutBinding
+createDescriptorSetLayoutBinding bindingIndex descriptorType shaderStageFlags =
     createVk @VkDescriptorSetLayoutBinding
-        $  set @"binding" (fromIntegral binding)
+        $  set @"binding" bindingIndex
         &* set @"descriptorType" descriptorType
         &* set @"descriptorCount" 1
         &* set @"stageFlags" shaderStageFlags
@@ -135,10 +136,11 @@ createDescriptorData :: VkDevice
                      -> IO DescriptorData
 createDescriptorData device descriptorDataCreateInfoList maxDescriptorSetsCount = do
     logInfo "createDescriptorData"
-    descriptorLayoutBindingWithPoolSizeList <- forM (zip descriptorDataCreateInfoList [0..]) $ \(descriptorDataCreateInfo, binding) -> do
+    descriptorLayoutBindingWithPoolSizeList <- forM descriptorDataCreateInfoList $ \descriptorDataCreateInfo -> do
         let descriptorType = _descriptorType' descriptorDataCreateInfo
+            bindingIndex = _descriptorBindingIndex' descriptorDataCreateInfo
             shaderStageFlags = _descriptorShaderStage' descriptorDataCreateInfo
-            descriptorLayoutBinding = createDescriptorSetLayoutBinding binding descriptorType shaderStageFlags
+            descriptorLayoutBinding = createDescriptorSetLayoutBinding bindingIndex descriptorType shaderStageFlags
             descriptorPoolSize = createDescriptorPoolSize descriptorType maxDescriptorSetsCount
         return (descriptorLayoutBinding, descriptorPoolSize)
     let (descriptorSetLayoutBindingList, descriptorPoolSizeList) = unzip descriptorLayoutBindingWithPoolSizeList
@@ -191,21 +193,22 @@ destroyDescriptorSet device descriptorPool descriptorSets descriptorSetPtr = do
 
 updateDescriptorSets :: VkDevice
                      -> VkDescriptorSet
+                     -> [Word32]
                      -> [VkDescriptorSetLayoutBinding]
                      -> [DescriptorResourceInfo]
                      -> IO ()
-updateDescriptorSets device descriptorSet descriptorSetLayoutBindingList descriptorResourceInfos = do
-    let descriptorWrites = zipWith3 writeDescriptorSet [0..] descriptorSetLayoutBindingList descriptorResourceInfos
+updateDescriptorSets device descriptorSet descriptorBindIndices descriptorSetLayoutBindingList descriptorResourceInfos = do
+    let descriptorWrites = zipWith3 writeDescriptorSet descriptorBindIndices descriptorSetLayoutBindingList descriptorResourceInfos
     withVkArrayLen descriptorWrites $ \count descriptorWritesPtr ->
         vkUpdateDescriptorSets device count descriptorWritesPtr 0 VK_NULL
     where
         writeDescriptorSet :: Word32 -> VkDescriptorSetLayoutBinding -> DescriptorResourceInfo -> VkWriteDescriptorSet
-        writeDescriptorSet index descriptorSetLayoutBinding descriptorResourceInfo =
+        writeDescriptorSet bindingIndex descriptorSetLayoutBinding descriptorResourceInfo =
             createVk @VkWriteDescriptorSet
                 $  set @"sType" VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
                 &* set @"pNext" VK_NULL
                 &* set @"dstSet" descriptorSet
-                &* set @"dstBinding" index
+                &* set @"dstBinding" bindingIndex
                 &* set @"dstArrayElement" 0
                 &* set @"descriptorType" (getField @"descriptorType" descriptorSetLayoutBinding)
                 &* set @"descriptorCount" 1
