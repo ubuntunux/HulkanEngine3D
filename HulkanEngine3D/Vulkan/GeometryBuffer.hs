@@ -30,19 +30,20 @@ import qualified Numeric.DataFrame.ST as ST
 import Numeric.DataFrame
 import Numeric.Dimensions
 
+import HulkanEngine3D.Vulkan.Buffer
+import HulkanEngine3D.Vulkan.Vulkan
+import HulkanEngine3D.Utilities.BoundingBox
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
-import HulkanEngine3D.Vulkan.Buffer
-import HulkanEngine3D.Vulkan.Vulkan
 
 
 -- | Preparing Vertex data to make an interleaved array.
 data Vertex = Vertex
-    { pos :: Vec3f
-    , normal :: Vec3f
-    , color :: Scalar Word32
-    , texCoord :: Vec2f
+    { _vertexPosition :: Vec3f
+    , _vertexNormal :: Vec3f
+    , _vertexColor :: Scalar Word32
+    , _vertexTexCoord :: Vec2f
     } deriving (Eq, Ord, Show, Generic)
 
 instance PrimBytes Vertex
@@ -60,7 +61,8 @@ data GeometryData = GeometryData
     , _indexBufferMemory :: VkDeviceMemory
     , _indexBuffer :: VkBuffer
     , _vertexIndexCount :: Word32
-    }  deriving (Eq, Show, Generic)
+    , _geometryBoundingBox :: BoundingBox
+    } deriving (Eq, Show, Generic)
 
 
 -- | Check if the frame has enough elements.
@@ -92,6 +94,10 @@ quadVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0 0)
 
 quadIndices :: DataFrameAtLeastThree Word32
 quadIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
+
+quadBoundingBox :: BoundingBox
+quadBoundingBox = calcBoundingBox [vec3 -1.0 -1.0  0.0, vec3 -1.0 -1.0  0.0]
+
 
 cubeVertices :: DataFrameAtLeastThree Vertex
 cubeVertices =
@@ -129,6 +135,9 @@ cubeIndices = atLeastThree . fromList $ [ 0, 2, 1, 0, 3, 2,
                                           16, 18, 17, 16, 19, 18,
                                           20, 22, 21, 20, 23, 22 ]
 
+cubeBoundingBox :: BoundingBox
+cubeBoundingBox = calcBoundingBox [vec3 -1.0 -1.0 -1.0, vec3 1.0 1.0 1.0]
+
 vertexInputBindDescription :: VkVertexInputBindingDescription
 vertexInputBindDescription = createVk @VkVertexInputBindingDescription
     $  set @"binding" 0
@@ -147,22 +156,22 @@ vertexInputAttributeDescriptions = ST.runST $ do
         $  set @"location" 0
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"pos" @Vertex undefined)
+        &* set @"offset" (bFieldOffsetOf @"_vertexPosition" @Vertex undefined)
     ST.writeDataFrame mv 1 . scalar $ createVk
         $  set @"location" 1
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"normal" @Vertex undefined)
+        &* set @"offset" (bFieldOffsetOf @"_vertexNormal" @Vertex undefined)
     ST.writeDataFrame mv 2 . scalar $ createVk
         $  set @"location" 2
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R8G8B8A8_UNORM
-        &* set @"offset" (bFieldOffsetOf @"color" @Vertex undefined)
+        &* set @"offset" (bFieldOffsetOf @"_vertexColor" @Vertex undefined)
     ST.writeDataFrame mv 3 . scalar $ createVk
         $  set @"location" 3
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"texCoord" @Vertex undefined)
+        &* set @"offset" (bFieldOffsetOf @"_vertexTexCoord" @Vertex undefined)
     ST.unsafeFreezeDataFrame mv
 
 
@@ -173,8 +182,9 @@ createGeometryData :: VkPhysicalDevice
                    -> Text.Text
                    -> DataFrameAtLeastThree Vertex
                    -> DataFrameAtLeastThree Word32
+                   -> BoundingBox
                    -> IO GeometryData
-createGeometryData physicalDevice device graphicsQueue commandPool geometryName vertices indices = do
+createGeometryData physicalDevice device graphicsQueue commandPool geometryName vertices indices boundingBox = do
     logInfo $ "createGeometryBuffer : " ++ (Text.unpack geometryName)
     (vertexBufferMemory, vertexBuffer) <- createVertexBuffer physicalDevice device graphicsQueue commandPool vertices
     (indexBufferMemory, indexBuffer) <- createIndexBuffer physicalDevice device graphicsQueue commandPool indices
@@ -185,6 +195,7 @@ createGeometryData physicalDevice device graphicsQueue commandPool geometryName 
         , _indexBufferMemory = indexBufferMemory
         , _indexBuffer = indexBuffer
         , _vertexIndexCount = (fromIntegral $ dataFrameLength indices)
+        , _geometryBoundingBox = boundingBox
         }
 
 destroyGeometryData :: VkDevice -> GeometryData -> IO ()

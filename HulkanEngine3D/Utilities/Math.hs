@@ -19,6 +19,12 @@ import Data.Fixed
 twoPI :: Floating a => a
 twoPI = pi * 2.0
 
+floatMinimum :: Float
+floatMinimum =  -8.98846567431158e307
+
+floatMaximum :: Float
+floatMaximum =  8.98846567431158e307
+
 -- | Get number of points in a vector
 dataFrameLength :: DataFrame t (xns :: [XNat]) -> Word
 dataFrameLength (XFrame (vector :: DataFrame t ns)) = case dims @ns of

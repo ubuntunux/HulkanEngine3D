@@ -56,6 +56,7 @@ import qualified HulkanEngine3D.Render.TransformObject as TransformObject
 import qualified HulkanEngine3D.Render.Mesh as Mesh
 import HulkanEngine3D.Render.UniformBufferDatas
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
+import HulkanEngine3D.Utilities.BoundingBox
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
@@ -115,7 +116,7 @@ class RendererInterface a where
     createTexture :: a -> Text.Text -> FilePath -> IO Texture.TextureData
     destroyTexture :: a -> Texture.TextureData -> IO ()
     getRenderTarget :: a -> Text.Text -> IO Texture.TextureData
-    createGeometryBuffer :: a -> Text.Text -> DataFrame Vertex '[XN 3] -> DataFrame Word32 '[XN 3] -> IO GeometryData
+    createGeometryBuffer :: a -> Text.Text -> DataFrame Vertex '[XN 3] -> DataFrame Word32 '[XN 3] -> BoundingBox -> IO GeometryData
     destroyGeometryBuffer :: a -> GeometryData -> IO ()
     deviceWaitIdle :: a -> IO ()
 
@@ -162,7 +163,7 @@ instance RendererInterface RendererData where
     getRenderTarget rendererData renderTargetName =
         Maybe.fromJust <$> HashTable.lookup (_renderTargetDataMap rendererData) renderTargetName
 
-    createGeometryBuffer rendererData bufferName vertices indices = do
+    createGeometryBuffer rendererData bufferName vertices indices boundingBox = do
         createGeometryData
             (getPhysicalDevice rendererData)
             (getDevice rendererData)
@@ -171,6 +172,7 @@ instance RendererInterface RendererData where
             bufferName
             vertices
             indices
+            boundingBox
 
     destroyGeometryBuffer rendererData geometryBuffer =
         destroyGeometryData (_device rendererData) geometryBuffer

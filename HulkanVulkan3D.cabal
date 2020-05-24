@@ -42,6 +42,7 @@ executable main
                       HulkanEngine3D.Resource.Resource
                       HulkanEngine3D.Resource.FrameBufferCreateInfo
                       HulkanEngine3D.Resource.RenderPassCreateInfo
+                      HulkanEngine3D.Utilities.BoundingBox
                       HulkanEngine3D.Utilities.Logger
                       HulkanEngine3D.Utilities.Math
                       HulkanEngine3D.Utilities.System
