@@ -30,11 +30,12 @@ data Triangle = Triangle {-# UNPACK #-}!Wavefront.FaceIndex
                          {-# UNPACK #-}!Wavefront.FaceIndex
                          {-# UNPACK #-}!Wavefront.FaceIndex
 
-loadMesh :: FilePath -> IO GeometryCreateInfo
+loadMesh :: FilePath -> IO [GeometryCreateInfo]
 loadMesh file = do
     logInfo $ "Loading mesh: " ++ file
     obj <- either throwVKMsg pure =<< Wavefront.fromFile file
-    objVertices obj
+    geometryCreateInfo <- objVertices obj
+    return [geometryCreateInfo]
 
 -- reversal here for correct culling in combination with the (-y) below
 triangleToFaceIndices :: Triangle -> [Wavefront.FaceIndex]
