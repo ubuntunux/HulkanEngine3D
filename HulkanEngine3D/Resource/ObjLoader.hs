@@ -16,7 +16,6 @@ import qualified Codec.Wavefront as Wavefront
 import Data.Foldable (toList)
 import Data.Maybe
 import qualified Data.Set as Set
-import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
 import Numeric.DataFrame
 import Numeric.Dimensions
@@ -27,13 +26,15 @@ import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.GeometryBuffer
 
+data Triangle = Triangle {-# UNPACK #-}!Wavefront.FaceIndex
+                         {-# UNPACK #-}!Wavefront.FaceIndex
+                         {-# UNPACK #-}!Wavefront.FaceIndex
 
-loadMesh :: FilePath -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3], BoundingBox)
+loadMesh :: FilePath -> IO GeometryCreateInfo
 loadMesh file = do
     logInfo $ "Loading mesh: " ++ file
     obj <- either throwVKMsg pure =<< Wavefront.fromFile file
-    (vertices, indices, boundingBox) <- objVertices obj
-    return (vertices, indices, boundingBox)
+    objVertices obj
 
 -- reversal here for correct culling in combination with the (-y) below
 triangleToFaceIndices :: Triangle -> [Wavefront.FaceIndex]
@@ -44,7 +45,7 @@ faceToTriangles (Wavefront.Face a b c []) = [Triangle a b c]
 faceToTriangles (Wavefront.Face a b c is) = pairwise (Triangle a) (b:c:is)
     where pairwise f xs = zipWith f xs (tail xs)
 
-objVertices :: Wavefront.WavefrontOBJ -> IO (DataFrame Vertex '[XN 3], DataFrame Word32 '[XN 3], BoundingBox)
+objVertices :: Wavefront.WavefrontOBJ -> IO GeometryCreateInfo
 objVertices Wavefront.WavefrontOBJ {..}
     | XFrame objLocs  <- fromList . map (\(Wavefront.Location x y z _) -> vec3 x y z) $ toList objLocations
     , XFrame objNorms  <- fromList . map (\(Wavefront.Normal x y z) -> vec3 x y z) $ toList objNormals
@@ -57,11 +58,11 @@ objVertices Wavefront.WavefrontOBJ {..}
     , allVertices <- map (scalar . mkVertex objLocs objNorms objTexCs) faceIndices
     , vertSet <- Set.fromList allVertices
     , uniqueVertexList <- Set.toList vertSet
-      = return
-            ( atLeastThree . fromList $ uniqueVertexList
-            , atLeastThree . fromList $ map (fromIntegral . flip Set.findIndex vertSet) allVertices
-            , calcBoundingBox $ map (\(S vertex) -> _vertexPosition vertex) uniqueVertexList
-            )
+      = return GeometryCreateInfo
+            { _geometryCreateInfoVertices = atLeastThree . fromList $ uniqueVertexList
+            , _geometryCreateInfoIndices = atLeastThree . fromList $ map (fromIntegral . flip Set.findIndex vertSet) allVertices
+            , _geometryCreateInfoBoundingBox = calcBoundingBox $ map (\(S vertex) -> _vertexPosition vertex) uniqueVertexList
+            }
     | otherwise = error "objVertices: impossible arguments"
     where
         triangles = concatMap (\face -> faceToTriangles $ Wavefront.elValue face) $ toList objFaces
@@ -77,8 +78,8 @@ objVertices Wavefront.WavefrontOBJ {..}
                  -> Matrix Float n 3
                  -> Matrix Float m 2
                  -> Wavefront.FaceIndex
-                 -> Vertex
-        mkVertex objLocs objNorms objTexCs faceIndex@Wavefront.FaceIndex {..} = Vertex
+                 -> VertexData
+        mkVertex objLocs objNorms objTexCs faceIndex@Wavefront.FaceIndex {..} = VertexData
           { _vertexPosition = objLocs ! fromIntegral (faceLocIndex - 1)
           , _vertexNormal = objNorms ! fromIntegral (fromJust faceNorIndex - 1)
           , _vertexColor = getColor32 255 255 255 255

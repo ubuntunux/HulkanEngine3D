@@ -1,3 +1,13 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Strict              #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FlexibleContexts       #-}
@@ -20,7 +30,6 @@ import Data.Bits
 import qualified Data.Text as Text
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
-import qualified Codec.Wavefront as Wavefront
 import Data.Maybe
 
 import Graphics.Vulkan.Core_1_0
@@ -39,20 +48,25 @@ import HulkanEngine3D.Utilities.Math
 
 
 -- | Preparing Vertex data to make an interleaved array.
-data Vertex = Vertex
+data VertexData = VertexData
     { _vertexPosition :: Vec3f
     , _vertexNormal :: Vec3f
     , _vertexColor :: Scalar Word32
     , _vertexTexCoord :: Vec2f
     } deriving (Eq, Ord, Show, Generic)
 
-instance PrimBytes Vertex
+defaultVertexData :: VertexData
+defaultVertexData = VertexData 0 0 0 0
 
-data Triangle = Triangle {-# UNPACK #-}!Wavefront.FaceIndex
-                         {-# UNPACK #-}!Wavefront.FaceIndex
-                         {-# UNPACK #-}!Wavefront.FaceIndex
+instance PrimBytes VertexData
 
 type DataFrameAtLeastThree a = DataFrame a '[XN 3]
+
+data GeometryCreateInfo = GeometryCreateInfo
+    { _geometryCreateInfoVertices :: DataFrameAtLeastThree VertexData
+    , _geometryCreateInfoIndices :: DataFrameAtLeastThree Word32
+    , _geometryCreateInfoBoundingBox :: BoundingBox
+    } deriving (Eq, Show)
 
 data GeometryData = GeometryData
     { _geometryName :: Text.Text
@@ -72,51 +86,39 @@ atLeastThree :: (All KnownXNatType ns, BoundedDims ns)
 atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough points")
              . constrainDF
 
--- | Interleaved array of vertices containing at least 3 entries.
---
---   Obviously, in real world vertices come from a separate file and not known at compile time.
---   The shader pipeline requires at least 3 unique vertices (for a triangle)
---   to render something on a screen. Setting `XN 3` here is just a handy way
---   to statically ensure the program satisfies this requirement.
---   This way, not-enough-vertices error occures at the moment of DataFrame initialization
---   instead of silently failing to render something onto a screen.
---
---   Note: in this program, `n >= 3` requirement is also forced in `Lib/Vulkan/VertexBuffer.hs`,
---         where it is not strictly necessary but allows to avoid specifying DataFrame constraints
---         in function signatures (such as, e.g. `KnownDim n`).
-quadVertices :: DataFrameAtLeastThree Vertex
-quadVertices = XFrame $ fromFlatList (D4 :* U) (Vertex 0 0 0 0)
-    [ Vertex (vec3 -1.0 -1.0  0.0) (vec3 0 1 0) (getColor32 255 255 255 255) (vec2 0 0)
-    , Vertex (vec3  1.0 -1.0  0.0) (vec3 0 1 0) (getColor32 255 255 255 255) (vec2 1 0)
-    , Vertex (vec3  1.0  1.0  0.0) (vec3 0 1 0) (getColor32 255 255 255 255) (vec2 1 1)
-    , Vertex (vec3 -1.0  1.0  0.0) (vec3 0 1 0) (getColor32 255 255 255 255) (vec2 0 1)
-    ]
+quadGeometryCreateInfo :: GeometryCreateInfo
+quadGeometryCreateInfo =
+    let positions = [vec3 -1.0 -1.0 0.0, vec3 1.0 -1.0 0.0, vec3 1.0 1.0 0.0, vec3 -1.0 1.0 0.0]
+        vertexNormal = vec3 0 1 0
+        vertexColor = getColor32 255 255 255 255
+        texCoords = [vec2 0 0, vec2 1 0, vec2 1 1, vec2 0 1]
+        vertexCount = length positions
+        vertices = [VertexData (positions !! i) vertexNormal vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
+    in
+        GeometryCreateInfo
+            { _geometryCreateInfoVertices = XFrame $ fromFlatList (D4 :* U) defaultVertexData vertices
+            , _geometryCreateInfoIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
+            , _geometryCreateInfoBoundingBox = calcBoundingBox positions
+            }
 
-quadIndices :: DataFrameAtLeastThree Word32
-quadIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
-
-quadBoundingBox :: BoundingBox
-quadBoundingBox = calcBoundingBox [vec3 -1.0 -1.0  0.0, vec3 -1.0 -1.0  0.0]
-
-
-cubeVertices :: DataFrameAtLeastThree Vertex
-cubeVertices =
+cubeGeometryCreateInfo :: GeometryCreateInfo
+cubeGeometryCreateInfo =
     let vertexColor = getColor32 255 255 255 255
-        positions = [vec3 x y z | position@(x, y, z) <- [
+        positions = [vec3 x y z | (x, y, z) <- [
             (-1, 1, 1), (-1, -1, 1), (1, -1, 1), (1, 1, 1),
             (1, 1, 1), (1, -1, 1), (1, -1, -1), (1, 1, -1),
             (1, 1, -1), (1, -1, -1), (-1, -1, -1), (-1, 1, -1),
             (-1, 1, -1), (-1, -1, -1), (-1, -1, 1), (-1, 1, 1),
             (-1, 1, -1), (-1, 1, 1), (1, 1, 1), (1, 1, -1),
             (-1, -1, 1), (-1, -1, -1), (1, -1, -1), (1, -1, 1)]]
-        normals = [vec3 x y z | normal@(x, y, z) <- [
+        normals = [vec3 x y z | (x, y, z) <- [
             (0, 0, 1), (0, 0, 1), (0, 0, 1), (0, 0, 1),
             (1, 0, 0), (1, 0, 0), (1, 0, 0), (1, 0, 0),
             (0, 0, -1), (0, 0, -1), (0, 0, -1), (0, 0, -1),
             (-1, 0, 0), (-1, 0, 0), (-1, 0, 0), (-1, 0, 0),
             (0, 1, 0), (0, 1, 0), (0, 1, 0), (0, 1, 0),
             (0, -1, 0), (0, -1, 0), (0, -1, 0), (0, -1, 0)]]
-        texcoords = [vec2 x y | texcoord@(x, y) <- [
+        texcoords = [vec2 x y | (x, y) <- [
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
@@ -124,24 +126,19 @@ cubeVertices =
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1)]]
         vertexCount = length positions
+        vertices = [VertexData (positions !! i) (normals !! i) vertexColor (texcoords !! i) | i <- [0..(vertexCount - 1)]]
+        indices = [ 0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8, 11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22 ]
     in
-        XFrame $ fromFlatList (D24 :* U) (Vertex 0 0 0 0) [Vertex (positions !! i) (normals !! i) vertexColor (texcoords !! i) | i <- [0..(vertexCount - 1)]]
-
-cubeIndices :: DataFrameAtLeastThree Word32
-cubeIndices = atLeastThree . fromList $ [ 0, 2, 1, 0, 3, 2,
-                                          4, 6, 5, 4, 7, 6,
-                                          8, 10, 9, 8, 11, 10,
-                                          12, 14, 13, 12, 15, 14,
-                                          16, 18, 17, 16, 19, 18,
-                                          20, 22, 21, 20, 23, 22 ]
-
-cubeBoundingBox :: BoundingBox
-cubeBoundingBox = calcBoundingBox [vec3 -1.0 -1.0 -1.0, vec3 1.0 1.0 1.0]
+        GeometryCreateInfo
+            { _geometryCreateInfoVertices = XFrame $ fromFlatList (D24 :* U) defaultVertexData vertices
+            , _geometryCreateInfoIndices = atLeastThree . fromList $ indices
+            , _geometryCreateInfoBoundingBox = calcBoundingBox positions
+            }
 
 vertexInputBindDescription :: VkVertexInputBindingDescription
 vertexInputBindDescription = createVk @VkVertexInputBindingDescription
     $  set @"binding" 0
-    &* set @"stride"  (bSizeOf @Vertex undefined)
+    &* set @"stride"  (bSizeOf @VertexData undefined)
     &* set @"inputRate" VK_VERTEX_INPUT_RATE_VERTEX
 
 -- We can use DataFrames to keep several vulkan structures in a contiguous
@@ -156,22 +153,22 @@ vertexInputAttributeDescriptions = ST.runST $ do
         $  set @"location" 0
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"_vertexPosition" @Vertex undefined)
+        &* set @"offset" (bFieldOffsetOf @"_vertexPosition" @VertexData undefined)
     ST.writeDataFrame mv 1 . scalar $ createVk
         $  set @"location" 1
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"_vertexNormal" @Vertex undefined)
+        &* set @"offset" (bFieldOffsetOf @"_vertexNormal" @VertexData undefined)
     ST.writeDataFrame mv 2 . scalar $ createVk
         $  set @"location" 2
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R8G8B8A8_UNORM
-        &* set @"offset" (bFieldOffsetOf @"_vertexColor" @Vertex undefined)
+        &* set @"offset" (bFieldOffsetOf @"_vertexColor" @VertexData undefined)
     ST.writeDataFrame mv 3 . scalar $ createVk
         $  set @"location" 3
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"_vertexTexCoord" @Vertex undefined)
+        &* set @"offset" (bFieldOffsetOf @"_vertexTexCoord" @VertexData undefined)
     ST.unsafeFreezeDataFrame mv
 
 
@@ -180,22 +177,20 @@ createGeometryData :: VkPhysicalDevice
                    -> VkQueue
                    -> VkCommandPool
                    -> Text.Text
-                   -> DataFrameAtLeastThree Vertex
-                   -> DataFrameAtLeastThree Word32
-                   -> BoundingBox
+                   -> GeometryCreateInfo
                    -> IO GeometryData
-createGeometryData physicalDevice device graphicsQueue commandPool geometryName vertices indices boundingBox = do
+createGeometryData physicalDevice device graphicsQueue commandPool geometryName geometryCreateInfo = do
     logInfo $ "createGeometryBuffer : " ++ (Text.unpack geometryName)
-    (vertexBufferMemory, vertexBuffer) <- createVertexBuffer physicalDevice device graphicsQueue commandPool vertices
-    (indexBufferMemory, indexBuffer) <- createIndexBuffer physicalDevice device graphicsQueue commandPool indices
+    (vertexBufferMemory, vertexBuffer) <- createVertexBuffer physicalDevice device graphicsQueue commandPool (_geometryCreateInfoVertices geometryCreateInfo)
+    (indexBufferMemory, indexBuffer) <- createIndexBuffer physicalDevice device graphicsQueue commandPool (_geometryCreateInfoIndices geometryCreateInfo)
     return GeometryData
         { _geometryName = geometryName
         , _vertexBufferMemory = vertexBufferMemory
         , _vertexBuffer = vertexBuffer
         , _indexBufferMemory = indexBufferMemory
         , _indexBuffer = indexBuffer
-        , _vertexIndexCount = (fromIntegral $ dataFrameLength indices)
-        , _geometryBoundingBox = boundingBox
+        , _vertexIndexCount = (fromIntegral . dataFrameLength $ _geometryCreateInfoIndices geometryCreateInfo)
+        , _geometryBoundingBox = _geometryCreateInfoBoundingBox geometryCreateInfo
         }
 
 destroyGeometryData :: VkDevice -> GeometryData -> IO ()
@@ -209,7 +204,7 @@ createVertexBuffer :: VkPhysicalDevice
                    -> VkDevice
                    -> VkQueue
                    -> VkCommandPool
-                   -> DataFrameAtLeastThree Vertex
+                   -> DataFrameAtLeastThree VertexData
                    -> IO (VkDeviceMemory, VkBuffer)
 createVertexBuffer physicalDevice device graphicsQueue commandPool (XFrame vertices) = do
     let bufferSize = bSizeOf vertices

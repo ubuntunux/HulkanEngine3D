@@ -245,17 +245,17 @@ instance ResourceInterface ResourceData where
     -- Mesh Loader
     loadMeshDatas :: ResourceData -> RendererData -> IO ()
     loadMeshDatas resourceData rendererData = do
-        registMeshData (_meshDataMap resourceData) "quad" GeometryBuffer.quadVertices GeometryBuffer.quadIndices GeometryBuffer.quadBoundingBox
-        registMeshData (_meshDataMap resourceData) "cube" GeometryBuffer.cubeVertices GeometryBuffer.cubeIndices GeometryBuffer.cubeBoundingBox
+        registMeshData (_meshDataMap resourceData) "quad" GeometryBuffer.quadGeometryCreateInfo
+        registMeshData (_meshDataMap resourceData) "cube" GeometryBuffer.cubeGeometryCreateInfo
 
         meshFiles <- walkDirectory meshFilePath [".obj"]
         forM_ meshFiles $ \meshFile -> do
             meshName <- getResourceNameFromFilepath (_meshDataMap resourceData) meshFilePath meshFile
-            (vertices, indices, boundingBox) <- loadMesh meshFile
-            registMeshData (_meshDataMap resourceData) meshName vertices indices boundingBox
+            geometryCreateInfo <- loadMesh meshFile
+            registMeshData (_meshDataMap resourceData) meshName geometryCreateInfo
         where
-            registMeshData meshDataMap meshName vertices indices boundingBox = do
-                geometryBufferData <- createGeometryBuffer rendererData meshName vertices indices boundingBox
+            registMeshData meshDataMap meshName geometryCreateInfo = do
+                geometryBufferData <- createGeometryBuffer rendererData meshName geometryCreateInfo
                 meshData <- newMeshData meshName [geometryBufferData]
                 HashTable.insert (_meshDataMap resourceData) meshName meshData
 
