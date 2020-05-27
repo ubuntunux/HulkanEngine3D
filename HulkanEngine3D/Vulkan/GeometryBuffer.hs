@@ -1,12 +1,12 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE Strict              #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE PolyKinds              #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE Strict                 #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DeriveGeneric          #-}
@@ -31,6 +31,7 @@ import qualified Data.Text as Text
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
 import Data.Maybe
+import qualified Data.List as List
 
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
@@ -47,7 +48,8 @@ import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
 
 
--- | Preparing Vertex data to make an interleaved array.
+type DataFrameAtLeastThree a = DataFrame a '[XN 3]
+
 data VertexData = VertexData
     { _vertexPosition :: Vec3f
     , _vertexNormal :: Vec3f
@@ -55,12 +57,7 @@ data VertexData = VertexData
     , _vertexTexCoord :: Vec2f
     } deriving (Eq, Ord, Show, Generic)
 
-defaultVertexData :: VertexData
-defaultVertexData = VertexData 0 0 0 0
-
 instance PrimBytes VertexData
-
-type DataFrameAtLeastThree a = DataFrame a '[XN 3]
 
 data GeometryCreateInfo = GeometryCreateInfo
     { _geometryCreateInfoVertices :: DataFrameAtLeastThree VertexData
@@ -78,6 +75,8 @@ data GeometryData = GeometryData
     , _geometryBoundingBox :: BoundingBox
     } deriving (Eq, Show, Generic)
 
+defaultVertexData :: VertexData
+defaultVertexData = VertexData 0 0 0 0
 
 -- | Check if the frame has enough elements.
 atLeastThree :: (All KnownXNatType ns, BoundedDims ns)
@@ -86,56 +85,6 @@ atLeastThree :: (All KnownXNatType ns, BoundedDims ns)
 atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough points")
              . constrainDF
 
-quadGeometryCreateInfos :: [GeometryCreateInfo]
-quadGeometryCreateInfos =
-    let positions = [vec3 -1.0 -1.0 0.0, vec3 1.0 -1.0 0.0, vec3 1.0 1.0 0.0, vec3 -1.0 1.0 0.0]
-        vertexNormal = vec3 0 1 0
-        vertexColor = getColor32 255 255 255 255
-        texCoords = [vec2 0 0, vec2 1 0, vec2 1 1, vec2 0 1]
-        vertexCount = length positions
-        vertices = [VertexData (positions !! i) vertexNormal vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
-    in
-        [ GeometryCreateInfo
-            { _geometryCreateInfoVertices = XFrame $ fromFlatList (D4 :* U) defaultVertexData vertices
-            , _geometryCreateInfoIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
-            , _geometryCreateInfoBoundingBox = calcBoundingBox positions
-            }
-        ]
-
-cubeGeometryCreateInfos :: [GeometryCreateInfo]
-cubeGeometryCreateInfos =
-    let vertexColor = getColor32 255 255 255 255
-        positions = [vec3 x y z | (x, y, z) <- [
-            (-1, 1, 1), (-1, -1, 1), (1, -1, 1), (1, 1, 1),
-            (1, 1, 1), (1, -1, 1), (1, -1, -1), (1, 1, -1),
-            (1, 1, -1), (1, -1, -1), (-1, -1, -1), (-1, 1, -1),
-            (-1, 1, -1), (-1, -1, -1), (-1, -1, 1), (-1, 1, 1),
-            (-1, 1, -1), (-1, 1, 1), (1, 1, 1), (1, 1, -1),
-            (-1, -1, 1), (-1, -1, -1), (1, -1, -1), (1, -1, 1)]]
-        normals = [vec3 x y z | (x, y, z) <- [
-            (0, 0, 1), (0, 0, 1), (0, 0, 1), (0, 0, 1),
-            (1, 0, 0), (1, 0, 0), (1, 0, 0), (1, 0, 0),
-            (0, 0, -1), (0, 0, -1), (0, 0, -1), (0, 0, -1),
-            (-1, 0, 0), (-1, 0, 0), (-1, 0, 0), (-1, 0, 0),
-            (0, 1, 0), (0, 1, 0), (0, 1, 0), (0, 1, 0),
-            (0, -1, 0), (0, -1, 0), (0, -1, 0), (0, -1, 0)]]
-        texcoords = [vec2 x y | (x, y) <- [
-            (0, 1), (0, 0), (1, 0), (1, 1),
-            (0, 1), (0, 0), (1, 0), (1, 1),
-            (0, 1), (0, 0), (1, 0), (1, 1),
-            (0, 1), (0, 0), (1, 0), (1, 1),
-            (0, 1), (0, 0), (1, 0), (1, 1),
-            (0, 1), (0, 0), (1, 0), (1, 1)]]
-        vertexCount = length positions
-        vertices = [VertexData (positions !! i) (normals !! i) vertexColor (texcoords !! i) | i <- [0..(vertexCount - 1)]]
-        indices = [ 0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8, 11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22 ]
-    in
-        [ GeometryCreateInfo
-            { _geometryCreateInfoVertices = XFrame $ fromFlatList (D24 :* U) defaultVertexData vertices
-            , _geometryCreateInfoIndices = atLeastThree . fromList $ indices
-            , _geometryCreateInfoBoundingBox = calcBoundingBox positions
-            }
-        ]
 
 vertexInputBindDescription :: VkVertexInputBindingDescription
 vertexInputBindDescription = createVk @VkVertexInputBindingDescription
@@ -266,3 +215,125 @@ createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indice
     destroyBuffer device stagingBuffer stagingBufferMemory
 
     return (indexBufferMemory, indexBuffer)
+
+computeTangent :: [Scalar VertexData] -> [Scalar Word32] -> [Vec3f]
+computeTangent vertexDataList indices =
+    {-
+    Note: This point can also be considered as the vector starting from the origin to pi.
+    Writting this equation for the points p1, p2 and p3 give :
+        p1 = u1 * T + v1 * B
+        p2 = u2 * T + v2 * B
+        p3 = u3 * T + v3 * B
+    Texture/World space relation
+
+    With equation manipulation (equation subtraction), we can write :
+        p2 - p1 = (u2 - u1) * T + (v2 - v1) * B
+        p3 - p1 = (u3 - u1) * T + (v3 - v1) * B
+
+    By resolving this system :
+        Equation of Tangent:
+            (v3 - v1) * (p2 - p1) = (v3 - v1) * (u2 - u1) * T + (v3 - v1) * (v2 - v1) * B
+            (v2 - v1) * (p3 - p1) = (v2 - v1) * (u3 - u1) * T + (v2 - v1) * (v3 - v1) * B
+
+        Equation of Binormal:
+            (u3 - u1) * (p2 - p1) = (u3 - u1) * (u2 - u1) * T + (u3 - u1) * (v2 - v1) * B
+            (u2 - u1) * (p3 - p1) = (u2 - u1) * (u3 - u1) * T + (u2 - u1) * (v3 - v1) * B
+
+
+    And we finally have the formula of T and B :
+        T = ((v3 - v1) * (p2 - p1) - (v2 - v1) * (p3 - p1)) / ((u2 - u1) * (v3 - v1) - (u3 - u1) * (v2 - v1))
+        B = ((u3 - u1) * (p2 - p1) - (u2 - u1) * (p3 - p1)) / -((u2 - u1) * (v3 - v1) - (u3 - u1) * (v2 - v1))
+
+    Equation of N:
+        N = cross(T, B)
+    -}
+    let positions = [_vertexPosition vertex | (S vertex) <- vertexDataList]
+        texcoords = [_vertexTexCoord vertex | (S vertex) <- vertexDataList]
+        normals = [_vertexNormal vertex | (S vertex) <- vertexDataList]
+        vertexCount = length positions
+        indexCount = length indices
+        allTriangleTangentList = map (\i -> computeTangent' i positions texcoords normals) [0,3..(indexCount - 1)]
+        allTangentWithIndexList = List.nub . List.sort . List.concat $ map (\((i0, i1, i2), tangent) -> [(i0, tangent), (i1, tangent), (i2, tangent)]) allTriangleTangentList
+        indexGroupList = List.group [fromIntegral index | (index, tangent) <- allTangentWithIndexList]
+        allTangentList = [tangent | (index, tangent) <- allTangentWithIndexList]
+    in
+        generateTangentList 0 indexGroupList allTangentList []
+    where
+        generateTangentList :: Int -> [[Int]] -> [Vec3f] -> [Vec3f] -> [Vec3f]
+        generateTangentList index [] allTangentList tangentList = tangentList
+        generateTangentList index (indexGroup:indexGroupList) allTangentList tangentList =
+            let indexCount = length indexGroup
+                nextIndex = index + indexCount
+                tangent = safeNormalize . sum $ map (\i -> allTangentList !! i) [index..(nextIndex - 1)]
+            in
+                generateTangentList nextIndex indexGroupList allTangentList (tangentList ++ [tangent])
+
+        computeTangent' :: Int -> [Vec3f] -> [Vec2f] -> [Vec3f] -> ((Int, Int, Int), Vec3f)
+        computeTangent' i positions texcoords normals =
+            let i0 = fromIntegral . unScalar $ indices !! i
+                i1 = fromIntegral . unScalar $ indices !! (i + 1)
+                i2 = fromIntegral . unScalar $ indices !! (i + 2)
+                deltaPos_0_1 = (positions !! i1) - (positions !! i0)
+                deltaPos_0_2 = (positions !! i2) - (positions !! i0)
+                deltaUV_0_1 = (texcoords !! i1) - (texcoords !! i0)
+                deltaUV_0_2 = (texcoords !! i2) - (texcoords !! i0)
+                S r = (deltaUV_0_1 ! (0:*U)) * (deltaUV_0_2 ! (1:*U)) - (deltaUV_0_1 ! (1:*U)) * (deltaUV_0_2 ! (0:*U))
+                r' = if r /= 0.0 then (1.0 / r) else 0.0
+                tangent = safeNormalize $ (deltaPos_0_1 * (fromScalar $ deltaUV_0_2 ! (1:*U)) - deltaPos_0_2 * (fromScalar $ deltaUV_0_1 ! (1:*U))) * (fromScalar $ scalar r')
+                avg_normal = safeNormalize $ (normals !! i0 + normals !! i1 + normals !! i2)
+            in
+                if 0.0 == (dot tangent tangent) then
+                    ((i0, i1, i2), cross avg_normal world_up)
+                else
+                    ((i0, i1, i2), tangent)
+
+quadGeometryCreateInfos :: [GeometryCreateInfo]
+quadGeometryCreateInfos =
+    let positions = [vec3 -1.0 -1.0 0.0, vec3 1.0 -1.0 0.0, vec3 1.0 1.0 0.0, vec3 -1.0 1.0 0.0]
+        vertexNormal = vec3 0 1 0
+        vertexColor = getColor32 255 255 255 255
+        texCoords = [vec2 0 0, vec2 1 0, vec2 1 1, vec2 0 1]
+        vertexCount = length positions
+        vertices = [VertexData (positions !! i) vertexNormal vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
+    in
+        [ GeometryCreateInfo
+            { _geometryCreateInfoVertices = XFrame $ fromFlatList (D4 :* U) defaultVertexData vertices
+            , _geometryCreateInfoIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
+            , _geometryCreateInfoBoundingBox = calcBoundingBox positions
+            }
+        ]
+
+cubeGeometryCreateInfos :: [GeometryCreateInfo]
+cubeGeometryCreateInfos =
+    let vertexColor = getColor32 255 255 255 255
+        positions = [vec3 x y z | (x, y, z) <- [
+            (-1, 1, 1), (-1, -1, 1), (1, -1, 1), (1, 1, 1),
+            (1, 1, 1), (1, -1, 1), (1, -1, -1), (1, 1, -1),
+            (1, 1, -1), (1, -1, -1), (-1, -1, -1), (-1, 1, -1),
+            (-1, 1, -1), (-1, -1, -1), (-1, -1, 1), (-1, 1, 1),
+            (-1, 1, -1), (-1, 1, 1), (1, 1, 1), (1, 1, -1),
+            (-1, -1, 1), (-1, -1, -1), (1, -1, -1), (1, -1, 1)]]
+        normals = [vec3 x y z | (x, y, z) <- [
+            (0, 0, 1), (0, 0, 1), (0, 0, 1), (0, 0, 1),
+            (1, 0, 0), (1, 0, 0), (1, 0, 0), (1, 0, 0),
+            (0, 0, -1), (0, 0, -1), (0, 0, -1), (0, 0, -1),
+            (-1, 0, 0), (-1, 0, 0), (-1, 0, 0), (-1, 0, 0),
+            (0, 1, 0), (0, 1, 0), (0, 1, 0), (0, 1, 0),
+            (0, -1, 0), (0, -1, 0), (0, -1, 0), (0, -1, 0)]]
+        texcoords = [vec2 x y | (x, y) <- [
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1),
+            (0, 1), (0, 0), (1, 0), (1, 1)]]
+        vertexCount = length positions
+        vertices = [VertexData (positions !! i) (normals !! i) vertexColor (texcoords !! i) | i <- [0..(vertexCount - 1)]]
+        indices = [ 0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8, 11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22 ]
+    in
+        [ GeometryCreateInfo
+            { _geometryCreateInfoVertices = XFrame $ fromFlatList (D24 :* U) defaultVertexData vertices
+            , _geometryCreateInfoIndices = atLeastThree . fromList $ indices
+            , _geometryCreateInfoBoundingBox = calcBoundingBox positions
+            }
+        ]

@@ -25,11 +25,23 @@ floatMinimum =  -8.98846567431158e307
 floatMaximum :: Float
 floatMaximum =  8.98846567431158e307
 
+floatEpsilon :: Float
+floatEpsilon = 1.0e-323
+
 -- | Get number of points in a vector
 dataFrameLength :: DataFrame t (xns :: [XNat]) -> Word
 dataFrameLength (XFrame (vector :: DataFrame t ns)) = case dims @ns of
     n :* _ -> dimVal n
     U      -> 1
+
+safeNormalize :: Vec3f -> Vec3f
+safeNormalize vector =
+    let l = unScalar . normL2 $ vector
+    in
+        if l <= floatEpsilon then
+            vector
+        else
+            vector / (fromScalar . scalar $ l)
 
 float_zero :: Scalar Float
 float_zero = S 0

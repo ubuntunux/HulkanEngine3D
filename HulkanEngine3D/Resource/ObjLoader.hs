@@ -15,6 +15,7 @@ module HulkanEngine3D.Resource.ObjLoader
 import qualified Codec.Wavefront as Wavefront
 import Data.Foldable (toList)
 import Data.Maybe
+import Control.Monad
 import qualified Data.Set as Set
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
 import Numeric.DataFrame
@@ -57,11 +58,14 @@ objVertices Wavefront.WavefrontOBJ {..}
     , D :* numObjNorms <- inSpaceOf dims objNorms
     , D :* numObjTexCs <- inSpaceOf dims objTexCs
     , allVertices <- map (scalar . mkVertex objLocs objNorms objTexCs) faceIndices
-    , vertSet <- Set.fromList allVertices
-    , uniqueVertexList <- Set.toList vertSet
-      = return GeometryCreateInfo
+    , uniqueVertexSet <- Set.fromList allVertices
+    , uniqueVertexList <- Set.toList uniqueVertexSet
+    , vertexIndices <- map (scalar . fromIntegral . flip Set.findIndex uniqueVertexSet) allVertices
+      = do
+        --let tangentList = computeTangent uniqueVertexList vertexIndices
+        return GeometryCreateInfo
             { _geometryCreateInfoVertices = atLeastThree . fromList $ uniqueVertexList
-            , _geometryCreateInfoIndices = atLeastThree . fromList $ map (fromIntegral . flip Set.findIndex vertSet) allVertices
+            , _geometryCreateInfoIndices = atLeastThree . fromList $ vertexIndices
             , _geometryCreateInfoBoundingBox = calcBoundingBox $ map (\(S vertex) -> _vertexPosition vertex) uniqueVertexList
             }
     | otherwise = error "objVertices: impossible arguments"
