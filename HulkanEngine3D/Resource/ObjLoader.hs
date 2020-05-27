@@ -15,7 +15,6 @@ module HulkanEngine3D.Resource.ObjLoader
 import qualified Codec.Wavefront as Wavefront
 import Data.Foldable (toList)
 import Data.Maybe
-import Control.Monad
 import qualified Data.Set as Set
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
 import Numeric.DataFrame

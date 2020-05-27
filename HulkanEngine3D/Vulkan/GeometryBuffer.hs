@@ -79,7 +79,7 @@ defaultVertexData :: VertexData
 defaultVertexData = VertexData 0 0 0 0
 
 -- | Check if the frame has enough elements.
-atLeastThree :: (All KnownXNatType ns, BoundedDims ns)
+atLeastThree :: (All KnownDimType ns, BoundedDims ns)
              => DataFrame t (n ': ns)
              -> DataFrame t (XN 3 ': ns)
 atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough points")
@@ -100,22 +100,22 @@ vertexInputBindDescription = createVk @VkVertexInputBindingDescription
 vertexInputAttributeDescriptions :: Vector VkVertexInputAttributeDescription 4
 vertexInputAttributeDescriptions = ST.runST $ do
     mv <- ST.newPinnedDataFrame
-    ST.writeDataFrame mv 0 . scalar $ createVk
+    ST.writeDataFrame mv (Idx 0 :* U) . scalar $ createVk
         $  set @"location" 0
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
         &* set @"offset" (bFieldOffsetOf @"_vertexPosition" @VertexData undefined)
-    ST.writeDataFrame mv 1 . scalar $ createVk
+    ST.writeDataFrame mv (Idx 1 :* U) . scalar $ createVk
         $  set @"location" 1
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
         &* set @"offset" (bFieldOffsetOf @"_vertexNormal" @VertexData undefined)
-    ST.writeDataFrame mv 2 . scalar $ createVk
+    ST.writeDataFrame mv (Idx 2 :* U) . scalar $ createVk
         $  set @"location" 2
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R8G8B8A8_UNORM
         &* set @"offset" (bFieldOffsetOf @"_vertexColor" @VertexData undefined)
-    ST.writeDataFrame mv 3 . scalar $ createVk
+    ST.writeDataFrame mv (Idx 3 :* U) . scalar $ createVk
         $  set @"location" 3
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32_SFLOAT
@@ -223,25 +223,25 @@ createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indice
         p2 = u2 * T + v2 * B
         p3 = u3 * T + v3 * B
     Texture/World space relation
-    
+
     With equation manipulation (equation subtraction), we can write :
         p2 - p1 = (u2 - u1) * T + (v2 - v1) * B
         p3 - p1 = (u3 - u1) * T + (v3 - v1) * B
-    
+
     By resolving this system :
         Equation of Tangent:
             (v3 - v1) * (p2 - p1) = (v3 - v1) * (u2 - u1) * T + (v3 - v1) * (v2 - v1) * B
             (v2 - v1) * (p3 - p1) = (v2 - v1) * (u3 - u1) * T + (v2 - v1) * (v3 - v1) * B
-    
+
         Equation of Binormal:
             (u3 - u1) * (p2 - p1) = (u3 - u1) * (u2 - u1) * T + (u3 - u1) * (v2 - v1) * B
             (u2 - u1) * (p3 - p1) = (u2 - u1) * (u3 - u1) * T + (u2 - u1) * (v3 - v1) * B
-    
-    
+
+
     And we finally have the formula of T and B :
         T = ((v3 - v1) * (p2 - p1) - (v2 - v1) * (p3 - p1)) / ((u2 - u1) * (v3 - v1) - (u3 - u1) * (v2 - v1))
         B = ((u3 - u1) * (p2 - p1) - (u2 - u1) * (p3 - p1)) / -((u2 - u1) * (v3 - v1) - (u3 - u1) * (v2 - v1))
-    
+
     Equation of N:
         N = cross(T, B)
 -}
@@ -277,9 +277,9 @@ computeTangent vertexDataList indices =
                 deltaPos_0_2 = (positions !! i2) - (positions !! i0)
                 deltaUV_0_1 = (texcoords !! i1) - (texcoords !! i0)
                 deltaUV_0_2 = (texcoords !! i2) - (texcoords !! i0)
-                S r = (deltaUV_0_1 ! (0:*U)) * (deltaUV_0_2 ! (1:*U)) - (deltaUV_0_1 ! (1:*U)) * (deltaUV_0_2 ! (0:*U))
+                S r = (deltaUV_0_1 .! 0) * (deltaUV_0_2 .! 1) - (deltaUV_0_1 .! 1) * (deltaUV_0_2 .! 0)
                 r' = if r /= 0.0 then (1.0 / r) else 0.0
-                tangent = safeNormalize $ (deltaPos_0_1 * (fromScalar $ deltaUV_0_2 ! (1:*U)) - deltaPos_0_2 * (fromScalar $ deltaUV_0_1 ! (1:*U))) * (fromScalar $ scalar r')
+                tangent = safeNormalize $ (deltaPos_0_1 * (fromScalar $ deltaUV_0_2 .! 1) - deltaPos_0_2 * (fromScalar $ deltaUV_0_1 .! 1)) * (fromScalar $ scalar r')
                 avg_normal = safeNormalize $ (normals !! i0 + normals !! i1 + normals !! i2)
             in
                 if 0.0 == (dot tangent tangent) then

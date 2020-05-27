@@ -176,8 +176,8 @@ instance TransformObjectInterface TransformObjectData where
 
     rotationFunc transformObjectData index rotationSpeed = do
         rotation <- readIORef (_rotation transformObjectData)
-        let pitch = scalar . wrap_rotation $ (unScalar $ rotation ! (Idx index:*U)) + rotationSpeed
-        writeIORef (_rotation transformObjectData) $ update (Idx index:*U) pitch rotation
+        let pitch = scalar . wrap_rotation $ (unScalar $ rotation .! (Idx index)) + rotationSpeed
+        writeIORef (_rotation transformObjectData) $ update (Idx index :* U) pitch rotation
 
     rotationPitch transformObjectData rotationSpeed = do
         rotationFunc transformObjectData 0 rotationSpeed
@@ -236,9 +236,9 @@ instance TransformObjectInterface TransformObjectData where
                 --rotationMatrix = contract (rotateX pitch) $ contract (rotateY yaw) (rotateZ roll)
                 rotationMatrix = matrixRotation pitch yaw roll
 
-                left = normalized $ fromHom (rotationMatrix ! (0:*U))
-                up = normalized $ fromHom (rotationMatrix ! (1:*U))
-                front = normalized $ fromHom (rotationMatrix ! (2:*U))
+                left = normalized $ fromHom (rotationMatrix .! (Idx 0))
+                up = normalized $ fromHom (rotationMatrix .! (Idx 1))
+                front = normalized $ fromHom (rotationMatrix .! (Idx 2))
 
 --                look at algorithm
 --                (sin_pitch, cos_pitch) = (sin pitch, cos pitch)
