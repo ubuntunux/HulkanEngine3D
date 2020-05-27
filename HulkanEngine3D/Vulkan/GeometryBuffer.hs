@@ -277,9 +277,9 @@ computeTangent vertexDataList indices =
                 deltaPos_0_2 = (positions !! i2) - (positions !! i0)
                 deltaUV_0_1 = (texcoords !! i1) - (texcoords !! i0)
                 deltaUV_0_2 = (texcoords !! i2) - (texcoords !! i0)
-                S r = (deltaUV_0_1 .! 0) * (deltaUV_0_2 .! 1) - (deltaUV_0_1 .! 1) * (deltaUV_0_2 .! 0)
+                S r = (deltaUV_0_1 .! Idx 0) * (deltaUV_0_2 .! Idx 1) - (deltaUV_0_1 .! Idx 1) * (deltaUV_0_2 .! Idx 0)
                 r' = if r /= 0.0 then (1.0 / r) else 0.0
-                tangent = safeNormalize $ (deltaPos_0_1 * (fromScalar $ deltaUV_0_2 .! 1) - deltaPos_0_2 * (fromScalar $ deltaUV_0_1 .! 1)) * (fromScalar $ scalar r')
+                tangent = safeNormalize $ (deltaPos_0_1 * (fromScalar $ deltaUV_0_2 .! Idx 1) - deltaPos_0_2 * (fromScalar $ deltaUV_0_1 .! Idx 1)) * (fromScalar $ scalar r')
                 avg_normal = safeNormalize $ (normals !! i0 + normals !! i1 + normals !! i2)
             in
                 if 0.0 == (dot tangent tangent) then

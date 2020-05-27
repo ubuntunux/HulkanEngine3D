@@ -18,6 +18,7 @@ import qualified Data.HashTable.IO as HashTable
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (ClientAPI (..), WindowHint (..))
 import Numeric.DataFrame
+import Numeric.Dimensions
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Application.Input
@@ -164,8 +165,8 @@ updateEvent applicationData = do
     pressed_key_C <- getKeyPressed keyboardInputData GLFW.Key'C
     mainCamera <- readIORef (SceneManager._mainCamera . _sceneManagerData $ applicationData)
     let mousePosDelta = _mousePosDelta mouseMoveData
-        mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta .! 0) :: Float
-        mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta .! 1) :: Float
+        mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta .! Idx 0) :: Float
+        mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta .! Idx 1) :: Float
         (_, btn_middle, btn_right, _, _) = (_btn_l_down mouseInputData, _btn_m_down mouseInputData, _btn_r_down mouseInputData, _wheel_up mouseInputData, _wheel_down mouseInputData)
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         moveSpeed = Constants.cameraMoveSpeed * deltaTime * if modifierKeysShift then 2.0 else 1.0

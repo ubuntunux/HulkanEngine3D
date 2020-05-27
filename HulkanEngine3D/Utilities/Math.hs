@@ -116,9 +116,9 @@ matrixRotation rx ry rz =
 transform_matrix :: Vec3f -> Mat44f -> Vec3f -> Mat44f
 transform_matrix translation rotation_matrix scale =
     let (# sx, sy, sz #) = unpackV3# scale
-        row0 = ((index (Idx 0:*U) rotation_matrix) :: Vec4f) * (getFloat4 sx)
-        row1 = ((index (Idx 1:*U) rotation_matrix) :: Vec4f) * (getFloat4 sy)
-        row2 = ((index (Idx 2:*U) rotation_matrix) :: Vec4f) * (getFloat4 sz)
+        row0 = (rotation_matrix .! Idx 0 :: Vec4f) * (getFloat4 sx)
+        row1 = (rotation_matrix .! Idx 1 :: Vec4f) * (getFloat4 sy)
+        row2 = (rotation_matrix .! Idx 2 :: Vec4f) * (getFloat4 sz)
         row3 = toHomPoint translation
     in DF4 row0 row1 row2 row3
 
@@ -126,12 +126,12 @@ inverse_transform_matrix :: Vec3f -> Mat44f -> Vec3f -> Mat44f
 inverse_transform_matrix translation rotation_matrix scale =
     let rotation_matrix_T = transpose rotation_matrix
         (# sx, sy, sz #) = unpackV3# scale
-        row0 = ((index (Idx 0:*U) rotation_matrix_T) :: Vec4f) / (getFloat4 sx)
-        row1 = ((index (Idx 1:*U) rotation_matrix_T) :: Vec4f) / (getFloat4 sy)
-        row2 = ((index (Idx 2:*U) rotation_matrix_T) :: Vec4f) / (getFloat4 sz)
+        row0 = (rotation_matrix_T .! Idx 0 :: Vec4f) / (getFloat4 sx)
+        row1 = (rotation_matrix_T .! Idx 1 :: Vec4f) / (getFloat4 sy)
+        row2 = (rotation_matrix_T .! Idx 2 :: Vec4f) / (getFloat4 sz)
         p = toHomVector (-translation)
-        x = (index (Idx 0:*U) rotation_matrix) %* p
-        y = (index (Idx 1:*U) rotation_matrix) %* p
-        z = (index (Idx 2:*U) rotation_matrix) %* p
+        x = (rotation_matrix .! Idx 0) %* p
+        y = (rotation_matrix .! Idx 1) %* p
+        z = (rotation_matrix .! Idx 2) %* p
         row3 = DF4 x y z (scalar 1.0)
     in DF4 row0 row1 row2 row3
