@@ -216,37 +216,37 @@ createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indice
 
     return (indexBufferMemory, indexBuffer)
 
-computeTangent :: [Scalar VertexData] -> [Scalar Word32] -> [Vec3f]
-computeTangent vertexDataList indices =
-    {-
+{-
     Note: This point can also be considered as the vector starting from the origin to pi.
     Writting this equation for the points p1, p2 and p3 give :
         p1 = u1 * T + v1 * B
         p2 = u2 * T + v2 * B
         p3 = u3 * T + v3 * B
     Texture/World space relation
-
+    
     With equation manipulation (equation subtraction), we can write :
         p2 - p1 = (u2 - u1) * T + (v2 - v1) * B
         p3 - p1 = (u3 - u1) * T + (v3 - v1) * B
-
+    
     By resolving this system :
         Equation of Tangent:
             (v3 - v1) * (p2 - p1) = (v3 - v1) * (u2 - u1) * T + (v3 - v1) * (v2 - v1) * B
             (v2 - v1) * (p3 - p1) = (v2 - v1) * (u3 - u1) * T + (v2 - v1) * (v3 - v1) * B
-
+    
         Equation of Binormal:
             (u3 - u1) * (p2 - p1) = (u3 - u1) * (u2 - u1) * T + (u3 - u1) * (v2 - v1) * B
             (u2 - u1) * (p3 - p1) = (u2 - u1) * (u3 - u1) * T + (u2 - u1) * (v3 - v1) * B
-
-
+    
+    
     And we finally have the formula of T and B :
         T = ((v3 - v1) * (p2 - p1) - (v2 - v1) * (p3 - p1)) / ((u2 - u1) * (v3 - v1) - (u3 - u1) * (v2 - v1))
         B = ((u3 - u1) * (p2 - p1) - (u2 - u1) * (p3 - p1)) / -((u2 - u1) * (v3 - v1) - (u3 - u1) * (v2 - v1))
-
+    
     Equation of N:
         N = cross(T, B)
-    -}
+-}
+computeTangent :: [Scalar VertexData] -> [Scalar Word32] -> [Vec3f]
+computeTangent vertexDataList indices =
     let positions = [_vertexPosition vertex | (S vertex) <- vertexDataList]
         texcoords = [_vertexTexCoord vertex | (S vertex) <- vertexDataList]
         normals = [_vertexNormal vertex | (S vertex) <- vertexDataList]
