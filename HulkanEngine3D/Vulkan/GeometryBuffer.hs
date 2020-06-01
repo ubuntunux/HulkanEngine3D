@@ -53,6 +53,7 @@ type DataFrameAtLeastThree a = DataFrame a '[XN 3]
 data VertexData = VertexData
     { _vertexPosition :: Vec3f
     , _vertexNormal :: Vec3f
+    , _vertexTanget :: Vec3f
     , _vertexColor :: Scalar Word32
     , _vertexTexCoord :: Vec2f
     } deriving (Eq, Ord, Show, Generic)
@@ -76,7 +77,7 @@ data GeometryData = GeometryData
     } deriving (Eq, Show, Generic)
 
 defaultVertexData :: VertexData
-defaultVertexData = VertexData 0 0 0 0
+defaultVertexData = VertexData 0 0 0 0 0
 
 -- | Check if the frame has enough elements.
 atLeastThree :: (All KnownDimType ns, BoundedDims ns)
@@ -97,7 +98,7 @@ vertexInputBindDescription = createVk @VkVertexInputBindingDescription
 -- a vulkan function with no copy.
 --
 -- However, we must make sure the created DataFrame is pinned!
-vertexInputAttributeDescriptions :: Vector VkVertexInputAttributeDescription 4
+vertexInputAttributeDescriptions :: Vector VkVertexInputAttributeDescription 5
 vertexInputAttributeDescriptions = ST.runST $ do
     mv <- ST.newPinnedDataFrame
     ST.writeDataFrame mv (Idx 0 :* U) . scalar $ createVk
@@ -113,10 +114,15 @@ vertexInputAttributeDescriptions = ST.runST $ do
     ST.writeDataFrame mv (Idx 2 :* U) . scalar $ createVk
         $  set @"location" 2
         &* set @"binding" 0
-        &* set @"format" VK_FORMAT_R8G8B8A8_UNORM
-        &* set @"offset" (bFieldOffsetOf @"_vertexColor" @VertexData undefined)
+        &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
+        &* set @"offset" (bFieldOffsetOf @"_vertexTanget" @VertexData undefined)
     ST.writeDataFrame mv (Idx 3 :* U) . scalar $ createVk
         $  set @"location" 3
+        &* set @"binding" 0
+        &* set @"format" VK_FORMAT_R8G8B8A8_UNORM
+        &* set @"offset" (bFieldOffsetOf @"_vertexColor" @VertexData undefined)
+    ST.writeDataFrame mv (Idx 4 :* U) . scalar $ createVk
+        $  set @"location" 4
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32_SFLOAT
         &* set @"offset" (bFieldOffsetOf @"_vertexTexCoord" @VertexData undefined)
@@ -245,12 +251,9 @@ createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indice
     Equation of N:
         N = cross(T, B)
 -}
-computeTangent :: [Scalar VertexData] -> [Scalar Word32] -> [Vec3f]
-computeTangent vertexDataList indices =
-    let positions = [_vertexPosition vertex | (S vertex) <- vertexDataList]
-        texcoords = [_vertexTexCoord vertex | (S vertex) <- vertexDataList]
-        normals = [_vertexNormal vertex | (S vertex) <- vertexDataList]
-        vertexCount = length positions
+computeTangent :: [Vec3f] -> [Vec3f] -> [Vec2f] -> [Scalar Word32] -> [Vec3f]
+computeTangent positions normals texcoords indices =
+    let vertexCount = length positions
         indexCount = length indices
         allTriangleTangentList = map (\i -> computeTangent' i positions texcoords normals) [0,3..(indexCount - 1)]
         allTangentWithIndexList = List.nub . List.sort . List.concat $ map (\((i0, i1, i2), tangent) -> [(i0, tangent), (i1, tangent), (i2, tangent)]) allTriangleTangentList
@@ -290,15 +293,17 @@ computeTangent vertexDataList indices =
 quadGeometryCreateInfos :: [GeometryCreateInfo]
 quadGeometryCreateInfos =
     let positions = [vec3 -1.0 -1.0 0.0, vec3 1.0 -1.0 0.0, vec3 1.0 1.0 0.0, vec3 -1.0 1.0 0.0]
-        vertexNormal = vec3 0 1 0
+        vertexCount = length positions
+        normals = replicate vertexCount $ vec3 0 1 0
         vertexColor = getColor32 255 255 255 255
         texCoords = [vec2 0 0, vec2 1 0, vec2 1 1, vec2 0 1]
-        vertexCount = length positions
-        vertices = [VertexData (positions !! i) vertexNormal vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
+        indices = [0, 3, 2, 2, 1, 0] :: [Scalar Word32]
+        tangents = computeTangent positions normals texCoords indices
+        vertices = [VertexData (positions !! i) (normals !! i) (tangents !! i) vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
     in
         [ GeometryCreateInfo
             { _geometryCreateInfoVertices = XFrame $ fromFlatList (D4 :* U) defaultVertexData vertices
-            , _geometryCreateInfoIndices = atLeastThree . fromList $ [0, 3, 2, 2, 1, 0]
+            , _geometryCreateInfoIndices = atLeastThree . fromList $ indices
             , _geometryCreateInfoBoundingBox = calcBoundingBox positions
             }
         ]
@@ -320,16 +325,17 @@ cubeGeometryCreateInfos =
             (-1, 0, 0), (-1, 0, 0), (-1, 0, 0), (-1, 0, 0),
             (0, 1, 0), (0, 1, 0), (0, 1, 0), (0, 1, 0),
             (0, -1, 0), (0, -1, 0), (0, -1, 0), (0, -1, 0)]]
-        texcoords = [vec2 x y | (x, y) <- [
+        texCoords = [vec2 x y | (x, y) <- [
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1)]]
+        indices = [ 0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8, 11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22 ] :: [Scalar Word32]
+        tangents = computeTangent positions normals texCoords indices
         vertexCount = length positions
-        vertices = [VertexData (positions !! i) (normals !! i) vertexColor (texcoords !! i) | i <- [0..(vertexCount - 1)]]
-        indices = [ 0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8, 11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22 ]
+        vertices = [VertexData (positions !! i) (normals !! i) (tangents !! i) vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
     in
         [ GeometryCreateInfo
             { _geometryCreateInfoVertices = XFrame $ fromFlatList (D24 :* U) defaultVertexData vertices

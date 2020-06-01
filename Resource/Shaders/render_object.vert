@@ -5,19 +5,24 @@
 #include "scene_constants.glsl"
 #include "render_object_common.glsl"
 
-layout(location = 0) in vec3 vs_input_position;
-layout(location = 1) in vec3 vs_input_normal;
-layout(location = 2) in vec4 vs_input_color;
-layout(location = 3) in vec2 vs_input_texCoord;
+layout(location = 0) in vec3 inPosition;
+layout(location = 1) in vec3 inNormal;
+layout(location = 2) in vec3 inTangent;
+layout(location = 3) in vec4 inColor;
+layout(location = 4) in vec2 inTexCoord;
 
 layout(location = 0) out VERTEX_OUTPUT vs_output;
 
 void main() {
     // TODO : VIEW_ORIGIN_PROJECTION
-    vec4 projection_pos = viewProjectionConstants.VIEW_PROJECTION * pushConstant.localMatrix * vec4(vs_input_position, 1.0);
+    vec4 projection_pos = viewProjectionConstants.VIEW_PROJECTION * pushConstant.localMatrix * vec4(inPosition, 1.0);
     gl_Position = projection_pos;
 
-    vs_output.color = vs_input_color;
-    vs_output.normal = (pushConstant.localMatrix * vec4(vs_input_normal, 0.0)).xyz;
-    vs_output.texCoord = vs_input_texCoord;
+    vs_output.color = inColor;
+    vec3 bitangent = cross(inTangent, inNormal);
+
+    // Note : Normalization is very important because tangent_to_world may have been scaled..
+    vs_output.tangent_to_world = mat3(pushConstant.localMatrix) * mat3(inTangent, bitangent, inNormal);
+
+    vs_output.texCoord = inTexCoord;
 }
