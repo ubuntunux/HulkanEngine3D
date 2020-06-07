@@ -12,13 +12,16 @@ module HulkanEngine3D.Resource.ObjLoader
     ( loadMesh
     ) where
 
+import Control.Monad
 import qualified Codec.Wavefront as Wavefront
+import qualified Data.List as List
+import qualified Data.Vector as Vector
 import Data.Foldable (toList)
 import Data.Maybe
 import qualified Data.Set as Set
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
 import Numeric.DataFrame
-import Numeric.Dimensions
+--import Numeric.Dimensions
 
 import HulkanEngine3D.Utilities.BoundingBox
 import HulkanEngine3D.Utilities.Logger
@@ -34,8 +37,7 @@ loadMesh :: FilePath -> IO [GeometryCreateInfo]
 loadMesh file = do
     logInfo $ "Loading mesh: " ++ file
     obj <- either throwVKMsg pure =<< Wavefront.fromFile file
-    geometryCreateInfo <- objVertices obj
-    return [geometryCreateInfo]
+    objVertices obj
 
 -- reversal here for correct culling in combination with the (-y) below
 triangleToFaceIndices :: Triangle -> [Wavefront.FaceIndex]
@@ -46,50 +48,38 @@ faceToTriangles (Wavefront.Face a b c []) = [Triangle a b c]
 faceToTriangles (Wavefront.Face a b c is) = pairwise (Triangle a) (b:c:is)
     where pairwise f xs = zipWith f xs (tail xs)
 
-objVertices :: Wavefront.WavefrontOBJ -> IO GeometryCreateInfo
-objVertices Wavefront.WavefrontOBJ {..}
-    | XFrame objLocs  <- fromList . map (\(Wavefront.Location x y z _) -> vec3 x y z) $ toList objLocations
-    , XFrame objNorms  <- fromList . map (\(Wavefront.Normal x y z) -> vec3 x y z) $ toList objNormals
-    , XFrame objTexCs <- fromList . map (\(Wavefront.TexCoord r s _) -> vec2 r s) $ toList objTexCoords
-      -- the two lines below let GHC know the value length of objLocs and objTexCs
-      -- at the type level; we need this for the mkVertex function below.
-    , D :* numObjLocs <- inSpaceOf dims objLocs
-    , D :* numObjNorms <- inSpaceOf dims objNorms
-    , D :* numObjTexCs <- inSpaceOf dims objTexCs
-    , allObjVertices <- map (convertToDataFrame objLocs objNorms objTexCs) faceIndices
-    , objVertexSet <- Set.fromList allObjVertices
-    , uniqueObjVertexList <- Set.toList objVertexSet
-    , (positions, normals, texCoords) <- unzip3 uniqueObjVertexList
-    , vertexIndices <- map (scalar . fromIntegral . flip Set.findIndex objVertexSet) allObjVertices
-    , tangents <- computeTangent positions normals texCoords vertexIndices
-    , vertexCount <- length positions
-    , vertices <- [scalar $ VertexData (positions !! i) (normals !! i) (tangents !! i) vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
-      = do
-        --let tangentList = computeTangent uniqueVertexList vertexIndices
-        return GeometryCreateInfo
-            { _geometryCreateInfoVertices = atLeastThree . fromList $ vertices
-            , _geometryCreateInfoIndices = atLeastThree . fromList $ vertexIndices
-            , _geometryCreateInfoBoundingBox = calcBoundingBox $ map (\(S vertex) -> _vertexPosition vertex) vertices
-            }
-    | otherwise = error "objVertices: impossible arguments"
+objVertices :: Wavefront.WavefrontOBJ -> IO [GeometryCreateInfo]
+objVertices Wavefront.WavefrontOBJ {..} = do
+        forM groupIndicesPair $ \groupIndexPair@(startIndex, endIndex) -> do
+            let triangles = concatMap (\i -> faceToTriangles $ Wavefront.elValue (objFaces Vector.! i)) [startIndex..endIndex]
+                faceIndices = concatMap triangleToFaceIndices triangles
+                allObjVertices = map (convertToDataFrame objLocations objNormals objTexCoords) faceIndices
+                objVertexSet = Set.fromList allObjVertices
+                uniqueObjVertexList = Set.toList objVertexSet
+                (positions, normals, texCoords) = unzip3 uniqueObjVertexList
+                vertexIndices = map (fromIntegral . flip Set.findIndex objVertexSet) allObjVertices
+                vertexCount = length positions
+                tangents = computeTangent positions normals texCoords vertexIndices
+                vertices = [scalar $ VertexData (positions !! i) (normals !! i) (tangents !! i) vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
+                result = GeometryCreateInfo
+                    { _geometryCreateInfoVertices = atLeastThree . fromList $ vertices
+                    , _geometryCreateInfoIndices = atLeastThree . fromList $ vertexIndices
+                    , _geometryCreateInfoBoundingBox = calcBoundingBox $ map (\(S vertex) -> _vertexPosition vertex) vertices
+                    }
+            return result
     where
         vertexColor = getColor32 255 255 255 255
-        triangles = concatMap (\face -> faceToTriangles $ Wavefront.elValue face) $ toList objFaces
-        faceIndices = concatMap triangleToFaceIndices triangles
-        {- Note, we need to substract 1 from all indices, because Wavefron OBJ indices
-           are 1-based (rather than 0-based indices of vector or easytensor packages).
-
-           More info: http://www.martinreddy.net/gfx/3d/OBJ.spec
-           "Each of these types of vertices is numbered separately, starting with 1"
-         -}
-        convertToDataFrame :: (KnownDim l, KnownDim n, KnownDim m)
-                           => Matrix Float l 3
-                           -> Matrix Float n 3
-                           -> Matrix Float m 2
+        allFaceList = toList objFaces
+        groups = List.group . map (\face -> (Wavefront.elObject face, Wavefront.elMtl face)) $ allFaceList
+        groupIndices = foldl (\acc xs -> acc ++ [last acc + length xs]) [0] groups
+        groupIndicesPair = zipWith (\x y -> (x, y-1)) groupIndices (tail groupIndices) -- (startIndex, endIndex)
+        convertToDataFrame :: Vector.Vector Wavefront.Location
+                           -> Vector.Vector Wavefront.Normal
+                           -> Vector.Vector Wavefront.TexCoord
                            -> Wavefront.FaceIndex
                            -> (Vec3f, Vec3f, Vec2f)
         convertToDataFrame objLocs objNorms objTexCs faceIndex@Wavefront.FaceIndex {..} =
-          ( objLocs ! fromIntegral (faceLocIndex - 1)
-          , objNorms ! fromIntegral (fromJust faceNorIndex - 1)
-          , objTexCs ! fromIntegral (fromJust faceTexCoordIndex - 1)
-          )
+            ( (\(Wavefront.Location x y z _) -> vec3 x y z) $ objLocs Vector.! fromIntegral (faceLocIndex - 1)
+            , (\(Wavefront.Normal x y z) -> vec3 x y z) $ objNorms Vector.! fromIntegral (fromJust faceNorIndex - 1)
+            , (\(Wavefront.TexCoord x y _) -> vec2 x y) $ objTexCs Vector.! fromIntegral (fromJust faceTexCoordIndex - 1)
+            )
