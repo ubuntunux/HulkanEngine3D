@@ -33,7 +33,7 @@ prettyCallStackLines cs time loggerLevel msg = case getCallStack cs of
     prettyCallSite (f, loc) = "[" ++ time ++ "]" ++ "[" ++ loggerLevel ++ "] " ++ msg ++ " (" ++ prettySrcLoc loc ++ ")"
 
 getLoggerTime :: IO String
-getLoggerTime = formatTime defaultTimeLocale "%F %T" <$> getZonedTime
+getLoggerTime = formatTime defaultTimeLocale "%F %T.%3q" <$> getZonedTime
 
 logInfo :: HasCallStack => String -> IO ()
 logInfo msg = do
