@@ -9,6 +9,7 @@ module HulkanEngine3D.Utilities.Logger
 
 import GHC.Stack hiding (prettyCallStack, prettySrcLoc)
 import Data.List
+import Data.Time
 
 prettySrcLoc :: SrcLoc -> String
 prettySrcLoc SrcLoc {..}
@@ -20,30 +21,36 @@ prettySrcLoc SrcLoc {..}
       ]
 
 
-prettyCallStack :: CallStack -> String -> String -> String
-prettyCallStack cs loggerLevel msg = intercalate "\n" $ prettyCallStackLines cs loggerLevel msg
+prettyCallStack :: CallStack -> String -> String -> String -> String
+prettyCallStack cs time loggerLevel msg = intercalate "\n" $ prettyCallStackLines cs time loggerLevel msg
 
 
-prettyCallStackLines :: CallStack -> String -> String -> [String]
-prettyCallStackLines cs loggerLevel msg = case getCallStack cs of
+prettyCallStackLines :: CallStack -> String -> String -> String -> [String]
+prettyCallStackLines cs time loggerLevel msg = case getCallStack cs of
   []  -> []
   stk -> map ((++"    ") . prettyCallSite) stk
   where
-    prettyCallSite (f, loc) = "[" ++ loggerLevel ++ "] " ++ msg ++ " (" ++ prettySrcLoc loc ++ ")"
+    prettyCallSite (f, loc) = "[" ++ time ++ "]" ++ "[" ++ loggerLevel ++ "] " ++ msg ++ " (" ++ prettySrcLoc loc ++ ")"
 
+getLoggerTime :: IO String
+getLoggerTime = formatTime defaultTimeLocale "%F %T" <$> getZonedTime
 
 logInfo :: HasCallStack => String -> IO ()
 logInfo msg = do
-    putStrLn $ prettyCallStack callStack "INFO" msg
+    time <- getLoggerTime
+    putStrLn $ prettyCallStack callStack time "INFO" msg
 
 logDebug :: HasCallStack => String -> IO ()
 logDebug msg = do
-    putStrLn $ prettyCallStack callStack "DEBUG" msg
+    time <- getLoggerTime
+    putStrLn $ prettyCallStack callStack time "DEBUG" msg
 
 logWarn :: HasCallStack => String -> IO ()
 logWarn msg = do
-    putStrLn $ prettyCallStack callStack "WARNING" msg
+    time <- getLoggerTime
+    putStrLn $ prettyCallStack callStack time "WARNING" msg
 
 logError :: HasCallStack => String -> IO ()
 logError msg = do
-    putStrLn $ prettyCallStack callStack "ERROR" msg
+    time <- getLoggerTime
+    putStrLn $ prettyCallStack callStack time "ERROR" msg
