@@ -57,16 +57,17 @@ objVertices Wavefront.WavefrontOBJ {..} = do
                 objVertexSet = Set.fromList allObjVertices
                 uniqueObjVertexList = Set.toList objVertexSet
                 (positions, normals, texCoords) = unzip3 uniqueObjVertexList
-                vertexIndices = map (fromIntegral . flip Set.findIndex objVertexSet) allObjVertices
+                (vPositions, vNormals, vTexCoords) = (Vector.fromList positions, Vector.fromList normals, Vector.fromList texCoords)
+                vertexIndices = map (scalar . fromIntegral . flip Set.findIndex objVertexSet) allObjVertices
+                vVertexIndices = Vector.fromList vertexIndices
                 vertexCount = length positions
-                tangents = computeTangent positions normals texCoords vertexIndices
-                vertices = [scalar $ VertexData (positions !! i) (normals !! i) (tangents !! i) vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
-                result = GeometryCreateInfo
-                    { _geometryCreateInfoVertices = atLeastThree . fromList $ vertices
-                    , _geometryCreateInfoIndices = atLeastThree . fromList $ vertexIndices
-                    , _geometryCreateInfoBoundingBox = calcBoundingBox $ map (\(S vertex) -> _vertexPosition vertex) vertices
-                    }
-            return result
+                tangents = computeTangent vPositions vNormals vTexCoords vVertexIndices
+                vertices = [scalar $ VertexData (vPositions Vector.! i) (vNormals Vector.! i) (tangents Vector.! i) vertexColor (vTexCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
+            return GeometryCreateInfo
+                { _geometryCreateInfoVertices = atLeastThree . fromList $ vertices
+                , _geometryCreateInfoIndices = atLeastThree . fromList $ vertexIndices
+                , _geometryCreateInfoBoundingBox = calcBoundingBox positions
+                }
     where
         vertexColor = getColor32 255 255 255 255
         allFaceList = toList objFaces

@@ -27,11 +27,14 @@ module HulkanEngine3D.Vulkan.GeometryBuffer where
 import GHC.Generics (Generic)
 import qualified Control.Monad.ST as ST
 import Data.Bits
+import Data.Maybe (fromJust)
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
+import qualified Data.Map as Map
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
 import Data.Maybe
-import qualified Data.List as List
+import qualified Data.DList as DList
 
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
@@ -251,95 +254,90 @@ createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indice
     Equation of N:
         N = cross(T, B)
 -}
-computeTangent :: [Vec3f] -> [Vec3f] -> [Vec2f] -> [Scalar Word32] -> [Vec3f]
+computeTangent :: Vector.Vector Vec3f -> Vector.Vector Vec3f -> Vector.Vector Vec2f -> Vector.Vector (Scalar Word32) -> (Vector.Vector Vec3f)
 computeTangent positions normals texcoords indices =
     let vertexCount = length positions
         indexCount = length indices
-        allTriangleTangentList = map (\i -> computeTangent' i positions texcoords normals) [0,3..(indexCount - 1)]
-        allTangentWithIndexList = List.nub . List.sort . List.concat $ map (\((i0, i1, i2), tangent) -> [(i0, tangent), (i1, tangent), (i2, tangent)]) allTriangleTangentList
-        indexGroupList = List.group [fromIntegral index | (index, tangent) <- allTangentWithIndexList]
-        allTangentList = [tangent | (index, tangent) <- allTangentWithIndexList]
+        tangentList = DList.foldr (\i acc -> DList.append (computeTangent' i positions texcoords normals) acc) DList.empty (DList.fromList [0,3..(indexCount - 1)])
+        tangentMap = Map.fromList $ DList.toList tangentList
+        keys = DList.map (\(index, tangent) -> index) tangentList
     in
-        generateTangentList 0 indexGroupList allTangentList []
+        Vector.fromList . DList.toList $ DList.map (\key -> fromJust $ Map.lookup key tangentMap) keys
     where
-        generateTangentList :: Int -> [[Int]] -> [Vec3f] -> [Vec3f] -> [Vec3f]
-        generateTangentList index [] allTangentList tangentList = tangentList
-        generateTangentList index (indexGroup:indexGroupList) allTangentList tangentList =
-            let indexCount = length indexGroup
-                nextIndex = index + indexCount
-                tangent = safeNormalize . sum $ map (\i -> allTangentList !! i) [index..(nextIndex - 1)]
-            in
-                generateTangentList nextIndex indexGroupList allTangentList (tangentList ++ [tangent])
-
-        computeTangent' :: Int -> [Vec3f] -> [Vec2f] -> [Vec3f] -> ((Int, Int, Int), Vec3f)
+        computeTangent' :: Int -> Vector.Vector Vec3f -> Vector.Vector Vec2f -> Vector.Vector Vec3f -> DList.DList (Int, Vec3f)
         computeTangent' i positions texcoords normals =
-            let i0 = fromIntegral . unScalar $ indices !! i
-                i1 = fromIntegral . unScalar $ indices !! (i + 1)
-                i2 = fromIntegral . unScalar $ indices !! (i + 2)
-                deltaPos_0_1 = (positions !! i1) - (positions !! i0)
-                deltaPos_0_2 = (positions !! i2) - (positions !! i0)
-                deltaUV_0_1 = (texcoords !! i1) - (texcoords !! i0)
-                deltaUV_0_2 = (texcoords !! i2) - (texcoords !! i0)
+            let i0 = fromIntegral . unScalar $ indices Vector.! i
+                i1 = fromIntegral . unScalar $ indices Vector.! (i + 1)
+                i2 = fromIntegral . unScalar $ indices Vector.! (i + 2)
+                deltaPos_0_1 = (positions Vector.! i1) - (positions Vector.! i0)
+                deltaPos_0_2 = (positions Vector.! i2) - (positions Vector.! i0)
+                deltaUV_0_1 = (texcoords Vector.! i1) - (texcoords Vector.! i0)
+                deltaUV_0_2 = (texcoords Vector.! i2) - (texcoords Vector.! i0)
                 S r = (deltaUV_0_1 .! Idx 0) * (deltaUV_0_2 .! Idx 1) - (deltaUV_0_1 .! Idx 1) * (deltaUV_0_2 .! Idx 0)
                 r' = if r /= 0.0 then (1.0 / r) else 0.0
                 tangent = safeNormalize $ (deltaPos_0_1 * (fromScalar $ deltaUV_0_2 .! Idx 1) - deltaPos_0_2 * (fromScalar $ deltaUV_0_1 .! Idx 1)) * (fromScalar $ scalar r')
-                avg_normal = safeNormalize $ (normals !! i0 + normals !! i1 + normals !! i2)
+                avg_normal = safeNormalize $ (normals Vector.! i0 + normals Vector.! i1 + normals Vector.! i2)
+                resultTangent =
+                    if 0.0 == (dot tangent tangent) then
+                        cross avg_normal world_up
+                    else
+                        tangent
             in
-                if 0.0 == (dot tangent tangent) then
-                    ((i0, i1, i2), cross avg_normal world_up)
-                else
-                    ((i0, i1, i2), tangent)
+                DList.fromList [(i0, resultTangent), (i1, resultTangent), (i2, resultTangent)]
 
 quadGeometryCreateInfos :: [GeometryCreateInfo]
 quadGeometryCreateInfos =
-    let positions = [vec3 -1.0 -1.0 0.0, vec3 1.0 -1.0 0.0, vec3 1.0 1.0 0.0, vec3 -1.0 1.0 0.0]
+    let positionList = [vec3 -1.0 -1.0 0.0, vec3 1.0 -1.0 0.0, vec3 1.0 1.0 0.0, vec3 -1.0 1.0 0.0]
+        positions = Vector.fromList positionList
         vertexCount = length positions
-        normals = replicate vertexCount $ vec3 0 1 0
+        normals = Vector.replicate vertexCount $ vec3 0 1 0
         vertexColor = getColor32 255 255 255 255
-        texCoords = [vec2 0 0, vec2 1 0, vec2 1 1, vec2 0 1]
-        indices = [0, 3, 2, 2, 1, 0] :: [Scalar Word32]
+        texCoords = Vector.fromList [vec2 0 0, vec2 1 0, vec2 1 1, vec2 0 1]
+        indices = Vector.fromList [0, 3, 2, 2, 1, 0] :: Vector.Vector (Scalar Word32)
         tangents = computeTangent positions normals texCoords indices
-        vertices = [VertexData (positions !! i) (normals !! i) (tangents !! i) vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
+        vertices = [VertexData (positions Vector.! i) (normals Vector.! i) (tangents Vector.! i) vertexColor (texCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
     in
         [ GeometryCreateInfo
             { _geometryCreateInfoVertices = XFrame $ fromFlatList (D4 :* U) defaultVertexData vertices
-            , _geometryCreateInfoIndices = atLeastThree . fromList $ indices
-            , _geometryCreateInfoBoundingBox = calcBoundingBox positions
+            , _geometryCreateInfoIndices = atLeastThree . fromList $ (Vector.toList indices)
+            , _geometryCreateInfoBoundingBox = calcBoundingBox positionList
             }
         ]
 
 cubeGeometryCreateInfos :: [GeometryCreateInfo]
 cubeGeometryCreateInfos =
     let vertexColor = getColor32 255 255 255 255
-        positions = [vec3 x y z | (x, y, z) <- [
+        positionList = [vec3 x y z | (x, y, z) <- [
             (-1, 1, 1), (-1, -1, 1), (1, -1, 1), (1, 1, 1),
             (1, 1, 1), (1, -1, 1), (1, -1, -1), (1, 1, -1),
             (1, 1, -1), (1, -1, -1), (-1, -1, -1), (-1, 1, -1),
             (-1, 1, -1), (-1, -1, -1), (-1, -1, 1), (-1, 1, 1),
             (-1, 1, -1), (-1, 1, 1), (1, 1, 1), (1, 1, -1),
             (-1, -1, 1), (-1, -1, -1), (1, -1, -1), (1, -1, 1)]]
-        normals = [vec3 x y z | (x, y, z) <- [
+        positions = Vector.fromList positionList
+        normals = Vector.fromList [vec3 x y z | (x, y, z) <- [
             (0, 0, 1), (0, 0, 1), (0, 0, 1), (0, 0, 1),
             (1, 0, 0), (1, 0, 0), (1, 0, 0), (1, 0, 0),
             (0, 0, -1), (0, 0, -1), (0, 0, -1), (0, 0, -1),
             (-1, 0, 0), (-1, 0, 0), (-1, 0, 0), (-1, 0, 0),
             (0, 1, 0), (0, 1, 0), (0, 1, 0), (0, 1, 0),
             (0, -1, 0), (0, -1, 0), (0, -1, 0), (0, -1, 0)]]
-        texCoords = [vec2 x y | (x, y) <- [
+        texCoords = Vector.fromList [vec2 x y | (x, y) <- [
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1)]]
-        indices = [ 0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8, 11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22 ] :: [Scalar Word32]
+        indexList = [ 0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8, 11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22 ] :: [Scalar Word32]
+        indices = Vector.fromList indexList
         tangents = computeTangent positions normals texCoords indices
         vertexCount = length positions
-        vertices = [VertexData (positions !! i) (normals !! i) (tangents !! i) vertexColor (texCoords !! i) | i <- [0..(vertexCount - 1)]]
+        vertices = [VertexData (positions Vector.! i) (normals Vector.! i) (tangents Vector.! i) vertexColor (texCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
     in
         [ GeometryCreateInfo
             { _geometryCreateInfoVertices = XFrame $ fromFlatList (D24 :* U) defaultVertexData vertices
-            , _geometryCreateInfoIndices = atLeastThree . fromList $ indices
-            , _geometryCreateInfoBoundingBox = calcBoundingBox positions
+            , _geometryCreateInfoIndices = atLeastThree . fromList $ indexList
+            , _geometryCreateInfoBoundingBox = calcBoundingBox positionList
             }
         ]

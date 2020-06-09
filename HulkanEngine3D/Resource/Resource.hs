@@ -75,7 +75,7 @@ defaultTextureName :: Text.Text
 defaultTextureName = "common/default"
 
 defaultMaterialInstanceName :: Text.Text
-defaultMaterialInstanceName = "render_default"
+defaultMaterialInstanceName = "default"
 
 defaultFrameBufferName :: Text.Text
 defaultFrameBufferName = "render_default"
@@ -227,10 +227,14 @@ instance ResourceInterface ResourceData where
             registModelData modelDataMap modelName contents = do
                 let Just (Aeson.Object modelCreateInfoMap) = Aeson.decodeStrict contents
                     Just (Aeson.Array materialInstanceNames) = HashMap.lookup "material_instances" modelCreateInfoMap
+                    materialInstanceCount = Vector.length materialInstanceNames
                     Just (Aeson.String meshName) = HashMap.lookup "mesh" modelCreateInfoMap
-                materialInstanceDatas <- forM (Vector.toList materialInstanceNames) $ \(Aeson.String materialInstanceName) -> do
-                    getMaterialInstanceData resourceData materialInstanceName
                 meshData <- getMeshData resourceData meshName
+                geometryDataCount <- getGeometryDataCount meshData
+                let materialInstanceNameList = (Vector.take geometryDataCount materialInstanceNames) Vector.++ (Vector.replicate (max 0 (geometryDataCount - materialInstanceCount)) (Aeson.String defaultMaterialInstanceName))
+                print materialInstanceNameList
+                materialInstanceDatas <- forM (Vector.toList materialInstanceNameList) $ \(Aeson.String materialInstanceName) ->
+                    getMaterialInstanceData resourceData materialInstanceName
                 modelData <- Model.newModelData modelName meshData materialInstanceDatas
                 HashTable.insert modelDataMap modelName modelData
 
