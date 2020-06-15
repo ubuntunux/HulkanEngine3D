@@ -78,6 +78,8 @@ instance SceneManagerInterface SceneManagerData where
         writeIORef _mainCamera mainCamera
 
         mainLight <- addDirectionalLightObject sceneManagerData "MainLight" $ Light.defaultDirectionalLightCreateInfo
+            { Light._directionalLightRotation' = vec3 (-3.141592*0.25) 0 0.5
+            }
         writeIORef _mainLight mainLight
 
         modelData0 <- Resource.getModelData _resourceData "sponza/sponza"

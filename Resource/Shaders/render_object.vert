@@ -24,5 +24,5 @@ void main() {
     // Note : Normalization is very important because tangent_to_world may have been scaled..
     vs_output.tangent_to_world = mat3(pushConstant.localMatrix) * mat3(inTangent, bitangent, inNormal);
 
-    vs_output.texCoord = inTexCoord;
+    vs_output.texCoord = vec2(inTexCoord.x, 1.0 - inTexCoord.y);
 }
