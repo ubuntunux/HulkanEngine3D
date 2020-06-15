@@ -82,5 +82,5 @@ objVertices Wavefront.WavefrontOBJ {..} = do
         convertToDataFrame objLocs objNorms objTexCs faceIndex@Wavefront.FaceIndex {..} =
             ( (\(Wavefront.Location x y z _) -> vec3 x y z) $ objLocs Vector.! fromIntegral (faceLocIndex - 1)
             , (\(Wavefront.Normal x y z) -> vec3 x y z) $ objNorms Vector.! fromIntegral (fromJust faceNorIndex - 1)
-            , (\(Wavefront.TexCoord x y _) -> vec2 x y) $ objTexCs Vector.! fromIntegral (fromJust faceTexCoordIndex - 1)
+            , (\(Wavefront.TexCoord x y _) -> vec2 x (1.0 - y)) $ objTexCs Vector.! fromIntegral (fromJust faceTexCoordIndex - 1)
             )
