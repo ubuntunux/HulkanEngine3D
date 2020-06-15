@@ -1,0 +1,8 @@
+{"render_pass_name": "render_default",
+ "pipeline_name": "render_solid",
+ "material_parameters": {
+    "textureAlbedo": "sponza/vase_plant",
+    "textureMaterial": "sponza/vase_plant_spec",
+    "textureNormal": "common/default_n"
+    }
+}

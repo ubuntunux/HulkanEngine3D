@@ -44,12 +44,13 @@ data TimeData = TimeData
 
 data ApplicationData = ApplicationData
     { _window :: GLFW.Window
-    , _windowSizeChangedRef :: IORef Bool
-    , _windowSizeRef :: IORef (Int, Int)
-    , _timeDataRef :: IORef TimeData
-    , _keyboardInputDataRef :: IORef KeyboardInputData
-    , _mouseMoveDataRef :: IORef MouseMoveData
-    , _mouseInputDataRef :: IORef MouseInputData
+    , _windowSizeChanged :: IORef Bool
+    , _windowSize :: IORef (Int, Int)
+    , _timeData :: IORef TimeData
+    , _cameraMoveSpeed :: IORef Float
+    , _keyboardInputData :: IORef KeyboardInputData
+    , _mouseMoveData :: IORef MouseMoveData
+    , _mouseInputData :: IORef MouseInputData
     , _sceneManagerData :: SceneManager.SceneManagerData
     , _rendererData :: Renderer.RendererData
     , _resourceData :: Resource.ResourceData
@@ -62,11 +63,11 @@ class ApplicationInterface a where
 
 instance ApplicationInterface ApplicationData where
     getDeltaTime applicationData = do
-        timeData <- readIORef (_timeDataRef applicationData)
+        timeData <- readIORef (_timeData applicationData)
         return $ _deltaTime timeData
 
     getElapsedTime applicationData = do
-        timeData <- readIORef (_timeDataRef applicationData)
+        timeData <- readIORef (_timeData applicationData)
         return $ _elapsedTime timeData
 
 
@@ -83,6 +84,14 @@ mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifi
         getMouseInputData mouseInputData GLFW.MouseButton'2 (down, up) = mouseInputData { _btn_r_down = down, _btn_r_up = up }
         getMouseInputData mouseInputData GLFW.MouseButton'3 (down, up) = mouseInputData { _btn_m_down = down, _btn_m_up = up }
         getMouseInputData mouseInputData _ (down, up) = mouseInputData
+
+scrollCallback :: IORef MouseMoveData -> GLFW.Window -> Double -> Double -> IO ()
+scrollCallback mouseMoveDataRef window xoffset yoffset = do
+    mouseMoveData <- readIORef mouseMoveDataRef
+    writeIORef mouseMoveDataRef $ mouseMoveData
+        { _scroll_xoffset = realToFrac xoffset
+        , _scroll_yoffset = realToFrac yoffset
+        }
 
 cursorPosCallback :: IORef MouseMoveData -> GLFW.Window -> Double -> Double -> IO ()
 cursorPosCallback mouseMoveDataRef windows posX posY = do
@@ -142,6 +151,7 @@ createGLFWWindow title windowSizeRef windowSizeChangedRef keyboardInputDataRef m
     GLFW.setCharCallback window $ Just charCallBack
     GLFW.setMouseButtonCallback window $ Just (mouseButtonCallback mouseInputDataRef)
     GLFW.setCursorPosCallback window $ Just (cursorPosCallback mouseMoveDataRef)
+    GLFW.setScrollCallback window $ Just (scrollCallback mouseMoveDataRef)
     return window
 
 destroyGLFWWindow :: GLFW.Window -> IO ()
@@ -152,9 +162,9 @@ destroyGLFWWindow window = do
 updateEvent :: ApplicationData -> IO ()
 updateEvent applicationData = do
     deltaTime <- realToFrac <$> getDeltaTime applicationData
-    keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
-    mouseInputData <- readIORef (_mouseInputDataRef applicationData)
-    mouseMoveData <- readIORef (_mouseMoveDataRef applicationData)
+    keyboardInputData <- readIORef (_keyboardInputData applicationData)
+    mouseInputData <- readIORef (_mouseInputData applicationData)
+    mouseMoveData <- readIORef (_mouseMoveData applicationData)
     pressed_key_A <- getKeyPressed keyboardInputData GLFW.Key'A
     pressed_key_D <- getKeyPressed keyboardInputData GLFW.Key'D
     pressed_key_W <- getKeyPressed keyboardInputData GLFW.Key'W
@@ -164,15 +174,25 @@ updateEvent applicationData = do
     pressed_key_Z <- getKeyPressed keyboardInputData GLFW.Key'Z
     pressed_key_C <- getKeyPressed keyboardInputData GLFW.Key'C
     mainCamera <- readIORef (SceneManager._mainCamera . _sceneManagerData $ applicationData)
+    cameraMoveSpeed <- readIORef $ _cameraMoveSpeed applicationData
     let mousePosDelta = _mousePosDelta mouseMoveData
         mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta .! Idx 0) :: Float
         mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta .! Idx 1) :: Float
-        (_, btn_middle, btn_right, _, _) = (_btn_l_down mouseInputData, _btn_m_down mouseInputData, _btn_r_down mouseInputData, _wheel_up mouseInputData, _wheel_down mouseInputData)
+        scroll_xoffset = _scroll_xoffset mouseMoveData
+        scroll_yoffset = _scroll_yoffset mouseMoveData
+        btn_left = _btn_l_down mouseInputData
+        btn_middle = _btn_l_down mouseInputData
+        btn_right = _btn_r_down mouseInputData
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
-        moveSpeed = Constants.cameraMoveSpeed * deltaTime * if modifierKeysShift then 2.0 else 1.0
-        panSpeed = Constants.cameraPanSpeed * (if modifierKeysShift then 2.0 else 1.0)
+        modifiedCameraMoveSpeed = max 0.1 $ min 100.0 (cameraMoveSpeed + scroll_yoffset)
+        cameraMoveSpeedMiltiplier = (if modifierKeysShift then 2.0 else 1.0) * modifiedCameraMoveSpeed
+        moveSpeed = Constants.cameraMoveSpeed * cameraMoveSpeedMiltiplier * deltaTime
+        panSpeed = Constants.cameraPanSpeed * cameraMoveSpeedMiltiplier
         rotationSpeed = Constants.cameraRotationSpeed
         cameraTransformObject = _transformObject mainCamera
+
+    when (0.0 /= scroll_yoffset) $
+        writeIORef (_cameraMoveSpeed applicationData) modifiedCameraMoveSpeed
 
     if btn_middle then do
         moveLeft cameraTransformObject (-panSpeed * mousePosDeltaX)
@@ -237,7 +257,7 @@ initializeApplication = do
 
     -- init system variables
     currentTime <- getSystemTime
-    timeDataRef <- newIORef TimeData
+    timeData <- newIORef TimeData
         { _accFrameTime = 0.0
         , _accFrameCount = 0
         , _averageFrameTime = 0.0
@@ -246,15 +266,17 @@ initializeApplication = do
         , _elapsedTime = 0.0
         , _deltaTime = 0.0
         }
+    cameraMoveSpeed <- newIORef 1.0
 
     let applicationData = ApplicationData
             { _window = window
-            , _windowSizeChangedRef = windowSizeChangedRef
-            , _windowSizeRef = windowSizeRef
-            , _timeDataRef = timeDataRef
-            , _keyboardInputDataRef = keyboardInputDataRef
-            , _mouseMoveDataRef = mouseMoveDataRef
-            , _mouseInputDataRef = mouseInputDataRef
+            , _windowSizeChanged = windowSizeChangedRef
+            , _windowSize = windowSizeRef
+            , _timeData = timeData
+            , _cameraMoveSpeed = cameraMoveSpeed
+            , _keyboardInputData = keyboardInputDataRef
+            , _mouseMoveData = mouseMoveDataRef
+            , _mouseInputData = mouseInputDataRef
             , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
             , _resourceData = resourceData
@@ -272,18 +294,21 @@ initializeApplication = do
 
 updateLoop :: ApplicationData -> (ApplicationData -> IO ()) -> IO ()
 updateLoop applicationData loopAction = do
-    moveMoveData <- readIORef (_mouseMoveDataRef applicationData)
-    keyboardInputData <- readIORef (_keyboardInputDataRef applicationData)
+    moveInputData <- readIORef (_mouseInputData applicationData)
+    moveMoveData <- readIORef (_mouseMoveData applicationData)
+    keyboardInputData <- readIORef (_keyboardInputData applicationData)
     escReleased <- getKeyReleased keyboardInputData GLFW.Key'Escape
     exit <- GLFW.windowShouldClose (_window applicationData)
     when (not exit && not escReleased) $ do
         -- reset input flags
-        writeIORef (_keyboardInputDataRef applicationData) keyboardInputData
+        writeIORef (_keyboardInputData applicationData) keyboardInputData
             { _keyboardDown = False
             , _keyboardUp = False
             }
-        writeIORef (_mouseMoveDataRef applicationData) moveMoveData
-            { _mousePosDelta = vec2 0 0
+        writeIORef (_mouseMoveData applicationData) moveMoveData
+            { _scroll_xoffset = 0.0
+            , _scroll_yoffset = 0.0
+            , _mousePosDelta = vec2 0 0
             , _mousePosPrev = _mousePos moveMoveData
             }
 
@@ -339,7 +364,7 @@ runApplication = do
 
     -- Main Loop
     updateLoop applicationData $ \applicationData -> do
-        updateTimeData $ _timeDataRef applicationData
+        updateTimeData $ _timeData applicationData
         deltaTime <- realToFrac <$> getDeltaTime applicationData
         elapsedTime <- getElapsedTime applicationData
 
@@ -349,12 +374,12 @@ runApplication = do
 
         -- resize window
         needRecreateSwapChain <- readIORef (Renderer._needRecreateSwapChainRef rendererData)
-        windowSizeChanged <- readIORef (_windowSizeChangedRef applicationData)
+        windowSizeChanged <- readIORef (_windowSizeChanged applicationData)
         when (windowSizeChanged || needRecreateSwapChain) $ do
             Renderer.resizeWindow (_window applicationData) rendererData
-            writeIORef (_windowSizeChangedRef applicationData) False
+            writeIORef (_windowSizeChanged applicationData) False
             writeIORef (Renderer._needRecreateSwapChainRef rendererData) False
-            (width, height) <- readIORef (_windowSizeRef applicationData)
+            (width, height) <- readIORef (_windowSize applicationData)
             let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
             mainCamera <- SceneManager.getMainCamera sceneManagerData
             setAspect mainCamera aspect

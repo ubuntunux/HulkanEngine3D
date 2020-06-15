@@ -21,7 +21,7 @@ import qualified HulkanEngine3D.Render.Model as Model
 import qualified HulkanEngine3D.Render.RenderElement as RenderElement
 import qualified HulkanEngine3D.Render.Renderer as Renderer
 import qualified HulkanEngine3D.Resource.Resource as Resource
-import qualified HulkanEngine3D.Render.TransformObject as TransformObject
+--import qualified HulkanEngine3D.Render.TransformObject as TransformObject
 import qualified HulkanEngine3D.Utilities.System as System
 --import HulkanEngine3D.Utilities.Logger
 
@@ -80,21 +80,11 @@ instance SceneManagerInterface SceneManagerData where
         mainLight <- addDirectionalLightObject sceneManagerData "MainLight" $ Light.defaultDirectionalLightCreateInfo
         writeIORef _mainLight mainLight
 
-        modelData0 <- Resource.getModelData _resourceData "cube"
-        modelData1 <- Resource.getModelData _resourceData "sphere"
-        modelData2 <- Resource.getModelData _resourceData "suzan"
+        modelData0 <- Resource.getModelData _resourceData "sponza/sponza"
 
         addStaticObject sceneManagerData "object0" $ RenderObject.StaticObjectCreateData
                     { RenderObject._modelData' = modelData0
                     , RenderObject._position' = vec3 4 0 0
-                    }
-        addStaticObject sceneManagerData "object1" $ RenderObject.StaticObjectCreateData
-                    { RenderObject._modelData' = modelData1
-                    , RenderObject._position' = vec3 0 0 0
-                    }
-        addStaticObject sceneManagerData "object2" $ RenderObject.StaticObjectCreateData
-                    { RenderObject._modelData' = modelData2
-                    , RenderObject._position' = vec3 -4 0 0
                     }
         return ()
 
@@ -143,13 +133,13 @@ instance SceneManagerInterface SceneManagerData where
 
         -- update objects
         flip HashTable.mapM_ _staticObjectMap $ \(objectName, staticObjectData) -> do
-            let transformObjectData = RenderObject.getTransformObjectData staticObjectData
-            if ("suzan" == T.unpack objectName) then
-                TransformObject.rotationYaw transformObjectData deltaTime
-            else do
-                TransformObject.rotationPitch transformObjectData (deltaTime * 0.5)
-                TransformObject.rotationYaw transformObjectData deltaTime
-                TransformObject.rotationRoll transformObjectData (deltaTime * 0.25)
+--            let transformObjectData = RenderObject.getTransformObjectData staticObjectData
+--            if ("suzan" == T.unpack objectName) then
+--                TransformObject.rotationYaw transformObjectData deltaTime
+--            else do
+--                TransformObject.rotationPitch transformObjectData (deltaTime * 0.5)
+--                TransformObject.rotationYaw transformObjectData deltaTime
+--                TransformObject.rotationRoll transformObjectData (deltaTime * 0.25)
             RenderObject.updateStaticObjectData staticObjectData
 
         -- gather render elements

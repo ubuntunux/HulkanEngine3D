@@ -1,0 +1,8 @@
+{"render_pass_name": "render_default",
+ "pipeline_name": "render_solid",
+ "material_parameters": {
+    "textureAlbedo": "sponza/sponza_roof_diff",
+    "textureMaterial": "common/default_m",
+    "textureNormal": "sponza/sponza_roof_ddn"
+    }
+}

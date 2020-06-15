@@ -1,0 +1,8 @@
+{"render_pass_name": "render_default",
+ "pipeline_name": "render_solid",
+ "material_parameters": {
+    "textureAlbedo": "sponza/vase_hanging_diff",
+    "textureMaterial": "sponza/vase_round_spec",
+    "textureNormal": "sponza/vase_round_ddn"
+    }
+}

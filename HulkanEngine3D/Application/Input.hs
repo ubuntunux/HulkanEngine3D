@@ -40,12 +40,12 @@ data MouseMoveData = MouseMoveData
     { _mousePos :: Vec2i
     , _mousePosPrev :: Vec2i
     , _mousePosDelta :: Vec2i
+    , _scroll_xoffset :: Float
+    , _scroll_yoffset :: Float
     } deriving (Show)
 
 data MouseInputData = MouseInputData
-    { _wheel_up :: Bool
-    , _wheel_down :: Bool
-    , _btn_l_down :: Bool
+    { _btn_l_down :: Bool
     , _btn_m_down :: Bool
     , _btn_r_down :: Bool
     , _btn_l_up :: Bool
@@ -83,9 +83,7 @@ newKeyboardInputData = do
 newMouseInputData :: MouseInputData
 newMouseInputData =
     MouseInputData
-        { _wheel_up = False
-        , _wheel_down = False
-        , _btn_l_down = False
+        { _btn_l_down = False
         , _btn_m_down = False
         , _btn_r_down = False
         , _btn_l_up = False
@@ -99,4 +97,6 @@ newMouseMoveData mousepos =
         { _mousePos = mousepos
         , _mousePosPrev = mousepos
         , _mousePosDelta = (vec2 0 0 :: Vec2i)
+        , _scroll_xoffset = 0.0
+        , _scroll_yoffset = 0.0
         }

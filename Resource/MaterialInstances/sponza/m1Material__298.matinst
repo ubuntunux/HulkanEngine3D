@@ -1,0 +1,8 @@
+{"render_pass_name": "render_default",
+ "pipeline_name": "render_solid",
+ "material_parameters": {
+    "textureAlbedo": "sponza/background",
+    "textureMaterial": "sponza/background_spec",
+    "textureNormal": "sponza/background_ddn"
+    }
+}

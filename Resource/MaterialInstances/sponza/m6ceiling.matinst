@@ -1,0 +1,8 @@
+{"render_pass_name": "render_default",
+ "pipeline_name": "render_solid",
+ "material_parameters": {
+    "textureAlbedo": "sponza/sponza_ceiling_a_diff",
+    "textureMaterial": "sponza/sponza_ceiling_a_spec",
+    "textureNormal": "sponza/sponza_ceiling_a_ddn"
+    }
+}
