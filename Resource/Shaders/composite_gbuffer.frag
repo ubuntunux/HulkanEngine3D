@@ -19,7 +19,7 @@ void main() {
     vec3 albedo = texture(textureAlbedo, texCoord).xyz;
     vec3 material = texture(textureMaterial, texCoord).xyz;
     vec3 normal = texture(textureNormal, texCoord).xyz;
-    float lighting = saturate(dot(normal, lightConstants.LIGHT_DIRECTION));
+    float lighting = saturate(dot(normal, lightConstants.LIGHT_DIRECTION) * 0.5 + 0.5);
     outColor.xyz = albedo * lighting;
     outColor.w = 1.0;
 }
