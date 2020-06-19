@@ -95,7 +95,7 @@ data RendererData = RendererData
     , _imageSamplers :: IORef ImageSamplers
     , _renderTargetDataMap :: RenderTargetDataMap
     , _uniformBufferDataMap :: UniformBufferDataMap
-    , _resourceData :: ResourceData
+    , _resources :: Resources
     } deriving (Show)
 
 
@@ -177,8 +177,8 @@ instance RendererInterface RendererData where
     deviceWaitIdle rendererData =
         throwingVK "vkDeviceWaitIdle failed!" (vkDeviceWaitIdle $ getDevice rendererData)
 
-defaultRendererData :: ResourceData -> IO RendererData
-defaultRendererData resourceData = do
+defaultRendererData :: Resources -> IO RendererData
+defaultRendererData resources = do
     imageExtent <- newVkData @VkExtent2D $ \extentPtr -> do
         writeField @"width" extentPtr $ 0
         writeField @"height" extentPtr $ 0
@@ -241,7 +241,7 @@ defaultRendererData resourceData = do
         , _imageSamplers = imageSamplers
         , _renderTargetDataMap = renderTargetDataMap
         , _uniformBufferDataMap = uniformBufferDataMap
-        , _resourceData = resourceData
+        , _resources = resources
         }
 
 initializeRenderer :: RendererData -> IO RendererData
@@ -265,15 +265,15 @@ createRenderer :: GLFW.Window
                -> Bool
                -> Bool
                -> [CString]
-               -> ResourceData
+               -> Resources
                -> IO RendererData
-createRenderer window progName engineName enableValidationLayer isConcurrentMode requireExtensions resourceData = do
+createRenderer window progName engineName enableValidationLayer isConcurrentMode requireExtensions resources = do
     let validationLayers = if enableValidationLayer then Constants.vulkanLayers else []
     if enableValidationLayer
     then logInfo $ "Enable validation layers : " ++ show validationLayers
     else logInfo $ "Disabled validation layers"
 
-    defaultRendererData <- defaultRendererData resourceData
+    defaultRendererData <- defaultRendererData resources
 
     vkInstance <- createVulkanInstance progName engineName validationLayers requireExtensions
     vkSurface <- createVkSurface vkInstance window
@@ -360,7 +360,7 @@ resizeWindow window rendererData@RendererData {..} = do
     deviceWaitIdle rendererData
 
     -- destroy swapchain & graphics resources
-    unloadGraphicsDatas _resourceData rendererData
+    unloadGraphicsDatas _resources rendererData
 
     destroyRenderTargets rendererData _renderTargetDataMap
 
@@ -369,7 +369,7 @@ resizeWindow window rendererData@RendererData {..} = do
 
     renderTargets <- createRenderTargets rendererData _renderTargetDataMap
 
-    loadGraphicsDatas _resourceData rendererData
+    loadGraphicsDatas _resources rendererData
 
 
 
@@ -502,7 +502,7 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
             materialInstanceData = RenderElement._materialInstanceData renderElement
             renderPassData = _renderPassData materialInstanceData
 
-        Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (RenderPass._renderPassFrameBufferName (renderPassData::RenderPass.RenderPassData))
+        Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass._renderPassFrameBufferName (renderPassData::RenderPass.RenderPassData))
         let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
             descriptorSet = (_descriptorSets materialInstanceData) !! imageIndex
             pipelineData = RenderPass._defaultPipelineData renderPassData
@@ -549,8 +549,8 @@ renderPostProcess :: RendererData
                   -> Int
                   -> IO ()
 renderPostProcess rendererData commandBuffer imageIndex = do
-    quadMeshData <- getMeshData (_resourceData rendererData) "quad"
-    renderFinalMaterialInstanceData <- getMaterialInstanceData (_resourceData rendererData) "composite_gbuffer"
+    quadMeshData <- getMeshData (_resources rendererData) "quad"
+    renderFinalMaterialInstanceData <- getMaterialInstanceData (_resources rendererData) "composite_gbuffer"
     geometryBufferData <- Mesh.getGeometryData quadMeshData 0
 
     let vertexBuffer = _vertexBuffer geometryBufferData
@@ -558,7 +558,7 @@ renderPostProcess rendererData commandBuffer imageIndex = do
         indexCount = _vertexIndexCount geometryBufferData
         renderPassData = _renderPassData renderFinalMaterialInstanceData
 
-    Just frameBufferData <- getFrameBufferData (_resourceData rendererData) (RenderPass.getRenderPassFrameBufferName renderPassData)
+    Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass.getRenderPassFrameBufferName renderPassData)
     let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
         descriptorSet = (_descriptorSets renderFinalMaterialInstanceData) !! imageIndex
         pipelineData = RenderPass.getDefaultPipelineData renderPassData

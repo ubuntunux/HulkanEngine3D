@@ -11,14 +11,18 @@ import {-# SOURCE #-} HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.Texture
 
-data ResourceData
+data Resources
 
-instance Show ResourceData where
+instance Show Resources where
 
 class ResourceInterface a where
-    createNewResourceData :: IO a
-    initializeResourceData :: a -> RendererData -> IO ()
-    destroyResourceData :: a -> RendererData -> IO ()
+    createResources :: IO a
+    initializeResources :: a -> RendererData -> IO ()
+    destroyResources :: a -> RendererData -> IO ()
+
+    createResource :: a -> IO ()
+    registResource :: a -> IO ()
+    unregistResource :: a -> IO ()
 
     loadGraphicsDatas :: a -> RendererData -> IO ()
     unloadGraphicsDatas :: a -> RendererData -> IO ()
@@ -55,4 +59,4 @@ class ResourceInterface a where
     getDescriptorData :: a -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO DescriptorData
     unloadDescriptorDatas :: a -> RendererData -> IO ()
 
-instance ResourceInterface ResourceData where
+instance ResourceInterface Resources where

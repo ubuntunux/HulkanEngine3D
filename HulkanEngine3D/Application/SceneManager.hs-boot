@@ -12,7 +12,7 @@ import qualified HulkanEngine3D.Render.RenderElement as RenderElement
 data SceneManagerData
 
 class SceneManagerInterface a where
-    newSceneManagerData :: Renderer.RendererData -> ResourceData -> IO a
+    newSceneManagerData :: Renderer.RendererData -> Resources -> IO a
     openSceneManagerData :: a -> Camera.CameraCreateData -> IO ()
     getMainCamera :: a -> IO Camera.CameraObjectData
     addCameraObject :: a -> T.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData

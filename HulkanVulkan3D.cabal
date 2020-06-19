@@ -40,6 +40,7 @@ executable main
                       HulkanEngine3D.Render.UniformBufferDatas
                       HulkanEngine3D.Resource.ObjLoader
                       HulkanEngine3D.Resource.Resource
+                      HulkanEngine3D.Resource.ResourceData
                       HulkanEngine3D.Resource.FrameBufferCreateInfo
                       HulkanEngine3D.Resource.RenderPassCreateInfo
                       HulkanEngine3D.Utilities.BoundingBox

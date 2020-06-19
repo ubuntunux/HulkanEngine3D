@@ -31,7 +31,7 @@ type StaticObjectMap = HashTable.BasicHashTable T.Text RenderObject.StaticObject
 
 data SceneManagerData = SceneManagerData
     { _rendererData :: Renderer.RendererData
-    , _resourceData :: Resource.ResourceData
+    , _resources :: Resource.Resources
     , _mainCamera :: IORef Camera.CameraObjectData
     , _mainLight :: IORef Light.DirectionalLightData
     , _cameraObjectMap :: CameraObjectMap
@@ -41,7 +41,7 @@ data SceneManagerData = SceneManagerData
     } deriving (Show)
 
 class SceneManagerInterface a where
-    newSceneManagerData :: Renderer.RendererData -> Resource.ResourceData -> IO a
+    newSceneManagerData :: Renderer.RendererData -> Resource.Resources -> IO a
     openSceneManagerData :: a -> Camera.CameraCreateData -> IO ()
     getMainCamera :: a -> IO Camera.CameraObjectData
     addCameraObject :: a -> T.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData
@@ -53,8 +53,8 @@ class SceneManagerInterface a where
     updateSceneManagerData :: a -> Double -> Float -> IO ()
 
 instance SceneManagerInterface SceneManagerData where
-    newSceneManagerData :: Renderer.RendererData -> Resource.ResourceData -> IO SceneManagerData
-    newSceneManagerData rendererData resourceData = do
+    newSceneManagerData :: Renderer.RendererData -> Resource.Resources -> IO SceneManagerData
+    newSceneManagerData rendererData resources = do
         mainCamera <- newIORef (undefined::Camera.CameraObjectData)
         mainLight <- newIORef (undefined::Light.DirectionalLightData)
         cameraObjectMap <- HashTable.new
@@ -63,7 +63,7 @@ instance SceneManagerInterface SceneManagerData where
         staticObjectRenderElements <- newIORef []
         return SceneManagerData
             { _rendererData = rendererData
-            , _resourceData = resourceData
+            , _resources = resources
             , _mainCamera = mainCamera
             , _mainLight = mainLight
             , _cameraObjectMap = cameraObjectMap
@@ -82,7 +82,7 @@ instance SceneManagerInterface SceneManagerData where
             }
         writeIORef _mainLight mainLight
 
-        modelData0 <- Resource.getModelData _resourceData "sponza/sponza"
+        modelData0 <- Resource.getModelData _resources "sponza/sponza"
 
         addStaticObject sceneManagerData "object0" $ RenderObject.StaticObjectCreateData
                     { RenderObject._modelData' = modelData0

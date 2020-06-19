@@ -188,5 +188,5 @@ generateUniqueName objectMap objectName = do
 clearHashTable :: HashTable.BasicHashTable Text.Text a -> ((Text.Text, a) -> IO ()) -> IO ()
 clearHashTable hashTable action = do
     HashTable.mapM_ action hashTable
-    resourceDataList <- HashTable.toList hashTable
-    mapM_ (\(k, v) -> HashTable.delete hashTable k) resourceDataList
+    resourcesList <- HashTable.toList hashTable
+    mapM_ (\(k, v) -> HashTable.delete hashTable k) resourcesList

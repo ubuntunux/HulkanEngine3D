@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 
 module HulkanEngine3D.Resource.Resource
-    ( ResourceData (..)
+    ( Resources (..)
     , ResourceInterface (..)
     ) where
 
@@ -33,22 +33,13 @@ import qualified HulkanEngine3D.Resource.RenderPassCreateInfo as RenderPassCreat
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import qualified HulkanEngine3D.Vulkan.GeometryBuffer as GeometryBuffer
+import HulkanEngine3D.Resource.ResourceData
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.UniformBuffer
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
 
-
-type ResourceDataMap a = HashTable.BasicHashTable Text.Text a
-type FrameBufferDataMap = ResourceDataMap FrameBufferData
-type MaterialInstanceDataMap = ResourceDataMap MaterialInstanceData
-type SceneManagerDataMap = ResourceDataMap SceneManagerData
-type MeshDataMap = ResourceDataMap MeshData
-type ModelDataMap = ResourceDataMap Model.ModelData
-type TextureDataMap = ResourceDataMap TextureData
-type RenderPassDataMap = ResourceDataMap RenderPassData
-type DescriptorDataMap = ResourceDataMap Descriptor.DescriptorData
 
 gatherAllFiles :: Bool
 gatherAllFiles = False
@@ -84,8 +75,20 @@ defaultRenderPassName :: Text.Text
 defaultRenderPassName = "render_default"
 
 
-data ResourceData = ResourceData
-    { _meshDataMap :: MeshDataMap
+type ResourceDataMap a = HashTable.BasicHashTable Text.Text a
+type FrameBufferDataMap = ResourceDataMap FrameBufferData
+type MaterialInstanceDataMap = ResourceDataMap MaterialInstanceData
+type SceneManagerDataMap = ResourceDataMap SceneManagerData
+type MeshDataMap = ResourceDataMap MeshData
+type ModelDataMap = ResourceDataMap Model.ModelData
+type TextureDataMap = ResourceDataMap TextureData
+type RenderPassDataMap = ResourceDataMap RenderPassData
+type DescriptorDataMap = ResourceDataMap Descriptor.DescriptorData
+type MetaDataMap = ResourceDataMap MetaData
+
+data Resources = Resources
+    { _metaDataMap :: MetaDataMap
+    , _meshDataMap :: MeshDataMap
     , _modelDataMap :: ModelDataMap
     , _textureDataMap :: TextureDataMap
     , _frameBufferDataMap :: FrameBufferDataMap
@@ -104,16 +107,20 @@ getResourceData resourceDataMap resourceName defaultResourceName = do
     where
         getDefaultResourceData = Maybe.fromJust <$> HashTable.lookup resourceDataMap defaultResourceName
 
-getResourceNameFromFilepath :: ResourceDataMap r -> FilePath -> FilePath -> IO Text.Text
-getResourceNameFromFilepath resourceDataMap resourcePath resourceFilePath = do
+getResourceNameFromFilePath :: ResourceDataMap r -> FilePath -> FilePath -> IO Text.Text
+getResourceNameFromFilePath resourceDataMap resourcePath resourceFilePath = do
     let resourceName = Text.pack $ drop (length resourcePath + 1) (dropExtension resourceFilePath)
     generateUniqueName resourceDataMap resourceName
 
 
 class ResourceInterface a where
-    createNewResourceData :: IO a
-    initializeResourceData :: a -> RendererData -> IO ()
-    destroyResourceData :: a -> RendererData -> IO ()
+    createResources :: IO a
+    initializeResources :: a -> RendererData -> IO ()
+    destroyResources :: a -> RendererData -> IO ()
+
+    createResource :: a -> IO ()
+    registResource :: a -> IO ()
+    unregistResource :: a -> IO ()
 
     loadGraphicsDatas :: a -> RendererData -> IO ()
     unloadGraphicsDatas :: a -> RendererData -> IO ()
@@ -150,9 +157,10 @@ class ResourceInterface a where
     getDescriptorData :: a -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO Descriptor.DescriptorData
     unloadDescriptorDatas :: a -> RendererData -> IO ()
 
-instance ResourceInterface ResourceData where
-    createNewResourceData :: IO ResourceData
-    createNewResourceData = do
+instance ResourceInterface Resources where
+    createResources :: IO Resources
+    createResources = do
+        metaDataMap <- HashTable.new
         frameBufferDataMap <- HashTable.new
         modelDataMap <- HashTable.new
         meshDataMap <- HashTable.new
@@ -160,8 +168,9 @@ instance ResourceInterface ResourceData where
         renderPassDataMap <- HashTable.new
         materialInstanceDataMap <- HashTable.new
         descriptorDataMap <- HashTable.new
-        return ResourceData
-            { _frameBufferDataMap = frameBufferDataMap
+        return Resources
+            { _metaDataMap = metaDataMap
+            , _frameBufferDataMap = frameBufferDataMap
             , _modelDataMap = modelDataMap
             , _meshDataMap = meshDataMap
             , _textureDataMap = textureDataMap
@@ -170,103 +179,112 @@ instance ResourceInterface ResourceData where
             , _descriptorDataMap = descriptorDataMap
             }
 
-    initializeResourceData :: ResourceData -> RendererData -> IO ()
-    initializeResourceData resourceData rendererData = do
-        logInfo "initializeResourceData"
-        loadTextureDatas resourceData rendererData
-        loadRenderPassDatas resourceData rendererData
-        loadFrameBufferDatas resourceData rendererData
-        loadMaterialInstanceDatas resourceData rendererData
-        loadMeshDatas resourceData rendererData
-        loadModelDatas resourceData rendererData
+    initializeResources :: Resources -> RendererData -> IO ()
+    initializeResources resources rendererData = do
+        logInfo "initializeResources"
+        loadTextureDatas resources rendererData
+        loadRenderPassDatas resources rendererData
+        loadFrameBufferDatas resources rendererData
+        loadMaterialInstanceDatas resources rendererData
+        loadMeshDatas resources rendererData
+        loadModelDatas resources rendererData
 
-    destroyResourceData :: ResourceData -> RendererData -> IO ()
-    destroyResourceData resourceData rendererData = do
-        logInfo "destroyResourceData"
-        unloadModelDatas resourceData rendererData
-        unloadMeshDatas resourceData rendererData
-        unloadMaterialInstanceDatas resourceData rendererData
-        unloadFrameBufferDatas resourceData rendererData
-        unloadRenderPassDatas resourceData rendererData
-        unloadTextureDatas resourceData rendererData
-        unloadDescriptorDatas resourceData rendererData
+    destroyResources :: Resources -> RendererData -> IO ()
+    destroyResources resources rendererData = do
+        logInfo "destroyResources"
+        unloadModelDatas resources rendererData
+        unloadMeshDatas resources rendererData
+        unloadMaterialInstanceDatas resources rendererData
+        unloadFrameBufferDatas resources rendererData
+        unloadRenderPassDatas resources rendererData
+        unloadTextureDatas resources rendererData
+        unloadDescriptorDatas resources rendererData
+
+    createResource :: Resources -> IO ()
+    createResource resources = return ()
+
+    registResource :: Resources -> IO ()
+    registResource resources = return ()
+
+    unregistResource :: Resources -> IO ()
+    unregistResource resources = return ()
 
     -- GraphicsDatas
-    loadGraphicsDatas :: ResourceData -> RendererData -> IO ()
-    loadGraphicsDatas resourceData rendererData = do
-        logInfo "ResourceData::loadGraphicsDatas"
-        loadRenderPassDatas resourceData rendererData
-        loadFrameBufferDatas resourceData rendererData
-        loadMaterialInstanceDatas resourceData rendererData
-        reloadMaterialInstanceDatas resourceData rendererData
+    loadGraphicsDatas :: Resources -> RendererData -> IO ()
+    loadGraphicsDatas resources rendererData = do
+        logInfo "Resources::loadGraphicsDatas"
+        loadRenderPassDatas resources rendererData
+        loadFrameBufferDatas resources rendererData
+        loadMaterialInstanceDatas resources rendererData
+        reloadMaterialInstanceDatas resources rendererData
 
-    unloadGraphicsDatas :: ResourceData -> RendererData -> IO ()
-    unloadGraphicsDatas resourceData rendererData = do
-        logInfo "ResourceData::unloadGraphicsDatas"
-        unloadMaterialInstanceDatas resourceData rendererData
-        unloadFrameBufferDatas resourceData rendererData
-        unloadRenderPassDatas resourceData rendererData
-        unloadDescriptorDatas resourceData rendererData
+    unloadGraphicsDatas :: Resources -> RendererData -> IO ()
+    unloadGraphicsDatas resources rendererData = do
+        logInfo "Resources::unloadGraphicsDatas"
+        unloadMaterialInstanceDatas resources rendererData
+        unloadFrameBufferDatas resources rendererData
+        unloadRenderPassDatas resources rendererData
+        unloadDescriptorDatas resources rendererData
 
     -- SceneManagerData
-    loadSceneManagerDatas :: ResourceData -> RendererData -> IO ()
-    loadSceneManagerDatas resourceData rendererData = return ()
+    loadSceneManagerDatas :: Resources -> RendererData -> IO ()
+    loadSceneManagerDatas resources rendererData = return ()
 
-    unloadSceneManagerDatas :: ResourceData -> RendererData -> IO ()
-    unloadSceneManagerDatas resourceData rendererData = return ()
+    unloadSceneManagerDatas :: Resources -> RendererData -> IO ()
+    unloadSceneManagerDatas resources rendererData = return ()
 
     -- Model Loader
-    loadModelDatas :: ResourceData -> RendererData -> IO ()
-    loadModelDatas resourceData rendererData = do
+    loadModelDatas :: Resources -> RendererData -> IO ()
+    loadModelDatas resources rendererData = do
         modelFiles <- walkDirectory modelFilePath [".model"]
         forM_ modelFiles $ \modelFile -> do
-            modelName <- getResourceNameFromFilepath (_modelDataMap resourceData) modelFilePath modelFile
+            modelName <- getResourceNameFromFilePath (_modelDataMap resources) modelFilePath modelFile
             contents <- ByteString.readFile modelFile
-            registModelData (_modelDataMap resourceData) modelName contents
+            registModelData (_modelDataMap resources) modelName contents
         where
             registModelData modelDataMap modelName contents = do
                 let Just (Aeson.Object modelCreateInfoMap) = Aeson.decodeStrict contents
                     Just (Aeson.Array materialInstanceNames) = HashMap.lookup "material_instances" modelCreateInfoMap
                     materialInstanceCount = Vector.length materialInstanceNames
                     Just (Aeson.String meshName) = HashMap.lookup "mesh" modelCreateInfoMap
-                meshData <- getMeshData resourceData meshName
+                meshData <- getMeshData resources meshName
                 geometryDataCount <- getGeometryDataCount meshData
                 let materialInstanceNameList = (Vector.take geometryDataCount materialInstanceNames) Vector.++ (Vector.replicate (max 0 (geometryDataCount - materialInstanceCount)) (Aeson.String defaultMaterialInstanceName))
                 print materialInstanceNameList
                 materialInstanceDatas <- forM (Vector.toList materialInstanceNameList) $ \(Aeson.String materialInstanceName) ->
-                    getMaterialInstanceData resourceData materialInstanceName
+                    getMaterialInstanceData resources materialInstanceName
                 modelData <- Model.newModelData modelName meshData materialInstanceDatas
                 HashTable.insert modelDataMap modelName modelData
 
-    unloadModelDatas :: ResourceData -> RendererData -> IO ()
-    unloadModelDatas resourceData rendererData = do
-        clearHashTable (_modelDataMap resourceData) (\(k, v) -> Model.destroyModelData v)
+    unloadModelDatas :: Resources -> RendererData -> IO ()
+    unloadModelDatas resources rendererData = do
+        clearHashTable (_modelDataMap resources) (\(k, v) -> Model.destroyModelData v)
 
-    getModelData :: ResourceData -> Text.Text -> IO Model.ModelData
-    getModelData resourceData resourceName = do
-        getResourceData (_modelDataMap resourceData) resourceName defaultModelName
+    getModelData :: Resources -> Text.Text -> IO Model.ModelData
+    getModelData resources resourceName = do
+        getResourceData (_modelDataMap resources) resourceName defaultModelName
 
     -- Mesh Loader
-    loadMeshDatas :: ResourceData -> RendererData -> IO ()
-    loadMeshDatas resourceData rendererData = do
-        registMeshData (_meshDataMap resourceData) "quad" GeometryBuffer.quadGeometryCreateInfos
-        registMeshData (_meshDataMap resourceData) "cube" GeometryBuffer.cubeGeometryCreateInfos
+    loadMeshDatas :: Resources -> RendererData -> IO ()
+    loadMeshDatas resources rendererData = do
+        registMeshData (_meshDataMap resources) "quad" GeometryBuffer.quadGeometryCreateInfos
+        registMeshData (_meshDataMap resources) "cube" GeometryBuffer.cubeGeometryCreateInfos
 
         meshFiles <- walkDirectory meshFilePath [".obj"]
         forM_ meshFiles $ \meshFile -> do
-            meshName <- getResourceNameFromFilepath (_meshDataMap resourceData) meshFilePath meshFile
+            meshName <- getResourceNameFromFilePath (_meshDataMap resources) meshFilePath meshFile
             geometryCreateInfos <- loadMesh meshFile
-            registMeshData (_meshDataMap resourceData) meshName geometryCreateInfos
+            registMeshData (_meshDataMap resources) meshName geometryCreateInfos
         where
             registMeshData meshDataMap meshName geometryCreateInfos = do
                 geometryBufferDatas <- forM (zip ([0..]::[Int]) geometryCreateInfos) $ \(index, geometryCreateInfo) ->
                     createGeometryBuffer rendererData (Text.append meshName (Text.pack $ show index)) geometryCreateInfo
                 meshData <- newMeshData meshName geometryBufferDatas
-                HashTable.insert (_meshDataMap resourceData) meshName meshData
+                HashTable.insert (_meshDataMap resources) meshName meshData
 
-    unloadMeshDatas :: ResourceData -> RendererData -> IO ()
-    unloadMeshDatas resourceData rendererData = do
-        HashTable.mapM_ (\(k, v) -> (destroyGeometryData rendererData k v)) (_meshDataMap resourceData)
+    unloadMeshDatas :: Resources -> RendererData -> IO ()
+    unloadMeshDatas resources rendererData = do
+        HashTable.mapM_ (\(k, v) -> (destroyGeometryData rendererData k v)) (_meshDataMap resources)
         where
             destroyGeometryData rendererData name meshData = do
                 geometryDataCount <- getGeometryDataCount meshData
@@ -274,80 +292,80 @@ instance ResourceInterface ResourceData where
                     geometryData <- getGeometryData meshData index
                     destroyGeometryBuffer rendererData geometryData
 
-    getMeshData :: ResourceData -> Text.Text -> IO MeshData
-    getMeshData resourceData resourceName =
-        getResourceData (_meshDataMap resourceData) resourceName defaultMeshName
+    getMeshData :: Resources -> Text.Text -> IO MeshData
+    getMeshData resources resourceName =
+        getResourceData (_meshDataMap resources) resourceName defaultMeshName
 
     -- TextureLoader
-    loadTextureDatas :: ResourceData -> RendererData -> IO ()
-    loadTextureDatas resourceData rendererData = do
+    loadTextureDatas :: Resources -> RendererData -> IO ()
+    loadTextureDatas resources rendererData = do
         textureFiles <- walkDirectory textureFilePath [".jpg", ".png"]
         forM_ textureFiles $ \textureFile -> do
-            textureDataName <- getResourceNameFromFilepath (_textureDataMap resourceData) textureFilePath textureFile
+            textureDataName <- getResourceNameFromFilePath (_textureDataMap resources) textureFilePath textureFile
             textureData <- createTexture rendererData textureDataName textureFile
-            HashTable.insert (_textureDataMap resourceData) textureDataName textureData
+            HashTable.insert (_textureDataMap resources) textureDataName textureData
 
-    unloadTextureDatas :: ResourceData -> RendererData -> IO ()
-    unloadTextureDatas resourceData rendererData =
-        clearHashTable (_textureDataMap resourceData) (\(k, v) -> destroyTexture rendererData v)
+    unloadTextureDatas :: Resources -> RendererData -> IO ()
+    unloadTextureDatas resources rendererData =
+        clearHashTable (_textureDataMap resources) (\(k, v) -> destroyTexture rendererData v)
 
-    getTextureData :: ResourceData -> Text.Text -> IO TextureData
-    getTextureData resourceData resourceName =
-        getResourceData (_textureDataMap resourceData) resourceName defaultTextureName
+    getTextureData :: Resources -> Text.Text -> IO TextureData
+    getTextureData resources resourceName =
+        getResourceData (_textureDataMap resources) resourceName defaultTextureName
 
     -- FrameBuffer
-    loadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
-    loadFrameBufferDatas resourceData rendererData = do
-        HashTable.mapM_ (\(k, v) -> registFrameBufferData k) (_renderPassDataMap resourceData)
+    loadFrameBufferDatas :: Resources -> RendererData -> IO ()
+    loadFrameBufferDatas resources rendererData = do
+        HashTable.mapM_ (\(k, v) -> registFrameBufferData k) (_renderPassDataMap resources)
         where
             registFrameBufferData renderPassName = do
-                Just renderPassData <- getRenderPassData resourceData renderPassName
+                Just renderPassData <- getRenderPassData resources renderPassName
                 let frameBufferName = _renderPassFrameBufferName (renderPassData::RenderPassData)
                 frameBufferDataCreateInfo <- FrameBufferCreateInfo.getFrameBufferDataCreateInfo rendererData frameBufferName
                 frameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass renderPassData) frameBufferDataCreateInfo
-                HashTable.insert (_frameBufferDataMap resourceData) frameBufferName frameBufferData
+                HashTable.insert (_frameBufferDataMap resources) frameBufferName frameBufferData
 
-    unloadFrameBufferDatas :: ResourceData -> RendererData -> IO ()
-    unloadFrameBufferDatas resourceData rendererData =
-        clearHashTable (_frameBufferDataMap resourceData) (\(k, v) -> destroyFrameBufferData (getDevice rendererData) v)
+    unloadFrameBufferDatas :: Resources -> RendererData -> IO ()
+    unloadFrameBufferDatas resources rendererData =
+        clearHashTable (_frameBufferDataMap resources) (\(k, v) -> destroyFrameBufferData (getDevice rendererData) v)
 
-    getFrameBufferData :: ResourceData -> Text.Text -> IO (Maybe FrameBufferData)
-    getFrameBufferData resourceData resourceName =
-       HashTable.lookup (_frameBufferDataMap resourceData) resourceName
+    getFrameBufferData :: Resources -> Text.Text -> IO (Maybe FrameBufferData)
+    getFrameBufferData resources resourceName =
+       HashTable.lookup (_frameBufferDataMap resources) resourceName
 
     -- RenderPassLoader
-    loadRenderPassDatas :: ResourceData -> RendererData -> IO ()
-    loadRenderPassDatas resourceData rendererData = do
+    loadRenderPassDatas :: Resources -> RendererData -> IO ()
+    loadRenderPassDatas resources rendererData = do
         registRenderPassData defaultRenderPassName
         registRenderPassData "composite_gbuffer"
         where
             registRenderPassData renderPassName = do
                 renderPassDataCreateInfo <- RenderPassCreateInfo.getRenderPassDataCreateInfo rendererData renderPassName
                 descriptorDatas <- forM (_pipelineDataCreateInfos renderPassDataCreateInfo) $ \pipelineDataCreateInfo -> do
-                    getDescriptorData resourceData rendererData (_renderPassCreateInfoName renderPassDataCreateInfo) pipelineDataCreateInfo
+                    getDescriptorData resources rendererData (_renderPassCreateInfoName renderPassDataCreateInfo) pipelineDataCreateInfo
                 defaultRenderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo descriptorDatas
-                HashTable.insert (_renderPassDataMap resourceData) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
+                HashTable.insert (_renderPassDataMap resources) (_renderPassDataName defaultRenderPassData) defaultRenderPassData
 
-    unloadRenderPassDatas :: ResourceData -> RendererData -> IO ()
-    unloadRenderPassDatas resourceData rendererData =
-        clearHashTable (_renderPassDataMap resourceData) (\(k, v) -> destroyRenderPassData (getDevice rendererData) v)
+    unloadRenderPassDatas :: Resources -> RendererData -> IO ()
+    unloadRenderPassDatas resources rendererData =
+        clearHashTable (_renderPassDataMap resources) (\(k, v) -> destroyRenderPassData (getDevice rendererData) v)
 
-    getRenderPassData :: ResourceData -> Text.Text -> IO (Maybe RenderPassData)
-    getRenderPassData resourceData resourceName =
-        HashTable.lookup (_renderPassDataMap resourceData) resourceName
+    getRenderPassData :: Resources -> Text.Text -> IO (Maybe RenderPassData)
+    getRenderPassData resources resourceName =
+        HashTable.lookup (_renderPassDataMap resources) resourceName
 
-    getDefaultRenderPassData :: ResourceData -> IO (Maybe RenderPassData)
-    getDefaultRenderPassData resourceData =
-        getRenderPassData resourceData defaultRenderPassName
+    getDefaultRenderPassData :: Resources -> IO (Maybe RenderPassData)
+    getDefaultRenderPassData resources =
+        getRenderPassData resources defaultRenderPassName
 
     -- MaterialInstanceDatas
-    loadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
-    loadMaterialInstanceDatas resourceData rendererData = do
+    loadMaterialInstanceDatas :: Resources -> RendererData -> IO ()
+    loadMaterialInstanceDatas resources rendererData = do
         materialInstanceFiles <- walkDirectory materialInstanceFilePath [".matinst"]
         forM_ materialInstanceFiles $ \materialInstanceFile -> do
-            materialInstanceName <- getResourceNameFromFilepath (_materialInstanceDataMap resourceData) materialInstanceFilePath materialInstanceFile
+            materialInstanceName <- getResourceNameFromFilePath (_materialInstanceDataMap resources) materialInstanceFilePath materialInstanceFile
             contents <- ByteString.readFile materialInstanceFile
-            registMaterialInstanceData rendererData (_materialInstanceDataMap resourceData) materialInstanceName contents
+            registMaterialInstanceData rendererData (_materialInstanceDataMap resources) materialInstanceName contents
         where
             registMaterialInstanceData rendererData materialInstanceDataMap materialInstanceName contents = do
                 let Just (Aeson.Object materialInstanceCreateInfoMap) = Aeson.decodeStrict contents
@@ -355,7 +373,7 @@ instance ResourceInterface ResourceData where
                     Just (Aeson.String pipelineDataName) = HashMap.lookup "pipeline_name" materialInstanceCreateInfoMap
                     Just (Aeson.Object materialParameterMap) = HashMap.lookup "material_parameters" materialInstanceCreateInfoMap
 
-                Just renderPassData <- getRenderPassData resourceData renderPassDataName
+                Just renderPassData <- getRenderPassData resources renderPassDataName
                 pipelineData <- getPipelineData renderPassData pipelineDataName
 
                 let descriptorDataCreateInfoList = Descriptor._descriptorDataCreateInfoList $ _descriptorData pipelineData
@@ -371,8 +389,8 @@ instance ResourceInterface ResourceData where
                                 return $ Descriptor.DescriptorBufferInfo (_descriptorBufferInfos uniformBufferData !! index)
                             (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_Texture) -> do
                                 textureData <- case maybeMaterialParameter of
-                                    Just (Aeson.String value) -> getTextureData resourceData value
-                                    otherwise -> getTextureData resourceData defaultTextureName
+                                    Just (Aeson.String value) -> getTextureData resources value
+                                    otherwise -> getTextureData resources defaultTextureName
                                 return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
                             (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_RenderTarget) -> do
                                 textureData <- getRenderTarget rendererData materialParameterName
@@ -380,38 +398,38 @@ instance ResourceInterface ResourceData where
                             otherwise -> return Descriptor.InvalidDescriptorInfo
                     return $ filter (/= Descriptor.InvalidDescriptorInfo) descriptorResourceInfos
                 materialInstance <- createMaterialInstance (getDevice rendererData) materialInstanceName renderPassData pipelineData descriptorResourceInfosList
-                HashTable.insert (_materialInstanceDataMap resourceData) materialInstanceName materialInstance
+                HashTable.insert (_materialInstanceDataMap resources) materialInstanceName materialInstance
 
-    unloadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
-    unloadMaterialInstanceDatas resourceData rendererData =
-        clearHashTable (_materialInstanceDataMap resourceData) (\(k, v) -> destroyMaterialInstance (getDevice rendererData) v)
+    unloadMaterialInstanceDatas :: Resources -> RendererData -> IO ()
+    unloadMaterialInstanceDatas resources rendererData =
+        clearHashTable (_materialInstanceDataMap resources) (\(k, v) -> destroyMaterialInstance (getDevice rendererData) v)
 
-    reloadMaterialInstanceDatas :: ResourceData -> RendererData -> IO ()
-    reloadMaterialInstanceDatas resourceData rendererData =
-        flip HashTable.mapM_ (_modelDataMap resourceData) $ \(k, modelData) -> do
+    reloadMaterialInstanceDatas :: Resources -> RendererData -> IO ()
+    reloadMaterialInstanceDatas resources rendererData =
+        flip HashTable.mapM_ (_modelDataMap resources) $ \(k, modelData) -> do
             materialInstances <- Model.getMaterialInstanceDataList modelData
             newMaterialInstances <- forM materialInstances $ \materialInstance ->
-                getMaterialInstanceData resourceData (_materialInstanceName materialInstance)
+                getMaterialInstanceData resources (_materialInstanceName materialInstance)
             Model.setMaterialInstanceDataList modelData newMaterialInstances
 
-    getMaterialInstanceData :: ResourceData -> Text.Text -> IO MaterialInstanceData
-    getMaterialInstanceData resourceData resourceName =
-        getResourceData (_materialInstanceDataMap resourceData) resourceName defaultMaterialInstanceName
+    getMaterialInstanceData :: Resources -> Text.Text -> IO MaterialInstanceData
+    getMaterialInstanceData resources resourceName =
+        getResourceData (_materialInstanceDataMap resources) resourceName defaultMaterialInstanceName
 
     -- DescriptorDatas
-    getDescriptorData :: ResourceData -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO Descriptor.DescriptorData
-    getDescriptorData resourceData rendererData renderPassName pipelineDataCreateInfo = do
+    getDescriptorData :: Resources -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO Descriptor.DescriptorData
+    getDescriptorData resources rendererData renderPassName pipelineDataCreateInfo = do
         let descriptorName = Text.append renderPassName (_pipelineDataCreateInfoName pipelineDataCreateInfo)
             descriptorDataCreateInfoList = _descriptorDataCreateInfoList (pipelineDataCreateInfo::PipelineDataCreateInfo)
             maxDescriptorPoolCount = Constants.maxDescriptorPoolAllocCount * Constants.descriptorSetCountAtOnce
-        maybeDescriptorData <- HashTable.lookup (_descriptorDataMap resourceData) descriptorName
+        maybeDescriptorData <- HashTable.lookup (_descriptorDataMap resources) descriptorName
         case maybeDescriptorData of
             (Just descriptorData) -> return descriptorData
             otherwise -> do
                 descriptorData <- Descriptor.createDescriptorData (getDevice rendererData) descriptorDataCreateInfoList maxDescriptorPoolCount
-                HashTable.insert (_descriptorDataMap resourceData) descriptorName descriptorData
+                HashTable.insert (_descriptorDataMap resources) descriptorName descriptorData
                 return descriptorData
 
-    unloadDescriptorDatas :: ResourceData -> RendererData -> IO ()
-    unloadDescriptorDatas resourceData rendererData = do
-        clearHashTable (_descriptorDataMap resourceData) (\(k, v) -> Descriptor.destroyDescriptorData (getDevice rendererData) v)
+    unloadDescriptorDatas :: Resources -> RendererData -> IO ()
+    unloadDescriptorDatas resources rendererData = do
+        clearHashTable (_descriptorDataMap resources) (\(k, v) -> Descriptor.destroyDescriptorData (getDevice rendererData) v)

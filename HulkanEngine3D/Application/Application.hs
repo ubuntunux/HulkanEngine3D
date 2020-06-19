@@ -53,7 +53,7 @@ data ApplicationData = ApplicationData
     , _mouseInputData :: IORef MouseInputData
     , _sceneManagerData :: SceneManager.SceneManagerData
     , _rendererData :: Renderer.RendererData
-    , _resourceData :: Resource.ResourceData
+    , _resources :: Resource.Resources
     } deriving (Show)
 
 
@@ -244,7 +244,7 @@ initializeApplication = do
         enableValidationLayer = Constants.enableValidationLayer
         isConcurrentMode = Constants.isConcurrentMode
 
-    resourceData <- Resource.createNewResourceData
+    resources <- Resource.createResources
     rendererData <- Renderer.createRenderer
         window
         progName
@@ -252,8 +252,8 @@ initializeApplication = do
         enableValidationLayer
         isConcurrentMode
         requireExtensions
-        resourceData
-    sceneManagerData <- SceneManager.newSceneManagerData rendererData resourceData
+        resources
+    sceneManagerData <- SceneManager.newSceneManagerData rendererData resources
 
     -- init system variables
     currentTime <- getSystemTime
@@ -279,11 +279,11 @@ initializeApplication = do
             , _mouseInputData = mouseInputDataRef
             , _sceneManagerData = sceneManagerData
             , _rendererData = rendererData
-            , _resourceData = resourceData
+            , _resources = resources
             }
 
     -- initlaize managers
-    Resource.initializeResourceData resourceData rendererData
+    Resource.initializeResources resources rendererData
 
     let aspect = if 0 /= height then (fromIntegral width / fromIntegral height)::Float else 1.0
         cameraCreateData = getDefaultCameraCreateData { aspect = aspect, position = vec3 0 0 10 }
@@ -325,7 +325,7 @@ terminateApplication applicationData = do
     -- waiting
     Renderer.deviceWaitIdle (_rendererData applicationData)
 
-    Resource.destroyResourceData (_resourceData applicationData) (_rendererData applicationData)
+    Resource.destroyResources (_resources applicationData) (_rendererData applicationData)
     Renderer.destroyRenderer (_rendererData applicationData)
     destroyGLFWWindow (_window applicationData)
 
@@ -369,7 +369,7 @@ runApplication = do
         elapsedTime <- getElapsedTime applicationData
 
         let rendererData = _rendererData applicationData
-            resourceData = _resourceData applicationData
+            resources = _resources applicationData
             sceneManagerData = _sceneManagerData applicationData
 
         -- resize window
