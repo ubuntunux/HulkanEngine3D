@@ -46,6 +46,7 @@ executable main
                       HulkanEngine3D.Utilities.Logger
                       HulkanEngine3D.Utilities.Math
                       HulkanEngine3D.Utilities.System
+                      HulkanEngine3D.Utilities.Vector
                       HulkanEngine3D.Vulkan.Vulkan
                       HulkanEngine3D.Vulkan.Buffer
                       HulkanEngine3D.Vulkan.CommandBuffer
