@@ -5,28 +5,12 @@ module HulkanEngine3D.Resource.ResourceData where
 import qualified Data.Text as Text
 --import qualified Data.Time as Time
 
-    { _metaDataMap :: MetaDataMap
-    , _meshDataMap :: MeshDataMap
-    , _modelDataMap :: ModelDataMap
-    , _textureDataMap :: TextureDataMap
-    , _frameBufferDataMap :: FrameBufferDataMap
-    , _renderPassDataMap :: RenderPassDataMap
-    , _materialInstanceDataMap :: MaterialInstanceDataMap
-    , _descriptorDataMap :: DescriptorDataMap
-
-data ResourceDataType = ResourceDataType_Mesh
-                      | ResourceDataType_Model
-                      | ResourceDataType_Texture
-                      | ResourceDataType_FrameBuffer
-                      | ResourceDataType_RenderPass
-                      | ResourceDataType_MaterialInstance
-                      | ResourceDataType_Descriptor
-                      deriving (Eq, Show)
+import HulkanEngine3D.Render.Mesh
 
 data MetaData = MetaData
     { _isEngineResource :: Bool
     , _metaFilePath :: Bool
-    , _resourceDataType :: ResourceDataType
+    , _resourceDataType :: ResourceData
     , _resourceVersion :: Int
     , _resourceFilePath :: FilePath
     , _resourceModifyTime :: Text.Text
@@ -34,3 +18,6 @@ data MetaData = MetaData
     , _sourceModifyTime :: Text.Text
     , _sourceChanged :: Bool
     } deriving (Eq, Show)
+
+
+data ResourceData = ResourceData { _data :: MeshData } deriving (Eq, Show)
