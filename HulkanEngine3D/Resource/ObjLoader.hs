@@ -20,11 +20,13 @@ import Data.Foldable (toList)
 import Data.Maybe
 import qualified Data.Set as Set
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
-import Numeric.DataFrame
+import qualified Numeric.DataFrame as DF
+import Numeric.DataFrame (scalar, vec2, vec3, Vec2f, Vec3f)
 --import Numeric.Dimensions
 
 import HulkanEngine3D.Utilities.BoundingBox
 import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.GeometryBuffer
@@ -64,8 +66,8 @@ objVertices Wavefront.WavefrontOBJ {..} = do
                 tangents = computeTangent vPositions vNormals vTexCoords vVertexIndices
                 vertices = [scalar $ VertexData (vPositions Vector.! i) (vNormals Vector.! i) (tangents Vector.! i) vertexColor (vTexCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
             return GeometryCreateInfo
-                { _geometryCreateInfoVertices = atLeastThree . fromList $ vertices
-                , _geometryCreateInfoIndices = atLeastThree . fromList $ vertexIndices
+                { _geometryCreateInfoVertices = atLeastThree . DF.fromList $ vertices
+                , _geometryCreateInfoIndices = atLeastThree . DF.fromList $ vertexIndices
                 , _geometryCreateInfoBoundingBox = calcBoundingBox positions
                 }
     where

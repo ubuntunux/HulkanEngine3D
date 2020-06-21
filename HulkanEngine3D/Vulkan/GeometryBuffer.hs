@@ -1,26 +1,15 @@
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FlexibleContexts       #-}
-{-# LANGUAGE PolyKinds              #-}
-{-# LANGUAGE RecordWildCards        #-}
-{-# LANGUAGE ScopedTypeVariables    #-}
-{-# LANGUAGE Strict                 #-}
-{-# LANGUAGE TypeApplications       #-}
-{-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE GADTs                  #-}
-{-# LANGUAGE DataKinds              #-}
-{-# LANGUAGE DeriveGeneric          #-}
-{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE NegativeLiterals       #-}
+{-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE PolyKinds              #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
-{-# LANGUAGE Strict                 #-}
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeOperators          #-}
-{-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE TypeSynonymInstances   #-}
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE NegativeLiterals       #-}
 
 module HulkanEngine3D.Vulkan.GeometryBuffer where
 
@@ -33,13 +22,13 @@ import qualified Data.Vector as Vector
 import qualified Data.Map as Map
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
-import Data.Maybe
 import qualified Data.DList as DList
 
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
 import qualified Numeric.DataFrame.ST as ST
+import qualified Numeric.DataFrame as DF
 import Numeric.DataFrame
 import Numeric.Dimensions
 
@@ -49,9 +38,6 @@ import HulkanEngine3D.Utilities.BoundingBox
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
-
-
-type DataFrameAtLeastThree a = DataFrame a '[XN 3]
 
 data VertexData = VertexData
     { _vertexPosition :: Vec3f
@@ -82,14 +68,6 @@ data GeometryData = GeometryData
 defaultVertexData :: VertexData
 defaultVertexData = VertexData 0 0 0 0 0
 
--- | Check if the frame has enough elements.
-atLeastThree :: (All KnownDimType ns, BoundedDims ns)
-             => DataFrame t (n ': ns)
-             -> DataFrame t (XN 3 ': ns)
-atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough points")
-             . constrainDF
-
-
 vertexInputBindDescription :: VkVertexInputBindingDescription
 vertexInputBindDescription = createVk @VkVertexInputBindingDescription
     $  set @"binding" 0
@@ -101,7 +79,7 @@ vertexInputBindDescription = createVk @VkVertexInputBindingDescription
 -- a vulkan function with no copy.
 --
 -- However, we must make sure the created DataFrame is pinned!
-vertexInputAttributeDescriptions :: Vector VkVertexInputAttributeDescription 5
+vertexInputAttributeDescriptions :: DF.Vector VkVertexInputAttributeDescription 5
 vertexInputAttributeDescriptions = ST.runST $ do
     mv <- ST.newPinnedDataFrame
     ST.writeDataFrame mv (Idx 0 :* U) . scalar $ createVk
@@ -298,8 +276,8 @@ quadGeometryCreateInfos =
         vertices = [VertexData (positions Vector.! i) (normals Vector.! i) (tangents Vector.! i) vertexColor (texCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
     in
         [ GeometryCreateInfo
-            { _geometryCreateInfoVertices = XFrame $ fromFlatList (D4 :* U) defaultVertexData vertices
-            , _geometryCreateInfoIndices = atLeastThree . fromList $ (Vector.toList indices)
+            { _geometryCreateInfoVertices = XFrame $ DF.fromFlatList (D4 :* U) defaultVertexData vertices
+            , _geometryCreateInfoIndices = atLeastThree . DF.fromList $ (Vector.toList indices)
             , _geometryCreateInfoBoundingBox = calcBoundingBox positionList
             }
         ]
@@ -336,8 +314,8 @@ cubeGeometryCreateInfos =
         vertices = [VertexData (positions Vector.! i) (normals Vector.! i) (tangents Vector.! i) vertexColor (texCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
     in
         [ GeometryCreateInfo
-            { _geometryCreateInfoVertices = XFrame $ fromFlatList (D24 :* U) defaultVertexData vertices
-            , _geometryCreateInfoIndices = atLeastThree . fromList $ indexList
+            { _geometryCreateInfoVertices = XFrame $ DF.fromFlatList (D24 :* U) defaultVertexData vertices
+            , _geometryCreateInfoIndices =  atLeastThree . DF.fromList $ indexList
             , _geometryCreateInfoBoundingBox = calcBoundingBox positionList
             }
         ]

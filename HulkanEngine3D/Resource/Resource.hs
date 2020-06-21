@@ -1,7 +1,11 @@
-{-# LANGUAGE DuplicateRecordFields      #-}
-{-# LANGUAGE InstanceSigs               #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE BangPatterns           #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE DuplicateRecordFields  #-}
+{-# LANGUAGE InstanceSigs           #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE PolyKinds              #-}
+{-# LANGUAGE TypeOperators          #-}
 
 module HulkanEngine3D.Resource.Resource
     ( Resources (..)
@@ -20,6 +24,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 
 import Graphics.Vulkan.Core_1_0
+--import Numeric.DataFrame
 
 import qualified HulkanEngine3D.Constants as Constants
 import {-# SOURCE #-} HulkanEngine3D.Application.SceneManager
@@ -38,6 +43,7 @@ import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.UniformBuffer
 import HulkanEngine3D.Utilities.Logger
+--import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
 
 
@@ -157,6 +163,7 @@ class ResourceInterface a where
     getDescriptorData :: a -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO Descriptor.DescriptorData
     unloadDescriptorDatas :: a -> RendererData -> IO ()
 
+
 instance ResourceInterface Resources where
     createResources :: IO Resources
     createResources = do
@@ -250,7 +257,6 @@ instance ResourceInterface Resources where
                 meshData <- getMeshData resources meshName
                 geometryDataCount <- getGeometryDataCount meshData
                 let materialInstanceNameList = (Vector.take geometryDataCount materialInstanceNames) Vector.++ (Vector.replicate (max 0 (geometryDataCount - materialInstanceCount)) (Aeson.String defaultMaterialInstanceName))
-                print materialInstanceNameList
                 materialInstanceDatas <- forM (Vector.toList materialInstanceNameList) $ \(Aeson.String materialInstanceName) ->
                     getMaterialInstanceData resources materialInstanceName
                 modelData <- Model.newModelData modelName meshData materialInstanceDatas
@@ -277,9 +283,12 @@ instance ResourceInterface Resources where
             registMeshData (_meshDataMap resources) meshName geometryCreateInfos
         where
             registMeshData meshDataMap meshName geometryCreateInfos = do
-                geometryBufferDatas <- forM (zip ([0..]::[Int]) geometryCreateInfos) $ \(index, geometryCreateInfo) ->
+                geometryBufferDatas <- forM (zip ([0..]::[Int]) geometryCreateInfos) $ \(index, geometryCreateInfo) -> do
+--                    let xxx = map (\x -> unScalar . fromIntegral $ x) $ dataFrameToList (GeometryBuffer._geometryCreateInfoIndices geometryCreateInfo)::[Word32]
+--                    logInfo $ show (dataFrameToList (GeometryBuffer._geometryCreateInfoIndices geometryCreateInfo))
                     createGeometryBuffer rendererData (Text.append meshName (Text.pack $ show index)) geometryCreateInfo
                 meshData <- newMeshData meshName geometryBufferDatas
+
                 HashTable.insert (_meshDataMap resources) meshName meshData
 
     unloadMeshDatas :: Resources -> RendererData -> IO ()
@@ -288,7 +297,7 @@ instance ResourceInterface Resources where
         where
             destroyGeometryData rendererData name meshData = do
                 geometryDataCount <- getGeometryDataCount meshData
-                forM_  [0..(geometryDataCount-1)] $ \index -> do
+                forM_  [0..(geometryDataCount - 1)] $ \index -> do
                     geometryData <- getGeometryData meshData index
                     destroyGeometryBuffer rendererData geometryData
 

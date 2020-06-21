@@ -1,20 +1,25 @@
-{-# LANGUAGE MagicHash           #-}
-{-# LANGUAGE UnboxedTuples       #-}
-{-# LANGUAGE NegativeLiterals    #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE NegativeLiterals    #-}
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE UnboxedTuples       #-}
 
 module HulkanEngine3D.Utilities.Math where
+
+import Data.Fixed
+import Data.Maybe
+
+import Numeric.DataFrame.SubSpace
 import Numeric.DataFrame
 import Numeric.Dimensions
 import Numeric.Quaternion
-import Data.Fixed
 
 twoPI :: Floating a => a
 twoPI = pi * 2.0
@@ -28,11 +33,22 @@ floatMaximum =  8.98846567431158e307
 floatEpsilon :: Float
 floatEpsilon = 1.0e-323
 
+type DataFrameAtLeastThree a = DataFrame a '[XN 3]
+
+-- | Check if the frame has enough elements.
+atLeastThree :: (All KnownDimType ns, BoundedDims ns) => DataFrame t (n ': ns) -> DataFrame t (XN 3 ': ns)
+atLeastThree = fromMaybe (error "Lib.Vulkan.Vertex.atLeastThree: not enough points")
+             . constrainDF
+
 -- | Get number of points in a vector
 dataFrameLength :: DataFrame t (xns :: [XNat]) -> Word
-dataFrameLength (XFrame (vector :: DataFrame t ns)) = case dims @ns of
-    n :* _ -> dimVal n
-    U      -> 1
+dataFrameLength (XFrame (vector :: DataFrame t ns)) =
+    case dims @ns of
+        n :* _ -> dimVal n
+        U      -> 1
+
+dataFrameToList :: SubSpace t '[n] ns (n :+ ns) => DataFrame t (n :+ ns) -> [DataFrame t ns]
+dataFrameToList dataFrame = sewfoldr (\x acc -> (x:acc)) [] dataFrame
 
 safeNormalize :: Vec3f -> Vec3f
 safeNormalize vector =
