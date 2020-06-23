@@ -1,34 +1,32 @@
-{-# LANGUAGE DataKinds                 #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE GADTs                     #-}
-{-# LANGUAGE MagicHash                 #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE PatternSynonyms           #-}
-{-# LANGUAGE PolyKinds                 #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TypeFamilies              #-}
-{-# LANGUAGE TypeOperators             #-}
-{-# LANGUAGE UnboxedTuples             #-}
-{-# LANGUAGE UndecidableInstances      #-}
-{-# LANGUAGE ViewPatterns              #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE MagicHash                  #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE NegativeLiterals           #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PatternSynonyms            #-}
+{-# LANGUAGE PolyKinds                  #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE UnboxedTuples              #-}
+{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE ViewPatterns               #-}
 
-{-# LANGUAGE DeriveGeneric          #-}
-{-# LANGUAGE MagicHash              #-}
-{-# LANGUAGE DataKinds              #-}
-{-# LANGUAGE GADTs                  #-}
-{-# LANGUAGE TypeApplications       #-}
-{-# LANGUAGE TypeOperators          #-}
-{-# LANGUAGE KindSignatures         #-}
-{-# LANGUAGE ScopedTypeVariables    #-}
-{-# LANGUAGE NegativeLiterals       #-}
 
 module HulkanEngine3D.Utilities.BoundingBox where
 
 import GHC.Generics (Generic)
+import Data.Text as Text ()
+import Data.Aeson
 
 import Numeric.DataFrame
+
+import HulkanEngine3D.Utilities.DataFrame ()
 
 data BoundingBox = BoundingBox
     { _boundingBoxMin :: Vec3f
@@ -36,6 +34,21 @@ data BoundingBox = BoundingBox
     , _boundingBoxCenter :: Vec3f
     , _boundingBoxRadius :: Float
     } deriving (Eq, Show, Generic)
+
+
+instance ToJSON BoundingBox where
+    toJSON (BoundingBox min max center radius) = object
+        [ "min" .= min
+        , "max" .= max
+        , "center" .= center
+        , "radius" .= radius
+        ]
+
+--instance FromJSON BoundingBox where
+--    parseJSON (Object v) = do
+--            x <- v .: "S"
+--            return (S x)
+--    parseJSON _ = error ""
 
 defaultBoundingBox ::  BoundingBox
 defaultBoundingBox =

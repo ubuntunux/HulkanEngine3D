@@ -22,6 +22,7 @@ import System.FilePath.Posix
 import qualified Data.Aeson as Aeson
 --import Data.Aeson.Types
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Map as Map
 
 import Graphics.Vulkan.Core_1_0
 --import Numeric.DataFrame
@@ -53,8 +54,17 @@ gatherAllFiles = False
 materialInstanceFilePath :: FilePath
 materialInstanceFilePath = "Resource/MaterialInstances"
 
+meshSourceFilePath :: FilePath
+meshSourceFilePath = "Resource/Externals/Meshes"
+
 meshFilePath :: FilePath
-meshFilePath = "Resource/Externals/Meshes"
+meshFilePath = "Resource/Meshes"
+
+meshSourceExts :: [String]
+meshSourceExts = [".obj"]
+
+meshExt :: String
+meshExt = ".mesh"
 
 modelFilePath :: FilePath
 modelFilePath = "Resource/Models"
@@ -113,11 +123,16 @@ getResourceData resourceDataMap resourceName defaultResourceName = do
     where
         getDefaultResourceData = Maybe.fromJust <$> HashTable.lookup resourceDataMap defaultResourceName
 
-getResourceNameFromFilePath :: ResourceDataMap r -> FilePath -> FilePath -> IO Text.Text
-getResourceNameFromFilePath resourceDataMap resourcePath resourceFilePath = do
-    let resourceName = Text.pack $ drop (length resourcePath + 1) (dropExtension resourceFilePath)
+getResourceNameFromFilePath :: FilePath -> FilePath -> Text.Text
+getResourceNameFromFilePath resourcePath resourceFilePath = Text.pack $ drop (length resourcePath + 1) (dropExtension resourceFilePath)
+
+getUniqueResourceName :: ResourceDataMap r -> FilePath -> FilePath -> IO Text.Text
+getUniqueResourceName resourceDataMap resourcePath resourceFilePath = do
+    let resourceName = getResourceNameFromFilePath resourcePath resourceFilePath
     generateUniqueName resourceDataMap resourceName
 
+getResourceFileName :: FilePath -> Text.Text -> String -> FilePath
+getResourceFileName resourceFilePath resourceName resourceExt = resourceFilePath ++ [pathSeparator] ++ Text.unpack resourceName ++ resourceExt
 
 class ResourceInterface a where
     createResources :: IO a
@@ -245,7 +260,7 @@ instance ResourceInterface Resources where
     loadModelDatas resources rendererData = do
         modelFiles <- walkDirectory modelFilePath [".model"]
         forM_ modelFiles $ \modelFile -> do
-            modelName <- getResourceNameFromFilePath (_modelDataMap resources) modelFilePath modelFile
+            modelName <- getUniqueResourceName (_modelDataMap resources) modelFilePath modelFile
             contents <- ByteString.readFile modelFile
             registModelData (_modelDataMap resources) modelName contents
         where
@@ -276,10 +291,16 @@ instance ResourceInterface Resources where
         registMeshData (_meshDataMap resources) "quad" GeometryBuffer.quadGeometryCreateInfos
         registMeshData (_meshDataMap resources) "cube" GeometryBuffer.cubeGeometryCreateInfos
 
-        meshFiles <- walkDirectory meshFilePath [".obj"]
-        forM_ meshFiles $ \meshFile -> do
-            meshName <- getResourceNameFromFilePath (_meshDataMap resources) meshFilePath meshFile
-            geometryCreateInfos <- loadMesh meshFile
+        meshFiles <- walkDirectory meshFilePath [meshExt]
+        let meshFileMap = Map.fromList $ map (\meshFile -> (getResourceNameFromFilePath meshFilePath meshFile, meshFile)) meshFiles
+        meshSourceFiles <- walkDirectory meshSourceFilePath meshSourceExts
+        forM_ meshSourceFiles $ \meshSourceFile -> do
+            meshName <- getUniqueResourceName (_meshDataMap resources) meshSourceFilePath meshSourceFile
+            geometryCreateInfos <- loadMesh meshSourceFile
+            Aeson.encodeFile (getResourceFileName meshFilePath meshName meshExt) geometryCreateInfos
+--            case Map.lookup meshName meshFileMap of
+--                Just _ -> return ()
+--                otherwise -> Aeson.encodeFile (getResourceFileName meshFilePath meshName meshExt) geometryCreateInfos
             registMeshData (_meshDataMap resources) meshName geometryCreateInfos
         where
             registMeshData meshDataMap meshName geometryCreateInfos = do
@@ -310,7 +331,7 @@ instance ResourceInterface Resources where
     loadTextureDatas resources rendererData = do
         textureFiles <- walkDirectory textureFilePath [".jpg", ".png"]
         forM_ textureFiles $ \textureFile -> do
-            textureDataName <- getResourceNameFromFilePath (_textureDataMap resources) textureFilePath textureFile
+            textureDataName <- getUniqueResourceName (_textureDataMap resources) textureFilePath textureFile
             textureData <- createTexture rendererData textureDataName textureFile
             HashTable.insert (_textureDataMap resources) textureDataName textureData
 
@@ -372,7 +393,7 @@ instance ResourceInterface Resources where
     loadMaterialInstanceDatas resources rendererData = do
         materialInstanceFiles <- walkDirectory materialInstanceFilePath [".matinst"]
         forM_ materialInstanceFiles $ \materialInstanceFile -> do
-            materialInstanceName <- getResourceNameFromFilePath (_materialInstanceDataMap resources) materialInstanceFilePath materialInstanceFile
+            materialInstanceName <- getUniqueResourceName (_materialInstanceDataMap resources) materialInstanceFilePath materialInstanceFile
             contents <- ByteString.readFile materialInstanceFile
             registMaterialInstanceData rendererData (_materialInstanceDataMap resources) materialInstanceName contents
         where

@@ -24,6 +24,7 @@ import Foreign.Ptr (castPtr)
 import Foreign.Storable
 import qualified Data.DList as DList
 
+import Data.Aeson
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
@@ -53,7 +54,28 @@ data GeometryCreateInfo = GeometryCreateInfo
     { _geometryCreateInfoVertices :: DataFrameAtLeastThree VertexData
     , _geometryCreateInfoIndices :: DataFrameAtLeastThree Word32
     , _geometryCreateInfoBoundingBox :: BoundingBox
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON GeometryCreateInfo where
+    toJSON (GeometryCreateInfo vertices indices boundingBox) = do
+        object [ "vertices" .= (show $ map (\(XFrame x) -> unScalar x) $ dataFrameToList vertices)
+               , "indices" .= (map (unScalar . fromIntegral) $ dataFrameToList indices::[Word32])
+               , "boundingBox" .= boundingBox
+               ]
+
+    toEncoding (GeometryCreateInfo vertices indices boundingBox) =
+        pairs ( "vertices" .= (show $ map (\(XFrame x) -> unScalar x) $ dataFrameToList vertices)
+              <> "indices" .= (map (unScalar . fromIntegral) $ dataFrameToList indices::[Word32])
+              <> "boundingBox" .= boundingBox
+              )
+
+instance FromJSON GeometryCreateInfo where
+    parseJSON (Object v) = do
+--            name <- v .: "vertices"
+--            age <- v .: "indices"
+--            boundingBox <- v .: "boundingBox"
+            return $ cubeGeometryCreateInfos !! 0
+    parseJSON _ = error ""
 
 data GeometryData = GeometryData
     { _geometryName :: Text.Text
