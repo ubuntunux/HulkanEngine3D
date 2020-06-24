@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE FlexibleContexts           #-}
@@ -29,26 +30,11 @@ import Numeric.DataFrame
 import HulkanEngine3D.Utilities.DataFrame ()
 
 data BoundingBox = BoundingBox
-    { _boundingBoxMin :: Vec3f
-    , _boundingBoxMax :: Vec3f
-    , _boundingBoxCenter :: Vec3f
-    , _boundingBoxRadius :: Float
-    } deriving (Eq, Show, Generic)
-
-
-instance ToJSON BoundingBox where
-    toJSON (BoundingBox min max center radius) = object
-        [ "min" .= min
-        , "max" .= max
-        , "center" .= center
-        , "radius" .= radius
-        ]
-
---instance FromJSON BoundingBox where
---    parseJSON (Object v) = do
---            x <- v .: "S"
---            return (S x)
---    parseJSON _ = error ""
+    { _boundingBoxMin :: {-# UNPACK #-} !Vec3f
+    , _boundingBoxMax :: {-# UNPACK #-} !Vec3f
+    , _boundingBoxCenter :: {-# UNPACK #-} !Vec3f
+    , _boundingBoxRadius :: {-# UNPACK #-} !Float
+    } deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 defaultBoundingBox ::  BoundingBox
 defaultBoundingBox =

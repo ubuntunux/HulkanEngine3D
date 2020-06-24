@@ -296,17 +296,16 @@ instance ResourceInterface Resources where
         meshSourceFiles <- walkDirectory meshSourceFilePath meshSourceExts
         forM_ meshSourceFiles $ \meshSourceFile -> do
             meshName <- getUniqueResourceName (_meshDataMap resources) meshSourceFilePath meshSourceFile
-            geometryCreateInfos <- loadMesh meshSourceFile
-            Aeson.encodeFile (getResourceFileName meshFilePath meshName meshExt) geometryCreateInfos
---            case Map.lookup meshName meshFileMap of
---                Just _ -> return ()
---                otherwise -> Aeson.encodeFile (getResourceFileName meshFilePath meshName meshExt) geometryCreateInfos
+            Just geometryCreateInfos <- case Map.lookup meshName meshFileMap of
+                Just meshFile -> Aeson.decodeFileStrict meshFile
+                otherwise -> do
+                    geometryCreateInfos <- loadMesh meshSourceFile
+                    Aeson.encodeFile (getResourceFileName meshFilePath meshName meshExt) geometryCreateInfos
+                    return (Just geometryCreateInfos)
             registMeshData (_meshDataMap resources) meshName geometryCreateInfos
         where
             registMeshData meshDataMap meshName geometryCreateInfos = do
                 geometryBufferDatas <- forM (zip ([0..]::[Int]) geometryCreateInfos) $ \(index, geometryCreateInfo) -> do
---                    let xxx = map (\x -> unScalar . fromIntegral $ x) $ dataFrameToList (GeometryBuffer._geometryCreateInfoIndices geometryCreateInfo)::[Word32]
---                    logInfo $ show (dataFrameToList (GeometryBuffer._geometryCreateInfoIndices geometryCreateInfo))
                     createGeometryBuffer rendererData (Text.append meshName (Text.pack $ show index)) geometryCreateInfo
                 meshData <- newMeshData meshName geometryBufferDatas
 

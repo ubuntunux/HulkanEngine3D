@@ -1,5 +1,8 @@
+{-# LANGUAGE BangPatterns           #-}
 {-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE DeriveAnyClass         #-}
 {-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE DuplicateRecordFields  #-}
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE NegativeLiterals       #-}
@@ -36,46 +39,25 @@ import Numeric.Dimensions
 import HulkanEngine3D.Vulkan.Buffer
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Utilities.BoundingBox
-import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
+import HulkanEngine3D.Utilities.System
 
 data VertexData = VertexData
-    { _vertexPosition :: Vec3f
-    , _vertexNormal :: Vec3f
-    , _vertexTanget :: Vec3f
-    , _vertexColor :: Scalar Word32
-    , _vertexTexCoord :: Vec2f
-    } deriving (Eq, Ord, Show, Generic)
+    { _vertexPosition :: {-# UNPACK #-} !Vec3f
+    , _vertexNormal :: {-# UNPACK #-} !Vec3f
+    , _vertexTangent :: {-# UNPACK #-} !Vec3f
+    , _vertexColor :: {-# UNPACK #-} !(Scalar Word32)
+    , _vertexTexCoord :: {-# UNPACK #-} !Vec2f
+    } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 instance PrimBytes VertexData
 
 data GeometryCreateInfo = GeometryCreateInfo
-    { _geometryCreateInfoVertices :: DataFrameAtLeastThree VertexData
-    , _geometryCreateInfoIndices :: DataFrameAtLeastThree Word32
-    , _geometryCreateInfoBoundingBox :: BoundingBox
+    { _geometryCreateInfoVertices :: {-# UNPACK #-} !(DataFrameAtLeastThree VertexData)
+    , _geometryCreateInfoIndices :: {-# UNPACK #-} !(DataFrameAtLeastThree Word32)
+    , _geometryCreateInfoBoundingBox :: {-# UNPACK #-} !BoundingBox
     } deriving (Eq, Show, Generic)
-
-instance ToJSON GeometryCreateInfo where
-    toJSON (GeometryCreateInfo vertices indices boundingBox) = do
-        object [ "vertices" .= (show $ map (\(XFrame x) -> unScalar x) $ dataFrameToList vertices)
-               , "indices" .= (map (unScalar . fromIntegral) $ dataFrameToList indices::[Word32])
-               , "boundingBox" .= boundingBox
-               ]
-
-    toEncoding (GeometryCreateInfo vertices indices boundingBox) =
-        pairs ( "vertices" .= (show $ map (\(XFrame x) -> unScalar x) $ dataFrameToList vertices)
-              <> "indices" .= (map (unScalar . fromIntegral) $ dataFrameToList indices::[Word32])
-              <> "boundingBox" .= boundingBox
-              )
-
-instance FromJSON GeometryCreateInfo where
-    parseJSON (Object v) = do
---            name <- v .: "vertices"
---            age <- v .: "indices"
---            boundingBox <- v .: "boundingBox"
-            return $ cubeGeometryCreateInfos !! 0
-    parseJSON _ = error ""
 
 data GeometryData = GeometryData
     { _geometryName :: Text.Text
@@ -86,6 +68,31 @@ data GeometryData = GeometryData
     , _vertexIndexCount :: Word32
     , _geometryBoundingBox :: BoundingBox
     } deriving (Eq, Show, Generic)
+
+instance ToJSON GeometryCreateInfo where
+    toJSON (GeometryCreateInfo vertices indices boundingBox) = do
+        object [ "vertices" .= (map (\(XFrame x) -> unScalar x) $ dataFrameToList vertices)
+               , "indices" .= (map (unScalar . fromIntegral) $ dataFrameToList indices::[Word32])
+               , "boundingBox" .= boundingBox
+               ]
+
+    toEncoding (GeometryCreateInfo vertices indices boundingBox) =
+        pairs ( "vertices" .= (map (\(XFrame x) -> unScalar x) $ dataFrameToList vertices)
+              <> "indices" .= (map (unScalar . fromIntegral) $ dataFrameToList indices::[Word32])
+              <> "boundingBox" .= boundingBox
+              )
+
+instance FromJSON GeometryCreateInfo where
+    parseJSON (Object v) = do
+            vertices <- v .: "vertices"
+            indices <- v .: "indices"
+            boundingBox <- v .: "boundingBox"
+            return $ GeometryCreateInfo
+                { _geometryCreateInfoVertices = atLeastThree . DF.fromList $ [scalar x | x <- vertices]
+                , _geometryCreateInfoIndices = atLeastThree . DF.fromList $ [scalar x | x <- indices]
+                , _geometryCreateInfoBoundingBox = boundingBox
+                }
+    parseJSON _ = error ""
 
 defaultVertexData :: VertexData
 defaultVertexData = VertexData 0 0 0 0 0
@@ -118,7 +125,7 @@ vertexInputAttributeDescriptions = ST.runST $ do
         $  set @"location" 2
         &* set @"binding" 0
         &* set @"format" VK_FORMAT_R32G32B32_SFLOAT
-        &* set @"offset" (bFieldOffsetOf @"_vertexTanget" @VertexData undefined)
+        &* set @"offset" (bFieldOffsetOf @"_vertexTangent" @VertexData undefined)
     ST.writeDataFrame mv (Idx 3 :* U) . scalar $ createVk
         $  set @"location" 3
         &* set @"binding" 0

@@ -181,7 +181,7 @@ updateEvent applicationData = do
         scroll_xoffset = _scroll_xoffset mouseMoveData
         scroll_yoffset = _scroll_yoffset mouseMoveData
         btn_left = _btn_l_down mouseInputData
-        btn_middle = _btn_l_down mouseInputData
+        btn_middle = _btn_m_down mouseInputData
         btn_right = _btn_r_down mouseInputData
         modifierKeysShift = (GLFW.modifierKeysShift._modifierKeys $ keyboardInputData)
         modifiedCameraMoveSpeed = max 0.1 $ min 100.0 (cameraMoveSpeed + scroll_yoffset)
@@ -194,7 +194,7 @@ updateEvent applicationData = do
     when (0.0 /= scroll_yoffset) $
         writeIORef (_cameraMoveSpeed applicationData) modifiedCameraMoveSpeed
 
-    if btn_middle then do
+    if btn_left && btn_right then do
         moveLeft cameraTransformObject (-panSpeed * mousePosDeltaX)
         moveUp cameraTransformObject (panSpeed * mousePosDeltaY)
     else when btn_right $ do
