@@ -18,6 +18,7 @@ import qualified Data.ByteString as ByteString
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import System.Directory
 import System.FilePath.Posix
 import qualified Data.Aeson as Aeson
 --import Data.Aeson.Types
@@ -131,8 +132,8 @@ getUniqueResourceName resourceDataMap resourcePath resourceFilePath = do
     let resourceName = getResourceNameFromFilePath resourcePath resourceFilePath
     generateUniqueName resourceDataMap resourceName
 
-getResourceFileName :: FilePath -> Text.Text -> String -> FilePath
-getResourceFileName resourceFilePath resourceName resourceExt = resourceFilePath ++ [pathSeparator] ++ Text.unpack resourceName ++ resourceExt
+getResourceFileName :: FilePath -> FilePath -> String -> FilePath
+getResourceFileName resourceFilePath resourceName resourceExt = joinPath [resourceFilePath, addExtension resourceName resourceExt]
 
 class ResourceInterface a where
     createResources :: IO a
@@ -299,8 +300,10 @@ instance ResourceInterface Resources where
             Just geometryCreateInfos <- case Map.lookup meshName meshFileMap of
                 Just meshFile -> Aeson.decodeFileStrict meshFile
                 otherwise -> do
+                    let meshNameString = Text.unpack meshName
                     geometryCreateInfos <- loadMesh meshSourceFile
-                    Aeson.encodeFile (getResourceFileName meshFilePath meshName meshExt) geometryCreateInfos
+                    createDirectoryIfMissing True $ takeDirectory (combine meshFilePath meshNameString)
+                    Aeson.encodeFile (getResourceFileName meshFilePath meshNameString meshExt) geometryCreateInfos
                     return (Just geometryCreateInfos)
             registMeshData (_meshDataMap resources) meshName geometryCreateInfos
         where
