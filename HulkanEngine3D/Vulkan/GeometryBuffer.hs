@@ -1,3 +1,4 @@
+{-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE BangPatterns           #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DeriveAnyClass         #-}
@@ -10,6 +11,7 @@
 {-# LANGUAGE PolyKinds              #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE TypeSynonymInstances   #-}
@@ -25,14 +27,17 @@ import qualified Data.Vector as Vector
 import qualified Data.Map as Map
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
+import Foreign.Marshal.Utils
 import qualified Data.DList as DList
-
+--import qualified Data.Vector.Unboxed as UVector
+import qualified Data.Vector.Storable as SVector
 import Data.Aeson
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
 import qualified Numeric.DataFrame.ST as ST
 import qualified Numeric.DataFrame as DF
+import Numeric.PrimBytes
 import Numeric.DataFrame
 import Numeric.Dimensions
 
@@ -42,22 +47,32 @@ import HulkanEngine3D.Utilities.BoundingBox
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
+--import qualified HulkanEngine3D.Utilities.Vector as V
 
 data VertexData = VertexData
     { _vertexPosition :: {-# UNPACK #-} !Vec3f
     , _vertexNormal :: {-# UNPACK #-} !Vec3f
     , _vertexTangent :: {-# UNPACK #-} !Vec3f
-    , _vertexColor :: {-# UNPACK #-} !(Scalar Word32)
+    , _vertexColor :: {-# UNPACK #-} !Word32
     , _vertexTexCoord :: {-# UNPACK #-} !Vec2f
     } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 instance PrimBytes VertexData
 
+instance Storable VertexData where
+    sizeOf _ = bSizeOf (undefined :: VertexData)
+    alignment _ = bAlignOf (undefined :: VertexData)
+    peek ptr = bPeek ptr
+    poke ptr vertexData = bPoke ptr vertexData
+
 data GeometryCreateInfo = GeometryCreateInfo
-    { _geometryCreateInfoVertices :: {-# UNPACK #-} !(DataFrameAtLeastThree VertexData)
-    , _geometryCreateInfoIndices :: {-# UNPACK #-} !(DataFrameAtLeastThree Word32)
+    { _geometryCreateInfoVertices :: {-# UNPACK #-} !(SVector.Vector VertexData)
+    , _geometryCreateInfoIndices :: {-# UNPACK #-} !(SVector.Vector Word32)
     , _geometryCreateInfoBoundingBox :: {-# UNPACK #-} !BoundingBox
-    } deriving (Eq, Show, Generic)
+    } deriving (Generic)
+
+deriving instance Eq GeometryCreateInfo
+deriving instance Show GeometryCreateInfo
 
 data GeometryData = GeometryData
     { _geometryName :: Text.Text
@@ -71,14 +86,14 @@ data GeometryData = GeometryData
 
 instance ToJSON GeometryCreateInfo where
     toJSON (GeometryCreateInfo vertices indices boundingBox) = do
-        object [ "vertices" .= (map (\(XFrame x) -> unScalar x) $ dataFrameToList vertices)
-               , "indices" .= (map (unScalar . fromIntegral) $ dataFrameToList indices::[Word32])
+        object [ "vertices" .= SVector.toList vertices
+               , "indices" .= SVector.toList indices
                , "boundingBox" .= boundingBox
                ]
 
     toEncoding (GeometryCreateInfo vertices indices boundingBox) =
-        pairs ( "vertices" .= (map (\(XFrame x) -> unScalar x) $ dataFrameToList vertices)
-              <> "indices" .= (map (unScalar . fromIntegral) $ dataFrameToList indices::[Word32])
+        pairs ( "vertices" .= SVector.toList vertices
+              <> "indices" .= SVector.toList indices
               <> "boundingBox" .= boundingBox
               )
 
@@ -88,8 +103,8 @@ instance FromJSON GeometryCreateInfo where
             indices <- v .: "indices"
             boundingBox <- v .: "boundingBox"
             return $ GeometryCreateInfo
-                { _geometryCreateInfoVertices = atLeastThree . DF.fromList $ [scalar x | x <- vertices]
-                , _geometryCreateInfoIndices = atLeastThree . DF.fromList $ [scalar x | x <- indices]
+                { _geometryCreateInfoVertices = SVector.fromList vertices
+                , _geometryCreateInfoIndices = SVector.fromList indices
                 , _geometryCreateInfoBoundingBox = boundingBox
                 }
     parseJSON _ = error ""
@@ -156,7 +171,7 @@ createGeometryData physicalDevice device graphicsQueue commandPool geometryName 
         , _vertexBuffer = vertexBuffer
         , _indexBufferMemory = indexBufferMemory
         , _indexBuffer = indexBuffer
-        , _vertexIndexCount = (fromIntegral . dataFrameLength $ _geometryCreateInfoIndices geometryCreateInfo)
+        , _vertexIndexCount = (fromIntegral . SVector.length $ _geometryCreateInfoIndices geometryCreateInfo)
         , _geometryBoundingBox = _geometryCreateInfoBoundingBox geometryCreateInfo
         }
 
@@ -171,10 +186,10 @@ createVertexBuffer :: VkPhysicalDevice
                    -> VkDevice
                    -> VkQueue
                    -> VkCommandPool
-                   -> DataFrameAtLeastThree VertexData
+                   -> SVector.Vector VertexData
                    -> IO (VkDeviceMemory, VkBuffer)
-createVertexBuffer physicalDevice device graphicsQueue commandPool (XFrame vertices) = do
-    let bufferSize = bSizeOf vertices
+createVertexBuffer physicalDevice device graphicsQueue commandPool vertices = do
+    let bufferSize = fromIntegral (sizeOf (undefined::VertexData) * (SVector.length vertices))::VkDeviceSize
         bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
         memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 
@@ -187,7 +202,8 @@ createVertexBuffer physicalDevice device graphicsQueue commandPool (XFrame verti
 
     -- upload data
     stagingDataPtr <- allocaPeek $ vkMapMemory device stagingBufferMemory 0 bufferSize VK_ZERO_FLAGS
-    poke (castPtr stagingDataPtr) vertices
+    SVector.unsafeWith vertices $ \ptr -> do
+        copyBytes (castPtr stagingDataPtr) ptr (fromIntegral bufferSize)
     vkUnmapMemory device stagingBufferMemory
 
     -- create vertex buffer & copy
@@ -200,14 +216,15 @@ createVertexBuffer physicalDevice device graphicsQueue commandPool (XFrame verti
     return (vertexBufferMemory, vertexBuffer)
 
 
+
 createIndexBuffer :: VkPhysicalDevice
                   -> VkDevice
                   -> VkQueue
                   -> VkCommandPool
-                  -> DataFrameAtLeastThree Word32
+                  -> SVector.Vector Word32
                   -> IO (VkDeviceMemory, VkBuffer)
-createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indices) = do
-    let bufferSize = bSizeOf indices
+createIndexBuffer physicalDevice device graphicsQueue commandPool indices = do
+    let bufferSize = fromIntegral (sizeOf (undefined::Word32) * (SVector.length indices))::VkDeviceSize
         bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
         memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 
@@ -223,7 +240,8 @@ createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indice
 
     -- copy data
     stagingDataPtr <- allocaPeek $ vkMapMemory device stagingBufferMemory 0 bufferSize VK_ZERO_FLAGS
-    poke (castPtr stagingDataPtr) indices
+    SVector.unsafeWith indices $ \ptr -> do
+        copyBytes (castPtr stagingDataPtr) ptr (fromIntegral bufferSize)
     vkUnmapMemory device stagingBufferMemory
     copyBuffer device commandPool graphicsQueue stagingBuffer indexBuffer bufferSize
 
@@ -261,7 +279,7 @@ createIndexBuffer physicalDevice device graphicsQueue commandPool (XFrame indice
     Equation of N:
         N = cross(T, B)
 -}
-computeTangent :: Vector.Vector Vec3f -> Vector.Vector Vec3f -> Vector.Vector Vec2f -> Vector.Vector (Scalar Word32) -> (Vector.Vector Vec3f)
+computeTangent :: Vector.Vector Vec3f -> Vector.Vector Vec3f -> Vector.Vector Vec2f -> Vector.Vector Word32 -> (Vector.Vector Vec3f)
 computeTangent positions normals texcoords indices =
     let vertexCount = length positions
         indexCount = length indices
@@ -273,9 +291,9 @@ computeTangent positions normals texcoords indices =
     where
         computeTangent' :: Int -> Vector.Vector Vec3f -> Vector.Vector Vec2f -> Vector.Vector Vec3f -> DList.DList (Int, Vec3f)
         computeTangent' i positions texcoords normals =
-            let i0 = fromIntegral . unScalar $ indices Vector.! i
-                i1 = fromIntegral . unScalar $ indices Vector.! (i + 1)
-                i2 = fromIntegral . unScalar $ indices Vector.! (i + 2)
+            let i0 = fromIntegral $ indices Vector.! i
+                i1 = fromIntegral $ indices Vector.! (i + 1)
+                i2 = fromIntegral $ indices Vector.! (i + 2)
                 deltaPos_0_1 = (positions Vector.! i1) - (positions Vector.! i0)
                 deltaPos_0_2 = (positions Vector.! i2) - (positions Vector.! i0)
                 deltaUV_0_1 = (texcoords Vector.! i1) - (texcoords Vector.! i0)
@@ -300,13 +318,13 @@ quadGeometryCreateInfos =
         normals = Vector.replicate vertexCount $ vec3 0 1 0
         vertexColor = getColor32 255 255 255 255
         texCoords = Vector.fromList [vec2 0 0, vec2 1 0, vec2 1 1, vec2 0 1]
-        indices = Vector.fromList [0, 3, 2, 2, 1, 0] :: Vector.Vector (Scalar Word32)
+        indices = Vector.fromList [0, 3, 2, 2, 1, 0] :: Vector.Vector Word32
         tangents = computeTangent positions normals texCoords indices
         vertices = [VertexData (positions Vector.! i) (normals Vector.! i) (tangents Vector.! i) vertexColor (texCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
     in
         [ GeometryCreateInfo
-            { _geometryCreateInfoVertices = XFrame $ DF.fromFlatList (D4 :* U) defaultVertexData vertices
-            , _geometryCreateInfoIndices = atLeastThree . DF.fromList $ (Vector.toList indices)
+            { _geometryCreateInfoVertices = SVector.fromList vertices
+            , _geometryCreateInfoIndices = SVector.fromList (Vector.toList indices)
             , _geometryCreateInfoBoundingBox = calcBoundingBox positionList
             }
         ]
@@ -336,15 +354,15 @@ cubeGeometryCreateInfos =
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1),
             (0, 1), (0, 0), (1, 0), (1, 1)]]
-        indexList = [ 0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8, 11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22 ] :: [Scalar Word32]
+        indexList = [ 0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8, 11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22 ] :: [Word32]
         indices = Vector.fromList indexList
         tangents = computeTangent positions normals texCoords indices
         vertexCount = length positions
         vertices = [VertexData (positions Vector.! i) (normals Vector.! i) (tangents Vector.! i) vertexColor (texCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
     in
         [ GeometryCreateInfo
-            { _geometryCreateInfoVertices = XFrame $ DF.fromFlatList (D24 :* U) defaultVertexData vertices
-            , _geometryCreateInfoIndices =  atLeastThree . DF.fromList $ indexList
+            { _geometryCreateInfoVertices = SVector.fromList vertices
+            , _geometryCreateInfoIndices = SVector.fromList indexList
             , _geometryCreateInfoBoundingBox = calcBoundingBox positionList
             }
         ]

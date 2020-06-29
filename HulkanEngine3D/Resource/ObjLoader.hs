@@ -16,17 +16,18 @@ import Control.Monad
 import qualified Codec.Wavefront as Wavefront
 import qualified Data.List as List
 import qualified Data.Vector as Vector
+import qualified Data.Vector.Storable as SVector
 import Data.Foldable (toList)
 import Data.Maybe
 import qualified Data.Set as Set
 import Graphics.Vulkan.Marshal.Create.DataFrame ()
-import qualified Numeric.DataFrame as DF
-import Numeric.DataFrame (scalar, vec2, vec3, Vec2f, Vec3f)
+--import qualified Numeric.DataFrame as DF
+import Numeric.DataFrame (vec2, vec3, Vec2f, Vec3f)
 --import Numeric.Dimensions
 
 import HulkanEngine3D.Utilities.BoundingBox
 import HulkanEngine3D.Utilities.Logger
-import HulkanEngine3D.Utilities.Math
+--import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.GeometryBuffer
@@ -60,14 +61,14 @@ objVertices Wavefront.WavefrontOBJ {..} = do
                 uniqueObjVertexList = Set.toList objVertexSet
                 (positions, normals, texCoords) = unzip3 uniqueObjVertexList
                 (vPositions, vNormals, vTexCoords) = (Vector.fromList positions, Vector.fromList normals, Vector.fromList texCoords)
-                vertexIndices = map (scalar . fromIntegral . flip Set.findIndex objVertexSet) allObjVertices
+                vertexIndices = map (fromIntegral . flip Set.findIndex objVertexSet) allObjVertices
                 vVertexIndices = Vector.fromList vertexIndices
                 vertexCount = length positions
                 tangents = computeTangent vPositions vNormals vTexCoords vVertexIndices
-                vertices = [scalar $ VertexData (vPositions Vector.! i) (vNormals Vector.! i) (tangents Vector.! i) vertexColor (vTexCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
+                vertices = [VertexData (vPositions Vector.! i) (vNormals Vector.! i) (tangents Vector.! i) vertexColor (vTexCoords Vector.! i) | i <- [0..(vertexCount - 1)]]
             return GeometryCreateInfo
-                { _geometryCreateInfoVertices = atLeastThree . DF.fromList $ vertices
-                , _geometryCreateInfoIndices = atLeastThree . DF.fromList $ vertexIndices
+                { _geometryCreateInfoVertices = SVector.fromList vertices
+                , _geometryCreateInfoIndices = SVector.fromList vertexIndices
                 , _geometryCreateInfoBoundingBox = calcBoundingBox positions
                 }
     where
