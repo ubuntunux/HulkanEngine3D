@@ -12,6 +12,7 @@
 {-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UnboxedTuples              #-}
@@ -23,9 +24,11 @@ module HulkanEngine3D.Utilities.BoundingBox where
 
 import GHC.Generics (Generic)
 import Data.Text as Text ()
-import Data.Aeson
+import Foreign.Storable
 
+import Data.Aeson
 import Numeric.DataFrame
+import Numeric.PrimBytes
 
 import HulkanEngine3D.Utilities.DataFrame ()
 
@@ -35,6 +38,14 @@ data BoundingBox = BoundingBox
     , _boundingBoxCenter :: {-# UNPACK #-} !Vec3f
     , _boundingBoxRadius :: {-# UNPACK #-} !Float
     } deriving (Eq, Show, Read, Generic, ToJSON, FromJSON)
+
+instance PrimBytes BoundingBox
+
+instance Storable BoundingBox where
+    sizeOf _ = bSizeOf (undefined :: BoundingBox)
+    alignment _ = bAlignOf (undefined :: BoundingBox)
+    peek ptr = bPeek ptr
+    poke ptr vertexData = bPoke ptr vertexData
 
 defaultBoundingBox ::  BoundingBox
 defaultBoundingBox =
