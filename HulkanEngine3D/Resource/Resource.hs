@@ -15,9 +15,11 @@ module HulkanEngine3D.Resource.Resource
 import Control.Monad
 import qualified Data.HashTable.IO as HashTable
 import qualified Data.ByteString as ByteString
+import qualified Data.Binary as Binary
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import qualified Data.Vector.Storable as SVector
 import System.Directory
 import System.FilePath.Posix
 import qualified Data.Aeson as Aeson
@@ -45,8 +47,8 @@ import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.UniformBuffer
 import HulkanEngine3D.Utilities.Logger
---import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.BoundingBox
 
 
 gatherAllFiles :: Bool
@@ -64,8 +66,14 @@ meshFilePath = "Resource/Meshes"
 meshSourceExts :: [String]
 meshSourceExts = [".obj"]
 
+jsonExt :: String
+jsonExt = ".json"
+
 meshExt :: String
 meshExt = ".mesh"
+
+useJsonForMesh :: Bool
+useJsonForMesh = False
 
 modelFilePath :: FilePath
 modelFilePath = "Resource/Models"
@@ -292,26 +300,48 @@ instance ResourceInterface Resources where
         registMeshData (_meshDataMap resources) "quad" GeometryBuffer.quadGeometryCreateInfos
         registMeshData (_meshDataMap resources) "cube" GeometryBuffer.cubeGeometryCreateInfos
 
-        meshFiles <- walkDirectory meshFilePath [meshExt]
+        let resourceExt = if useJsonForMesh then jsonExt else meshExt
+        meshFiles <- walkDirectory meshFilePath [resourceExt]
         let meshFileMap = Map.fromList $ map (\meshFile -> (getResourceNameFromFilePath meshFilePath meshFile, meshFile)) meshFiles
         meshSourceFiles <- walkDirectory meshSourceFilePath meshSourceExts
         forM_ meshSourceFiles $ \meshSourceFile -> do
             meshName <- getUniqueResourceName (_meshDataMap resources) meshSourceFilePath meshSourceFile
-            Just geometryCreateInfos <- case Map.lookup meshName meshFileMap of
-                Just meshFile -> Aeson.decodeFileStrict meshFile
+            let resourceName = Text.unpack meshName
+            geometryCreateInfos <- case Map.lookup meshName meshFileMap of
+                Just meshFile ->
+                    -- Load mesh
+                    if useJsonForMesh then
+                        Maybe.fromJust <$> (Aeson.decodeFileStrict meshFile)
+                    else do
+                        contents <- Binary.decodeFile meshFile::IO [([Word8], [Word8], String)]
+                        forM contents $ \(vertices, indices, boundingBox) ->
+                            return GeometryBuffer.GeometryCreateInfo
+                                { GeometryBuffer._geometryCreateInfoVertices = (SVector.unsafeCast (SVector.fromList vertices)::SVector.Vector GeometryBuffer.VertexData)
+                                , GeometryBuffer._geometryCreateInfoIndices = (SVector.unsafeCast (SVector.fromList indices)::SVector.Vector Word32)
+                                , GeometryBuffer._geometryCreateInfoBoundingBox = (read boundingBox::BoundingBox)
+                                }
                 otherwise -> do
-                    let meshNameString = Text.unpack meshName
+                    -- Convert to mesh from source
                     geometryCreateInfos <- loadMesh meshSourceFile
-                    createDirectoryIfMissing True $ takeDirectory (combine meshFilePath meshNameString)
-                    Aeson.encodeFile (getResourceFileName meshFilePath meshNameString meshExt) geometryCreateInfos
-                    return (Just geometryCreateInfos)
+                    -- Save mesh
+                    createDirectoryIfMissing True (takeDirectory $ combine meshFilePath resourceName)
+                    if useJsonForMesh then
+                        Aeson.encodeFile (getResourceFileName meshFilePath resourceName resourceExt) geometryCreateInfos
+                    else do
+                        contents <- forM geometryCreateInfos $ \geometryCreateInfo -> do
+                            let vertices = SVector.toList (SVector.unsafeCast (GeometryBuffer._geometryCreateInfoVertices geometryCreateInfo)::SVector.Vector Word8)
+                                indices = SVector.toList (SVector.unsafeCast (GeometryBuffer._geometryCreateInfoIndices geometryCreateInfo)::SVector.Vector Word8)
+                                boundingBox = show (GeometryBuffer._geometryCreateInfoBoundingBox geometryCreateInfo)
+                            return (vertices, indices, boundingBox)
+                        Binary.encodeFile (getResourceFileName meshFilePath resourceName resourceExt) contents
+                    return geometryCreateInfos
             registMeshData (_meshDataMap resources) meshName geometryCreateInfos
         where
+            registMeshData :: MeshDataMap -> Text.Text -> [GeometryBuffer.GeometryCreateInfo] -> IO ()
             registMeshData meshDataMap meshName geometryCreateInfos = do
                 geometryBufferDatas <- forM (zip ([0..]::[Int]) geometryCreateInfos) $ \(index, geometryCreateInfo) -> do
                     createGeometryBuffer rendererData (Text.append meshName (Text.pack $ show index)) geometryCreateInfo
                 meshData <- newMeshData meshName geometryBufferDatas
-
                 HashTable.insert (_meshDataMap resources) meshName meshData
 
     unloadMeshDatas :: Resources -> RendererData -> IO ()

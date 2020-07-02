@@ -34,7 +34,7 @@ data BoundingBox = BoundingBox
     , _boundingBoxMax :: {-# UNPACK #-} !Vec3f
     , _boundingBoxCenter :: {-# UNPACK #-} !Vec3f
     , _boundingBoxRadius :: {-# UNPACK #-} !Float
-    } deriving (Eq, Show, Generic, ToJSON, FromJSON)
+    } deriving (Eq, Show, Read, Generic, ToJSON, FromJSON)
 
 defaultBoundingBox ::  BoundingBox
 defaultBoundingBox =

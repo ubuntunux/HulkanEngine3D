@@ -67,6 +67,7 @@ executable main
     build-depends:    base >= 4.11 && < 5
                       , aeson
                       , array
+                      , binary
                       , bytestring
                       , containers
                       , directory

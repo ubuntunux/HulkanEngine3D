@@ -55,7 +55,7 @@ data VertexData = VertexData
     , _vertexTangent :: {-# UNPACK #-} !Vec3f
     , _vertexColor :: {-# UNPACK #-} !Word32
     , _vertexTexCoord :: {-# UNPACK #-} !Vec2f
-    } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+    } deriving (Eq, Read, Show, Generic, ToJSON, FromJSON)
 
 instance PrimBytes VertexData
 
@@ -69,10 +69,7 @@ data GeometryCreateInfo = GeometryCreateInfo
     { _geometryCreateInfoVertices :: {-# UNPACK #-} !(SVector.Vector VertexData)
     , _geometryCreateInfoIndices :: {-# UNPACK #-} !(SVector.Vector Word32)
     , _geometryCreateInfoBoundingBox :: {-# UNPACK #-} !BoundingBox
-    } deriving (Generic)
-
-deriving instance Eq GeometryCreateInfo
-deriving instance Show GeometryCreateInfo
+    } deriving (Eq, Read, Show, Generic, ToJSON, FromJSON)
 
 data GeometryData = GeometryData
     { _geometryName :: Text.Text
@@ -83,31 +80,6 @@ data GeometryData = GeometryData
     , _vertexIndexCount :: Word32
     , _geometryBoundingBox :: BoundingBox
     } deriving (Eq, Show, Generic)
-
-instance ToJSON GeometryCreateInfo where
-    toJSON (GeometryCreateInfo vertices indices boundingBox) = do
-        object [ "vertices" .= SVector.toList vertices
-               , "indices" .= SVector.toList indices
-               , "boundingBox" .= boundingBox
-               ]
-
-    toEncoding (GeometryCreateInfo vertices indices boundingBox) =
-        pairs ( "vertices" .= SVector.toList vertices
-              <> "indices" .= SVector.toList indices
-              <> "boundingBox" .= boundingBox
-              )
-
-instance FromJSON GeometryCreateInfo where
-    parseJSON (Object v) = do
-            vertices <- v .: "vertices"
-            indices <- v .: "indices"
-            boundingBox <- v .: "boundingBox"
-            return $ GeometryCreateInfo
-                { _geometryCreateInfoVertices = SVector.fromList vertices
-                , _geometryCreateInfoIndices = SVector.fromList indices
-                , _geometryCreateInfoBoundingBox = boundingBox
-                }
-    parseJSON _ = error ""
 
 defaultVertexData :: VertexData
 defaultVertexData = VertexData 0 0 0 0 0
