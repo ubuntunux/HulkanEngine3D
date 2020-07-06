@@ -38,7 +38,6 @@ import qualified HulkanEngine3D.Render.Model as Model
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Resource.ObjLoader
-import qualified HulkanEngine3D.Resource.FrameBufferCreateInfo as FrameBufferCreateInfo
 import qualified HulkanEngine3D.Resource.RenderPassCreateInfo as RenderPassCreateInfo
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
@@ -387,12 +386,15 @@ instance ResourceInterface Resources where
     -- FrameBuffer
     loadFrameBufferDatas :: Resources -> RendererData -> IO ()
     loadFrameBufferDatas resources rendererData = do
-        HashTable.mapM_ (\(k, v) -> registFrameBufferData k) (_renderPassDataMap resources)
+        renderPassDataCreateInfos <- RenderPassCreateInfo.getRenderPassDataCreateInfos rendererData
+        let frameBufferCreateInfoMap = Map.fromList (map (\renderPassDataCreateInfo -> (_renderPassCreateInfoName renderPassDataCreateInfo, _renderPassFrameBufferCreateInfo renderPassDataCreateInfo)) renderPassDataCreateInfos)
+        HashTable.mapM_ (\(k, v) -> registFrameBufferData frameBufferCreateInfoMap k) (_renderPassDataMap resources)
         where
-            registFrameBufferData renderPassName = do
+            registFrameBufferData :: Map.Map Text.Text FrameBufferDataCreateInfo -> Text.Text -> IO ()
+            registFrameBufferData frameBufferCreateInfoMap renderPassName = do
                 Just renderPassData <- getRenderPassData resources renderPassName
                 let frameBufferName = _renderPassFrameBufferName (renderPassData::RenderPassData)
-                frameBufferDataCreateInfo <- FrameBufferCreateInfo.getFrameBufferDataCreateInfo rendererData frameBufferName
+                    Just frameBufferDataCreateInfo = Map.lookup frameBufferName frameBufferCreateInfoMap
                 frameBufferData <- createFrameBufferData (getDevice rendererData) (_renderPass renderPassData) frameBufferDataCreateInfo
                 HashTable.insert (_frameBufferDataMap resources) frameBufferName frameBufferData
 

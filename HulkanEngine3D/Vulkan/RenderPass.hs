@@ -24,6 +24,7 @@ import Numeric.DataFrame
 import Numeric.Dimensions
 
 import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.PushConstant
@@ -34,7 +35,7 @@ import HulkanEngine3D.Utilities.System
 
 data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     { _renderPassCreateInfoName :: Text.Text
-    , _renderPassFrameBufferName :: Text.Text
+    , _renderPassFrameBufferCreateInfo :: FrameBufferDataCreateInfo
     , _colorAttachmentDescriptions :: [ImageAttachmentDescription]
     , _depthAttachmentDescriptions :: [ImageAttachmentDescription]
     , _resolveAttachmentDescriptions :: [ImageAttachmentDescription]
@@ -204,7 +205,7 @@ createRenderPassData device renderPassDataCreateInfo@RenderPassDataCreateInfo {.
     return RenderPassData
         { _renderPassDataName = _renderPassCreateInfoName
         , _renderPass = renderPass
-        , _renderPassFrameBufferName = _renderPassFrameBufferName
+        , _renderPassFrameBufferName = (_frameBufferName _renderPassFrameBufferCreateInfo)
         , _defaultPipelineData = pipelineDataList !! 0
         , _pipelineDataMap = pipelineDataMap
         }

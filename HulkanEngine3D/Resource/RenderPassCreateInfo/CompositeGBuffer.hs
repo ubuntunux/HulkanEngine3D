@@ -1,27 +1,46 @@
+{-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeApplications   #-}
 
 module HulkanEngine3D.Resource.RenderPassCreateInfo.CompositeGBuffer where
 
 import Data.Bits
 import qualified Data.Text as Text
+import Data.IORef
 
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
-import HulkanEngine3D.Render.Renderer
-import HulkanEngine3D.Resource.FrameBufferCreateInfo
-import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.Descriptor
-import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Vulkan.FrameBuffer
+import HulkanEngine3D.Render.Renderer
+import HulkanEngine3D.Vulkan.RenderPass
+import HulkanEngine3D.Vulkan.SwapChain
+import HulkanEngine3D.Vulkan.Vulkan
 
 renderPassName :: Text.Text
 renderPassName = "composite_gbuffer"
 
-renderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
-renderPassDataCreateInfo rendererData = do
-    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
+getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
+getFrameBufferDataCreateInfo rendererData = do
+    swapChainData <- readIORef (_swapChainDataRef rendererData)
+    let imageSize = _swapChainExtent swapChainData
+        width = getField @"width" imageSize
+        height = getField @"height" imageSize
+    return defaultFrameBufferDataCreateInfo
+        { _frameBufferName = renderPassName
+        , _frameBufferWidth = width
+        , _frameBufferHeight = height
+        , _frameBufferViewPort = createViewport 0 0 width height 0 1
+        , _frameBufferScissorRect = createScissorRect 0 0 width height
+        , _frameBufferColorAttachmentFormats = [_swapChainImageFormat swapChainData]
+        , _frameBufferImageViewsList = [[swapChainImageView] | swapChainImageView <- _swapChainImageViews swapChainData]
+        }
+
+getRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
+getRenderPassDataCreateInfo rendererData = do
+    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData
     let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
         colorAttachmentDescriptions =
             [ defaultAttachmentDescription
@@ -99,7 +118,7 @@ renderPassDataCreateInfo rendererData = do
             ]
     return RenderPassDataCreateInfo
         { _renderPassCreateInfoName = renderPassName
-        , _renderPassFrameBufferName = (_frameBufferName frameBufferDataCreateInfo)
+        , _renderPassFrameBufferCreateInfo = frameBufferDataCreateInfo
         , _colorAttachmentDescriptions = colorAttachmentDescriptions
         , _depthAttachmentDescriptions = []
         , _resolveAttachmentDescriptions = []

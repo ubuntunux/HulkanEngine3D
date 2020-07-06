@@ -11,9 +11,9 @@ import HulkanEngine3D.Vulkan.RenderPass
 
 getRenderPassDataCreateInfos :: RendererData -> IO [RenderPassDataCreateInfo]
 getRenderPassDataCreateInfos rendererData = do
-    render_default <- RenderDefault.renderPassDataCreateInfo rendererData
-    composite_gbuffer <- CompositeGBuffer.renderPassDataCreateInfo rendererData
-    render_ssao <- SSAO.renderPassDataCreateInfo rendererData
+    render_default <- RenderDefault.getRenderPassDataCreateInfo rendererData
+    composite_gbuffer <- CompositeGBuffer.getRenderPassDataCreateInfo rendererData
+    render_ssao <- SSAO.getRenderPassDataCreateInfo rendererData
     return [ render_default
            , composite_gbuffer
            , render_ssao
