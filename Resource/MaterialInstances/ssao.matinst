@@ -1,0 +1,3 @@
+{"render_pass_name": "render_ssao",
+ "pipeline_name": "render_ssao",
+ "material_parameters": {"textureAlbedo": "common/default", "textureMaterial": "common/default_m", "textureNormal": "common/default_n"}}

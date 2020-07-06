@@ -407,11 +407,10 @@ instance ResourceInterface Resources where
     -- RenderPassLoader
     loadRenderPassDatas :: Resources -> RendererData -> IO ()
     loadRenderPassDatas resources rendererData = do
-        registRenderPassData defaultRenderPassName
-        registRenderPassData "composite_gbuffer"
+        renderPassDataCreateInfos <- RenderPassCreateInfo.getRenderPassDataCreateInfos rendererData
+        mapM_ registRenderPassData renderPassDataCreateInfos
         where
-            registRenderPassData renderPassName = do
-                renderPassDataCreateInfo <- RenderPassCreateInfo.getRenderPassDataCreateInfo rendererData renderPassName
+            registRenderPassData renderPassDataCreateInfo = do
                 descriptorDatas <- forM (_pipelineDataCreateInfos renderPassDataCreateInfo) $ \pipelineDataCreateInfo -> do
                     getDescriptorData resources rendererData (_renderPassCreateInfoName renderPassDataCreateInfo) pipelineDataCreateInfo
                 defaultRenderPassData <- createRenderPassData (getDevice rendererData) renderPassDataCreateInfo descriptorDatas

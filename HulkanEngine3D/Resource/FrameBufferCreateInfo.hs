@@ -62,4 +62,32 @@ getFrameBufferDataCreateInfo rendererData frameBufferName
             , _frameBufferColorAttachmentFormats = [_swapChainImageFormat swapChainData]
             , _frameBufferImageViewsList = [[swapChainImageView] | swapChainImageView <- _swapChainImageViews swapChainData]
             }
+    | "render_ssao" == frameBufferName = do
+        textureSceneAlbedo <- getRenderTarget rendererData "SceneAlbedo"
+        textureSceneMaterial <- getRenderTarget rendererData "SceneMaterial"
+        textureSceneNormal <- getRenderTarget rendererData "SceneNormal"
+        textureSceneVelocity <- getRenderTarget rendererData "SceneVelocity"
+        textureSceneDepth <- getRenderTarget rendererData "SceneDepth"
+        let (width, height, depth) = (_imageWidth textureSceneAlbedo, _imageHeight textureSceneAlbedo, _imageDepth textureSceneAlbedo)
+            textures = [textureSceneAlbedo, textureSceneMaterial, textureSceneNormal, textureSceneVelocity]
+        return defaultFrameBufferDataCreateInfo
+            { _frameBufferName = frameBufferName
+            , _frameBufferWidth = width
+            , _frameBufferHeight = height
+            , _frameBufferDepth = depth
+            , _frameBufferSampleCount = _imageSampleCount textureSceneAlbedo
+            , _frameBufferViewPort = createViewport 0 0 width height 0 1
+            , _frameBufferScissorRect = createScissorRect 0 0 width height
+            , _frameBufferColorAttachmentFormats = [_imageFormat texture | texture <- textures]
+            , _frameBufferDepthAttachmentFormats = [_imageFormat textureSceneDepth]
+            , _frameBufferImageViewsList =
+                replicate Constants.swapChainImageCount ([_imageView texture | texture <- textures] ++ [_imageView textureSceneDepth])
+            , _frameBufferClearValues =
+                [ getColorClearValue [0.0, 0.0, 0.0]
+                , getColorClearValue [0.0, 0.0, 0.0]
+                , getColorClearValue [0.5, 0.5, 1.0]
+                , getColorClearValue [0.0, 0.0]
+                , getDepthStencilClearValue 1.0 0
+                ]
+            }
     | otherwise = return undefined

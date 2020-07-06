@@ -83,3 +83,12 @@ shadowDistance = 50.0
 
 shadowUpdateDistance :: Float
 shadowUpdateDistance = 10.0
+
+_SSAO_KERNEL_SIZE :: Int
+_SSAO_KERNEL_SIZE = 32
+
+_SSAO_RADIUS :: Float
+_SSAO_RADIUS = 2.0
+
+_SSAO_NOISE_DIM :: Int
+_SSAO_NOISE_DIM = 4

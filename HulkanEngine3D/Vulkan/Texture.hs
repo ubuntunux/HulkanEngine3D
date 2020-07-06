@@ -6,22 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module HulkanEngine3D.Vulkan.Texture
-    ( RenderTargetCreateInfo (..)
-    , TextureData (..)
-    , createDescriptorImageInfo
-    , findSupportedFormat
-    , createImageSampler
-    , destroyImageSampler
-    , createImageView
-    , destroyImageView
-    , createImage
-    , destroyImage
-    , copyBufferToImage
-    , createRenderTarget
-    , createTextureData
-    , destroyTextureData
-    ) where
+module HulkanEngine3D.Vulkan.Texture where
 
 import qualified Data.Text as Text
 import Control.Monad
@@ -52,6 +37,7 @@ data RenderTargetCreateInfo = RenderTargetCreateInfo
     , _renderTargetWrapMode' :: VkSamplerAddressMode
     , _renderTargetEnableMipmap' :: Bool
     , _renderTargetEnableAnisotropy' :: Bool
+    , _renderTargetImmutable' :: Bool
     }
 
 data TextureData = TextureData
