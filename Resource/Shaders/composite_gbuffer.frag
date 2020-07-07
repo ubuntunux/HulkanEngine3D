@@ -8,6 +8,7 @@
 layout(binding = 3) uniform sampler2D textureAlbedo;
 layout(binding = 4) uniform sampler2D textureMaterial;
 layout(binding = 5) uniform sampler2D textureNormal;
+layout(binding = 6) uniform sampler2D textureSSAO;
 
 layout(location = 0) in vec4 vertexColor;
 layout(location = 1) in vec3 vertexNormal;
@@ -20,6 +21,7 @@ void main() {
     vec3 material = texture(textureMaterial, texCoord).xyz;
     vec3 normal = texture(textureNormal, texCoord).xyz;
     float lighting = saturate(dot(normal, lightConstants.LIGHT_DIRECTION) * 0.5 + 0.5);
-    outColor.xyz = albedo * lighting;
+    float ssao = texture(textureSSAO, texCoord).x;
+    outColor.xyz = mix(albedo * lighting, vec3(ssao), vec3(0.8));
     outColor.w = 1.0;
 }

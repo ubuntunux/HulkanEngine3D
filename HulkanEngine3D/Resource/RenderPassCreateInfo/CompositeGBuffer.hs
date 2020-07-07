@@ -71,7 +71,7 @@ getRenderPassDataCreateInfo rendererData = do
                 , _pipelineSampleCount = sampleCount
                 , _pipelinePolygonMode = VK_POLYGON_MODE_FILL
                 , _pipelineCullMode = VK_CULL_MODE_NONE
-                , _pipelineFrontFace = VK_FRONT_FACE_CLOCKWISE
+                , _pipelineFrontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE
                 , _pipelineViewport = _frameBufferViewPort frameBufferDataCreateInfo
                 , _pipelineScissorRect = _frameBufferScissorRect frameBufferDataCreateInfo
                 , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
@@ -110,6 +110,12 @@ getRenderPassDataCreateInfo rendererData = do
                     , DescriptorDataCreateInfo
                         5
                         "SceneNormal"
+                        DescriptorResourceType_RenderTarget
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                        VK_SHADER_STAGE_FRAGMENT_BIT
+                    , DescriptorDataCreateInfo
+                        6
+                        "SSAO"
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
