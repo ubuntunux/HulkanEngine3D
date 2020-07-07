@@ -387,7 +387,8 @@ instance ResourceInterface Resources where
     loadFrameBufferDatas :: Resources -> RendererData -> IO ()
     loadFrameBufferDatas resources rendererData = do
         renderPassDataCreateInfos <- RenderPassCreateInfo.getRenderPassDataCreateInfos rendererData
-        let frameBufferCreateInfoMap = Map.fromList (map (\renderPassDataCreateInfo -> (_renderPassCreateInfoName renderPassDataCreateInfo, _renderPassFrameBufferCreateInfo renderPassDataCreateInfo)) renderPassDataCreateInfos)
+        let frameBufferCreateInfoList = map (\renderPassDataCreateInfo -> (_renderPassCreateInfoName renderPassDataCreateInfo, _renderPassFrameBufferCreateInfo renderPassDataCreateInfo)) renderPassDataCreateInfos
+            frameBufferCreateInfoMap = Map.fromList frameBufferCreateInfoList
         HashTable.mapM_ (\(k, v) -> registFrameBufferData frameBufferCreateInfoMap k) (_renderPassDataMap resources)
         where
             registFrameBufferData :: Map.Map Text.Text FrameBufferDataCreateInfo -> Text.Text -> IO ()
