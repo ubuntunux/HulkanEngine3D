@@ -7,7 +7,6 @@ import Data.Bits
 import qualified Data.Text as Text
 
 import Graphics.Vulkan.Core_1_0
-import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Vulkan.Descriptor
@@ -58,36 +57,54 @@ getRenderPassDataCreateInfo rendererData = do
             [ defaultAttachmentDescription
                 { _attachmentImageFormat = format
                 , _attachmentImageSamples = sampleCount
-                , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
                 , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
-                , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 } | format <- _frameBufferColorAttachmentFormats frameBufferDataCreateInfo
+            ]
+        depthAttachmentDescriptions =
+            [ defaultAttachmentDescription
+                { _attachmentImageFormat = format
+                , _attachmentImageSamples = sampleCount
+                , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
+                , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
+                , _attachmentFinalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                } | format <- _frameBufferDepthAttachmentFormats frameBufferDataCreateInfo
             ]
         subpassDependencies =
             [ createSubpassDependency
                 VK_SUBPASS_EXTERNAL
                 0
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                VK_ZERO_FLAGS
+                VK_ACCESS_MEMORY_READ_BIT
                 (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT .|. VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                VK_DEPENDENCY_BY_REGION_BIT
+            , createSubpassDependency
+                0
+                VK_SUBPASS_EXTERNAL
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+                (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT .|. VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                VK_ACCESS_MEMORY_READ_BIT
                 VK_DEPENDENCY_BY_REGION_BIT
             ]
         pipelineDataCreateInfos =
             [ PipelineDataCreateInfo
                 { _pipelineDataCreateInfoName = "render_ssao"
-                , _vertexShaderFile = "Resource/Shaders/render_quad.vert"
-                , _fragmentShaderFile = "Resource/Shaders/composite_gbuffer.frag"
+                , _vertexShaderFile = "Resource/Shaders/render_object.vert"
+                , _fragmentShaderFile = "Resource/Shaders/render_object.frag"
                 , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
                 , _pipelineSampleCount = sampleCount
                 , _pipelinePolygonMode = VK_POLYGON_MODE_FILL
-                , _pipelineCullMode = VK_CULL_MODE_NONE
+                , _pipelineCullMode = VK_CULL_MODE_BACK_BIT
                 , _pipelineFrontFace = VK_FRONT_FACE_CLOCKWISE
                 , _pipelineViewport = _frameBufferViewPort frameBufferDataCreateInfo
                 , _pipelineScissorRect = _frameBufferScissorRect frameBufferDataCreateInfo
-                , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
-                , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo  { _depthWriteEnable = VK_FALSE }
+                , _pipelineColorBlendModes = replicate (length colorAttachmentDescriptions) $ getColorBlendMode BlendMode_None
+                , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
                 , _descriptorDataCreateInfoList =
                     [ DescriptorDataCreateInfo
                         0
@@ -109,20 +126,20 @@ getRenderPassDataCreateInfo rendererData = do
                         (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
                     , DescriptorDataCreateInfo
                         3
-                        "SceneAlbedo"
-                        DescriptorResourceType_RenderTarget
+                        "textureAlbedo"
+                        DescriptorResourceType_Texture
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
                     , DescriptorDataCreateInfo
                         4
-                        "SceneMaterial"
-                        DescriptorResourceType_RenderTarget
+                        "textureMaterial"
+                        DescriptorResourceType_Texture
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
                     , DescriptorDataCreateInfo
                         5
-                        "SceneNormal"
-                        DescriptorResourceType_RenderTarget
+                        "textureNormal"
+                        DescriptorResourceType_Texture
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
                     ]
@@ -132,7 +149,7 @@ getRenderPassDataCreateInfo rendererData = do
         { _renderPassCreateInfoName = renderPassName
         , _renderPassFrameBufferCreateInfo = frameBufferDataCreateInfo
         , _colorAttachmentDescriptions = colorAttachmentDescriptions
-        , _depthAttachmentDescriptions = []
+        , _depthAttachmentDescriptions = depthAttachmentDescriptions
         , _resolveAttachmentDescriptions = []
         , _subpassDependencies = subpassDependencies
         , _pipelineDataCreateInfos = pipelineDataCreateInfos

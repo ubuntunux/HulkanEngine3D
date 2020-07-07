@@ -445,7 +445,7 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
             validationVK result "vkCreateGraphicsPipelines failed!"
         peek graphicsPipelinePtr
 
-    logInfo $ "createGraphicsPipeline : " ++ Text.unpack _pipelineDataCreateInfoName ++ show graphicsPipeline
+    logInfo $ "createGraphicsPipeline : " ++ Text.unpack _pipelineDataCreateInfoName ++ " (" ++ show graphicsPipeline ++ ")"
     logInfo $ "    vertexShader : " ++ show _vertexShaderFile
     logInfo $ "    fragmentShader : " ++ show _fragmentShaderFile
 
