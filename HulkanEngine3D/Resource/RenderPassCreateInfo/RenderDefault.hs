@@ -68,7 +68,7 @@ getRenderPassDataCreateInfo rendererData = do
                 { _attachmentImageFormat = format
                 , _attachmentImageSamples = sampleCount
                 , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
-                , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
+                , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
                 , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
                 } | format <- _frameBufferDepthAttachmentFormats frameBufferDataCreateInfo
