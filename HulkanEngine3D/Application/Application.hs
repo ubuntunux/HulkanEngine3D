@@ -21,6 +21,7 @@ import Numeric.DataFrame
 import Numeric.Dimensions
 
 import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Application.Command
 import HulkanEngine3D.Application.Input
 import qualified HulkanEngine3D.Application.SceneManager as SceneManager
 import HulkanEngine3D.Render.Camera
@@ -292,14 +293,17 @@ initializeApplication = do
 
     return applicationData
 
-updateLoop :: ApplicationData -> (ApplicationData -> IO ()) -> IO ()
-updateLoop applicationData loopAction = do
+updateLoop :: ApplicationData -> IORef Command -> IORef Command -> (ApplicationData -> Command -> IO ()) -> IO ()
+updateLoop applicationData commandToEditor commandToApp loopAction = do
+    recvCommand <- readIORef commandToApp
+    atomicWriteIORef commandToApp Command_None
     moveInputData <- readIORef (_mouseInputData applicationData)
     moveMoveData <- readIORef (_mouseMoveData applicationData)
     keyboardInputData <- readIORef (_keyboardInputData applicationData)
     escReleased <- getKeyReleased keyboardInputData GLFW.Key'Escape
     exit <- GLFW.windowShouldClose (_window applicationData)
-    when (not exit && not escReleased) $ do
+    let closeApp = (Command_Close_App == recvCommand) || escReleased || exit
+    when (not closeApp) $ do
         -- reset input flags
         writeIORef (_keyboardInputData applicationData) keyboardInputData
             { _keyboardDown = False
@@ -315,8 +319,8 @@ updateLoop applicationData loopAction = do
         GLFW.pollEvents
 
         updateEvent applicationData
-        loopAction applicationData
-        updateLoop applicationData loopAction
+        loopAction applicationData recvCommand
+        updateLoop applicationData commandToEditor commandToApp loopAction
 
 terminateApplication :: ApplicationData -> IO ()
 terminateApplication applicationData = do
@@ -358,12 +362,12 @@ updateTimeData timeDataRef = do
         , _averageFPS = averageFPS
         }
 
-runApplication :: IO ()
-runApplication = do
+runApplication :: IORef Command -> IORef Command -> IO ()
+runApplication commandToEditor commandToApp = do
     applicationData <- initializeApplication
 
     -- Main Loop
-    updateLoop applicationData $ \applicationData -> do
+    updateLoop applicationData commandToEditor commandToApp $ \applicationData recvCommand -> do
         updateTimeData $ _timeData applicationData
         deltaTime <- realToFrac <$> getDeltaTime applicationData
         elapsedTime <- getElapsedTime applicationData
@@ -375,7 +379,7 @@ runApplication = do
         -- resize window
         needRecreateSwapChain <- readIORef (Renderer._needRecreateSwapChainRef rendererData)
         windowSizeChanged <- readIORef (_windowSizeChanged applicationData)
-        when (windowSizeChanged || needRecreateSwapChain) $ do
+        when (windowSizeChanged || needRecreateSwapChain || Command_Resize_Window == recvCommand) $ do
             Renderer.resizeWindow (_window applicationData) rendererData
             writeIORef (_windowSizeChanged applicationData) False
             writeIORef (Renderer._needRecreateSwapChainRef rendererData) False

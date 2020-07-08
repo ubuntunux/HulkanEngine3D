@@ -118,5 +118,6 @@
     <orderEntry type="library" name="easytensor-vulkan-2.0.2.0" level="project" />
     <orderEntry type="library" name="dimensions-2.1.0.0" level="project" />
     <orderEntry type="library" name="constraints-deriving-1.1.1.0" level="project" />
+    <orderEntry type="library" name="open-browser-0.2.1.0" level="project" />
   </component>
 </module>

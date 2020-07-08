@@ -13,16 +13,19 @@ import Data.Maybe
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core
 
+import HulkanEngine3D.Application.Command
 
-runEditor :: IO ()
-runEditor = startGUI defaultConfig setup
+runEditor :: IORef Command -> IORef Command -> IO ()
+runEditor commandToEditor commandToApp = startGUI defaultConfig (setup commandToEditor commandToApp)
 
-setup :: Window -> UI ()
-setup w = do
+setup :: IORef Command -> IORef Command -> Window -> UI ()
+setup commandToEditor commandToApp w = do
     -- active elements
-    return w # set title "BarTab"
+    return w # set title "HulkanEngine3D Editor"
 
-    elAdd    <- UI.button # set UI.text "Add"
+    elResizeWindow <- UI.button # set UI.text "Resize Window"
+    elCloseApp <- UI.button # set UI.text "Close App"
+    elAdd <- UI.button # set UI.text "Add"
     elRemove <- UI.button # set UI.text "Remove"
     elResult <- UI.span
 
@@ -42,11 +45,20 @@ setup w = do
 
         mkLayout :: [Element] -> UI Element
         mkLayout xs = column $
-            [row [element elAdd, element elRemove]
-            ,UI.hr]
-            ++ map element xs ++
-            [UI.hr
-            ,row [UI.span # set text "Sum: ", element elResult]
+            [ column $
+                [ element elResizeWindow
+                , element elCloseApp
+                , element elAdd
+                , element elRemove
+                ]
+            , UI.hr
+            ] ++
+            map element xs ++
+            [ UI.hr
+            , row
+                [ UI.span # set text "Sum: "
+                , element elResult
+                ]
             ]
 
         addInput :: UI ()
@@ -58,7 +70,9 @@ setup w = do
         removeInput :: UI ()
         removeInput = liftIO $ modifyIORef inputs (drop 1)
 
-    on UI.click elAdd    $ \_ -> addInput    >> redoLayout
+    on UI.click elResizeWindow $ \_ -> liftIO $ atomicWriteIORef commandToApp Command_Resize_Window
+    on UI.click elCloseApp $ \_ -> liftIO $ atomicWriteIORef commandToApp Command_Close_App
+    on UI.click elAdd $ \_ -> addInput >> redoLayout
     on UI.click elRemove $ \_ -> removeInput >> redoLayout
     addInput >> redoLayout
 

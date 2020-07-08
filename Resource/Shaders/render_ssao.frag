@@ -11,5 +11,5 @@ layout(location = 2) in vec2 texCoord;
 layout(location = 0) out float outColor;
 
 void main() {
-    outColor = texture(textureSceneNormal, texCoord).x;
+    outColor = texture(textureSceneDepth, texCoord).x;
 }

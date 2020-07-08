@@ -123,8 +123,8 @@ defaultAttachmentDescription = ImageAttachmentDescription
     , _attachmentStencilLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
     , _attachmentStencilStoreOperation = VK_ATTACHMENT_STORE_OP_DONT_CARE
     , _attachmentInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED
-    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_UNDEFINED
-    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_UNDEFINED
+    , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
+    , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_GENERAL
     }
 data PipelineData = PipelineData
     { _pipelineDataName :: Text.Text
