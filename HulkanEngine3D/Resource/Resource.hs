@@ -455,7 +455,7 @@ instance ResourceInterface Resources where
                             maybeMaterialParameter = HashMap.lookup materialParameterName materialParameterMap
                         case (materialParameterType, materialParameterResourceType) of
                             (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, Descriptor.DescriptorResourceType_UniformBuffer) -> do
-                                uniformBufferData <- getUniformBufferData rendererData materialParameterName
+                                uniformBufferData <- getUniformBufferData rendererData (fromText materialParameterName)
                                 return $ Descriptor.DescriptorBufferInfo (_descriptorBufferInfos uniformBufferData !! index)
                             (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_Texture) -> do
                                 textureData <- case maybeMaterialParameter of

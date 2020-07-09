@@ -111,7 +111,7 @@ class RendererInterface a where
     getCommandBuffer :: a -> Int -> IO VkCommandBuffer
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
-    getUniformBufferData :: a -> Text.Text -> IO UniformBufferData
+    getUniformBufferData :: a -> UniformBufferType -> IO UniformBufferData
     createRenderTarget :: a -> Text.Text -> Texture.RenderTargetCreateInfo -> IO Texture.TextureData
     createTexture :: a -> Text.Text -> FilePath -> IO Texture.TextureData
     destroyTexture :: a -> Texture.TextureData -> IO ()
@@ -134,9 +134,9 @@ instance RendererInterface RendererData where
     getGraphicsQueue rendererData = (_graphicsQueue (_queueFamilyDatas rendererData))
     getPresentQueue rendererData = (_presentQueue (_queueFamilyDatas rendererData))
 
-    getUniformBufferData :: RendererData -> Text.Text -> IO UniformBufferData
-    getUniformBufferData rendererData uniformBufferDataName =
-        Maybe.fromJust <$> HashTable.lookup (_uniformBufferDataMap rendererData) uniformBufferDataName
+    getUniformBufferData :: RendererData -> UniformBufferType -> IO UniformBufferData
+    getUniformBufferData rendererData uniformBufferType =
+        Maybe.fromJust <$> HashTable.lookup (_uniformBufferDataMap rendererData) uniformBufferType
 
     createRenderTarget rendererData textureDataName renderTargetCreateInfo =
         Texture.createRenderTarget
@@ -413,9 +413,9 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
             rotation <- TransformObject.getRotation $ Light._directionalLightTransformObject mainLight
 
             -- Upload Uniform Buffers
-            sceneConstantsBufferData <- getUniformBufferData rendererData "SceneConstants"
-            viewProjectionConstantsBufferData <- getUniformBufferData rendererData "ViewProjectionConstants"
-            lightConstantsBufferData <- getUniformBufferData rendererData "LightConstants"
+            sceneConstantsBufferData <- getUniformBufferData rendererData UniformBuffer_SceneConstants
+            viewProjectionConstantsBufferData <- getUniformBufferData rendererData UniformBuffer_ViewProjectionConstants
+            lightConstantsBufferData <- getUniformBufferData rendererData UniformBuffer_LightConstants
             let sceneConstantsBufferMemory = (_uniformBufferMemories sceneConstantsBufferData) !! imageIndex
                 viewProjectionConstantsBufferMemory = (_uniformBufferMemories viewProjectionConstantsBufferData) !! imageIndex
                 lightConstantsBufferMemory = (_uniformBufferMemories lightConstantsBufferData) !! imageIndex
