@@ -314,14 +314,13 @@ instance ResourceInterface Resources where
                         Maybe.fromJust <$> (Aeson.decodeFileStrict meshFile)
                     else do
                         contents <- Binary.decodeFile meshFile::IO [([Word8], [Word8], [Word8])]
-                        forM contents $ \(vertices, indices, xxx) -> do
+                        forM contents $ \(vertexDatas, indexDatas, boundingBoxData) -> do
                             boundingBox <- alloca $ \ptr -> do
-                                pokeArray ptr xxx
-                                let size = sizeOf (undefined::BoundingBox)
+                                pokeArray ptr boundingBoxData
                                 peek (castPtr ptr::Ptr BoundingBox)
                             return GeometryBuffer.GeometryCreateInfo
-                                { GeometryBuffer._geometryCreateInfoVertices = (SVector.unsafeCast (SVector.fromList vertices)::SVector.Vector GeometryBuffer.VertexData)
-                                , GeometryBuffer._geometryCreateInfoIndices = (SVector.unsafeCast (SVector.fromList indices)::SVector.Vector Word32)
+                                { GeometryBuffer._geometryCreateInfoVertices = (SVector.unsafeCast (SVector.fromList vertexDatas)::SVector.Vector GeometryBuffer.VertexData)
+                                , GeometryBuffer._geometryCreateInfoIndices = (SVector.unsafeCast (SVector.fromList indexDatas)::SVector.Vector Word32)
                                 , GeometryBuffer._geometryCreateInfoBoundingBox = boundingBox
                                 }
                 otherwise -> do
@@ -333,14 +332,14 @@ instance ResourceInterface Resources where
                         Aeson.encodeFile (getResourceFileName meshFilePath resourceName resourceExt) geometryCreateInfos
                     else do
                         contents <- forM geometryCreateInfos $ \geometryCreateInfo -> do
-                            let vertices = SVector.toList (SVector.unsafeCast (GeometryBuffer._geometryCreateInfoVertices geometryCreateInfo)::SVector.Vector Word8)
-                                indices = SVector.toList (SVector.unsafeCast (GeometryBuffer._geometryCreateInfoIndices geometryCreateInfo)::SVector.Vector Word8)
-                                boundingBox = show (GeometryBuffer._geometryCreateInfoBoundingBox geometryCreateInfo)
-                            xxx <- alloca $ \ptr -> do
-                                  poke ptr (GeometryBuffer._geometryCreateInfoBoundingBox geometryCreateInfo)
-                                  let count = sizeOf (undefined::BoundingBox) `div` sizeOf (undefined::Word8)
-                                  peekArray count (castPtr ptr::Ptr Word8)
-                            return ((vertices, indices, xxx)::([Word8], [Word8], [Word8]))
+                            let vertexDatas = SVector.toList (SVector.unsafeCast (GeometryBuffer._geometryCreateInfoVertices geometryCreateInfo)::SVector.Vector Word8)
+                                indexDatas = SVector.toList (SVector.unsafeCast (GeometryBuffer._geometryCreateInfoIndices geometryCreateInfo)::SVector.Vector Word8)
+                                boundingBox = GeometryBuffer._geometryCreateInfoBoundingBox geometryCreateInfo
+                            boundingBoxData <- alloca $ \ptr -> do
+                                poke ptr (GeometryBuffer._geometryCreateInfoBoundingBox geometryCreateInfo)
+                                let count = sizeOf (undefined::BoundingBox) `div` sizeOf (undefined::Word8)
+                                peekArray count (castPtr ptr::Ptr Word8)
+                            return ((vertexDatas, indexDatas, boundingBoxData)::([Word8], [Word8], [Word8]))
                         Binary.encodeFile (getResourceFileName meshFilePath resourceName resourceExt) contents
                     return geometryCreateInfos
             registMeshData (_meshDataMap resources) meshName geometryCreateInfos
