@@ -1,23 +1,19 @@
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeApplications   #-}
 
 module HulkanEngine3D.Render.RenderTarget where
 
-import qualified Data.Text as Text
 import qualified Data.HashTable.IO as HashTable
 
 import Graphics.Vulkan.Core_1_0
 
 import HulkanEngine3D.Render.Renderer
---import HulkanEngine3D.Vulkan.Vulkan
+import HulkanEngine3D.Render.RenderTargetType
 import HulkanEngine3D.Vulkan.SwapChain
 import qualified HulkanEngine3D.Vulkan.Texture as Texture
 import HulkanEngine3D.Utilities.System
-
-
-type RenderTargetDataMap = HashTable.BasicHashTable Text.Text Texture.TextureData
 
 createRenderTargets :: RendererData -> RenderTargetDataMap -> IO ()
 createRenderTargets rendererData renderTargetDataMap = do
@@ -31,7 +27,7 @@ createRenderTargets rendererData renderTargetDataMap = do
         disableAnisotropy = False
         immutable = True
         mutable = False
-    registRenderTarget rendererData renderTargetDataMap "SceneColor" $
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneColor $
         Texture.RenderTargetCreateInfo
             windowWidth
             windowHeight
@@ -44,7 +40,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
-    registRenderTarget rendererData renderTargetDataMap "SceneDepth" $
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneDepth $
         Texture.RenderTargetCreateInfo
             windowWidth
             windowHeight
@@ -57,7 +53,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
-    registRenderTarget rendererData renderTargetDataMap "BackBuffer" $
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_BackBuffer $
         Texture.RenderTargetCreateInfo
             windowWidth
             windowHeight
@@ -70,7 +66,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
-    registRenderTarget rendererData renderTargetDataMap "SceneAlbedo" $
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneAlbedo $
         Texture.RenderTargetCreateInfo
             windowWidth
             windowHeight
@@ -83,7 +79,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
-    registRenderTarget rendererData renderTargetDataMap "SceneMaterial" $
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneMaterial $
         Texture.RenderTargetCreateInfo
             windowWidth
             windowHeight
@@ -96,7 +92,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
-    registRenderTarget rendererData renderTargetDataMap "SceneNormal" $
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneNormal $
         Texture.RenderTargetCreateInfo
             windowWidth
             windowHeight
@@ -109,7 +105,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
-    registRenderTarget rendererData renderTargetDataMap "SceneVelocity" $
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneVelocity $
         Texture.RenderTargetCreateInfo
             windowWidth
             windowHeight
@@ -122,7 +118,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
-    registRenderTarget rendererData renderTargetDataMap "SSAO" $
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_SSAO $
         Texture.RenderTargetCreateInfo
             (div windowWidth 2)
             (div windowHeight 2)
@@ -136,10 +132,10 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableAnisotropy
             mutable
     where
-        registRenderTarget :: RendererData -> RenderTargetDataMap -> Text.Text -> Texture.RenderTargetCreateInfo -> IO ()
-        registRenderTarget rendererData renderTargetDataMap renderTargetName renderTargetCreateInfo = do
-            textureData <- createRenderTarget rendererData renderTargetName renderTargetCreateInfo
-            HashTable.insert renderTargetDataMap renderTargetName textureData
+        registRenderTarget :: RendererData -> RenderTargetDataMap -> RenderTargetType -> Texture.RenderTargetCreateInfo -> IO ()
+        registRenderTarget rendererData renderTargetDataMap renderTargetType renderTargetCreateInfo = do
+            textureData <- createRenderTarget rendererData (renderTargetTypeToText renderTargetType) renderTargetCreateInfo
+            HashTable.insert renderTargetDataMap renderTargetType textureData
 
 destroyRenderTargets :: RendererData -> RenderTargetDataMap -> IO ()
 destroyRenderTargets rendererData renderTargetDataMap =

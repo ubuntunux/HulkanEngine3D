@@ -9,19 +9,21 @@ import qualified Data.Text as Text
 import Graphics.Vulkan.Core_1_0
 
 import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Render.Renderer
+import HulkanEngine3D.Render.RenderTargetType
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
-import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.Vulkan
+import HulkanEngine3D.Utilities.System
 
 renderPassName :: Text.Text
 renderPassName = "render_ssao"
 
 getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
 getFrameBufferDataCreateInfo rendererData = do
-    textureSSAO <- getRenderTarget rendererData "SSAO"
+    textureSSAO <- getRenderTarget rendererData RenderTarget_SSAO
     let (width, height, depth) = (_imageWidth textureSSAO, _imageHeight textureSSAO, _imageDepth textureSSAO)
         textures = [textureSSAO]
     return defaultFrameBufferDataCreateInfo
@@ -96,13 +98,13 @@ getRenderPassDataCreateInfo rendererData = do
                         (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
                     , DescriptorDataCreateInfo
                         3
-                        "SceneNormal"
+                        (toText RenderTarget_SceneNormal)
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
                     , DescriptorDataCreateInfo
                         4
-                        "SceneDepth"
+                        (toText RenderTarget_SceneDepth)
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT

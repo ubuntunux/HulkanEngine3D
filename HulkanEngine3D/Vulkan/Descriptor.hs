@@ -3,24 +3,7 @@
 {-# LANGUAGE TypeApplications    #-}
 
 
-module HulkanEngine3D.Vulkan.Descriptor
-  ( DescriptorResourceInfo (..)
-  , DescriptorResourceType (..)
-  , DescriptorDataCreateInfo (..)
-  , DescriptorData (..)
-  , defaultDescriptorData
-  , createDescriptorPool
-  , destroyDescriptorPool
-  , createDescriptorSetLayoutBinding
-  , createDescriptorSetLayout
-  , destroyDescriptorSetLayout
-  , createDescriptorData
-  , destroyDescriptorData
-  , createDescriptorSet
-  , destroyDescriptorSet
-  , updateDescriptorSets
-  , createDescriptorBufferInfo
-  ) where
+module HulkanEngine3D.Vulkan.Descriptor where
 
 import Control.Monad
 import qualified Data.Text as Text
@@ -31,9 +14,9 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
 
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
-import qualified HulkanEngine3D.Constants as Constants
 
 data DescriptorResourceInfo =
     DescriptorBufferInfo VkDescriptorBufferInfo |

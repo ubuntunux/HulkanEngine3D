@@ -17,6 +17,7 @@ import Control.Exception
 import Control.Monad
 import Data.Char
 import Data.IORef
+import Data.Hashable
 import qualified Data.Time.Clock.System as SystemTime
 import qualified Data.Vector.Mutable as MVector
 import qualified Data.HashTable.IO as HashTable
@@ -185,8 +186,14 @@ generateUniqueName objectMap objectName = do
                 Nothing -> return newObjectName
                 otherwise -> generator objectMap objectName (index + 1)
 
-clearHashTable :: HashTable.BasicHashTable Text.Text a -> ((Text.Text, a) -> IO ()) -> IO ()
+clearHashTable :: (Eq k, Hashable k) => HashTable.BasicHashTable k a -> ((k, a) -> IO ()) -> IO ()
 clearHashTable hashTable action = do
     HashTable.mapM_ action hashTable
     resourcesList <- HashTable.toList hashTable
     mapM_ (\(k, v) -> HashTable.delete hashTable k) resourcesList
+
+toText :: (Show a) => a -> Text.Text
+toText = Text.pack . show
+
+fromText :: (Read a) => Text.Text -> a
+fromText = read . Text.unpack

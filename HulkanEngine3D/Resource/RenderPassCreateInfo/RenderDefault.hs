@@ -9,9 +9,10 @@ import qualified Data.Text as Text
 import Graphics.Vulkan.Core_1_0
 
 import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Render.Renderer
+import HulkanEngine3D.Render.RenderTargetType
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
-import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.Vulkan
@@ -21,11 +22,11 @@ renderPassName = "render_default"
 
 getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
 getFrameBufferDataCreateInfo rendererData = do
-    textureSceneAlbedo <- getRenderTarget rendererData "SceneAlbedo"
-    textureSceneMaterial <- getRenderTarget rendererData "SceneMaterial"
-    textureSceneNormal <- getRenderTarget rendererData "SceneNormal"
-    textureSceneVelocity <- getRenderTarget rendererData "SceneVelocity"
-    textureSceneDepth <- getRenderTarget rendererData "SceneDepth"
+    textureSceneAlbedo <- getRenderTarget rendererData RenderTarget_SceneAlbedo
+    textureSceneMaterial <- getRenderTarget rendererData RenderTarget_SceneMaterial
+    textureSceneNormal <- getRenderTarget rendererData RenderTarget_SceneNormal
+    textureSceneVelocity <- getRenderTarget rendererData RenderTarget_SceneVelocity
+    textureSceneDepth <- getRenderTarget rendererData RenderTarget_SceneDepth
     let (width, height, depth) = (_imageWidth textureSceneAlbedo, _imageHeight textureSceneAlbedo, _imageDepth textureSceneAlbedo)
         textures = [textureSceneAlbedo, textureSceneMaterial, textureSceneNormal, textureSceneVelocity]
     return defaultFrameBufferDataCreateInfo

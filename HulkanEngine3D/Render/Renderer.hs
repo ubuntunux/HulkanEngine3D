@@ -48,6 +48,7 @@ import {-# SOURCE #-} qualified HulkanEngine3D.Application.SceneManager as Scene
 import qualified HulkanEngine3D.Render.Camera as Camera
 import qualified HulkanEngine3D.Render.Light as Light
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
+import HulkanEngine3D.Render.RenderTargetType
 import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Render.MaterialInstance
 import qualified HulkanEngine3D.Render.RenderElement as RenderElement
@@ -114,7 +115,7 @@ class RendererInterface a where
     createRenderTarget :: a -> Text.Text -> Texture.RenderTargetCreateInfo -> IO Texture.TextureData
     createTexture :: a -> Text.Text -> FilePath -> IO Texture.TextureData
     destroyTexture :: a -> Texture.TextureData -> IO ()
-    getRenderTarget :: a -> Text.Text -> IO Texture.TextureData
+    getRenderTarget :: a -> RenderTargetType -> IO Texture.TextureData
     createGeometryBuffer :: a -> Text.Text -> GeometryCreateInfo -> IO GeometryData
     destroyGeometryBuffer :: a -> GeometryData -> IO ()
     deviceWaitIdle :: a -> IO ()
@@ -159,8 +160,8 @@ instance RendererInterface RendererData where
     destroyTexture rendererData textureData =
         Texture.destroyTextureData (_device rendererData) textureData
 
-    getRenderTarget rendererData renderTargetName =
-        Maybe.fromJust <$> HashTable.lookup (_renderTargetDataMap rendererData) renderTargetName
+    getRenderTarget rendererData renderTargetType =
+        Maybe.fromJust <$> HashTable.lookup (_renderTargetDataMap rendererData) renderTargetType
 
     createGeometryBuffer rendererData bufferName geometryCreateInfo = do
         createGeometryData

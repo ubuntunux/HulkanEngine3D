@@ -24,12 +24,10 @@ import Foreign
 import System.Directory
 import System.FilePath.Posix
 import qualified Data.Aeson as Aeson
---import Data.Aeson.Types
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 
 import Graphics.Vulkan.Core_1_0
---import Numeric.DataFrame
 
 import qualified HulkanEngine3D.Constants as Constants
 import {-# SOURCE #-} HulkanEngine3D.Application.SceneManager
@@ -37,6 +35,7 @@ import HulkanEngine3D.Render.Mesh
 import qualified HulkanEngine3D.Render.Model as Model
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Renderer
+import HulkanEngine3D.Render.RenderTargetType
 import HulkanEngine3D.Resource.ObjLoader
 import qualified HulkanEngine3D.Resource.RenderPassCreateInfo as RenderPassCreateInfo
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
@@ -465,7 +464,7 @@ instance ResourceInterface Resources where
                                     otherwise -> getTextureData resources defaultTextureName
                                 return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
                             (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_RenderTarget) -> do
-                                textureData <- getRenderTarget rendererData materialParameterName
+                                textureData <- getRenderTarget rendererData (textToRenderTargetType materialParameterName)
                                 return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
                             otherwise -> return Descriptor.InvalidDescriptorInfo
                     return $ filter (/= Descriptor.InvalidDescriptorInfo) descriptorResourceInfos
