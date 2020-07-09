@@ -10,7 +10,6 @@ module HulkanEngine3D.Render.RenderTargetType where
 import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashTable.IO as HashTable
-import qualified Data.Text as Text
 
 import qualified HulkanEngine3D.Vulkan.Texture as Texture
 
@@ -27,9 +26,3 @@ data RenderTargetType = RenderTarget_SceneColor
 instance Hashable RenderTargetType
 
 type RenderTargetDataMap = HashTable.BasicHashTable RenderTargetType Texture.TextureData
-
-renderTargetTypeToText :: RenderTargetType -> Text.Text
-renderTargetTypeToText = Text.pack . show
-
-textToRenderTargetType :: Text.Text -> RenderTargetType
-textToRenderTargetType = read . Text.unpack

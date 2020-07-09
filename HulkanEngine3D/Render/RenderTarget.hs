@@ -134,7 +134,7 @@ createRenderTargets rendererData renderTargetDataMap = do
     where
         registRenderTarget :: RendererData -> RenderTargetDataMap -> RenderTargetType -> Texture.RenderTargetCreateInfo -> IO ()
         registRenderTarget rendererData renderTargetDataMap renderTargetType renderTargetCreateInfo = do
-            textureData <- createRenderTarget rendererData (renderTargetTypeToText renderTargetType) renderTargetCreateInfo
+            textureData <- createRenderTarget rendererData (toText renderTargetType) renderTargetCreateInfo
             HashTable.insert renderTargetDataMap renderTargetType textureData
 
 destroyRenderTargets :: RendererData -> RenderTargetDataMap -> IO ()

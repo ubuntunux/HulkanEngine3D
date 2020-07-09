@@ -35,7 +35,6 @@ import HulkanEngine3D.Render.Mesh
 import qualified HulkanEngine3D.Render.Model as Model
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Renderer
-import HulkanEngine3D.Render.RenderTargetType
 import HulkanEngine3D.Resource.ObjLoader
 import qualified HulkanEngine3D.Resource.RenderPassCreateInfo as RenderPassCreateInfo
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
@@ -464,7 +463,7 @@ instance ResourceInterface Resources where
                                     otherwise -> getTextureData resources defaultTextureName
                                 return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
                             (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_RenderTarget) -> do
-                                textureData <- getRenderTarget rendererData (textToRenderTargetType materialParameterName)
+                                textureData <- getRenderTarget rendererData (fromText materialParameterName)
                                 return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
                             otherwise -> return Descriptor.InvalidDescriptorInfo
                     return $ filter (/= Descriptor.InvalidDescriptorInfo) descriptorResourceInfos
