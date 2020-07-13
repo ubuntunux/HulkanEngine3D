@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE DuplicateRecordFields  #-}
 {-# LANGUAGE InstanceSigs           #-}
+{-# LANGUAGE NamedFieldPuns         #-}
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE PolyKinds              #-}
 {-# LANGUAGE TypeOperators          #-}
@@ -28,6 +29,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 
 import Graphics.Vulkan.Core_1_0
+import qualified Codec.Picture as Image
 
 import qualified HulkanEngine3D.Constants as Constants
 import {-# SOURCE #-} HulkanEngine3D.Application.SceneManager
@@ -369,7 +371,16 @@ instance ResourceInterface Resources where
         textureFiles <- walkDirectory textureFilePath [".jpg", ".png"]
         forM_ textureFiles $ \textureFile -> do
             textureDataName <- getUniqueResourceName (_textureDataMap resources) textureFilePath textureFile
-            textureData <- createTexture rendererData textureDataName textureFile
+            imageRawData <- Image.readImage textureFile
+            Image.Image { imageWidth, imageHeight, imageData } <- case imageRawData of
+                Left err -> throwVKMsg err
+                Right dynamicImage -> pure $ Image.convertRGBA8 dynamicImage
+            let textureCreateInfo = defaultTextureCreateInfo
+                    { _textureCreateInfoWidth = (fromIntegral imageWidth)
+                    , _textureCreateInfoHeight = (fromIntegral imageHeight)
+                    , _textureCreateInfoData = imageData
+                    }
+            textureData <- createTexture rendererData textureDataName textureCreateInfo
             HashTable.insert (_textureDataMap resources) textureDataName textureData
 
     unloadTextureDatas :: Resources -> RendererData -> IO ()

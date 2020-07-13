@@ -27,8 +27,9 @@ createRenderTargets rendererData renderTargetDataMap = do
         disableAnisotropy = False
         immutable = True
         mutable = False
+        emptyData = (Texture._textureCreateInfoData Texture.defaultTextureCreateInfo)
     registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneColor $
-        Texture.RenderTargetCreateInfo
+        Texture.TextureCreateInfo
             windowWidth
             windowHeight
             1
@@ -40,8 +41,9 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
+            emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneDepth $
-        Texture.RenderTargetCreateInfo
+        Texture.TextureCreateInfo
             windowWidth
             windowHeight
             1
@@ -53,8 +55,9 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
+            emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_BackBuffer $
-        Texture.RenderTargetCreateInfo
+        Texture.TextureCreateInfo
             windowWidth
             windowHeight
             1
@@ -66,8 +69,9 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
+            emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneAlbedo $
-        Texture.RenderTargetCreateInfo
+        Texture.TextureCreateInfo
             windowWidth
             windowHeight
             1
@@ -79,8 +83,9 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
+            emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneMaterial $
-        Texture.RenderTargetCreateInfo
+        Texture.TextureCreateInfo
             windowWidth
             windowHeight
             1
@@ -92,8 +97,9 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
+            emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneNormal $
-        Texture.RenderTargetCreateInfo
+        Texture.TextureCreateInfo
             windowWidth
             windowHeight
             1
@@ -105,8 +111,9 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
+            emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneVelocity $
-        Texture.RenderTargetCreateInfo
+        Texture.TextureCreateInfo
             windowWidth
             windowHeight
             1
@@ -118,8 +125,9 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
+            emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_SSAO $
-        Texture.RenderTargetCreateInfo
+        Texture.TextureCreateInfo
             (div windowWidth 2)
             (div windowHeight 2)
             1
@@ -131,10 +139,11 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableMipmap
             disableAnisotropy
             mutable
+            emptyData
     where
-        registRenderTarget :: RendererData -> RenderTargetDataMap -> RenderTargetType -> Texture.RenderTargetCreateInfo -> IO ()
-        registRenderTarget rendererData renderTargetDataMap renderTargetType renderTargetCreateInfo = do
-            textureData <- createRenderTarget rendererData (toText renderTargetType) renderTargetCreateInfo
+        registRenderTarget :: RendererData -> RenderTargetDataMap -> RenderTargetType -> Texture.TextureCreateInfo -> IO ()
+        registRenderTarget rendererData renderTargetDataMap renderTargetType textureCreateInfo = do
+            textureData <- createRenderTarget rendererData (toText renderTargetType) textureCreateInfo
             HashTable.insert renderTargetDataMap renderTargetType textureData
 
 destroyRenderTargets :: RendererData -> RenderTargetDataMap -> IO ()

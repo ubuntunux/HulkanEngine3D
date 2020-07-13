@@ -10,11 +10,12 @@ module HulkanEngine3D.Vulkan.Texture where
 
 import qualified Data.Text as Text
 import Control.Monad
-import Codec.Picture
 import Data.Bits
-import qualified Data.Vector.Storable as Vec
-import Foreign.Marshal.Array (copyArray)
-import Foreign.Ptr (castPtr)
+import qualified Data.List as List
+import qualified Data.Vector.Storable as SVector
+import Foreign.Marshal.Array
+import Foreign.Ptr
+import Foreign.ForeignPtr
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
@@ -26,18 +27,19 @@ import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
 
 
-data RenderTargetCreateInfo = RenderTargetCreateInfo
-    { _renderTargetWidth' :: Word32
-    , _renderTargetHeight' :: Word32
-    , _renderTargetDepth' :: Word32
-    , _renderTargetFormat' :: VkFormat
-    , _renderTargetSamples' :: VkSampleCountFlagBits
-    , _renderTargetMinFilter' :: VkFilter
-    , _renderTargetMagFilter' :: VkFilter
-    , _renderTargetWrapMode' :: VkSamplerAddressMode
-    , _renderTargetEnableMipmap' :: Bool
-    , _renderTargetEnableAnisotropy' :: Bool
-    , _renderTargetImmutable' :: Bool
+data TextureCreateInfo = TextureCreateInfo
+    { _textureCreateInfoWidth :: Word32
+    , _textureCreateInfoHeight :: Word32
+    , _textureCreateInfoDepth :: Word32
+    , _textureCreateInfoFormat :: VkFormat
+    , _textureCreateInfoSamples :: VkSampleCountFlagBits
+    , _textureCreateInfoMinFilter :: VkFilter
+    , _textureCreateInfoMagFilter :: VkFilter
+    , _textureCreateInfoWrapMode :: VkSamplerAddressMode
+    , _textureCreateInfoEnableMipmap :: Bool
+    , _textureCreateInfoEnableAnisotropy :: Bool
+    , _textureCreateInfoImmutable :: Bool
+    , _textureCreateInfoData :: SVector.Vector Word8
     }
 
 data TextureData = TextureData
@@ -64,6 +66,23 @@ data TransitionDependent = TransitionDependent
     , _dstAccessMask :: VkAccessFlags
     , _srcStageMask  :: VkPipelineStageFlags
     , _dstStageMask  :: VkPipelineStageFlags }
+
+
+defaultTextureCreateInfo :: TextureCreateInfo
+defaultTextureCreateInfo = TextureCreateInfo
+    { _textureCreateInfoWidth = 1
+    , _textureCreateInfoHeight = 1
+    , _textureCreateInfoDepth = 1
+    , _textureCreateInfoFormat = VK_FORMAT_R8G8B8A8_UNORM
+    , _textureCreateInfoSamples = VK_SAMPLE_COUNT_1_BIT
+    , _textureCreateInfoMinFilter = VK_FILTER_LINEAR
+    , _textureCreateInfoMagFilter = VK_FILTER_LINEAR
+    , _textureCreateInfoWrapMode = VK_SAMPLER_ADDRESS_MODE_REPEAT
+    , _textureCreateInfoEnableMipmap = True
+    , _textureCreateInfoEnableAnisotropy = True
+    , _textureCreateInfoImmutable = True
+    , _textureCreateInfoData = SVector.empty
+    }
 
 transitionDependent :: ImageLayoutTransition -> TransitionDependent
 transitionDependent TransferUndef_TransferDst = TransitionDependent
@@ -98,6 +117,9 @@ transitionDependent TransferUndef_ColorAttachemnt = TransitionDependent
 nextMipmapSize :: Int32 -> Int32
 nextMipmapSize n = if 1 < n then (div n 2) else 1
 
+calcMipLevels :: Word32 -> Word32 -> Word32 -> Word32
+calcMipLevels imageWidth imageHeight imageDepth = (floor . logBase (2::Float) . fromIntegral $ (max imageWidth (max imageHeight imageDepth))) + 1
+
 createDescriptorImageInfo :: VkImageLayout -> VkImageView -> VkSampler -> VkDescriptorImageInfo
 createDescriptorImageInfo imageLayout imageView imageSasmpler =
     createVk @VkDescriptorImageInfo
@@ -130,8 +152,8 @@ barrierStruct image mipLevel oldLayout newLayout srcAccessMask dstAccessMask =
         &* set @"srcAccessMask" srcAccessMask
         &* set @"dstAccessMask" dstAccessMask
 
-blitStruct :: VkImage -> Word32 -> Int32 -> Int32 -> VkImageBlit
-blitStruct image mipLevel srcWidth srcHeight =
+blitStruct :: VkImage -> Word32 -> Int32 -> Int32 -> Int32 -> VkImageBlit
+blitStruct image mipLevel srcWidth srcHeight srcDepth =
     createVk @VkImageBlit
         $  setAt @"srcOffsets" @0
             (createVk
@@ -142,7 +164,7 @@ blitStruct image mipLevel srcWidth srcHeight =
             (createVk
                 $  set @"x" srcWidth
                 &* set @"y" srcHeight
-                &* set @"z" 1)
+                &* set @"z" srcDepth)
         &* setAt @"dstOffsets" @0
             (createVk
                 $  set @"x" 0
@@ -152,7 +174,7 @@ blitStruct image mipLevel srcWidth srcHeight =
             (createVk
                 $  set @"x" (nextMipmapSize srcWidth)
                 &* set @"y" (nextMipmapSize srcHeight)
-                &* set @"z" 1)
+                &* set @"z" (nextMipmapSize srcDepth))
         &* setVk @"srcSubresource"
             (  set @"aspectMask" VK_IMAGE_ASPECT_COLOR_BIT
             &* set @"mipLevel" (mipLevel - 1)
@@ -168,18 +190,19 @@ blitStruct image mipLevel srcWidth srcHeight =
 generateMipmaps :: VkPhysicalDevice
                 -> VkImage
                 -> VkFormat
-                -> Int32
-                -> Int32
+                -> Word32
+                -> Word32
+                -> Word32
                 -> Word32
                 -> VkCommandBuffer
                 -> IO ()
-generateMipmaps physicalDevice image format width height mipLevels commandBuffer = do
+generateMipmaps physicalDevice image format width height depth mipLevels commandBuffer = do
     formatProps <- allocaPeek $ \propsPtr ->
         vkGetPhysicalDeviceFormatProperties physicalDevice format propsPtr
     let supported = (getField @"optimalTilingFeatures" formatProps) .&. VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
     when (supported == VK_ZERO_FLAGS) $ throwVKMsg "texture image format does not support linear blitting!"
     mapM_ createMipmap
-        (zip3 [1 .. mipLevels-1] (iterate nextMipmapSize (fromIntegral width)) (iterate nextMipmapSize (fromIntegral height)))
+        (List.zip4 [1 .. mipLevels-1] (iterate nextMipmapSize (fromIntegral width)) (iterate nextMipmapSize (fromIntegral height)) (iterate nextMipmapSize (fromIntegral depth)))
     let barrier = barrierStruct
             image
             (mipLevels - 1)
@@ -196,8 +219,8 @@ generateMipmaps physicalDevice image format width height mipLevels commandBuffer
                 0 VK_NULL
                 1 barrierPtr
     where
-        createMipmap :: (Word32, Int32, Int32) -> IO ()
-        createMipmap (mipLevel, srcWidth, srcHeight) = do
+        createMipmap :: (Word32, Int32, Int32, Int32) -> IO ()
+        createMipmap (mipLevel, srcWidth, srcHeight, srcDepth) = do
             let barrier = barrierStruct
                     image
                     (mipLevel - 1)
@@ -214,7 +237,7 @@ generateMipmaps physicalDevice image format width height mipLevels commandBuffer
                     0 VK_NULL
                     1 barrierPtr
 
-            withPtr (blitStruct image mipLevel srcWidth srcHeight) $ \blitPtr ->
+            withPtr (blitStruct image mipLevel srcWidth srcHeight srcDepth) $ \blitPtr ->
                 vkCmdBlitImage commandBuffer
                     image VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
                     image VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
@@ -425,8 +448,9 @@ copyBufferToImage :: VkDevice
                   -> VkImage
                   -> Word32
                   -> Word32
+                  -> Word32
                   -> IO ()
-copyBufferToImage device commandBufferPool commandQueue buffer image width height =
+copyBufferToImage device commandBufferPool commandQueue buffer image width height depth =
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
         let region = createVk @VkBufferImageCopy
                 $  set @"bufferOffset" 0
@@ -444,7 +468,7 @@ copyBufferToImage device commandBufferPool commandQueue buffer image width heigh
                 &* setVk @"imageExtent"
                     (  set @"width" width
                     &* set @"height" height
-                    &* set @"depth" 1)
+                    &* set @"depth" depth)
         in withPtr region $ \regionPtr ->
             vkCmdCopyBufferToImage commandBuffer buffer image VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 1 regionPtr
 
@@ -453,19 +477,18 @@ createRenderTarget :: Text.Text
                    -> VkDevice
                    -> VkCommandPool
                    -> VkQueue
-                   -> RenderTargetCreateInfo
+                   -> TextureCreateInfo
                    -> IO TextureData
-createRenderTarget textureDataName physicalDevice device commandBufferPool queue renderTargetCreateInfo@RenderTargetCreateInfo {..} = do
-    let enableAnisotropy = if _renderTargetEnableAnisotropy' then VK_TRUE else VK_FALSE
-        maxImageSize = max _renderTargetWidth' (max _renderTargetHeight' _renderTargetDepth')
-        mipLevels = case _renderTargetEnableMipmap' of
-            True -> (floor $ logBase (2::Float) (fromIntegral maxImageSize)) + 1
+createRenderTarget textureDataName physicalDevice device commandBufferPool queue textureCreateInfo@TextureCreateInfo {..} = do
+    let enableAnisotropy = if _textureCreateInfoEnableAnisotropy then VK_TRUE else VK_FALSE
+        mipLevels = case _textureCreateInfoEnableMipmap of
+            True -> calcMipLevels _textureCreateInfoWidth _textureCreateInfoHeight _textureCreateInfoDepth
             False -> 1
-        isDepthFormat = elem _renderTargetFormat' Constants.depthFomats
+        isDepthFormat = elem _textureCreateInfoFormat Constants.depthFomats
         commonUsage = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT .|. VK_IMAGE_USAGE_TRANSFER_SRC_BIT .|. VK_IMAGE_USAGE_TRANSFER_DST_BIT .|. VK_IMAGE_USAGE_SAMPLED_BIT
     (imageUsage, imageAspect, imageLayoutTransition, imageFormat) <-
         if isDepthFormat then do
-            depthFormat <- findSupportedFormat physicalDevice _renderTargetFormat' VK_IMAGE_TILING_OPTIMAL VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+            depthFormat <- findSupportedFormat physicalDevice _textureCreateInfoFormat VK_IMAGE_TILING_OPTIMAL VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
             return ( commonUsage .|. VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
                    , VK_IMAGE_ASPECT_DEPTH_BIT
                    , TransferUndef_DepthStencilAttachemnt
@@ -475,16 +498,16 @@ createRenderTarget textureDataName physicalDevice device commandBufferPool queue
             return ( commonUsage .|. VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
                    , VK_IMAGE_ASPECT_COLOR_BIT
                    , TransferUndef_ColorAttachemnt
-                   , _renderTargetFormat'
+                   , _textureCreateInfoFormat
                    )
     (imageMemory, image) <- createImage
         physicalDevice
         device
-        _renderTargetWidth'
-        _renderTargetHeight'
-        _renderTargetDepth'
+        _textureCreateInfoWidth
+        _textureCreateInfoHeight
+        _textureCreateInfoDepth
         mipLevels
-        _renderTargetSamples'
+        _textureCreateInfoSamples
         imageFormat
         VK_IMAGE_TILING_OPTIMAL
         imageUsage
@@ -494,7 +517,7 @@ createRenderTarget textureDataName physicalDevice device commandBufferPool queue
         transitionImageLayout image imageFormat imageLayoutTransition mipLevels commandBuffer
 
     imageView <- createImageView device image imageFormat imageAspect mipLevels
-    imageSampler <- createImageSampler device mipLevels _renderTargetMinFilter' _renderTargetMagFilter' _renderTargetWrapMode' enableAnisotropy
+    imageSampler <- createImageSampler device mipLevels _textureCreateInfoMinFilter _textureCreateInfoMagFilter _textureCreateInfoWrapMode enableAnisotropy
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
         textureData = TextureData
             { _textureDataName = textureDataName
@@ -503,18 +526,18 @@ createRenderTarget textureDataName physicalDevice device commandBufferPool queue
             , _imageMemory = imageMemory
             , _imageSampler = imageSampler
             , _imageFormat = imageFormat
-            , _imageWidth = _renderTargetWidth'
-            , _imageHeight = _renderTargetHeight'
-            , _imageDepth = _renderTargetDepth'
-            , _imageSampleCount = _renderTargetSamples'
+            , _imageWidth = _textureCreateInfoWidth
+            , _imageHeight = _textureCreateInfoHeight
+            , _imageDepth = _textureCreateInfoDepth
+            , _imageSampleCount = _textureCreateInfoSamples
             , _imageMipLevels = mipLevels
             , _descriptorImageInfo = descriptorImageInfo
             }
     logInfo "createRenderTarget"
     logInfo $ "    Name : " ++ Text.unpack textureDataName
     logInfo $ "    Format : " ++ show imageFormat
-    logInfo $ "    MultiSampleCount : " ++ show _renderTargetSamples'
-    logInfo $ "    Size : " ++ show (_renderTargetWidth', _renderTargetHeight', _renderTargetDepth')
+    logInfo $ "    MultiSampleCount : " ++ show _textureCreateInfoSamples
+    logInfo $ "    Size : " ++ show (_textureCreateInfoWidth, _textureCreateInfoHeight, _textureCreateInfoDepth)
     logInfo $ "    TextureData : image " ++ show image ++ ", imageView " ++ show imageView ++ ", imageMemory " ++ show imageMemory ++ ", sampler " ++ show imageSampler
     return textureData
 
@@ -524,34 +547,31 @@ createTextureData :: Text.Text
                   -> VkDevice
                   -> VkCommandPool
                   -> VkQueue
-                  -> VkBool32
-                  -> FilePath
+                  -> TextureCreateInfo
                   -> IO TextureData
-createTextureData textureDataName physicalDevice device commandBufferPool commandQueue anisotropyEnable filePath = do
-    Image { imageWidth, imageHeight, imageData } <- (readImage filePath) >>= \case
-        Left err -> throwVKMsg err
-        Right dynamicImage -> pure $ convertRGBA8 dynamicImage
-    let (imageDataForeignPtr, imageDataLen) = Vec.unsafeToForeignPtr0 imageData
+createTextureData textureDataName physicalDevice device commandBufferPool commandQueue textureCreateInfo@TextureCreateInfo {..} = do
+    let (imageDataForeignPtr, imageDataLen) = SVector.unsafeToForeignPtr0 _textureCreateInfoData
         bufferSize = (fromIntegral imageDataLen)::VkDeviceSize
-        mipLevels = (floor . logBase (2::Float) . fromIntegral $ max imageWidth imageHeight) + 1
-        format = VK_FORMAT_R8G8B8A8_UNORM
-        samples = VK_SAMPLE_COUNT_1_BIT
+        enableAnisotropy = if _textureCreateInfoEnableAnisotropy then VK_TRUE else VK_FALSE
+        mipLevels = case _textureCreateInfoEnableMipmap of
+            True -> calcMipLevels _textureCreateInfoWidth _textureCreateInfoHeight _textureCreateInfoDepth
+            False -> 1
     -- we don't need to access the VkDeviceMemory of the image, copyBufferToImage works with the VkImage
     (imageMemory, image) <- createImage
         physicalDevice
         device
-        (fromIntegral imageWidth)
-        (fromIntegral imageHeight)
-        1
+        _textureCreateInfoWidth
+        _textureCreateInfoHeight
+        _textureCreateInfoDepth
         mipLevels
-        samples
-        format
+        _textureCreateInfoSamples
+        _textureCreateInfoFormat
         VK_IMAGE_TILING_OPTIMAL
         (VK_IMAGE_USAGE_TRANSFER_SRC_BIT .|. VK_IMAGE_USAGE_TRANSFER_DST_BIT .|. VK_IMAGE_USAGE_SAMPLED_BIT)
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     -- run command
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
-        transitionImageLayout image format TransferUndef_TransferDst mipLevels commandBuffer
+        transitionImageLayout image _textureCreateInfoFormat TransferUndef_TransferDst mipLevels commandBuffer
 
     -- create temporary staging buffer
     let stagingBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
@@ -565,45 +585,44 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
         copyArray (castPtr stagingDataPtr) imageDataPtr imageDataLen
     vkUnmapMemory device stagingBufferMemory
 
-    copyBufferToImage device commandBufferPool commandQueue stagingBuffer image
-        (fromIntegral imageWidth) (fromIntegral imageHeight)
+    copyBufferToImage device commandBufferPool commandQueue stagingBuffer image _textureCreateInfoWidth _textureCreateInfoHeight _textureCreateInfoDepth
+
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
         -- generateMipmaps does this as a side effect:
         -- transitionImageLayout image VK_FORMAT_R8G8B8A8_UNORM TransferDst_ShaderReadOnly mipLevels
         generateMipmaps
             physicalDevice
             image
-            format
-            (fromIntegral imageWidth)
-            (fromIntegral imageHeight)
+            _textureCreateInfoFormat
+            _textureCreateInfoWidth
+            _textureCreateInfoHeight
+            _textureCreateInfoDepth
             mipLevels
             commandBuffer
     destroyBuffer device stagingBuffer stagingBufferMemory
 
-    imageView <- createImageView device image format VK_IMAGE_ASPECT_COLOR_BIT mipLevels
-    imageSampler <- createImageSampler device mipLevels VK_FILTER_LINEAR VK_FILTER_LINEAR VK_SAMPLER_ADDRESS_MODE_REPEAT anisotropyEnable
+    imageView <- createImageView device image _textureCreateInfoFormat VK_IMAGE_ASPECT_COLOR_BIT mipLevels
+    imageSampler <- createImageSampler device mipLevels _textureCreateInfoMinFilter _textureCreateInfoMagFilter _textureCreateInfoWrapMode enableAnisotropy
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL imageView imageSampler
-        imageDepth = 1::Word32
         textureData@TextureData {..} = TextureData
             { _textureDataName = textureDataName
             , _image = image
             , _imageView = imageView
             , _imageMemory = imageMemory
             , _imageSampler = imageSampler
-            , _imageFormat = format
-            , _imageWidth = fromIntegral imageWidth
-            , _imageHeight = fromIntegral imageHeight
-            , _imageDepth = fromIntegral imageDepth
-            , _imageSampleCount = samples
+            , _imageFormat = _textureCreateInfoFormat
+            , _imageWidth = _textureCreateInfoWidth
+            , _imageHeight = _textureCreateInfoHeight
+            , _imageDepth = _textureCreateInfoDepth
+            , _imageSampleCount = _textureCreateInfoSamples
             , _imageMipLevels = fromIntegral mipLevels
             , _descriptorImageInfo = descriptorImageInfo
             }
 
     logInfo "createTextureData"
     logInfo $ "    Name : " ++ Text.unpack textureDataName
-    logInfo $ "    File : " ++ filePath
-    logInfo $ "    Format : " ++ show format
-    logInfo $ "    Size : " ++ show imageWidth ++ ", " ++ show imageHeight ++ ", " ++ show imageDepth
+    logInfo $ "    Format : " ++ show _textureCreateInfoFormat
+    logInfo $ "    Size : " ++ show _textureCreateInfoWidth ++ ", " ++ show _textureCreateInfoHeight ++ ", " ++ show _textureCreateInfoDepth
     logInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
 
     return textureData

@@ -112,8 +112,8 @@ class RendererInterface a where
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
     getUniformBufferData :: a -> UniformBufferType -> IO UniformBufferData
-    createRenderTarget :: a -> Text.Text -> Texture.RenderTargetCreateInfo -> IO Texture.TextureData
-    createTexture :: a -> Text.Text -> FilePath -> IO Texture.TextureData
+    createRenderTarget :: a -> Text.Text -> Texture.TextureCreateInfo -> IO Texture.TextureData
+    createTexture :: a -> Text.Text -> Texture.TextureCreateInfo -> IO Texture.TextureData
     destroyTexture :: a -> Texture.TextureData -> IO ()
     getRenderTarget :: a -> RenderTargetType -> IO Texture.TextureData
     createGeometryBuffer :: a -> Text.Text -> GeometryCreateInfo -> IO GeometryData
@@ -138,24 +138,23 @@ instance RendererInterface RendererData where
     getUniformBufferData rendererData uniformBufferType =
         Maybe.fromJust <$> HashTable.lookup (_uniformBufferDataMap rendererData) uniformBufferType
 
-    createRenderTarget rendererData textureDataName renderTargetCreateInfo =
+    createRenderTarget rendererData textureDataName textureCreateInfo =
         Texture.createRenderTarget
             textureDataName
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)
-            (_graphicsQueue (_queueFamilyDatas rendererData))
-            renderTargetCreateInfo
+            (_graphicsQueue $ _queueFamilyDatas rendererData)
+            textureCreateInfo
 
-    createTexture rendererData textureDataName filePath =
+    createTexture rendererData textureDataName textureCreateInfo =
         Texture.createTextureData
             textureDataName
             (_physicalDevice rendererData)
             (_device rendererData)
             (_commandPool rendererData)
-            (_graphicsQueue (_queueFamilyDatas rendererData))
-            (_anisotropyEnable (_renderFeatures rendererData))
-            filePath
+            (_graphicsQueue $ _queueFamilyDatas rendererData)
+            textureCreateInfo
 
     destroyTexture rendererData textureData =
         Texture.destroyTextureData (_device rendererData) textureData
