@@ -10,7 +10,7 @@ import qualified Data.HashTable.IO as HashTable
 import Graphics.Vulkan.Core_1_0
 
 import HulkanEngine3D.Render.Renderer
-import HulkanEngine3D.Render.RenderTargetType
+import HulkanEngine3D.Render.RenderTargetDeclaration
 import HulkanEngine3D.Vulkan.SwapChain
 import qualified HulkanEngine3D.Vulkan.Texture as Texture
 import HulkanEngine3D.Utilities.System

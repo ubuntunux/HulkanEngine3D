@@ -34,7 +34,7 @@ executable main
                       HulkanEngine3D.Render.Mesh
                       HulkanEngine3D.Render.Model
                       HulkanEngine3D.Render.RenderTarget
-                      HulkanEngine3D.Render.RenderTargetType
+                      HulkanEngine3D.Render.RenderTargetDeclaration
                       HulkanEngine3D.Render.Renderer
                       HulkanEngine3D.Render.RenderElement
                       HulkanEngine3D.Render.RenderObject

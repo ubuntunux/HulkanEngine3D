@@ -10,7 +10,7 @@ import Graphics.Vulkan.Core_1_0
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Renderer
-import HulkanEngine3D.Render.RenderTargetType
+import HulkanEngine3D.Render.RenderTargetDeclaration
 import HulkanEngine3D.Render.UniformBufferDatas (UniformBufferType (..))
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer

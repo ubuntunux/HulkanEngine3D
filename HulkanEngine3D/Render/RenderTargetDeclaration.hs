@@ -5,7 +5,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications   #-}
 
-module HulkanEngine3D.Render.RenderTargetType where
+module HulkanEngine3D.Render.RenderTargetDeclaration where
 
 import GHC.Generics (Generic)
 import Data.Hashable

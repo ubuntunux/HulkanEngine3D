@@ -48,7 +48,7 @@ import {-# SOURCE #-} qualified HulkanEngine3D.Application.SceneManager as Scene
 import qualified HulkanEngine3D.Render.Camera as Camera
 import qualified HulkanEngine3D.Render.Light as Light
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
-import HulkanEngine3D.Render.RenderTargetType
+import HulkanEngine3D.Render.RenderTargetDeclaration
 import HulkanEngine3D.Render.ImageSampler
 import HulkanEngine3D.Render.MaterialInstance
 import qualified HulkanEngine3D.Render.RenderElement as RenderElement
