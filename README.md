@@ -20,7 +20,7 @@ stack build
 stack exec main
 ```
 
-![HulkanEngine3D](https://github.com/ubuntunux/HulkanEngine3D/blob/master/screenshot.png)
+![HulkanEngine3D](https://github.com/ubuntunux/HulkanEngine3D/blob/master/images/screenshot.png)
 
 ## Features
 * Editor
