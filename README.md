@@ -23,6 +23,8 @@ stack exec main
 ![HulkanEngine3D](https://github.com/ubuntunux/HulkanEngine3D/blob/master/screenshot.png)
 
 ## Features
+* Editor
+    - ThreepennyElectron
 * Import
     - Mesh 
         - [x] .obj, .dae ( colada )
@@ -99,7 +101,7 @@ stack exec main
     - [ ] Sound Manager
     - [ ] Script Manager
 * Blender3D plugin
-    - [ ] transfer geometry, animation, scene datas
+    - [ ] live sync geometry, animation, scene datas
     - [ ] edit animation, scene, sequence, particles in blender
 * InGame GUI
     - [ ] input / output
@@ -111,3 +113,9 @@ stack exec main
     - [ ] Postprocessing in compute shader
     - [ ] FFT in compute shader
     - [ ] Precomputed atmosphere in compute shader 
+
+## References
+- https://github.com/achirkin/vulkan
+- https://github.com/achirkin/easytensor
+- https://github.com/codetalkio/Haskell-Electron-app
+- https://github.com/thma/ThreepennyElectron
