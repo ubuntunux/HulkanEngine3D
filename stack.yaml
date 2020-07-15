@@ -1,10 +1,13 @@
-resolver: lts-14.15
+resolver: lts-12.26
+# resolver: lts-16.5
 
 ghc-options:
   vulkan-api:    -O2
   GLFW-b:        -O2
   bindings-GLFW: -O2
     
+allow-newer: true
+
 extra-deps:
   - bindings-GLFW-3.2.1.1
   - GLFW-b-3.2.1.0
