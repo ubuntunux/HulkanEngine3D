@@ -1,4 +1,4 @@
-resolver: lts-12.26
+resolver: lts-14.15
 
 ghc-options:
   vulkan-api:    -O2
@@ -13,8 +13,7 @@ extra-deps:
   - easytensor-2.1.0.0
   - easytensor-vulkan-2.0.2.0
   - wavefront-0.7.1.3
-
+  - vulkan-api-1.3.0.0
+  
 packages:
   - .
-  - location: vulkan/vulkan-api
-    extra-dep: true
