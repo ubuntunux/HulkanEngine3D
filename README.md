@@ -17,6 +17,3 @@ git clone https://github.com/ubuntunux/HulkanEngine3D
 stack build
 stack exec main
 ```
-
-### Note
-    * Triangle (1024 x 768) : 1500fps / 0.66ms
