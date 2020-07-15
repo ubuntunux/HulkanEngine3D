@@ -1,5 +1,5 @@
 # Hulkan Engine 3D ( Haskell + Vulkan )
-  * Hulkan is an open source Haskell 3D engine using the vulkan api.  
+  * Hulkan is an open source haskell 3D engine using the vulkan api.  
   * Based on haskell bindings for vulkan api
     * [https://github.com/achirkin/vulkan](https://github.com/achirkin/vulkan/)
     
