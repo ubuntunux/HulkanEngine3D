@@ -2,6 +2,8 @@
   * Hulkan is an open source haskell 3D engine using the vulkan api.  
   * Based on haskell bindings for vulkan api
     * [https://github.com/achirkin/vulkan](https://github.com/achirkin/vulkan/)
+  * Similar projects
+    * [https://github.com/ubuntunux/PyEngine3D](https://github.com/ubuntunux/PyEngine3D)
     
 ### Requierments
   * Windows 10 x64 with [LunarG Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
