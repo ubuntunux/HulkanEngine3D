@@ -7,6 +7,9 @@
   * Ubuntu 17.10 x64 with [LunarG Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
   * Haskell bindings for vulkan api
     * [https://github.com/achirkin/vulkan](https://github.com/achirkin/vulkan/)
+  * Stack
+    * Windows <= 1.9.3 ( higher version has some errors )
+    * Linux <= 2.3.1
   
 ### Installation
 ```bash
