@@ -466,9 +466,9 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
             materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
             materialInst_renderDebug <- getMaterialInstanceData _resources "render_debug"
 
-            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_renderSSAO
-            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_compositeGBuffer
-            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_renderDebug
+            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_renderSSAO False
+            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_compositeGBuffer False
+            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_renderDebug True
 
             -- End command buffer
             vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
@@ -559,8 +559,9 @@ renderPostProcess :: RendererData
                   -> Int
                   -> GeometryData
                   -> MaterialInstanceData
+                  -> Bool
                   -> IO ()
-renderPostProcess rendererData commandBuffer imageIndex geometryBufferData materialInstanceData = do
+renderPostProcess rendererData commandBuffer imageIndex geometryBufferData materialInstanceData testRenderTargetChange = do
     let vertexBufferPtr = _vertexBufferPtr geometryBufferData
         indexBuffer = _indexBuffer geometryBufferData
         indexCount = _vertexIndexCount geometryBufferData
@@ -570,6 +571,7 @@ renderPostProcess rendererData commandBuffer imageIndex geometryBufferData mater
     let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
         descriptorSetsPtr = _descriptorSetsPtr materialInstanceData
         descriptorSetsOffset = sizeOf (undefined::VkDescriptorSet) * imageIndex
+        writeDescriptorSetPtr = (_writeDescriptorSetPtrs materialInstanceData)  !! imageIndex
         pipelineData = RenderPass.getDefaultPipelineData renderPassData
         pipelineLayout = RenderPass._pipelineLayout pipelineData
         pipeline = RenderPass._pipeline pipelineData
@@ -585,6 +587,15 @@ renderPostProcess rendererData commandBuffer imageIndex geometryBufferData mater
     vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
 
     vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (plusPtr descriptorSetsPtr descriptorSetsOffset) 0 VK_NULL
+
+    -- TEST CODE :: RenderTarget Change ------------------------------------------
+    when testRenderTargetChange $ do
+        imageInfo <- getRenderTarget rendererData RenderTarget_SceneNormal
+        withPtr (Texture._descriptorImageInfo imageInfo) $ \imageInfoPtr -> do
+            let offset = sizeOf (undefined::VkWriteDescriptorSet) * 3
+            writeField @"pImageInfo" (plusPtr writeDescriptorSetPtr offset::Ptr VkWriteDescriptorSet) imageInfoPtr
+        vkUpdateDescriptorSets (_device rendererData) 4 writeDescriptorSetPtr 0 VK_NULL
+    -------------------------------------------------------------------------------
 
     vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr (_vertexOffsetPtr rendererData)
 
