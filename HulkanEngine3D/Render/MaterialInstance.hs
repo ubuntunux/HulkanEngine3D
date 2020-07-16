@@ -22,8 +22,8 @@ data MaterialInstanceData = MaterialInstanceData
     { _materialInstanceName :: Text.Text
     , _renderPassData :: RenderPass.RenderPassData
     , _pipelineData :: RenderPass.PipelineData
-    , _descriptorSets :: [VkDescriptorSet]
-    , _writeDescriptorSets :: [Ptr VkWriteDescriptorSet]
+    , _descriptorSetsPtr :: Ptr VkDescriptorSet
+    , _writeDescriptorSetPtrs :: [Ptr VkWriteDescriptorSet]
     } deriving Show
 
 
@@ -37,13 +37,16 @@ createMaterialInstance device materialInstanceName renderPassData pipelineData d
     logInfo $ "createMaterialInstance : " ++ Text.unpack materialInstanceName
     logInfo $ "    renderPass : " ++ Text.unpack (RenderPass._renderPassDataName renderPassData)
     logInfo $ "    pipeline : " ++ Text.unpack (RenderPass._pipelineDataName pipelineData)
+
     descriptorSets <- Descriptor.createDescriptorSet device (RenderPass._descriptorData pipelineData)
+    descriptorSetsPtr <- mallocArray (length descriptorSets)
+    pokeArray descriptorSetsPtr descriptorSets
 
     let descriptorData = RenderPass._descriptorData $ pipelineData
         descriptorBindingIndices = map Descriptor._descriptorBindingIndex' (Descriptor._descriptorDataCreateInfoList descriptorData)
         descriptorSetLayoutBindingList = Descriptor._descriptorSetLayoutBindingList descriptorData
 
-    writeDescriptorSets <- forM (zip descriptorSets descriptorResourceInfosList) $ \(descriptorSet, descriptorResourceInfos) -> do
+    writeDescriptorSetPtrs <- forM (zip descriptorSets descriptorResourceInfosList) $ \(descriptorSet, descriptorResourceInfos) -> do
         let descriptorWrites = Descriptor.createWriteDescriptorSets descriptorSet descriptorBindingIndices descriptorSetLayoutBindingList descriptorResourceInfos
             count = length descriptorWrites
         writeDescriptorSetPtr <- mallocArray count
@@ -55,9 +58,11 @@ createMaterialInstance device materialInstanceName renderPassData pipelineData d
         { _materialInstanceName = materialInstanceName
         , _renderPassData = renderPassData
         , _pipelineData = pipelineData
-        , _descriptorSets = descriptorSets
-        , _writeDescriptorSets = writeDescriptorSets
+        , _descriptorSetsPtr = descriptorSetsPtr
+        , _writeDescriptorSetPtrs = writeDescriptorSetPtrs
         }
 
 destroyMaterialInstance :: VkDevice -> MaterialInstanceData -> IO ()
-destroyMaterialInstance device materialInstanceData = mapM_ free (_writeDescriptorSets materialInstanceData)
+destroyMaterialInstance device materialInstanceData = do
+    free (_descriptorSetsPtr materialInstanceData)
+    mapM_ free (_writeDescriptorSetPtrs materialInstanceData)

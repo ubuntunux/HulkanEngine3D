@@ -1,4 +1,3 @@
-{-# LANGUAGE Strict                 #-}
 {-# LANGUAGE MagicHash              #-}
 {-# LANGUAGE BangPatterns           #-}
 {-# LANGUAGE TypeApplications       #-}

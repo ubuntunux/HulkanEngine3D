@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PolyKinds        #-}
-{-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE InstanceSigs     #-}
 {-# LANGUAGE RecordWildCards  #-}

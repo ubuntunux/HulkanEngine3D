@@ -2,7 +2,6 @@
 {-# LANGUAGE DisambiguateRecordFields   #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE Strict                     #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE InstanceSigs               #-}
 

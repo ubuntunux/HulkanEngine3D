@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveGeneric    #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
 module HulkanEngine3D.Vulkan.PushConstant
@@ -10,9 +9,13 @@ module HulkanEngine3D.Vulkan.PushConstant
     ) where
 
 import GHC.Generics (Generic)
+import Foreign.Storable
+
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
+
 import Numeric.DataFrame
+import Numeric.PrimBytes
 
 
 data PushConstantData = PushConstantData
@@ -20,6 +23,12 @@ data PushConstantData = PushConstantData
   } deriving (Eq, Ord, Show, Generic)
 
 instance PrimBytes PushConstantData
+
+instance Storable PushConstantData where
+    sizeOf _ = bSizeOf (undefined :: PushConstantData)
+    alignment _ = bAlignOf (undefined :: PushConstantData)
+    peek ptr = bPeek ptr
+    poke ptr pushConstantData = bPoke ptr pushConstantData
 
 
 getPushConstantRange :: PushConstantData -> VkShaderStageFlags -> VkPushConstantRange

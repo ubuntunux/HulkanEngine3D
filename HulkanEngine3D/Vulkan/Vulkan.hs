@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE RecordWildCards        #-}
-{-# LANGUAGE Strict                 #-}
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE OverloadedStrings      #-}

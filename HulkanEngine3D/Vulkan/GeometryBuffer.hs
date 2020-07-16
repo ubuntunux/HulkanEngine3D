@@ -28,8 +28,8 @@ import qualified Data.Map as Map
 import Foreign.Ptr (castPtr)
 import Foreign.Storable
 import Foreign.Marshal.Utils
+import Foreign.Marshal.Alloc
 import qualified Data.DList as DList
---import qualified Data.Vector.Unboxed as UVector
 import qualified Data.Vector.Storable as SVector
 import Data.Aeson
 import Graphics.Vulkan.Core_1_0
@@ -74,7 +74,7 @@ data GeometryCreateInfo = GeometryCreateInfo
 data GeometryData = GeometryData
     { _geometryName :: Text.Text
     , _vertexBufferMemory :: VkDeviceMemory
-    , _vertexBuffer :: VkBuffer
+    , _vertexBufferPtr :: Ptr VkBuffer
     , _indexBufferMemory :: VkDeviceMemory
     , _indexBuffer :: VkBuffer
     , _vertexIndexCount :: Word32
@@ -137,10 +137,11 @@ createGeometryData physicalDevice device graphicsQueue commandPool geometryName 
     logInfo $ "createGeometryBuffer : " ++ (Text.unpack geometryName)
     (vertexBufferMemory, vertexBuffer) <- createVertexBuffer physicalDevice device graphicsQueue commandPool (_geometryCreateInfoVertices geometryCreateInfo)
     (indexBufferMemory, indexBuffer) <- createIndexBuffer physicalDevice device graphicsQueue commandPool (_geometryCreateInfoIndices geometryCreateInfo)
+    vertexBufferPtr <- new vertexBuffer
     return GeometryData
         { _geometryName = geometryName
         , _vertexBufferMemory = vertexBufferMemory
-        , _vertexBuffer = vertexBuffer
+        , _vertexBufferPtr = vertexBufferPtr
         , _indexBufferMemory = indexBufferMemory
         , _indexBuffer = indexBuffer
         , _vertexIndexCount = (fromIntegral . SVector.length $ _geometryCreateInfoIndices geometryCreateInfo)
@@ -148,10 +149,12 @@ createGeometryData physicalDevice device graphicsQueue commandPool geometryName 
         }
 
 destroyGeometryData :: VkDevice -> GeometryData -> IO ()
-destroyGeometryData device geometryBuffer = do
+destroyGeometryData device geometryData@GeometryData {..} = do
     logInfo "destroyGeometryData"
-    destroyBuffer device (_vertexBuffer geometryBuffer) (_vertexBufferMemory geometryBuffer)
-    destroyBuffer device (_indexBuffer geometryBuffer) (_indexBufferMemory geometryBuffer)
+    vertexBuffer <- peek _vertexBufferPtr
+    destroyBuffer device vertexBuffer _vertexBufferMemory
+    destroyBuffer device _indexBuffer _indexBufferMemory
+    free _vertexBufferPtr
 
 
 createVertexBuffer :: VkPhysicalDevice

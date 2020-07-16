@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE Strict           #-}
 {-# LANGUAGE TypeApplications #-}
 
 module HulkanEngine3D.Vulkan.SwapChain

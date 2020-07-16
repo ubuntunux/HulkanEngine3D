@@ -2,7 +2,6 @@
 {-# LANGUAGE DisambiguateRecordFields   #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE Strict                     #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -78,6 +77,7 @@ import HulkanEngine3D.Vulkan.UniformBuffer
 data RendererData = RendererData
     { _frameIndexRef :: IORef Int
     , _imageIndexPtr :: Ptr Word32
+    , _vertexOffsetPtr :: Ptr VkDeviceSize
     , _needRecreateSwapChainRef :: IORef Bool
     , _imageAvailableSemaphores :: [VkSemaphore]
     , _renderFinishedSemaphores :: [VkSemaphore]
@@ -211,6 +211,7 @@ defaultRendererData resources = do
             , _msaaSamples = VK_SAMPLE_COUNT_1_BIT }
 
     imageIndexPtr <- new (0 :: Word32)
+    vertexOffsetPtr <- new (0 :: VkDeviceSize)
     frameIndexRef <- newIORef (0::Int)
     needRecreateSwapChainRef <- newIORef False
     imageSamplers <- newIORef defaultImageSamplers
@@ -223,6 +224,7 @@ defaultRendererData resources = do
     return RendererData
         { _frameIndexRef = frameIndexRef
         , _imageIndexPtr = imageIndexPtr
+        , _vertexOffsetPtr = vertexOffsetPtr
         , _needRecreateSwapChainRef = needRecreateSwapChainRef
         , _imageAvailableSemaphores = []
         , _renderFinishedSemaphores = []
@@ -351,6 +353,7 @@ destroyRenderer rendererData@RendererData {..} = do
     destroyVulkanInstance _vkInstance
     free _commandBuffersPtr
     free _imageIndexPtr
+    free _vertexOffsetPtr
 
 
 resizeWindow :: GLFW.Window -> RendererData -> IO ()
@@ -505,7 +508,7 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
     forM_ (zip [(0::Int)..] staticObjectRenderElements) $ \(index, renderElement) -> do
         let renderObject = RenderElement._renderObject renderElement
             geometryBufferData = RenderElement._geometryData renderElement
-            vertexBuffer = _vertexBuffer geometryBufferData
+            vertexBufferPtr = _vertexBufferPtr geometryBufferData
             indexBuffer = _indexBuffer geometryBufferData
             indexCount = _vertexIndexCount geometryBufferData
             materialInstanceData = RenderElement._materialInstanceData renderElement
@@ -513,7 +516,8 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
 
         Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass._renderPassFrameBufferName (renderPassData::RenderPass.RenderPassData))
         let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
-            descriptorSet = (_descriptorSets materialInstanceData) !! imageIndex
+            descriptorSetPtr = _descriptorSetsPtr materialInstanceData
+            descriptorSetsOffset = sizeOf (undefined::VkDescriptorSet) * imageIndex
             pipelineData = RenderPass._defaultPipelineData renderPassData
             pipelineLayout = RenderPass._pipelineLayout pipelineData
             pipeline = RenderPass._pipeline pipelineData
@@ -533,20 +537,17 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
             vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
 
         -- bind descriptorset
-        with descriptorSet $ \descriptorSetPtr ->
-            vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
+        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (plusPtr descriptorSetPtr descriptorSetsOffset) 0 VK_NULL
 
         -- update model view matrix
         modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
         let pushConstantData = PushConstantData { modelMatrix = modelMatrix }
 
-        with modelMatrix $ \modelMatrixPtr ->
-            vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_ALL 0 (bSizeOf pushConstantData) (castPtr modelMatrixPtr)
+        with pushConstantData $ \pushConstantDataPtr ->
+            vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_ALL 0 (bSizeOf pushConstantData) (castPtr pushConstantDataPtr)
 
         -- drawing commands
-        with vertexBuffer $ \vertexBufferPtr ->
-            with 0 $ \vertexOffsetPtr ->
-                vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
+        vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr (_vertexOffsetPtr rendererData)
 
         vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
         vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
@@ -560,14 +561,15 @@ renderPostProcess :: RendererData
                   -> MaterialInstanceData
                   -> IO ()
 renderPostProcess rendererData commandBuffer imageIndex geometryBufferData materialInstanceData = do
-    let vertexBuffer = _vertexBuffer geometryBufferData
+    let vertexBufferPtr = _vertexBufferPtr geometryBufferData
         indexBuffer = _indexBuffer geometryBufferData
         indexCount = _vertexIndexCount geometryBufferData
         renderPassData = _renderPassData materialInstanceData
 
     Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass.getRenderPassFrameBufferName renderPassData)
     let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
-        descriptorSet = (_descriptorSets materialInstanceData) !! imageIndex
+        descriptorSetsPtr = _descriptorSetsPtr materialInstanceData
+        descriptorSetsOffset = sizeOf (undefined::VkDescriptorSet) * imageIndex
         pipelineData = RenderPass.getDefaultPipelineData renderPassData
         pipelineLayout = RenderPass._pipelineLayout pipelineData
         pipeline = RenderPass._pipeline pipelineData
@@ -582,12 +584,9 @@ renderPostProcess rendererData commandBuffer imageIndex geometryBufferData mater
 
     vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
 
-    with descriptorSet $ \descriptorSetPtr ->
-        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
+    vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (plusPtr descriptorSetsPtr descriptorSetsOffset) 0 VK_NULL
 
-    with vertexBuffer $ \vertexBufferPtr ->
-        with 0 $ \vertexOffsetPtr ->
-            vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
+    vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr (_vertexOffsetPtr rendererData)
 
     vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
     vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
