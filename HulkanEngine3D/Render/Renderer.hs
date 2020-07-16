@@ -461,9 +461,11 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
             quadGeometryBufferData <- Mesh.getGeometryData quadMeshData 0
             materialInst_renderSSAO <- getMaterialInstanceData _resources "render_ssao"
             materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
+            materialInst_renderDebug <- getMaterialInstanceData _resources "render_debug"
 
             renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_renderSSAO
             renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_compositeGBuffer
+            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_renderDebug
 
             -- End command buffer
             vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
