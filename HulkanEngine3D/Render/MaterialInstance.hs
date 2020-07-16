@@ -6,10 +6,13 @@
 
 module HulkanEngine3D.Render.MaterialInstance where
 
-import qualified Data.Text as Text
 import Control.Monad
+import qualified Data.Text as Text
+import Foreign.Marshal.Alloc
+import Foreign.Marshal.Array
 
 import Graphics.Vulkan
+import Graphics.Vulkan.Core_1_0
 
 import qualified HulkanEngine3D.Vulkan.RenderPass as RenderPass
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
@@ -20,6 +23,7 @@ data MaterialInstanceData = MaterialInstanceData
     , _renderPassData :: RenderPass.RenderPassData
     , _pipelineData :: RenderPass.PipelineData
     , _descriptorSets :: [VkDescriptorSet]
+    , _writeDescriptorSets :: [Ptr VkWriteDescriptorSet]
     } deriving Show
 
 
@@ -39,15 +43,21 @@ createMaterialInstance device materialInstanceName renderPassData pipelineData d
         descriptorBindingIndices = map Descriptor._descriptorBindingIndex' (Descriptor._descriptorDataCreateInfoList descriptorData)
         descriptorSetLayoutBindingList = Descriptor._descriptorSetLayoutBindingList descriptorData
 
-    forM_ (zip descriptorSets descriptorResourceInfosList) $ \(descriptorSet, descriptorResourceInfos) ->
-        Descriptor.updateDescriptorSets device descriptorSet descriptorBindingIndices descriptorSetLayoutBindingList descriptorResourceInfos
+    writeDescriptorSets <- forM (zip descriptorSets descriptorResourceInfosList) $ \(descriptorSet, descriptorResourceInfos) -> do
+        let descriptorWrites = Descriptor.createWriteDescriptorSets descriptorSet descriptorBindingIndices descriptorSetLayoutBindingList descriptorResourceInfos
+            count = length descriptorWrites
+        writeDescriptorSetPtr <- mallocArray count
+        pokeArray writeDescriptorSetPtr descriptorWrites
+        vkUpdateDescriptorSets device (fromIntegral count) writeDescriptorSetPtr 0 VK_NULL
+        return writeDescriptorSetPtr
 
     return MaterialInstanceData
         { _materialInstanceName = materialInstanceName
         , _renderPassData = renderPassData
         , _pipelineData = pipelineData
         , _descriptorSets = descriptorSets
+        , _writeDescriptorSets = writeDescriptorSets
         }
 
 destroyMaterialInstance :: VkDevice -> MaterialInstanceData -> IO ()
-destroyMaterialInstance device materialInstanceData = return ()
+destroyMaterialInstance device materialInstanceData = mapM_ free (_writeDescriptorSets materialInstanceData)

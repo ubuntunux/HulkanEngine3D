@@ -174,16 +174,14 @@ destroyDescriptorSet device descriptorPool descriptorSets descriptorSetPtr = do
         vkFreeDescriptorSets device descriptorPool (fromIntegral . length $ descriptorSets) descriptorSetPtr
             >>= flip validationVK "destroyDescriptorSetData failed!"
 
-updateDescriptorSets :: VkDevice
-                     -> VkDescriptorSet
-                     -> [Word32]
-                     -> [VkDescriptorSetLayoutBinding]
-                     -> [DescriptorResourceInfo]
-                     -> IO ()
-updateDescriptorSets device descriptorSet descriptorBindIndices descriptorSetLayoutBindingList descriptorResourceInfos = do
-    let descriptorWrites = zipWith3 writeDescriptorSet descriptorBindIndices descriptorSetLayoutBindingList descriptorResourceInfos
-    withVkArrayLen descriptorWrites $ \count descriptorWritesPtr ->
-        vkUpdateDescriptorSets device count descriptorWritesPtr 0 VK_NULL
+
+createWriteDescriptorSets :: VkDescriptorSet
+                          -> [Word32]
+                          -> [VkDescriptorSetLayoutBinding]
+                          -> [DescriptorResourceInfo]
+                          -> [VkWriteDescriptorSet]
+createWriteDescriptorSets descriptorSet descriptorBindIndices descriptorSetLayoutBindingList descriptorResourceInfos = do
+    zipWith3 writeDescriptorSet descriptorBindIndices descriptorSetLayoutBindingList descriptorResourceInfos
     where
         writeDescriptorSet :: Word32 -> VkDescriptorSetLayoutBinding -> DescriptorResourceInfo -> VkWriteDescriptorSet
         writeDescriptorSet bindingIndex descriptorSetLayoutBinding descriptorResourceInfo =
