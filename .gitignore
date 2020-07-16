@@ -1,3 +1,5 @@
+Resource/
+out/
 temp/
 logs/
 .idea
@@ -15,6 +17,7 @@ logs/
 *.swp
 *.o
 *.c
+*.lock
 
 # resources
 *.meta
