@@ -456,8 +456,14 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
 
             -- Render
             renderSolid rendererData commandBuffer imageIndex sceneManagerData
-            renderSSAO rendererData commandBuffer imageIndex
-            renderPostProcess rendererData commandBuffer imageIndex
+
+            quadMeshData <- getMeshData _resources "quad"
+            quadGeometryBufferData <- Mesh.getGeometryData quadMeshData 0
+            materialInst_renderSSAO <- getMaterialInstanceData _resources "render_ssao"
+            materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
+
+            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_renderSSAO
+            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_compositeGBuffer
 
             -- End command buffer
             vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
@@ -545,58 +551,13 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
     vkCmdEndRenderPass commandBuffer
 
 
-renderSSAO :: RendererData
-           -> VkCommandBuffer
-           -> Int
-           -> IO ()
-renderSSAO rendererData commandBuffer imageIndex = do
-    quadMeshData <- getMeshData (_resources rendererData) "quad"
-    materialInstanceData <- getMaterialInstanceData (_resources rendererData) "render_ssao"
-    geometryBufferData <- Mesh.getGeometryData quadMeshData 0
-
-    let vertexBuffer = _vertexBuffer geometryBufferData
-        indexBuffer = _indexBuffer geometryBufferData
-        indexCount = _vertexIndexCount geometryBufferData
-        renderPassData = _renderPassData materialInstanceData
-
-    Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass.getRenderPassFrameBufferName renderPassData)
-    let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
-        descriptorSet = (_descriptorSets materialInstanceData) !! imageIndex
-        pipelineData = RenderPass.getDefaultPipelineData renderPassData
-        pipelineLayout = RenderPass._pipelineLayout pipelineData
-        pipeline = RenderPass._pipeline pipelineData
-
-    withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
-        vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
-
-    withPtr (_frameBufferViewPort . _frameBufferInfo $ frameBufferData) $ \viewPortPtr ->
-        vkCmdSetViewport commandBuffer 0 1 viewPortPtr
-    withPtr (_frameBufferScissorRect . _frameBufferInfo $ frameBufferData) $ \scissorRectPtr ->
-        vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
-
-    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
-
-    with descriptorSet $ \descriptorSetPtr ->
-        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 descriptorSetPtr 0 VK_NULL
-
-    with vertexBuffer $ \vertexBufferPtr ->
-        with 0 $ \vertexOffsetPtr ->
-            vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr vertexOffsetPtr
-
-    vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
-    vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
-    vkCmdEndRenderPass commandBuffer
-
-
 renderPostProcess :: RendererData
                   -> VkCommandBuffer
                   -> Int
+                  -> GeometryData
+                  -> MaterialInstanceData
                   -> IO ()
-renderPostProcess rendererData commandBuffer imageIndex = do
-    quadMeshData <- getMeshData (_resources rendererData) "quad"
-    materialInstanceData <- getMaterialInstanceData (_resources rendererData) "composite_gbuffer"
-    geometryBufferData <- Mesh.getGeometryData quadMeshData 0
-
+renderPostProcess rendererData commandBuffer imageIndex geometryBufferData materialInstanceData = do
     let vertexBuffer = _vertexBuffer geometryBufferData
         indexBuffer = _indexBuffer geometryBufferData
         indexCount = _vertexIndexCount geometryBufferData
@@ -629,6 +590,7 @@ renderPostProcess rendererData commandBuffer imageIndex = do
     vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
     vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
     vkCmdEndRenderPass commandBuffer
+
 
 presentSwapChain :: RendererData -> Ptr VkCommandBuffer -> Ptr VkFence -> VkSemaphore -> VkSemaphore -> IO VkResult
 presentSwapChain rendererData@RendererData {..} commandBufferPtr frameFencePtr imageAvailableSemaphore renderFinishedSemaphore = do

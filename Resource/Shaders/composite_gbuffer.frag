@@ -22,6 +22,6 @@ void main() {
     vec3 normal = texture(textureNormal, texCoord).xyz;
     float lighting = saturate(dot(normal, lightConstants.LIGHT_DIRECTION) * 0.5 + 0.5);
     float ssao = pow(texture(textureSSAO, texCoord).x, 20.0);
-    outColor.xyz = mix(albedo * lighting, vec3(ssao), vec3(isnan(ssao) ? 0.0 : 1.0));
+    outColor.xyz = mix(albedo * lighting, vec3(ssao), vec3(isnan(ssao) ? 1.0 : 0.0));
     outColor.w = 1.0;
 }
