@@ -16,6 +16,7 @@ import qualified Data.Vector.Storable as SVector
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.ForeignPtr
+
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 import Graphics.Vulkan.Marshal.Create
