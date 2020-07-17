@@ -106,9 +106,11 @@ class RendererInterface a where
     getSwapChainData :: a -> IO SwapChainData
     getSwapChainImageViews :: a -> IO [VkImageView]
     getSwapChainSupportDetails :: a -> IO SwapChainSupportDetails
+    getImageIndex :: a -> IO Int
     getCommandPool :: a -> VkCommandPool
     getCommandBuffers :: a -> IO [VkCommandBuffer]
     getCommandBuffer :: a -> Int -> IO VkCommandBuffer
+    getCurrentCommandBuffer :: a -> IO VkCommandBuffer
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
     getUniformBufferData :: a -> UniformBufferType -> IO UniformBufferData
@@ -118,6 +120,8 @@ class RendererInterface a where
     getRenderTarget :: a -> RenderTargetType -> IO Texture.TextureData
     createGeometryBuffer :: a -> Text.Text -> GeometryCreateInfo -> IO GeometryData
     destroyGeometryBuffer :: a -> GeometryData -> IO ()
+    beginRenderPassPipeline :: a -> VkCommandBuffer -> Int -> MaterialInstanceData -> IO ()
+    drawElements :: a -> VkCommandBuffer -> GeometryData -> IO ()
     deviceWaitIdle :: a -> IO ()
 
 instance RendererInterface RendererData where
@@ -126,11 +130,11 @@ instance RendererInterface RendererData where
     getSwapChainData rendererData = readIORef $ _swapChainDataRef rendererData
     getSwapChainImageViews rendererData = _swapChainImageViews <$> getSwapChainData rendererData
     getSwapChainSupportDetails rendererData = readIORef $ _swapChainSupportDetailsRef rendererData
+    getImageIndex renderData = fromIntegral <$> peek (_imageIndexPtr renderData)
     getCommandPool rendererData = (_commandPool rendererData)
     getCommandBuffers rendererData = peekArray (_commandBufferCount rendererData) (_commandBuffersPtr rendererData)
-    getCommandBuffer rendererData index = do
-        commandBuffers <- getCommandBuffers rendererData
-        return $ commandBuffers !! index
+    getCommandBuffer rendererData index = peekElemOff (_commandBuffersPtr rendererData) index
+    getCurrentCommandBuffer rendererData = getCommandBuffer rendererData =<< getImageIndex rendererData
     getGraphicsQueue rendererData = (_graphicsQueue (_queueFamilyDatas rendererData))
     getPresentQueue rendererData = (_presentQueue (_queueFamilyDatas rendererData))
 
@@ -173,6 +177,12 @@ instance RendererInterface RendererData where
 
     destroyGeometryBuffer rendererData geometryBuffer =
         destroyGeometryData (_device rendererData) geometryBuffer
+
+    beginRenderPassPipeline rendererData commandBuffer imageIndex materialInstanceData =
+        beginRenderPassPipeline' commandBuffer imageIndex (_resources rendererData) materialInstanceData
+
+    drawElements rendererData commandBuffer geometryData =
+        drawElements' commandBuffer geometryData (_vertexOffsetPtr rendererData)
 
     deviceWaitIdle rendererData =
         throwingVK "vkDeviceWaitIdle failed!" (vkDeviceWaitIdle $ getDevice rendererData)
@@ -387,11 +397,9 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
 
     -- Begin Render
     acquireNextImageResult <- vkAcquireNextImageKHR _device _swapChain maxBound imageAvailableSemaphore VK_NULL_HANDLE _imageIndexPtr
-    imageIndexValue <- peek _imageIndexPtr
-    commandBuffers <- getCommandBuffers rendererData
-    let imageIndex = fromIntegral imageIndexValue
-        commandBufferPtr = ptrAtIndex _commandBuffersPtr imageIndex
-        commandBuffer = commandBuffers !! imageIndex
+    imageIndex <- getImageIndex rendererData
+    let commandBufferPtr = ptrAtIndex _commandBuffersPtr imageIndex
+    commandBuffer <- peek commandBufferPtr
 
     result <- case acquireNextImageResult of
         VK_SUCCESS -> do
@@ -403,7 +411,6 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
             invViewProjectionMatrix <- Camera.getInvViewProjectionMatrix mainCamera
             let screenWidth = fromIntegral $ getField @"width" _swapChainExtent :: Float
                 screenHeight = fromIntegral $ getField @"height" _swapChainExtent :: Float
-
             shadowViewProjectionMatrix <- Light.getShadowViewProjectionMatrix mainLight
             lightPosition <- Light.getLightPosition mainLight
             lightDirection <- Light.getLightDirection mainLight
@@ -411,6 +418,7 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
             shadowExp <- Light.getLightShadowExp mainLight
             shadowBias <- Light.getLightShadowBias mainLight
             shadowSamples <- Light.getLightShadowSamples mainLight
+            quadGeometryData <- Mesh.getDefaultGeometryData =<< getMeshData _resources "quad"
 
             rotation <- TransformObject.getRotation $ Light._directionalLightTransformObject mainLight
 
@@ -460,15 +468,7 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
             -- Render
             renderSolid rendererData commandBuffer imageIndex sceneManagerData
 
-            quadMeshData <- getMeshData _resources "quad"
-            quadGeometryBufferData <- Mesh.getGeometryData quadMeshData 0
-            materialInst_renderSSAO <- getMaterialInstanceData _resources "render_ssao"
-            materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
-            materialInst_renderDebug <- getMaterialInstanceData _resources "render_debug"
-
-            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_renderSSAO False
-            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_compositeGBuffer False
-            renderPostProcess rendererData commandBuffer imageIndex quadGeometryBufferData materialInst_renderDebug True
+            renderPostProcess rendererData commandBuffer imageIndex quadGeometryData
 
             -- End command buffer
             vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
@@ -517,7 +517,6 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
         Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass._renderPassFrameBufferName (renderPassData::RenderPass.RenderPassData))
         let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
             descriptorSetPtr = _descriptorSetsPtr materialInstanceData
-            descriptorSetsOffset = sizeOf (undefined::VkDescriptorSet) * imageIndex
             pipelineData = RenderPass._defaultPipelineData renderPassData
             pipelineLayout = RenderPass._pipelineLayout pipelineData
             pipeline = RenderPass._pipeline pipelineData
@@ -537,7 +536,7 @@ renderSolid rendererData commandBuffer imageIndex sceneManagerData = do
             vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
 
         -- bind descriptorset
-        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (plusPtr descriptorSetPtr descriptorSetsOffset) 0 VK_NULL
+        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (ptrAtIndex descriptorSetPtr imageIndex) 0 VK_NULL
 
         -- update model view matrix
         modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
@@ -558,49 +557,64 @@ renderPostProcess :: RendererData
                   -> VkCommandBuffer
                   -> Int
                   -> GeometryData
-                  -> MaterialInstanceData
-                  -> Bool
                   -> IO ()
-renderPostProcess rendererData commandBuffer imageIndex geometryBufferData materialInstanceData testRenderTargetChange = do
-    let vertexBufferPtr = _vertexBufferPtr geometryBufferData
-        indexBuffer = _indexBuffer geometryBufferData
-        indexCount = _vertexIndexCount geometryBufferData
-        renderPassData = _renderPassData materialInstanceData
+renderPostProcess rendererData@RendererData {..} commandBuffer imageIndex quadGeometryData = do
+    materialInst_renderSSAO <- getMaterialInstanceData _resources "render_ssao"
+    materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
+    materialInst_renderDebug <- getMaterialInstanceData _resources "render_debug"
 
-    Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass.getRenderPassFrameBufferName renderPassData)
+    -- SSAO
+    beginRenderPassPipeline rendererData commandBuffer imageIndex materialInst_renderSSAO
+    drawElements rendererData commandBuffer quadGeometryData
+
+    -- Composite GBuffer
+    beginRenderPassPipeline rendererData commandBuffer imageIndex materialInst_compositeGBuffer
+    drawElements rendererData commandBuffer quadGeometryData
+
+    beginRenderPassPipeline rendererData commandBuffer imageIndex materialInst_renderDebug
+    -- TEST CODE :: RenderTarget Change ------------------------------------------
+    let writeDescriptorSetPtr = (_writeDescriptorSetPtrs materialInst_renderDebug) !! imageIndex
+    imageInfo <- getRenderTarget rendererData RenderTarget_SceneNormal
+    withPtr (Texture._descriptorImageInfo imageInfo) $ \imageInfoPtr -> do
+        writeField @"pImageInfo" (ptrAtIndex writeDescriptorSetPtr 3) imageInfoPtr
+    vkUpdateDescriptorSets _device 4 writeDescriptorSetPtr 0 VK_NULL
+    -------------------------------------------------------------------------------
+    drawElements rendererData commandBuffer quadGeometryData
+
+
+beginRenderPassPipeline' :: VkCommandBuffer
+                         -> Int
+                         -> Resources
+                         -> MaterialInstanceData
+                         -> IO ()
+beginRenderPassPipeline' commandBuffer imageIndex resources materialInstanceData = do
+    let renderPassData = _renderPassData materialInstanceData
+    Just frameBufferData <- getFrameBufferData resources (RenderPass.getRenderPassFrameBufferName renderPassData)
     let renderPassBeginInfo = (_renderPassBeginInfos frameBufferData) !! imageIndex
         descriptorSetsPtr = _descriptorSetsPtr materialInstanceData
-        descriptorSetsOffset = sizeOf (undefined::VkDescriptorSet) * imageIndex
-        writeDescriptorSetPtr = (_writeDescriptorSetPtrs materialInstanceData)  !! imageIndex
         pipelineData = RenderPass.getDefaultPipelineData renderPassData
-        pipelineLayout = RenderPass._pipelineLayout pipelineData
-        pipeline = RenderPass._pipeline pipelineData
+        pipelineDynamicStates = RenderPass._pipelineDynamicStates pipelineData
 
     withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
         vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
 
-    withPtr (_frameBufferViewPort . _frameBufferInfo $ frameBufferData) $ \viewPortPtr ->
-        vkCmdSetViewport commandBuffer 0 1 viewPortPtr
-    withPtr (_frameBufferScissorRect . _frameBufferInfo $ frameBufferData) $ \scissorRectPtr ->
-        vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
+    when (elem VK_DYNAMIC_STATE_VIEWPORT pipelineDynamicStates) $
+        withPtr (_frameBufferViewPort . _frameBufferInfo $ frameBufferData) $ \viewPortPtr ->
+            vkCmdSetViewport commandBuffer 0 1 viewPortPtr
 
-    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
+    when (elem VK_DYNAMIC_STATE_SCISSOR pipelineDynamicStates) $
+        withPtr (_frameBufferScissorRect . _frameBufferInfo $ frameBufferData) $ \scissorRectPtr ->
+            vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
 
-    vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (plusPtr descriptorSetsPtr descriptorSetsOffset) 0 VK_NULL
+    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS (RenderPass._pipeline pipelineData)
+    vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS (RenderPass._pipelineLayout pipelineData) 0 1 (ptrAtIndex descriptorSetsPtr imageIndex) 0 VK_NULL
 
-    -- TEST CODE :: RenderTarget Change ------------------------------------------
-    when testRenderTargetChange $ do
-        imageInfo <- getRenderTarget rendererData RenderTarget_SceneNormal
-        withPtr (Texture._descriptorImageInfo imageInfo) $ \imageInfoPtr -> do
-            let offset = sizeOf (undefined::VkWriteDescriptorSet) * 3
-            writeField @"pImageInfo" (plusPtr writeDescriptorSetPtr offset::Ptr VkWriteDescriptorSet) imageInfoPtr
-        vkUpdateDescriptorSets (_device rendererData) 4 writeDescriptorSetPtr 0 VK_NULL
-    -------------------------------------------------------------------------------
 
-    vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr (_vertexOffsetPtr rendererData)
-
-    vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
-    vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
+drawElements' :: VkCommandBuffer -> GeometryData -> Ptr VkDeviceSize -> IO ()
+drawElements' commandBuffer geometryData vertexOffsetPtr = do
+    vkCmdBindVertexBuffers commandBuffer 0 1 (_vertexBufferPtr geometryData) vertexOffsetPtr
+    vkCmdBindIndexBuffer commandBuffer (_indexBuffer geometryData) 0 VK_INDEX_TYPE_UINT32
+    vkCmdDrawIndexed commandBuffer (_vertexIndexCount geometryData) 1 0 0 0
     vkCmdEndRenderPass commandBuffer
 
 

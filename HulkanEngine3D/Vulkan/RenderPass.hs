@@ -125,12 +125,14 @@ defaultAttachmentDescription = ImageAttachmentDescription
     , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
     , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_GENERAL
     }
+
 data PipelineData = PipelineData
     { _pipelineDataName :: Text.Text
     , _vertexShaderCreateInfo :: VkPipelineShaderStageCreateInfo
     , _fragmentShaderCreateInfo :: VkPipelineShaderStageCreateInfo
-    , _pipelineLayout :: VkPipelineLayout
     , _pipeline :: VkPipeline
+    , _pipelineLayout :: VkPipelineLayout
+    , _pipelineDynamicStates :: [VkDynamicState]
     , _descriptorData :: DescriptorData
     } deriving (Eq, Show)
 
@@ -454,6 +456,7 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
         , _fragmentShaderCreateInfo = fragmentShaderCreateInfo
         , _pipeline = graphicsPipeline
         , _pipelineLayout = pipelineLayout
+        , _pipelineDynamicStates = _pipelineDynamicStateList
         , _descriptorData = descriptorData
         }
 

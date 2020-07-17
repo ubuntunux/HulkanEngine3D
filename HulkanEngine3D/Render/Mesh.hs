@@ -26,6 +26,7 @@ class MeshInterface a where
     newMeshData :: Text.Text -> [GeometryData] -> IO a
     getGeometryDataCount :: a -> IO Int
     getGeometryDataList :: a -> IO [GeometryData]
+    getDefaultGeometryData :: a -> IO GeometryData
     getGeometryData :: a -> Int -> IO GeometryData
     updateMeshData :: a -> IO ()
 
@@ -49,6 +50,9 @@ instance MeshInterface MeshData where
 
     getGeometryDataList :: MeshData -> IO [GeometryData]
     getGeometryDataList meshData = readIORef (_geometryBufferDatas meshData)
+
+    getDefaultGeometryData :: MeshData -> IO GeometryData
+    getDefaultGeometryData meshData = getGeometryData meshData 0
 
     getGeometryData :: MeshData -> Int -> IO GeometryData
     getGeometryData meshData n = do

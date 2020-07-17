@@ -21,11 +21,11 @@ import qualified Data.Text as Text
 
 import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
+import Graphics.Vulkan.Marshal.Create
 
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan.Buffer
-import HulkanEngine3D.Vulkan.Descriptor
 
 
 data UniformBufferData = UniformBufferData
@@ -69,7 +69,11 @@ createUniformBufferData physicalDevice device uniformBufferName bufferSize = do
         uniformBufferName
         Constants.swapChainImageCount
         bufferSize
-    let descriptorBufferInfos = map (\uniformBuffer -> createDescriptorBufferInfo uniformBuffer bufferSize) uniformBuffers
+    let descriptorBufferInfos = flip map uniformBuffers $ \uniformBuffer ->
+            createVk @VkDescriptorBufferInfo
+                $  set @"buffer" uniformBuffer
+                &* set @"offset" 0
+                &* set @"range" bufferSize
     return UniformBufferData
         { _uniformBufferName = uniformBufferName
         , _uniformBuffers = uniformBuffers

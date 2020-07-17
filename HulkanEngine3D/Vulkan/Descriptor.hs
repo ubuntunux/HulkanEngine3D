@@ -77,20 +77,6 @@ destroyDescriptorPool device descriptorPool = do
     logInfo $ "    destroyDescriptorPool : " ++ show descriptorPool
     vkDestroyDescriptorPool device descriptorPool VK_NULL
 
-createDescriptorPoolSize :: VkDescriptorType -> Int -> VkDescriptorPoolSize
-createDescriptorPoolSize descriptorType descriptorCount =
-    createVk @VkDescriptorPoolSize
-        $  set @"type" descriptorType
-        &* set @"descriptorCount" (fromIntegral descriptorCount)
-
-createDescriptorSetLayoutBinding :: Word32 -> VkDescriptorType -> VkShaderStageFlags -> VkDescriptorSetLayoutBinding
-createDescriptorSetLayoutBinding bindingIndex descriptorType shaderStageFlags =
-    createVk @VkDescriptorSetLayoutBinding
-        $  set @"binding" bindingIndex
-        &* set @"descriptorType" descriptorType
-        &* set @"descriptorCount" 1
-        &* set @"stageFlags" shaderStageFlags
-        &* set @"pImmutableSamplers" VK_NULL
 
 createDescriptorSetLayout :: VkDevice -> [VkDescriptorSetLayoutBinding] -> IO VkDescriptorSetLayout
 createDescriptorSetLayout device layoutBindingList = do
@@ -123,8 +109,15 @@ createDescriptorData device descriptorDataCreateInfoList maxDescriptorSetsCount 
         let descriptorType = _descriptorType' descriptorDataCreateInfo
             bindingIndex = _descriptorBindingIndex' descriptorDataCreateInfo
             shaderStageFlags = _descriptorShaderStage' descriptorDataCreateInfo
-            descriptorLayoutBinding = createDescriptorSetLayoutBinding bindingIndex descriptorType shaderStageFlags
-            descriptorPoolSize = createDescriptorPoolSize descriptorType maxDescriptorSetsCount
+            descriptorLayoutBinding = createVk @VkDescriptorSetLayoutBinding
+                $  set @"binding" bindingIndex
+                &* set @"descriptorType" descriptorType
+                &* set @"descriptorCount" 1
+                &* set @"stageFlags" shaderStageFlags
+                &* set @"pImmutableSamplers" VK_NULL
+            descriptorPoolSize = createVk @VkDescriptorPoolSize
+                $  set @"type" descriptorType
+                &* set @"descriptorCount" (fromIntegral maxDescriptorSetsCount)
         return (descriptorLayoutBinding, descriptorPoolSize)
     let (descriptorSetLayoutBindingList, descriptorPoolSizeList) = unzip descriptorLayoutBindingWithPoolSizeList
     descriptorSetLayout <- createDescriptorSetLayout device descriptorSetLayoutBindingList
@@ -204,11 +197,3 @@ createWriteDescriptorSets descriptorSet descriptorBindIndices descriptorSetLayou
                             set @"pBufferInfo" VK_NULL
                             &* set @"pImageInfo" VK_NULL
                 &* set @"pTexelBufferView" VK_NULL
-
-
-createDescriptorBufferInfo :: VkBuffer -> VkDeviceSize -> VkDescriptorBufferInfo
-createDescriptorBufferInfo uniformBuffer size =
-    createVk @VkDescriptorBufferInfo
-        $  set @"buffer" uniformBuffer
-        &* set @"offset" 0
-        &* set @"range" size
