@@ -369,6 +369,7 @@ instance ResourceInterface Resources where
     -- TextureLoader
     loadTextureDatas :: Resources -> RendererData -> IO ()
     loadTextureDatas resources rendererData = do
+        --generateTextures rendererData
         textureFiles <- walkDirectory textureFilePath [".jpg", ".png"]
         forM_ textureFiles $ \textureFile -> do
             textureDataName <- getUniqueResourceName (_textureDataMap resources) textureFilePath textureFile
