@@ -8,7 +8,6 @@ import qualified Data.Text as Text
 
 import Graphics.Vulkan.Core_1_0
 
-import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTargetDeclaration
 import HulkanEngine3D.Render.UniformBufferDatas (UniformBufferType (..))
@@ -42,8 +41,7 @@ getFrameBufferDataCreateInfo rendererData = do
         , _frameBufferScissorRect = createScissorRect 0 0 width height
         , _frameBufferColorAttachmentFormats = [_imageFormat texture | texture <- textures]
         , _frameBufferDepthAttachmentFormats = [_imageFormat textureSceneDepth]
-        , _frameBufferImageViewsList =
-            replicate Constants.swapChainImageCount ([_imageView texture | texture <- textures] ++ [_imageView textureSceneDepth])
+        , _frameBufferImageViewLists = swapChainIndexMapSingleton $ (map _imageView textures) ++ [_imageView textureSceneDepth]
         , _frameBufferClearValues =
             [ getColorClearValue [0.0, 0.0, 0.0]
             , getColorClearValue [0.0, 0.0, 0.0]

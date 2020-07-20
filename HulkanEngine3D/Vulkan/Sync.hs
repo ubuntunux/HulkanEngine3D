@@ -20,9 +20,10 @@ import Graphics.Vulkan.Marshal.Create
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
+import HulkanEngine3D.Vulkan.Vulkan
 
 
-createSemaphores :: VkDevice -> IO [VkSemaphore]
+createSemaphores :: VkDevice -> IO (FrameIndexMap VkSemaphore)
 createSemaphores device = do
   semaphores <- allocaArray Constants.maxFrameCount $ \semaphoresPtr -> do
     let semaphoreCreateInfo = createVk @VkSemaphoreCreateInfo
@@ -35,11 +36,11 @@ createSemaphores device = do
           validationVK result "vkCreateSemaphore failed!"
     peekArray Constants.maxFrameCount semaphoresPtr
   logInfo $ "Create Semaphore: " ++ show semaphores
-  return semaphores
+  return (frameIndexMapFromList semaphores)
 
-destroySemaphores :: VkDevice -> [VkSemaphore] -> IO ()
+destroySemaphores :: VkDevice -> FrameIndexMap VkSemaphore -> IO ()
 destroySemaphores device semaphores = do
-  forM_ semaphores $ \semaphore ->
+  flip applyIOFrameIndex semaphores $ \semaphore ->
     vkDestroySemaphore device semaphore VK_NULL
   logInfo $ "Destroy Semaphore: " ++ show semaphores
 

@@ -6,7 +6,6 @@
 module HulkanEngine3D.Vulkan.FrameBuffer where
 
 import qualified Data.Text as Text
-import Control.Monad
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 
@@ -30,7 +29,7 @@ data FrameBufferDataCreateInfo = FrameBufferDataCreateInfo
     , _frameBufferColorAttachmentFormats :: [VkFormat]
     , _frameBufferDepthAttachmentFormats :: [VkFormat]
     , _frameBufferResolveAttachmentFormats :: [VkFormat]
-    , _frameBufferImageViewsList :: [[VkImageView]]
+    , _frameBufferImageViewLists :: SwapChainIndexMap [VkImageView]
     , _frameBufferClearValues :: [VkClearValue]
     }  deriving (Eq, Show)
 
@@ -46,14 +45,14 @@ defaultFrameBufferDataCreateInfo = FrameBufferDataCreateInfo
     , _frameBufferColorAttachmentFormats = []
     , _frameBufferDepthAttachmentFormats = []
     , _frameBufferResolveAttachmentFormats = []
-    , _frameBufferImageViewsList = []
+    , _frameBufferImageViewLists = SwapChainIndexMapEmpty
     , _frameBufferClearValues = []
     }
 
 data FrameBufferData = FrameBufferData
     { _frameBufferInfo :: FrameBufferDataCreateInfo
-    , _frameBuffers :: [VkFramebuffer]
-    , _renderPassBeginInfos :: [VkRenderPassBeginInfo]
+    , _frameBuffers :: SwapChainIndexMap VkFramebuffer
+    , _renderPassBeginInfos :: SwapChainIndexMap VkRenderPassBeginInfo
     }
 
 createFrameBufferData :: VkDevice
@@ -67,7 +66,7 @@ createFrameBufferData device renderPass frameBufferDataCreateInfo = do
         , _frameBufferHeight $ frameBufferDataCreateInfo
         , _frameBufferDepth $ frameBufferDataCreateInfo
         )
-    frameBuffers <- mapM createFrameBuffer (_frameBufferImageViewsList frameBufferDataCreateInfo)
+    frameBuffers <- applyIOSwapChainIndex createFrameBuffer (_frameBufferImageViewLists frameBufferDataCreateInfo)
     let renderPassBeginInfo frameBuffer = createVk @VkRenderPassBeginInfo
             $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
             &* set @"pNext" VK_NULL
@@ -85,12 +84,10 @@ createFrameBufferData device renderPass frameBufferDataCreateInfo = do
                 )
             &* set @"clearValueCount" (fromIntegral . length $  _frameBufferClearValues frameBufferDataCreateInfo)
             &* setListRef @"pClearValues" (_frameBufferClearValues frameBufferDataCreateInfo)
-        renderPassBeginInfos = map renderPassBeginInfo frameBuffers
-
     return FrameBufferData
         { _frameBufferInfo = frameBufferDataCreateInfo
         , _frameBuffers = frameBuffers
-        , _renderPassBeginInfos = renderPassBeginInfos
+        , _renderPassBeginInfos = applySwapChainIndex renderPassBeginInfo frameBuffers
         }
     where
         createFrameBuffer :: [VkImageView] -> IO VkFramebuffer
@@ -116,5 +113,5 @@ createFrameBufferData device renderPass frameBufferDataCreateInfo = do
 destroyFrameBufferData :: VkDevice -> FrameBufferData -> IO ()
 destroyFrameBufferData device frameBufferData = do
     logInfo $ "Destroy Framebuffers : " ++ show (_frameBufferName . _frameBufferInfo $ frameBufferData) ++ " "  ++ show (_frameBuffers frameBufferData)
-    forM_ (_frameBuffers frameBufferData) $ \frameBuffer ->
+    flip applyIOSwapChainIndex' (_frameBuffers frameBufferData) $ \frameBuffer ->
         vkDestroyFramebuffer device frameBuffer VK_NULL_HANDLE

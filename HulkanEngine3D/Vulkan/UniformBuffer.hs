@@ -15,7 +15,7 @@ module HulkanEngine3D.Vulkan.UniformBuffer
     ) where
 
 
-import Control.Monad (replicateM, forM_)
+import Control.Monad
 import Data.Bits ((.|.))
 import qualified Data.Text as Text
 
@@ -26,23 +26,23 @@ import Graphics.Vulkan.Marshal.Create
 import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan.Buffer
-
+import HulkanEngine3D.Vulkan.Vulkan
 
 data UniformBufferData = UniformBufferData
     { _uniformBufferName :: Text.Text
-    , _uniformBuffers :: [VkBuffer]
-    , _uniformBufferMemories :: [VkDeviceMemory]
+    , _uniformBuffers :: SwapChainIndexMap VkBuffer
+    , _uniformBufferMemories :: SwapChainIndexMap VkDeviceMemory
     , _uniformBufferDataSize :: VkDeviceSize
-    , _descriptorBufferInfos :: [VkDescriptorBufferInfo]
+    , _descriptorBufferInfos :: SwapChainIndexMap VkDescriptorBufferInfo
     } deriving (Eq, Show)
 
 defaultUniformBufferData :: UniformBufferData
 defaultUniformBufferData = UniformBufferData
     { _uniformBufferName = ""
-    , _uniformBuffers = []
-    , _uniformBufferMemories = []
+    , _uniformBuffers = SwapChainIndexMapEmpty
+    , _uniformBufferMemories = SwapChainIndexMapEmpty
     , _uniformBufferDataSize = 0
-    , _descriptorBufferInfos = []
+    , _descriptorBufferInfos = SwapChainIndexMapEmpty
     }
 
 createUniformBuffer :: VkPhysicalDevice -> VkDevice -> Text.Text -> Int -> VkDeviceSize -> IO [(VkDeviceMemory, VkBuffer)]
@@ -55,10 +55,10 @@ createUniformBuffer physicalDevice device uniformBufferName bufferCount bufferSi
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
         ( VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
 
-destroyUniformBuffer :: VkDevice -> [VkBuffer] -> [VkDeviceMemory] -> IO ()
+destroyUniformBuffer :: VkDevice -> SwapChainIndexMap VkBuffer -> SwapChainIndexMap VkDeviceMemory -> IO ()
 destroyUniformBuffer device buffers memories = do
     logInfo "destroyUniformBuffers"
-    forM_ (zip buffers memories) $ \(buffer, memory) ->
+    forM_ (zip (swapChainIndexMapToList buffers) (swapChainIndexMapToList memories)) $ \(buffer, memory) ->
         destroyBuffer device buffer memory
 
 createUniformBufferData :: VkPhysicalDevice -> VkDevice -> Text.Text -> VkDeviceSize -> IO UniformBufferData
@@ -69,17 +69,18 @@ createUniformBufferData physicalDevice device uniformBufferName bufferSize = do
         uniformBufferName
         Constants.swapChainImageCount
         bufferSize
-    let descriptorBufferInfos = flip map uniformBuffers $ \uniformBuffer ->
+    let createVkDescriptorBufferInfo uniformBuffer =
             createVk @VkDescriptorBufferInfo
                 $  set @"buffer" uniformBuffer
                 &* set @"offset" 0
                 &* set @"range" bufferSize
+        descriptorBufferInfos = map createVkDescriptorBufferInfo uniformBuffers
     return UniformBufferData
         { _uniformBufferName = uniformBufferName
-        , _uniformBuffers = uniformBuffers
-        , _uniformBufferMemories = uniformBufferMemories
+        , _uniformBuffers = swapChainIndexMapFromList uniformBuffers
+        , _uniformBufferMemories = swapChainIndexMapFromList uniformBufferMemories
         , _uniformBufferDataSize = bufferSize
-        , _descriptorBufferInfos = descriptorBufferInfos
+        , _descriptorBufferInfos = swapChainIndexMapFromList descriptorBufferInfos
         }
 
 destroyUniformBufferData :: VkDevice -> UniformBufferData -> IO ()

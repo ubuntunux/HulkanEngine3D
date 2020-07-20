@@ -47,6 +47,7 @@ import HulkanEngine3D.Resource.ResourceData
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.UniformBuffer
+import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.BoundingBox
@@ -460,7 +461,7 @@ instance ResourceInterface Resources where
                 pipelineData <- getPipelineData renderPassData pipelineDataName
 
                 let descriptorDataCreateInfoList = Descriptor._descriptorDataCreateInfoList $ _descriptorData pipelineData
-                descriptorResourceInfosList <- forM Constants.swapChainImageIndices $ \index -> do
+                descriptorResourceInfosList <- forM Constants.swapChainImageIndices $ \swapChainIndex -> do
                     descriptorResourceInfos <- forM descriptorDataCreateInfoList $ \descriptorDataCreateInfo -> do
                         let materialParameterName = Descriptor._descriptorName' descriptorDataCreateInfo
                             materialParameterType = Descriptor._descriptorType' descriptorDataCreateInfo
@@ -469,7 +470,7 @@ instance ResourceInterface Resources where
                         case (materialParameterType, materialParameterResourceType) of
                             (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, Descriptor.DescriptorResourceType_UniformBuffer) -> do
                                 uniformBufferData <- getUniformBufferData rendererData (fromText materialParameterName)
-                                return $ Descriptor.DescriptorBufferInfo (_descriptorBufferInfos uniformBufferData !! index)
+                                return . Descriptor.DescriptorBufferInfo . atSwapChainIndex swapChainIndex $ _descriptorBufferInfos uniformBufferData
                             (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_Texture) -> do
                                 textureData <- case maybeMaterialParameter of
                                     Just (Aeson.String value) -> getTextureData resources value

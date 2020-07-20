@@ -12,7 +12,6 @@ module HulkanEngine3D.Vulkan.SwapChain
   ) where
 
 
-
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
@@ -26,6 +25,7 @@ import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan.Queue
 import HulkanEngine3D.Vulkan.Texture
+import HulkanEngine3D.Vulkan.Vulkan
 
 
 data SwapChainSupportDetails = SwapChainSupportDetails
@@ -37,8 +37,8 @@ data SwapChainSupportDetails = SwapChainSupportDetails
 data SwapChainData = SwapChainData
     { _swapChain :: VkSwapchainKHR
     , _swapChainImageFormat :: VkFormat
-    , _swapChainImages :: [VkImage]
-    , _swapChainImageViews :: [VkImageView]
+    , _swapChainImages :: SwapChainIndexMap VkImage
+    , _swapChainImageViews :: SwapChainIndexMap VkImageView
     , _swapChainExtent :: VkExtent2D
     } deriving (Eq, Show)
 
@@ -154,11 +154,11 @@ createSwapChainData device swapChainSupportDetails queueFamilyDatas vkSurface im
       validationVK result "vkCreateSwapchainKHR failed!"
       peek swapChainPtr
 
-  swapChainImages <- asListVK $ \counterPtr valueArrayPtr -> do
+  swapChainImageList <- asListVK $ \counterPtr valueArrayPtr -> do
       result <- vkGetSwapchainImagesKHR device swapChain counterPtr valueArrayPtr
       validationVK result "vkGetSwapchainImagesKHR error"
-
-  let swapChainImageFormat = getField @"imageFormat" swapChainCreateInfo
+  let swapChainImages = swapChainIndexMapFromList swapChainImageList
+      swapChainImageFormat = getField @"imageFormat" swapChainCreateInfo
       swapChainExtent = getField @"imageExtent" swapChainCreateInfo
 
   touchVkData swapChainCreateInfo
@@ -188,13 +188,11 @@ destroySwapChainData device swapChainData = do
   logInfo "Destroy SwapChain"
   vkDestroySwapchainKHR device (_swapChain swapChainData) VK_NULL_HANDLE
 
-createSwapChainImageViews :: VkDevice -> [VkImage] -> VkFormat -> IO [VkImageView]
+createSwapChainImageViews :: VkDevice -> SwapChainIndexMap VkImage -> VkFormat -> IO (SwapChainIndexMap VkImageView)
 createSwapChainImageViews device swapChainImages swapChainImageFormat = do
-    imageViews <- mapM
-        (\image -> createImageView device image swapChainImageFormat VK_IMAGE_ASPECT_COLOR_BIT 1)
-        swapChainImages
-    return imageViews
+    applyIOSwapChainIndex createImageView' swapChainImages
+    where
+        createImageView' swapChainImage = createImageView device swapChainImage swapChainImageFormat VK_IMAGE_ASPECT_COLOR_BIT 1
 
-destroySwapChainImageViews :: VkDevice -> [VkImageView] -> IO ()
-destroySwapChainImageViews device imageViews = do
-  mapM_ (\imageView -> destroyImageView device imageView) imageViews
+destroySwapChainImageViews :: VkDevice -> SwapChainIndexMap VkImageView -> IO (SwapChainIndexMap ())
+destroySwapChainImageViews device imageViews = applyIOSwapChainIndex (destroyImageView device) imageViews
