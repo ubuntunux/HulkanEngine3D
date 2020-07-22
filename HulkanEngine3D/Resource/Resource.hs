@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE DuplicateRecordFields  #-}
+{-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE InstanceSigs           #-}
 {-# LANGUAGE NamedFieldPuns         #-}
 {-# LANGUAGE OverloadedStrings      #-}
@@ -43,7 +44,7 @@ import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import qualified HulkanEngine3D.Vulkan.GeometryBuffer as GeometryBuffer
 import HulkanEngine3D.Resource.ResourceData
---import HulkanEngine3D.Resource.TextureGenerator
+import HulkanEngine3D.Resource.TextureGenerator
 import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.RenderPass
 import HulkanEngine3D.Vulkan.UniformBuffer
@@ -80,8 +81,11 @@ useJsonForMesh = False
 modelFilePath :: FilePath
 modelFilePath = "Resource/Models"
 
+textureSourceFilePath :: FilePath
+textureSourceFilePath = "Resource/Externals/Textures"
+
 textureFilePath :: FilePath
-textureFilePath = "Resource/Externals/Textures"
+textureFilePath = "Resource/Textures"
 
 defaultMeshName :: Text.Text
 defaultMeshName = "quad"
@@ -370,18 +374,32 @@ instance ResourceInterface Resources where
     -- TextureLoader
     loadTextureDatas :: Resources -> RendererData -> IO ()
     loadTextureDatas resources rendererData = do
-        --generateTextures rendererData
-        textureFiles <- walkDirectory textureFilePath [".jpg", ".png"]
+        generateTextures rendererData textureSourceFilePath
+        textureFiles <- walkDirectory textureSourceFilePath [".jpg", ".png"]
         forM_ textureFiles $ \textureFile -> do
-            textureDataName <- getUniqueResourceName (_textureDataMap resources) textureFilePath textureFile
+            textureDataName <- getUniqueResourceName (_textureDataMap resources) textureSourceFilePath textureFile
             imageRawData <- Image.readImage textureFile
-            Image.Image { imageWidth, imageHeight, imageData } <- case imageRawData of
+            ((imageWidth, imageHeight, imageData), imageFormat) <- case imageRawData of
                 Left err -> throwVKMsg err
-                Right dynamicImage -> pure $ Image.convertRGBA8 dynamicImage
+                Right dynamicImage ->
+                    pure $ case dynamicImage of
+                        Image.ImageRGBA8 image -> (image8ToTuple image, VK_FORMAT_R8G8B8A8_UNORM)
+                        Image.ImageRGBF image -> (imageFloatToTuple image, VK_FORMAT_R32G32B32_SFLOAT)
+                        Image.ImageRGBA16 image -> (image16ToTuple image, VK_FORMAT_R16G16B16A16_UNORM)
+                        otherwise -> (image8ToTuple (Image.convertRGBA8 dynamicImage), VK_FORMAT_R8G8B8A8_UNORM)
+                        where
+                            image8ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
+                                let imageData8 = imageData::SVector.Vector Word8 in (imageWidth, imageHeight, imageData8)
+                            image16ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
+                                let imageData16 = imageData::SVector.Vector Word16 in (imageWidth, imageHeight, SVector.unsafeCast imageData16)
+                            imageFloatToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
+                                let imageDataFloat = imageData::SVector.Vector Float in (imageWidth, imageHeight, SVector.unsafeCast imageDataFloat)
+            print imageFormat
             let textureCreateInfo = defaultTextureCreateInfo
-                    { _textureCreateInfoWidth = (fromIntegral imageWidth)
-                    , _textureCreateInfoHeight = (fromIntegral imageHeight)
+                    { _textureCreateInfoWidth = fromIntegral imageWidth
+                    , _textureCreateInfoHeight = fromIntegral imageHeight
                     , _textureCreateInfoData = imageData
+                    , _textureCreateInfoFormat = imageFormat
                     }
             textureData <- createTexture rendererData textureDataName textureCreateInfo
             HashTable.insert (_textureDataMap resources) textureDataName textureData

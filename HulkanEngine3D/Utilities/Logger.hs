@@ -20,6 +20,14 @@ prettySrcLoc SrcLoc {..}
       , srcLocPackage, ":", srcLocModule
       ]
 
+prettySrcLoc' :: SrcLoc -> String
+prettySrcLoc' SrcLoc {..}
+  = foldr (++) ""
+      [ srcLocFile, ":"
+      , show srcLocStartLine, ":"
+      , show srcLocStartCol
+      ]
+
 
 prettyCallStack :: CallStack -> String -> String -> String -> String
 prettyCallStack cs time loggerLevel msg = intercalate "\n" $ prettyCallStackLines cs time loggerLevel msg
@@ -30,7 +38,8 @@ prettyCallStackLines cs time loggerLevel msg = case getCallStack cs of
   []  -> []
   stk -> map ((++"    ") . prettyCallSite) stk
   where
-    prettyCallSite (f, loc) = "[" ++ time ++ "]" ++ "[" ++ loggerLevel ++ "] " ++ msg ++ " (" ++ prettySrcLoc loc ++ ")"
+    --prettyCallSite (f, loc) = "[" ++ time ++ "]" ++ "[" ++ loggerLevel ++ "] " ++ msg ++ " (" ++ prettySrcLoc loc ++ ")"
+    prettyCallSite (f, loc) = "[" ++ time ++ "]" ++ "[" ++ loggerLevel ++ "] " ++ msg ++ " (" ++ prettySrcLoc' loc ++ ")"
 
 getLoggerTime :: IO String
 getLoggerTime = formatTime defaultTimeLocale "%F %T.%3q" <$> getZonedTime
