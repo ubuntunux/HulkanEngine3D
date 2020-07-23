@@ -77,7 +77,6 @@ generateImages rendererData textureFilePath = do
     ifNotExistSaveImage textureFilePath "common/flat_normal.png" (Image.ImageRGBA8 $ generateFlatColorImageRGBA8 2 2 (128, 128, 255, 255))
     ifNotExistSaveImage textureFilePath "common/flat_normal_f32.png" (Image.ImageRGBF $ generateFlatColorImageRGBF 2 2 (0.5, 0.5, 1.0))
     ifNotExistSaveImage textureFilePath "common/flat_normal_u16.png" (Image.ImageRGBA16 $ generateFlatColorImageRGBA16 2 2 (32767, 32767, 65535, 65535))
-    ifNotExistSaveImage textureFilePath "common/check.png" (Image.ImageRGBA8 $ generateFlatColorImageRGBA8 2 2 (128, 128, 255, 255))
     where
         ifNotExistSaveImage :: FilePath -> FilePath -> Image.DynamicImage -> IO ()
         ifNotExistSaveImage textureFilePath imageFileName image = do

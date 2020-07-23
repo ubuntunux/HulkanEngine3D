@@ -156,9 +156,9 @@ copyBuffer device commandPool commandQueue srcBuffer dstBuffer bufferSize = do
             vkCmdCopyBuffer commandBuffer srcBuffer dstBuffer 1 copyRegionPtr
 
 
-updateBufferData :: (PrimBytes a) => VkDevice -> VkDeviceMemory -> a -> IO ()
+updateBufferData :: (Storable a) => VkDevice -> VkDeviceMemory -> a -> IO ()
 updateBufferData device buffer bufferData = do
     bufferDataPtr <- allocaPeek $ \mappedDataPtr ->
-        vkMapMemory device buffer 0 (bSizeOf bufferData) VK_ZERO_FLAGS mappedDataPtr
-    poke (castPtr bufferDataPtr) (scalar bufferData)
+        vkMapMemory device buffer 0 (fromIntegral $ sizeOf bufferData) VK_ZERO_FLAGS mappedDataPtr
+    poke (castPtr bufferDataPtr) bufferData
     vkUnmapMemory device buffer

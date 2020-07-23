@@ -1,8 +1,17 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
+layout (constant_id = 0) const int SSAO_KERNEL_SIZE = 64;
+layout (constant_id = 1) const float SSAO_RADIUS = 0.5;
+layout (constant_id = 2) const float SSAO_POWER = 1.0;
+
 layout(binding = 3) uniform sampler2D textureSceneNormal;
 layout(binding = 4) uniform sampler2D textureSceneDepth;
+layout(binding = 5) uniform sampler2D ssaoNoise;
+layout(binding = 6) uniform UBOSSAOKernel
+{
+    vec4 samples[2];
+} uboSSAOKernel;
 
 layout(location = 0) in vec4 vertexColor;
 layout(location = 1) in vec3 vertexNormal;
@@ -11,7 +20,7 @@ layout(location = 2) in vec2 texCoord;
 layout(location = 0) out float outColor;
 
 void main() {
-    outColor = texture(textureSceneDepth, texCoord).x;
+    outColor = texture(textureSceneDepth, texCoord).x * uboSSAOKernel.samples[0].x;
 }
 
 ////////////////////////////////////////
@@ -19,9 +28,7 @@ void main() {
 //layout (binding = 1) uniform sampler2D samplerNormal;
 //layout (binding = 2) uniform sampler2D ssaoNoise;
 //
-//layout (constant_id = 0) const int SSAO_KERNEL_SIZE = 64;
-//layout (constant_id = 1) const float SSAO_RADIUS = 0.5;
-//layout (constant_id = 2) const float SSAO_POWER = 1.0;
+
 //
 //layout (binding = 3) uniform UBOSSAOKernel
 //{

@@ -108,6 +108,18 @@ getRenderPassDataCreateInfo rendererData = do
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
+                    , DescriptorDataCreateInfo
+                        5
+                        "random_normal"
+                        DescriptorResourceType_Texture
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                        VK_SHADER_STAGE_FRAGMENT_BIT
+                    , DescriptorDataCreateInfo
+                        6
+                        (toText UniformBuffer_SSAOConstants)
+                        DescriptorResourceType_UniformBuffer
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
                     ]
                 }
             ]
