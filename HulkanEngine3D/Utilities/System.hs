@@ -59,6 +59,7 @@ instance Exception VulkanException where
     , "*** " ++ msg
     ]
 
+
 -- | Low latency time in seconds since the start
 getSystemTime :: IO Double
 getSystemTime = do

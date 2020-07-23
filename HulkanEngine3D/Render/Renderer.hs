@@ -54,6 +54,7 @@ import qualified HulkanEngine3D.Render.RenderElement as RenderElement
 import qualified HulkanEngine3D.Render.RenderObject as RenderObject
 import qualified HulkanEngine3D.Render.TransformObject as TransformObject
 import qualified HulkanEngine3D.Render.Mesh as Mesh
+import qualified HulkanEngine3D.Render.PostProcess as PostProcess
 import HulkanEngine3D.Render.UniformBufferDatas
 import {-# SOURCE #-} HulkanEngine3D.Resource.Resource
 import HulkanEngine3D.Utilities.Logger
@@ -97,6 +98,7 @@ data RendererData = RendererData
     , _debugRenderTargetRef :: IORef RenderTargetType
     , _renderTargetDataMap :: RenderTargetDataMap
     , _uniformBufferDataMap :: UniformBufferDataMap
+    , _postprocess_ssao :: PostProcess.PostProcessData
     , _resources :: Resources
     } deriving (Show)
 
@@ -220,6 +222,10 @@ defaultRendererData resources = do
         defaultRenderFeatures = RenderFeatures
             { _anisotropyEnable = VK_FALSE
             , _msaaSamples = VK_SAMPLE_COUNT_1_BIT }
+        postprocess_ssao = PostProcess.PostProcessData_SSAO
+            { PostProcess._ssao_kernel_size = Constants._SSAO_KERNEL_SIZE
+            , PostProcess._ssao_radius = Constants._SSAO_RADIUS
+            , PostProcess._ssao_noise_dim = Constants._SSAO_NOISE_DIM }
 
     swapChainIndexPtr <- new (0 :: Word32)
     vertexOffsetPtr <- new (0 :: VkDeviceSize)
@@ -256,6 +262,7 @@ defaultRendererData resources = do
         , _debugRenderTargetRef = debugRenderTargetRef
         , _renderTargetDataMap = renderTargetDataMap
         , _uniformBufferDataMap = uniformBufferDataMap
+        , _postprocess_ssao = postprocess_ssao
         , _resources = resources
         }
 

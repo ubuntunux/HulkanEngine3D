@@ -374,7 +374,11 @@ instance ResourceInterface Resources where
     -- TextureLoader
     loadTextureDatas :: Resources -> RendererData -> IO ()
     loadTextureDatas resources rendererData = do
-        generateTextures rendererData textureSourceFilePath
+        textureDatas <- generateTextures rendererData
+        forM_ textureDatas $ \textureData -> do
+            HashTable.insert (_textureDataMap resources) (_textureDataName textureData) textureData
+
+        generateImages rendererData textureSourceFilePath
         textureFiles <- walkDirectory textureSourceFilePath [".jpg", ".png"]
         forM_ textureFiles $ \textureFile -> do
             textureDataName <- getUniqueResourceName (_textureDataMap resources) textureSourceFilePath textureFile
@@ -394,7 +398,6 @@ instance ResourceInterface Resources where
                                 let imageData16 = imageData::SVector.Vector Word16 in (imageWidth, imageHeight, SVector.unsafeCast imageData16)
                             imageFloatToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
                                 let imageDataFloat = imageData::SVector.Vector Float in (imageWidth, imageHeight, SVector.unsafeCast imageDataFloat)
-            print imageFormat
             let textureCreateInfo = defaultTextureCreateInfo
                     { _textureCreateInfoWidth = fromIntegral imageWidth
                     , _textureCreateInfoHeight = fromIntegral imageHeight

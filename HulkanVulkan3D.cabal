@@ -33,6 +33,7 @@ executable main
                       HulkanEngine3D.Render.MaterialInstance
                       HulkanEngine3D.Render.Mesh
                       HulkanEngine3D.Render.Model
+                      HulkanEngine3D.Render.PostProcess
                       HulkanEngine3D.Render.RenderTarget
                       HulkanEngine3D.Render.RenderTargetDeclaration
                       HulkanEngine3D.Render.Renderer
@@ -93,6 +94,7 @@ executable main
                       , transformers
                       , unordered-containers
                       , vector
+                      , random
                       , wavefront
                       , vulkan-api >= 1.3.0.0
                       , GLFW-b >= 3.2.1

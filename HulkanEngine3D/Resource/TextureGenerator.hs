@@ -10,27 +10,18 @@ import qualified Data.Vector.Storable as SVector
 import qualified Data.Text as Text ()
 import System.Directory
 import System.FilePath.Posix
+import System.Random
 
 import Graphics.Vulkan.Core_1_0
 import qualified Codec.Picture as Image
 import qualified Codec.Picture.Types as Image
 
 import qualified HulkanEngine3D.Render.Renderer as Renderer
+import qualified HulkanEngine3D.Render.PostProcess as PostProcess
 import qualified HulkanEngine3D.Vulkan.Texture as Texture
 import qualified HulkanEngine3D.Vulkan.Vulkan as Vulkan
+import qualified HulkanEngine3D.Utilities.Vector as Vector
 
-generateTextureExample :: Renderer.RendererData -> IO Texture.TextureData
-generateTextureExample rendererData = do
-    let white = Vulkan.getColor32 255 255 255 255
-        black = Vulkan.getColor32 0 0 0 255
-        textureCreateInfo = Texture.defaultTextureCreateInfo
-            { Texture._textureCreateInfoWidth = 2
-            , Texture._textureCreateInfoHeight = 2
-            , Texture._textureCreateInfoMinFilter = VK_FILTER_NEAREST
-            , Texture._textureCreateInfoMagFilter = VK_FILTER_NEAREST
-            , Texture._textureCreateInfoData = SVector.unsafeCast $ SVector.fromList [white, black, black, white]
-            }
-    Renderer.createTexture rendererData "check" textureCreateInfo
 
 generateFlatColorImageRGBA8 :: Int -> Int -> (Word8, Word8, Word8, Word8) -> Image.Image Image.PixelRGBA8
 generateFlatColorImageRGBA8 imageWidth imageHeight (r, g, b, a) = runST $ do
@@ -74,8 +65,8 @@ generateFlatColorImageRGBA16 imageWidth imageHeight (r, g, b, a) = runST $ do
                 go (x + 1) y
       go 0 0
 
-generateTextures :: Renderer.RendererData -> FilePath -> IO ()
-generateTextures rendererData textureFilePath = do
+generateImages :: Renderer.RendererData -> FilePath -> IO ()
+generateImages rendererData textureFilePath = do
     ifNotExistSaveImage textureFilePath "common/flat_none.png" (Image.ImageRGBA8 $ generateFlatColorImageRGBA8 2 2 (0, 0, 0, 0))
     ifNotExistSaveImage textureFilePath "common/flat_black.png" (Image.ImageRGBA8 $ generateFlatColorImageRGBA8 2 2 (0, 0, 0, 255))
     ifNotExistSaveImage textureFilePath "common/flat_gray.png" (Image.ImageRGBA8 $ generateFlatColorImageRGBA8 2 2 (128, 128, 128, 255))
@@ -94,4 +85,35 @@ generateTextures rendererData textureFilePath = do
             doesFileExist imageFilePath >>= \result -> when (not result) $ do
                 createDirectoryIfMissing True (takeDirectory imageFilePath)
                 Image.savePngImage imageFilePath image
-        
+
+generateRandomNormals :: Int -> Int -> IO [Vector.Vec4]
+generateRandomNormals width height = do
+    replicateM (width * height) $ do
+        x <- randomIO :: IO Float
+        y <- randomIO :: IO Float
+        z <- randomIO :: IO Float
+        pure $ Vector.Vec4 (x * 2.0 - 1.0) (y * 2.0 - 1.0) z 1.0
+
+
+generateTextures :: Renderer.RendererData -> IO [Texture.TextureData]
+generateTextures rendererData = do
+    let postprocess_ssao = (Renderer._postprocess_ssao rendererData)
+        ssao_noise_dim = PostProcess._ssao_noise_dim postprocess_ssao
+        white = Vulkan.getColor32 255 255 255 255
+        black = Vulkan.getColor32 0 0 0 255
+
+    randomNormals <- SVector.fromList <$> (generateRandomNormals ssao_noise_dim ssao_noise_dim)
+    textureRandomNormal <- Renderer.createTexture rendererData "random_normal" Texture.defaultTextureCreateInfo
+        { Texture._textureCreateInfoWidth = fromIntegral ssao_noise_dim
+        , Texture._textureCreateInfoHeight = fromIntegral ssao_noise_dim
+        , Texture._textureCreateInfoFormat = VK_FORMAT_R32G32B32A32_SFLOAT
+        , Texture._textureCreateInfoData = SVector.unsafeCast randomNormals
+        }
+    textureCheck <- Renderer.createTexture rendererData "checker" Texture.defaultTextureCreateInfo
+        { Texture._textureCreateInfoWidth = 2
+        , Texture._textureCreateInfoHeight = 2
+        , Texture._textureCreateInfoMinFilter = VK_FILTER_NEAREST
+        , Texture._textureCreateInfoMagFilter = VK_FILTER_NEAREST
+        , Texture._textureCreateInfoData = SVector.unsafeCast $ SVector.fromList [white, black, black, white]
+        }
+    return [ textureRandomNormal, textureCheck ]
