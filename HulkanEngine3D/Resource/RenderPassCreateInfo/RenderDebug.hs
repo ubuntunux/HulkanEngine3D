@@ -87,7 +87,7 @@ getRenderPassDataCreateInfo rendererData = do
                         (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
                     , DescriptorDataCreateInfo
                         1
-                        (toText UniformBuffer_ViewProjectionConstants)
+                        (toText UniformBuffer_ViewConstants)
                         DescriptorResourceType_UniformBuffer
                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
                         (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)

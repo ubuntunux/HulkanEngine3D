@@ -380,6 +380,7 @@ runApplication commandToEditor commandToApp = do
         needRecreateSwapChain <- readIORef (Renderer._needRecreateSwapChainRef rendererData)
         windowSizeChanged <- readIORef (_windowSizeChanged applicationData)
         when (windowSizeChanged || needRecreateSwapChain || Command_Resize_Window == recvCommand) $ do
+            writeIORef (Renderer._isFirstRender rendererData) True
             Renderer.resizeWindow (_window applicationData) rendererData
             writeIORef (_windowSizeChanged applicationData) False
             writeIORef (Renderer._needRecreateSwapChainRef rendererData) False

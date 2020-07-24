@@ -34,13 +34,26 @@ layout(binding = 0) uniform SceneConstants
     int SceneConstantsDummy0;
 } sceneConstants;
 
-layout(binding = 1) uniform ViewProjectionConstants
+layout(binding = 1) uniform ViewConstants
 {
     mat4 VIEW;
+    mat4 INV_VIEW;
+    mat4 VIEW_ORIGIN;
+    mat4 INV_VIEW_ORIGIN;
     mat4 PROJECTION;
+    mat4 INV_PROJECTION;
     mat4 VIEW_PROJECTION;
     mat4 INV_VIEW_PROJECTION;
-} viewProjectionConstants;
+    mat4 VIEW_ORIGIN_PROJECTION;
+    mat4 INV_VIEW_ORIGIN_PROJECTION;
+    vec2 NEAR_FAR;
+    vec2 JITTER_DELTA;
+    vec2 JITTER_OFFSET;
+    float VIEWCONSTANTS_DUMMY0;
+    float VIEWCONSTANTS_DUMMY1;
+    vec3 CAMERA_POSITION;
+    float VIEWCONSTANTS_DUMMY2;
+} viewConstants;
 
 layout(binding = 2) uniform LightConstants
 {
@@ -52,5 +65,6 @@ layout(binding = 2) uniform LightConstants
     vec3 LIGHT_COLOR;
     int SHADOW_SAMPLES;
 } lightConstants;
+
 
 #endif // _SCENE_CONSTANTS_

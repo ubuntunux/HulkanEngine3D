@@ -27,7 +27,6 @@ import qualified Data.DList as DList
 import qualified Data.Text as Text
 import qualified Data.HashTable.IO as HashTable
 import Data.IORef
-import Data.Fixed
 import Foreign.Marshal.Array
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
@@ -81,6 +80,7 @@ data RendererData = RendererData
     , _swapChainIndexPtr :: Ptr Word32
     , _vertexOffsetPtr :: Ptr VkDeviceSize
     , _needRecreateSwapChainRef :: IORef Bool
+    , _isFirstRender :: IORef Bool
     , _imageAvailableSemaphores :: FrameIndexMap VkSemaphore
     , _renderFinishedSemaphores :: FrameIndexMap VkSemaphore
     , _vkInstance :: VkInstance
@@ -223,15 +223,12 @@ defaultRendererData resources = do
         defaultRenderFeatures = RenderFeatures
             { _anisotropyEnable = VK_FALSE
             , _msaaSamples = VK_SAMPLE_COUNT_1_BIT }
-        postprocess_ssao = PostProcess.PostProcessData_SSAO
-            { PostProcess._ssao_kernel_size = Constants._SSAO_KERNEL_SIZE
-            , PostProcess._ssao_radius = Constants._SSAO_RADIUS
-            , PostProcess._ssao_noise_dim = Constants._SSAO_NOISE_DIM }
-
+    postprocess_ssao <- PostProcess.initializePostProcessData_SSAO
     swapChainIndexPtr <- new (0 :: Word32)
     vertexOffsetPtr <- new (0 :: VkDeviceSize)
     frameIndexRef <- newIORef (0::Int)
     needRecreateSwapChainRef <- newIORef False
+    isFirstRender <- newIORef True
     imageSamplers <- newIORef defaultImageSamplers
     renderPassDataListRef <- newIORef (DList.fromList [])
     swapChainDataRef <- newIORef defaultSwapChainData
@@ -245,6 +242,7 @@ defaultRendererData resources = do
         , _swapChainIndexPtr = swapChainIndexPtr
         , _vertexOffsetPtr = vertexOffsetPtr
         , _needRecreateSwapChainRef = needRecreateSwapChainRef
+        , _isFirstRender = isFirstRender
         , _imageAvailableSemaphores = FrameIndexMapEmpty
         , _renderFinishedSemaphores = FrameIndexMapEmpty
         , _vkInstance = VK_NULL
@@ -502,7 +500,7 @@ uploadUniformBufferData rendererData@RendererData {..} swapChainIndex uniformBuf
 
 
 renderScene :: RendererData -> SceneManager.SceneManagerData -> Double -> Float -> IO ()
-renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime = do
+renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTime = do
     -- frame index
     frameIndex <- readIORef _frameIndexRef
     let frameFencePtr = ptrAtIndex _frameFencesPtr frameIndex
@@ -518,14 +516,22 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
 
     result <- case acquireNextImageResult of
         VK_SUCCESS -> do
+            isFirstRender <- readIORef _isFirstRender
+
             mainCamera <- SceneManager.getMainCamera sceneManagerData
-            mainLight <- SceneManager.getMainLight sceneManagerData
+            cameraPosition <- Camera.getCameraPosition mainCamera
             viewMatrix <- Camera.getViewMatrix mainCamera
+            invViewMatrix <- Camera.getInvViewMatrix mainCamera
+            viewOriginMatrix <- Camera.getViewOriginMatrix mainCamera
+            invViewOriginMatrix <- Camera.getInvViewOriginMatrix mainCamera
             projectionMatrix <- Camera.getProjectionMatrix mainCamera
+            invProjectionMatrix <- Camera.getInvProjectionMatrix mainCamera
             viewProjectionMatrix <- Camera.getViewProjectionMatrix mainCamera
             invViewProjectionMatrix <- Camera.getInvViewProjectionMatrix mainCamera
-            let screenWidth = fromIntegral $ getField @"width" _swapChainExtent :: Float
-                screenHeight = fromIntegral $ getField @"height" _swapChainExtent :: Float
+            viewOriginProjectionMatrix <- Camera.getViewOriginProjectionMatrix mainCamera
+            invViewOriginProjectionMatrix <- Camera.getInvViewOriginProjectionMatrix mainCamera
+
+            mainLight <- SceneManager.getMainLight sceneManagerData
             shadowViewProjectionMatrix <- Light.getShadowViewProjectionMatrix mainLight
             lightPosition <- Light.getLightPosition mainLight
             lightDirection <- Light.getLightDirection mainLight
@@ -538,7 +544,9 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
             rotation <- TransformObject.getRotation $ Light._directionalLightTransformObject mainLight
 
             -- Upload Uniform Buffers
-            let sceneConstants = SceneConstants
+            let screenWidth = fromIntegral $ getField @"width" _swapChainExtent :: Float
+                screenHeight = fromIntegral $ getField @"height" _swapChainExtent :: Float
+                sceneConstants = SceneConstants
                     { _SCREEN_SIZE = vec2 screenWidth screenHeight
                     , _BACKBUFFER_SIZE = vec2 screenWidth screenHeight
                     , _TIME = realToFrac elapsedTime
@@ -546,11 +554,24 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
                     , _JITTER_FRAME = float_zero
                     , _SceneConstantsDummy0 = 0
                     }
-                viewProjectionConstants = ViewProjectionConstants
-                    { _VIEW = viewMatrix
+                viewConstants = ViewConstants
+                    { _VIEW  = viewMatrix
+                    , _INV_VIEW = invViewMatrix
+                    , _VIEW_ORIGIN = viewOriginMatrix
+                    , _INV_VIEW_ORIGIN = invViewOriginMatrix
                     , _PROJECTION = projectionMatrix
+                    , _INV_PROJECTION = invProjectionMatrix
                     , _VIEW_PROJECTION = viewProjectionMatrix
                     , _INV_VIEW_PROJECTION = invViewProjectionMatrix
+                    , _VIEW_ORIGIN_PROJECTION = viewOriginProjectionMatrix
+                    , _INV_VIEW_ORIGIN_PROJECTION = invViewOriginProjectionMatrix
+                    , _NEAR_FAR = vec2 Constants.near Constants.far
+                    , _JITTER_DELTA = vec2 0.0 0.0
+                    , _JITTER_OFFSET = vec2 0.0 0.0
+                    , _VIEWCONSTANTS_DUMMY0 = 0.0
+                    , _VIEWCONSTANTS_DUMMY1 = 0.0
+                    , _CAMERA_POSITION = cameraPosition
+                    , _VIEWCONSTANTS_DUMMY2 = 0.0
                     }
                 lightConstants = LightConstants
                     { _SHADOW_VIEW_PROJECTION = shadowViewProjectionMatrix
@@ -561,14 +582,10 @@ renderScene rendererData@RendererData{..} sceneManagerData elapsedTime deltaTime
                     , _LIGHT_COLOR = lightColor
                     , _SHADOW_SAMPLES = scalar shadowSamples
                     }
-                fracTime = mod' (realToFrac elapsedTime) 1.0
-                ssaoConstants = SSAOConstants
-                    { _SSAO_SAMPLES = packDF @Float @2 @'[4] (vec4 fracTime 1.0 1.0 1.0) 1.0
-                    }
             uploadUniformBufferData rendererData swapChainIndex UniformBuffer_SceneConstants sceneConstants
-            uploadUniformBufferData rendererData swapChainIndex UniformBuffer_ViewProjectionConstants viewProjectionConstants
+            uploadUniformBufferData rendererData swapChainIndex UniformBuffer_ViewConstants viewConstants
             uploadUniformBufferData rendererData swapChainIndex UniformBuffer_LightConstants lightConstants
-            uploadUniformBufferData rendererData swapChainIndex UniformBuffer_SSAOConstants ssaoConstants
+            uploadUniformBufferData rendererData swapChainIndex UniformBuffer_SSAOConstants (PostProcess._ssao_kernel_samples _postprocess_ssao)
 
             -- Begin command buffer
             let commandBufferBeginInfo = createVk @VkCommandBufferBeginInfo

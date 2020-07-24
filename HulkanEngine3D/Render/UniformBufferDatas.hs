@@ -21,7 +21,7 @@ import HulkanEngine3D.Vulkan.UniformBuffer
 import HulkanEngine3D.Utilities.System
 
 data UniformBufferType = UniformBuffer_SceneConstants
-                       | UniformBuffer_ViewProjectionConstants
+                       | UniformBuffer_ViewConstants
                        | UniformBuffer_LightConstants
                        | UniformBuffer_SSAOConstants
                        deriving (Enum, Eq, Ord, Show, Read, Generic)
@@ -39,12 +39,25 @@ data SceneConstants = SceneConstants
     , _SceneConstantsDummy0 :: Scalar Int
     } deriving (Show, Generic)
 
-data ViewProjectionConstants = ViewProjectionConstants
-  { _VIEW  :: Mat44f
-  , _PROJECTION :: Mat44f
-  , _VIEW_PROJECTION :: Mat44f
-  , _INV_VIEW_PROJECTION :: Mat44f
-  } deriving (Show, Generic)
+data ViewConstants = ViewConstants
+    { _VIEW :: Mat44f
+    , _INV_VIEW :: Mat44f
+    , _VIEW_ORIGIN :: Mat44f
+    , _INV_VIEW_ORIGIN :: Mat44f
+    , _PROJECTION :: Mat44f
+    , _INV_PROJECTION :: Mat44f
+    , _VIEW_PROJECTION :: Mat44f
+    , _INV_VIEW_PROJECTION :: Mat44f
+    , _VIEW_ORIGIN_PROJECTION :: Mat44f
+    , _INV_VIEW_ORIGIN_PROJECTION :: Mat44f
+    , _NEAR_FAR :: Vec2f
+    , _JITTER_DELTA :: Vec2f
+    , _JITTER_OFFSET :: Vec2f
+    , _VIEWCONSTANTS_DUMMY0 :: Scalar Float
+    , _VIEWCONSTANTS_DUMMY1 :: Scalar Float
+    , _CAMERA_POSITION :: Vec3f
+    , _VIEWCONSTANTS_DUMMY2 :: Scalar Float
+    } deriving (Show, Generic)
 
 data LightConstants = LightConstants
   { _SHADOW_VIEW_PROJECTION :: Mat44f
@@ -57,11 +70,11 @@ data LightConstants = LightConstants
   } deriving (Show, Generic)
 
 data SSAOConstants = SSAOConstants
-  { _SSAO_SAMPLES :: DataFrame Float '[2, 4]
+  { _SSAO_KERNEL_SAMPLES :: DataFrame Float '[64, 4]
   } deriving (Show, Generic)
 
 instance PrimBytes SceneConstants
-instance PrimBytes ViewProjectionConstants
+instance PrimBytes ViewConstants
 instance PrimBytes LightConstants
 instance PrimBytes SSAOConstants
 
@@ -71,9 +84,9 @@ instance Storable SceneConstants where
     peek ptr = bPeek ptr
     poke ptr v = bPoke ptr v
 
-instance Storable ViewProjectionConstants where
-    sizeOf _ = bSizeOf (undefined :: ViewProjectionConstants)
-    alignment _ = bAlignOf (undefined :: ViewProjectionConstants)
+instance Storable ViewConstants where
+    sizeOf _ = bSizeOf (undefined :: ViewConstants)
+    alignment _ = bAlignOf (undefined :: ViewConstants)
     peek ptr = bPeek ptr
     poke ptr v = bPoke ptr v
 
@@ -92,7 +105,7 @@ instance Storable SSAOConstants where
 registUniformBufferDatas :: VkPhysicalDevice -> VkDevice -> UniformBufferDataMap -> IO ()
 registUniformBufferDatas physicalDevice device uniformBufferDataMap = do
     registUniformBufferData uniformBufferDataMap UniformBuffer_SceneConstants (bSizeOf @SceneConstants undefined)
-    registUniformBufferData uniformBufferDataMap UniformBuffer_ViewProjectionConstants (bSizeOf @ViewProjectionConstants undefined)
+    registUniformBufferData uniformBufferDataMap UniformBuffer_ViewConstants (bSizeOf @ViewConstants undefined)
     registUniformBufferData uniformBufferDataMap UniformBuffer_LightConstants (bSizeOf @LightConstants undefined)
     registUniformBufferData uniformBufferDataMap UniformBuffer_SSAOConstants (bSizeOf @SSAOConstants undefined)
     where

@@ -14,7 +14,6 @@ const int FilterTypes_Mitchell = 7;
 const int FilterTypes_GeneralizedCubic = 8;
 const int FilterTypes_Sinc = 9;
 
-
 float FilterBox(in float x)
 {
     return x <= 1.0 ? 1.0 : 0.0;
@@ -115,56 +114,58 @@ float get_luminance(vec3 color)
 {
     return dot(vec3(0.2126, 0.7152, 0.0722), color);
 }
-//
-//// depth(0.0 ~ 1.0) to linear depth(near ~ far)
-//float depth_to_linear_depth(float depth)
-//{
-//    const float zNear = NEAR_FAR.x;
-//    const float zFar = NEAR_FAR.y;
-//    // depth [0, 1] to NDC Z [-1, 1]
-//    depth = depth * 2.0 - 1.0;
-//    // NDC Z to distance[near, far]
-//    return 2.0 * zNear * zFar / (zFar + zNear - depth * (zFar - zNear));
-//}
-//
-//// linear depth(near ~ far) to non-linear depth(0.0 ~ 1.0)
-//float linear_depth_to_depth(float linear_depth)
-//{
-//    const float zNear = NEAR_FAR.x;
-//    const float zFar = NEAR_FAR.y;
-//    // linear_depth to NDC Z [-1, 1]
-//    float depth = (zFar + zNear - 2.0 * zNear * zFar / linear_depth) / (zFar - zNear);
-//    // NDC Z [-1, 1] to depth [0, 1]
-//    return depth * 0.5 + 0.5;
-//}
-//
-//vec4 linear_depth_to_depth(vec4 linear_depth)
-//{
-//    const vec4 zNear = NEAR_FAR.xxxx;
-//    const vec4 zFar = NEAR_FAR.yyyy;
-//    vec4 depth = (zFar + zNear - 2.0 * zNear * zFar / linear_depth) / (zFar - zNear);
-//    return depth * 0.5 + 0.5;
-//}
-//
-//vec4 depth_to_relative_world(vec2 tex_coord, float depth)
-//{
-//    vec4 clip_coord = vec4(tex_coord * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
-//    vec4 relative_pos = INV_VIEW_ORIGIN * INV_PROJECTION * clip_coord;
-//    relative_pos /= relative_pos.w;
-//    return relative_pos;
-//}
-//
-//vec4 linear_depth_to_relative_world(vec2 tex_coord, float linear_depth)
-//{
-//    // way 1
-//    float depth = linear_depth_to_depth(linear_depth);
-//
-//    // way 2 - Note : The camera at the origin is looking along -Z axis in eye space. Therefore, we should use -linear_depth for Z.
-//    //vec4 ndc = PROJECTION * vec4(0.0, 0.0, -linear_depth, 1.0);
-//    //float depth = ndc.z / ndc.w;
-//
-//    return depth_to_relative_world(tex_coord, depth);
-//}
+
+// depth(0.0 ~ 1.0) to linear depth(near ~ far)
+float device_depth_to_linear_depth(float depth)
+{
+    const float zNear = viewConstants.NEAR_FAR.x;
+    const float zFar = viewConstants.NEAR_FAR.y;
+    return zNear * zFar / (zFar + depth * (zNear - zFar));
+}
+
+// vectorized version
+vec4 device_depth_to_linear_depth(vec4 depth)
+{
+    const vec4 zNear = viewConstants.NEAR_FAR.xxxx;
+    const vec4 zFar = viewConstants.NEAR_FAR.yyyy;
+    return zNear * zFar / (zFar + depth * (zNear - zFar));
+}
+
+// linear depth(near ~ far) to device depth(0.0 ~ 1.0)
+float linear_depth_to_device_depth(float linear_depth)
+{
+    const float zNear = viewConstants.NEAR_FAR.x;
+    const float zFar = viewConstants.NEAR_FAR.y;
+    return saturate((zFar - (zNear * zFar / linear_depth)) / (zFar - zNear));
+}
+
+// vectorized version
+vec4 linear_depth_to_device_depth(vec4 linear_depth)
+{
+    const vec4 zNear = viewConstants.NEAR_FAR.xxxx;
+    const vec4 zFar = viewConstants.NEAR_FAR.yyyy;
+    return saturate((zFar - (zNear * zFar / linear_depth)) / (zFar - zNear));
+}
+
+vec4 relative_world_from_device_depth(vec2 tex_coord, float depth)
+{
+    vec4 clip_coord = vec4(tex_coord * 2.0 - 1.0, depth, 1.0);
+    vec4 relative_pos = viewConstants.INV_VIEW_ORIGIN_PROJECTION * clip_coord;
+    relative_pos /= relative_pos.w;
+    return relative_pos;
+}
+
+vec4 relative_world_from_linear_depth(vec2 tex_coord, float linear_depth)
+{
+    // way 1
+    float depth = linear_depth_to_device_depth(linear_depth);
+
+    // way 2 - Note : The camera at the origin is looking along -Z axis in eye space. Therefore, we should use -linear_depth for Z.
+    //vec4 ndc = PROJECTION * vec4(0.0, 0.0, -linear_depth, 1.0);
+    //float depth = ndc.z / ndc.w;
+
+    return relative_world_from_device_depth(tex_coord, depth);
+}
 
 // @param xy should be a integer position (e.g. pixel position on the screen), repeats each 128x128 pixels
 // similar to a texture lookup but is only ALU
