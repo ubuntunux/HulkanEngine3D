@@ -110,7 +110,7 @@ getRenderPassDataCreateInfo rendererData = do
                         VK_SHADER_STAGE_FRAGMENT_BIT
                     , DescriptorDataCreateInfo
                         5
-                        "random_normal"
+                        "ssaoNoise"
                         DescriptorResourceType_Texture
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT

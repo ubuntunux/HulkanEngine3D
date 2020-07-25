@@ -379,6 +379,7 @@ instance ResourceInterface Resources where
             HashTable.insert (_textureDataMap resources) (_textureDataName textureData) textureData
 
         generateImages rendererData textureSourceFilePath
+
         textureFiles <- walkDirectory textureSourceFilePath [".jpg", ".png"]
         forM_ textureFiles $ \textureFile -> do
             textureDataName <- getUniqueResourceName (_textureDataMap resources) textureSourceFilePath textureFile
