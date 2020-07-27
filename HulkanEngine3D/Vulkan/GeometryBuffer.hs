@@ -307,7 +307,7 @@ quadGeometryCreateInfos =
 cubeGeometryCreateInfos :: [GeometryCreateInfo]
 cubeGeometryCreateInfos =
     let vertexColor = getColor32 255 255 255 255
-        positionList = [vec3 x y z | (x, y, z) <- [
+        positionList = [(vec3 x y z) * 0.5 | (x, y, z) <- [
             (-1, 1, 1), (-1, -1, 1), (1, -1, 1), (1, 1, 1),
             (1, 1, 1), (1, -1, 1), (1, -1, -1), (1, 1, -1),
             (1, 1, -1), (1, -1, -1), (-1, -1, -1), (-1, 1, -1),

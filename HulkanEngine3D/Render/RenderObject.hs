@@ -19,6 +19,8 @@ import HulkanEngine3D.Utilities.System()
 data StaticObjectCreateData = StaticObjectCreateData
     { _modelData' :: ModelData
     , _position' :: Vec3f
+    , _rotation' :: Vec3f
+    , _scale' :: Vec3f
     } deriving Show
 
 data StaticObjectData = StaticObjectData
@@ -26,6 +28,14 @@ data StaticObjectData = StaticObjectData
     , _modelData :: ModelData
     , _transformObject :: TransformObjectData
     } deriving Show
+
+defaultStaticObjectCreateData :: StaticObjectCreateData
+defaultStaticObjectCreateData = StaticObjectCreateData
+    { _modelData' = undefined
+    , _position' = vec3 0 0 0
+    , _rotation' = vec3 0 0 0
+    , _scale' = vec3 1 1 1
+    }
 
 
 class StaticObjectInterface a where
@@ -40,6 +50,8 @@ instance StaticObjectInterface StaticObjectData where
         logInfo $ "createStaticObjectData :: " ++ show staticObjectName
         transformObjectData <- newTransformObjectData
         setPosition transformObjectData $ _position' staticObjectCreateData
+        setRotation transformObjectData $ _rotation' staticObjectCreateData
+        setScale transformObjectData $ _scale' staticObjectCreateData
         return StaticObjectData
             { _staticObjectName = staticObjectName
             , _modelData = _modelData' staticObjectCreateData

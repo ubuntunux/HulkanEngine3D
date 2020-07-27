@@ -23,7 +23,6 @@ const vec3 kGroundAlbedo = vec3(0.0, 0.0, 0.04);
 
 const int MAX_POINT_LIGHTS = 10;
 
-
 layout(binding = 0) uniform SceneConstants
 {
     vec2 SCREEN_SIZE;
@@ -66,5 +65,28 @@ layout(binding = 2) uniform LightConstants
     int SHADOW_SAMPLES;
 } lightConstants;
 
+layout(binding=3) uniform light_constants
+{
+    mat4 SHADOW_MATRIX;
+    vec3 LIGHT_POSITION;
+    float SHADOW_EXP;
+    vec3 LIGHT_DIRECTION;
+    float SHADOW_BIAS;
+    vec3 LIGHT_COLOR;
+    int SHADOW_SAMPLES;
+};
+
+struct POINT_LIGHT
+{
+    vec3 color;
+    float radius;
+    vec3 pos;
+    float render;
+};
+
+layout(binding=4) uniform point_light_constants
+{
+    POINT_LIGHT POINT_LIGHTS[MAX_POINT_LIGHTS];
+};
 
 #endif // _SCENE_CONSTANTS_

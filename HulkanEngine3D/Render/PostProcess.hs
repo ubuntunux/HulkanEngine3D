@@ -39,4 +39,5 @@ initializePostProcessData_SSAO = do
             x <- randomIO :: IO Float
             y <- randomIO :: IO Float
             z <- randomIO :: IO Float
-            pure . toHomVector . normalized $ vec3 (x * 2.0 - 1.0) (y * 0.75 + 0.25) (z * 2.0 - 1.0)
+            scale <- randomIO :: IO Float
+            pure . toHomVector $ (normalized (vec3 (x * 2.0 - 1.0) (y * 0.5 + 0.5) (z * 2.0 - 1.0))) * vec3 scale scale scale
