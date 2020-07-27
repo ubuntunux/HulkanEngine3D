@@ -14,7 +14,7 @@ import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTargetDeclaration
-import HulkanEngine3D.Render.UniformBufferDatas (UniformBufferType (..))
+--import HulkanEngine3D.Render.UniformBufferDatas (UniformBufferType (..))
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.RenderPass
@@ -82,24 +82,6 @@ getRenderPassDataCreateInfo rendererData = do
                 , _descriptorDataCreateInfoList =
                     [ DescriptorDataCreateInfo
                         0
-                        (toText UniformBuffer_SceneConstants)
-                        DescriptorResourceType_UniformBuffer
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                    , DescriptorDataCreateInfo
-                        1
-                        (toText UniformBuffer_ViewConstants)
-                        DescriptorResourceType_UniformBuffer
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                    , DescriptorDataCreateInfo
-                        2
-                        (toText UniformBuffer_LightConstants)
-                        DescriptorResourceType_UniformBuffer
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                    , DescriptorDataCreateInfo
-                        3
                         (toText RenderTarget_BackBuffer)
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER

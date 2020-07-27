@@ -5,7 +5,7 @@
 #include "scene_constants.glsl"
 #include "utility.glsl"
 
-layout(binding = 3) uniform sampler2D textureColor;
+layout(binding = 0) uniform sampler2D textureColor;
 
 layout(location = 0) in vec4 vertexColor;
 layout(location = 1) in vec3 vertexNormal;

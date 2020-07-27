@@ -15,7 +15,7 @@ layout(location = 0) out VERTEX_OUTPUT vs_output;
 
 void main() {
     vec3 world_pos = (pushConstant.localMatrix * vec4(inPosition, 1.0)).xyz;
-    vec4 projection_pos = viewConstants.VIEW_PROJECTION * vec4(world_pos - viewConstants.CAMERA_POSITION, 1.0);
+    vec4 projection_pos = view_constants.VIEW_PROJECTION * vec4(world_pos - view_constants.CAMERA_POSITION, 1.0);
     gl_Position = projection_pos;
 
     vs_output.color = inColor;

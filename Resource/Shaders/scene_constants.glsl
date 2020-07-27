@@ -23,17 +23,17 @@ const vec3 kGroundAlbedo = vec3(0.0, 0.0, 0.04);
 
 const int MAX_POINT_LIGHTS = 10;
 
-layout(binding = 0) uniform SceneConstants
+struct SCENE_CONSTANTS
 {
     vec2 SCREEN_SIZE;
     vec2 BACKBUFFER_SIZE;
     float TIME;
     float DELTA_TIME;
     float JITTER_FRAME;
-    int SceneConstantsDummy0;
-} sceneConstants;
+    int SCENE_CONSTANTS_DUMMY0;
+};
 
-layout(binding = 1) uniform ViewConstants
+struct VIEW_CONSTANTS
 {
     mat4 VIEW;
     mat4 INV_VIEW;
@@ -52,9 +52,9 @@ layout(binding = 1) uniform ViewConstants
     float VIEWCONSTANTS_DUMMY1;
     vec3 CAMERA_POSITION;
     float VIEWCONSTANTS_DUMMY2;
-} viewConstants;
+};
 
-layout(binding = 2) uniform LightConstants
+struct LIGHT_CONSTANTS
 {
     mat4 SHADOW_VIEW_PROJECTION;
     vec3 LIGHT_POSITION;
@@ -65,28 +65,12 @@ layout(binding = 2) uniform LightConstants
     int SHADOW_SAMPLES;
 } lightConstants;
 
-layout(binding=3) uniform light_constants
-{
-    mat4 SHADOW_MATRIX;
-    vec3 LIGHT_POSITION;
-    float SHADOW_EXP;
-    vec3 LIGHT_DIRECTION;
-    float SHADOW_BIAS;
-    vec3 LIGHT_COLOR;
-    int SHADOW_SAMPLES;
-};
-
 struct POINT_LIGHT
 {
     vec3 color;
     float radius;
     vec3 pos;
     float render;
-};
-
-layout(binding=4) uniform point_light_constants
-{
-    POINT_LIGHT POINT_LIGHTS[MAX_POINT_LIGHTS];
 };
 
 #endif // _SCENE_CONSTANTS_

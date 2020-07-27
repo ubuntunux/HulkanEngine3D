@@ -5,10 +5,6 @@
 #include "scene_constants.glsl"
 #include "render_object_common.glsl"
 
-layout(binding = 3) uniform sampler2D textureAlbedo;
-layout(binding = 4) uniform sampler2D textureMaterial;
-layout(binding = 5) uniform sampler2D textureNormal;
-
 layout(location = 0) in VERTEX_OUTPUT vs_output;
 
 layout(location = 0) out vec4 outAlbedo;

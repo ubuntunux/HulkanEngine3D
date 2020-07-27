@@ -116,55 +116,35 @@ float get_luminance(vec3 color)
 }
 
 // depth(0.0 ~ 1.0) to linear depth(near ~ far)
-float device_depth_to_linear_depth(float depth)
+float device_depth_to_linear_depth(const float zNear, const float zFar, const float depth)
 {
-    const float zNear = viewConstants.NEAR_FAR.x;
-    const float zFar = viewConstants.NEAR_FAR.y;
     return zNear * zFar / (zFar + depth * (zNear - zFar));
 }
 
 // vectorized version
-vec4 device_depth_to_linear_depth(vec4 depth)
+vec4 device_depth_to_linear_depth(const vec4 zNear, const vec4 zFar, const vec4 depth)
 {
-    const vec4 zNear = viewConstants.NEAR_FAR.xxxx;
-    const vec4 zFar = viewConstants.NEAR_FAR.yyyy;
     return zNear * zFar / (zFar + depth * (zNear - zFar));
 }
 
 // linear depth(near ~ far) to device depth(0.0 ~ 1.0)
-float linear_depth_to_device_depth(float linear_depth)
+float linear_depth_to_device_depth(const float zNear, const float zFar, const float linear_depth)
 {
-    const float zNear = viewConstants.NEAR_FAR.x;
-    const float zFar = viewConstants.NEAR_FAR.y;
     return saturate((zFar - (zNear * zFar / linear_depth)) / (zFar - zNear));
 }
 
 // vectorized version
-vec4 linear_depth_to_device_depth(vec4 linear_depth)
+vec4 linear_depth_to_device_depth(const vec4 zNear, const vec4 zFar, const vec4 linear_depth)
 {
-    const vec4 zNear = viewConstants.NEAR_FAR.xxxx;
-    const vec4 zFar = viewConstants.NEAR_FAR.yyyy;
     return saturate((zFar - (zNear * zFar / linear_depth)) / (zFar - zNear));
 }
 
-vec4 relative_world_from_device_depth(vec2 tex_coord, float depth)
+vec4 relative_world_from_device_depth(const in mat4x4 inv_view_origin_projection, const in vec2 tex_coord, const float depth)
 {
     vec4 clip_coord = vec4(tex_coord * 2.0 - 1.0, depth, 1.0);
-    vec4 relative_pos = viewConstants.INV_VIEW_ORIGIN_PROJECTION * clip_coord;
+    vec4 relative_pos = inv_view_origin_projection * clip_coord;
     relative_pos /= relative_pos.w;
     return relative_pos;
-}
-
-vec4 relative_world_from_linear_depth(vec2 tex_coord, float linear_depth)
-{
-    // way 1
-    float depth = linear_depth_to_device_depth(linear_depth);
-
-    // way 2 - Note : The camera at the origin is looking along -Z axis in eye space. Therefore, we should use -linear_depth for Z.
-    //vec4 ndc = PROJECTION * vec4(0.0, 0.0, -linear_depth, 1.0);
-    //float depth = ndc.z / ndc.w;
-
-    return relative_world_from_device_depth(tex_coord, depth);
 }
 
 // @param xy should be a integer position (e.g. pixel position on the screen), repeats each 128x128 pixels
@@ -193,10 +173,11 @@ float rand4(vec4 seed4){
 
 
 // Random Generate Interface
-vec4 generate_random(float random_seed)
+vec4 generate_random(float time, float random_seed)
 {
+    // float time = fract(sceneConstants.TIME * 0.001);
+
     vec4 random_factor;
-    float time = fract(sceneConstants.TIME * 0.001);
     random_factor.x = rand(vec2(time, random_seed));
     random_factor.y = rand(vec2(random_factor.x, time));
     random_factor.z = rand(vec2(time, random_factor.y));
@@ -204,33 +185,29 @@ vec4 generate_random(float random_seed)
     return random_factor;
 }
 
-void generate_random1(inout vec4 random_factor)
+void generate_random1(float time, inout vec4 random_factor)
 {
-    float time = fract(sceneConstants.TIME * 0.001);
     random_factor.x = rand(vec2(time, random_factor.w));
     random_factor.w = random_factor.x;
 }
 
-void generate_random2(inout vec4 random_factor)
+void generate_random2(float time, inout vec4 random_factor)
 {
-    float time = fract(sceneConstants.TIME * 0.001);
     random_factor.x = rand(vec2(time, random_factor.w));
     random_factor.y = rand(vec2(random_factor.x, time));
     random_factor.w = random_factor.y;
 }
 
-void generate_random3(inout vec4 random_factor)
+void generate_random3(float time, inout vec4 random_factor)
 {
-    float time = fract(sceneConstants.TIME * 0.001);
     random_factor.x = rand(vec2(time, random_factor.w));
     random_factor.y = rand(vec2(random_factor.x, time));
     random_factor.z = rand(vec2(time, random_factor.y));
     random_factor.w = random_factor.z;
 }
 
-void generate_random4(inout vec4 random_factor)
+void generate_random4(float time, inout vec4 random_factor)
 {
-    float time = fract(sceneConstants.TIME * 0.001);
     random_factor.x = rand(vec2(time, random_factor.w));
     random_factor.y = rand(vec2(random_factor.x, time));
     random_factor.z = rand(vec2(time, random_factor.y));

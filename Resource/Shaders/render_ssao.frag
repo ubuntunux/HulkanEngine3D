@@ -2,6 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : enable
 
+#include "scene_constants.glsl"
 #include "utility.glsl"
 #include "PCFKernels.glsl"
 
@@ -9,6 +10,18 @@
 
 layout (constant_id = 0) const int SSAO_KERNEL_SIZE = 64;
 
+layout(binding = 0) uniform SceneConstants
+{
+    SCENE_CONSTANTS scene_constants;
+};
+layout(binding = 1) uniform ViewConstants
+{
+    VIEW_CONSTANTS view_constants;
+};
+layout(binding = 2) uniform LightConstants
+{
+    LIGHT_CONSTANTS light_constants;
+};
 layout(binding = 3) uniform sampler2D textureSceneNormal;
 layout(binding = 4) uniform sampler2D textureSceneDepth;
 layout(binding = 5) uniform sampler2D ssaoNoise;
@@ -30,8 +43,7 @@ void main() {
         discard;
     }
 
-    const float linear_depth = device_depth_to_linear_depth(device_depth);
-    const vec4 relative_pos = relative_world_from_linear_depth(texCoord, linear_depth);
+    const vec4 relative_pos = relative_world_from_device_depth(view_constants.INV_VIEW_ORIGIN_PROJECTION, texCoord, device_depth);
     const vec3 normal = texture(textureSceneNormal, texCoord).xyz;
     const vec2 texture_size = textureSize(textureSceneDepth, 0);
     const vec2 noise_size = textureSize(ssaoNoise, 0);
@@ -51,8 +63,8 @@ void main() {
 
         // project sample position:
         vec4 offset = vec4(pos, 1.0);
-        offset = viewConstants.VIEW_ORIGIN_PROJECTION * offset;
-        offset.xy /= offset.w;
+        offset = view_constants.VIEW_ORIGIN_PROJECTION * offset;
+        offset.xyz /= offset.w;
         offset.xy = offset.xy * 0.5 + 0.5;
 
         if(offset.x < 0.0 || offset.x > 1.0 || offset.y < 0.0 || offset.y > 1.0)
@@ -61,16 +73,14 @@ void main() {
         }
 
         const float occlusion_depth = texture(textureSceneDepth, offset.xy).x;
-        const float occlusion_linear_depth = device_depth_to_linear_depth(occlusion_depth);
-
-        if(offset.w < occlusion_linear_depth)
+        if(offset.z < occlusion_depth)
         {
             continue;
         }
 
         if(DISTANCE_CHECK)
         {
-            const vec4 occlusion_relative_pos = relative_world_from_linear_depth(offset.xy, occlusion_linear_depth);
+            const vec4 occlusion_relative_pos = relative_world_from_device_depth(view_constants.INV_VIEW_ORIGIN_PROJECTION, offset.xy, occlusion_depth);
             const float distance = length(occlusion_relative_pos - relative_pos);
             const float weight = 1.0 - smoothstep(occlusion_distance_min_max.x, occlusion_distance_min_max.y, distance);
             occlusion += mix(occlusion_density_min, 1.0, weight);
