@@ -63,7 +63,7 @@ struct LIGHT_CONSTANTS
     float SHADOW_BIAS;
     vec3 LIGHT_COLOR;
     int SHADOW_SAMPLES;
-} lightConstants;
+};
 
 struct POINT_LIGHT
 {
@@ -71,6 +71,11 @@ struct POINT_LIGHT
     float radius;
     vec3 pos;
     float render;
+};
+
+struct POINT_LIGHTS
+{
+    POINT_LIGHT data[MAX_POINT_LIGHTS];
 };
 
 #endif // _SCENE_CONSTANTS_

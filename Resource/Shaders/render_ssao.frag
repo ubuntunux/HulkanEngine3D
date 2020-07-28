@@ -44,7 +44,7 @@ void main() {
     }
 
     const vec4 relative_pos = relative_world_from_device_depth(view_constants.INV_VIEW_ORIGIN_PROJECTION, texCoord, device_depth);
-    const vec3 normal = texture(textureSceneNormal, texCoord).xyz;
+    const vec3 normal = normalize(texture(textureSceneNormal, texCoord).xyz * 2.0 - 1.0);
     const vec2 texture_size = textureSize(textureSceneDepth, 0);
     const vec2 noise_size = textureSize(ssaoNoise, 0);
     const vec3 randomVec = normalize(vec3(texture(ssaoNoise, texCoord * texture_size / noise_size).xy, 0.0).xzy);

@@ -14,14 +14,16 @@ layout(location = 3) out vec2 outVelocity;
 
 
 void main() {
-    outAlbedo = texture(textureAlbedo, vs_output.texCoord) * vs_output.color;
-    if(outAlbedo.a < 0.333)
+    vec4 baseColor = texture(textureAlbedo, vs_output.texCoord);
+    baseColor.xyz = pow(baseColor.xyz, vec3(2.2));
+    outAlbedo = baseColor * vs_output.color;
+    if(outAlbedo.w < 0.333)
     {
         discard;
     }
 
     outMaterial = texture(textureMaterial, vs_output.texCoord);
     outNormal = texture(textureNormal, vs_output.texCoord);
-    outNormal.xyz = normalize(vs_output.tangent_to_world * (outNormal.xyz * 2.0 - 1.0));
+    outNormal.xyz = normalize(vs_output.tangent_to_world * (outNormal.xyz * 2.0 - 1.0)) * 0.5 + 0.5;
     outVelocity = vec2(0.0);
 }

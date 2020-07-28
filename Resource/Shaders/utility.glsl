@@ -105,6 +105,46 @@ float Filter(in float x, in int filterType, in float filterRadius, in bool resca
     return 1.0f;
 }
 
+vec3 Uncharted2TonemapFunction(vec3 x)
+{
+    const float A = 0.15;
+    const float B = 0.50;
+    const float C = 0.10;
+    const float D = 0.20;
+    const float E = 0.02;
+    const float F = 0.30;
+    return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
+}
+
+vec3 Uncharted2Tonemap(vec3 hdrColor, float exposure)
+{
+    const float W = 11.2;
+    const float ExposureBias = 2.0f;
+    hdrColor *= exposure;
+    hdrColor = Uncharted2TonemapFunction(hdrColor * ExposureBias);
+    vec3 whiteScale = 1.0f / Uncharted2TonemapFunction(vec3(W));
+    return pow(hdrColor * whiteScale, vec3(1.0 / 2.2));
+}
+
+vec3 ReinhardTonemap(vec3 hdrColor)
+{
+    vec3 mapped = hdrColor / (hdrColor + vec3(1.0));
+    return pow(mapped, vec3(1.0 / 2.2));
+}
+
+vec3 SimpleTonemap(vec3 hdrColor, float exposure)
+{
+    // Exposure tone mapping
+    vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
+    return pow(mapped, vec3(1.0 / 2.2));
+}
+
+float vignetting(vec2 uv, float inner_value, float outter_value)
+{
+    float f = smoothstep(0.0, 1.0, length(uv - vec2(0.5)));
+    return mix(inner_value, outter_value, f * f);
+}
+
 float saturate(float value) { return clamp(value, 0.0, 1.0); }
 vec2 saturate(vec2 value) { return clamp(value, 0.0, 1.0); }
 vec3 saturate(vec3 value) { return clamp(value, 0.0, 1.0); }

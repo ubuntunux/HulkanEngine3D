@@ -117,6 +117,12 @@ getRenderPassDataCreateInfo rendererData = do
                         VK_SHADER_STAGE_FRAGMENT_BIT
                     , DescriptorDataCreateInfo
                         6
+                        (toText RenderTarget_SceneDepth)
+                        DescriptorResourceType_RenderTarget
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                        VK_SHADER_STAGE_FRAGMENT_BIT
+                    , DescriptorDataCreateInfo
+                        7
                         (toText RenderTarget_SSAO)
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER

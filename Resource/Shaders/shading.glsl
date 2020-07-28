@@ -1,14 +1,20 @@
 #include "scene_constants.glsl"
 #include "PCFKernels.glsl"
 #include "utility.glsl"
-#include "precomputed_atmosphere/atmosphere_predefine.glsl"
+//#include "precomputed_atmosphere/atmosphere_predefine.glsl"
 
 
-float get_shadow_factor_simple(vec2 screen_tex_coord, vec3 world_position, float NdotL, sampler2D texture_shadow)
+float get_shadow_factor_simple(
+    const in LIGHT_CONSTANTS light_constants,
+    const in vec2 screen_tex_coord,
+    const in vec3 world_position,
+    const in float NdotL,
+    sampler2D texture_shadow
+)
 {
     vec2 shadow_size = textureSize(texture_shadow, 0);
     vec2 shadow_texel_size = 1.0 / shadow_size;
-    vec4 shadow_proj = SHADOW_MATRIX * vec4(world_position, 1.0);
+    vec4 shadow_proj = light_constants.SHADOW_VIEW_PROJECTION * vec4(world_position, 1.0);
     shadow_proj.xyz /= shadow_proj.w;
     shadow_proj.xyz = shadow_proj.xyz * 0.5 + 0.5;
     float shadow_depth = shadow_proj.z;
@@ -28,13 +34,13 @@ float get_shadow_factor_simple(vec2 screen_tex_coord, vec3 world_position, float
 
     vec4 shadow_factors;
 
-    for(int i=0; i<4; ++i)
+    for(int i = 0; i < 4; ++i)
     {
         vec2 shadow_uv = uv + offsets[i];
-        shadow_factors[i] = texture2DLod(texture_shadow, shadow_uv, 0.0).x;
+        shadow_factors[i] = textureLod(texture_shadow, shadow_uv, 0.0).x;
         if(0.0 <= shadow_uv.x && shadow_uv.x <= 1.0 && 0.0 <= shadow_uv.y && shadow_uv.y <= 1.0 && shadow_factors[i] < 1.0)
         {
-            shadow_factors[i] = saturate(exp(-SHADOW_EXP * (shadow_depth - shadow_factors[i] - SHADOW_BIAS * (1.0 - saturate(NdotL)))));
+            shadow_factors[i] = saturate(exp(-light_constants.SHADOW_EXP * (shadow_depth - shadow_factors[i] - light_constants.SHADOW_BIAS * (1.0 - saturate(NdotL)))));
         }
         else
         {
@@ -50,11 +56,17 @@ float get_shadow_factor_simple(vec2 screen_tex_coord, vec3 world_position, float
 }
 
 
-float get_shadow_factor(vec2 screen_tex_coord, vec3 world_position, float NdotL, sampler2D texture_shadow)
+float get_shadow_factor(
+    const in LIGHT_CONSTANTS light_constants,
+    const in vec2 screen_tex_coord,
+    const in vec3 world_position,
+    const in float NdotL,
+    sampler2D texture_shadow
+)
 {
     vec2 shadow_size = textureSize(texture_shadow, 0);
     vec2 shadow_texel_size = 1.0 / shadow_size;
-    vec4 shadow_proj = SHADOW_MATRIX * vec4(world_position, 1.0);
+    vec4 shadow_proj = light_constants.SHADOW_VIEW_PROJECTION * vec4(world_position, 1.0);
     shadow_proj.xyz /= shadow_proj.w;
     shadow_proj.xyz = shadow_proj.xyz * 0.5 + 0.5;
     float shadow_depth = shadow_proj.z;
@@ -67,22 +79,22 @@ float get_shadow_factor(vec2 screen_tex_coord, vec3 world_position, float NdotL,
 
     float shadow_factor = 0.0;
 
-    vec2 noise_size = (1 < SHADOW_SAMPLES) ? (shadow_texel_size * 4.0) : vec2(0.0);
+    vec2 noise_size = (1 < light_constants.SHADOW_SAMPLES) ? (shadow_texel_size * 4.0) : vec2(0.0);
 
-    for(int n = 0; n < SHADOW_SAMPLES; ++n)
+    for(int n = 0; n < light_constants.SHADOW_SAMPLES; ++n)
     {
         vec2 uv = shadow_proj.xy + PoissonSamples[n % PoissonSampleCount] * noise_size;
         vec2 pixel_ratio = fract(uv * shadow_size);
 
         vec4 shadow_factors;
-        for(int i=0; i<4; ++i)
+        for(int i = 0; i < 4; ++i)
         {
             vec2 shadow_uv = uv + offsets[i];
-            shadow_factors[i] = texture2DLod(texture_shadow, shadow_uv, 0.0).x;
+            shadow_factors[i] = textureLod(texture_shadow, shadow_uv, 0.0).x;
             if(0.0 <= shadow_uv.x && shadow_uv.x <= 1.0 && 0.0 <= shadow_uv.y && shadow_uv.y <= 1.0 && shadow_factors[i] < 1.0)
             {
-                float bias = SHADOW_BIAS * (1.0 - saturate(NdotL));
-                shadow_factors[i] = saturate(exp(-SHADOW_EXP * (shadow_depth - shadow_factors[i] - bias)));
+                float bias = light_constants.SHADOW_BIAS * (1.0 - saturate(NdotL));
+                shadow_factors[i] = saturate(exp(-light_constants.SHADOW_EXP * (shadow_depth - shadow_factors[i] - bias)));
             }
             else
             {
@@ -95,7 +107,7 @@ float get_shadow_factor(vec2 screen_tex_coord, vec3 world_position, float NdotL,
             mix(shadow_factors.z, shadow_factors.w, pixel_ratio.x), pixel_ratio.y);
     }
 
-    return clamp(shadow_factor / float(SHADOW_SAMPLES), 0.0, 1.0);
+    return clamp(shadow_factor / float(light_constants.SHADOW_SAMPLES), 0.0, 1.0);
 }
 
 
@@ -221,33 +233,31 @@ vec2 env_BRDF_pproximate(float NdV, float roughness)
 /* PBR reference
     - http://www.curious-creature.com/pbr_sandbox/shaders/pbr.fs
     - https://gist.github.com/galek/53557375251e1a942dfa */
-vec4 surface_shading(vec4 base_color,
-                    vec3 emissive_color,
-                    float metallic,
-                    float roughness,
-                    float reflectance,
-                    float ssao_factor,
-                    vec4 scene_reflect_color,
-                    samplerCube texture_probe,
-                    sampler2D texture_shadow,
-                    vec2 screen_tex_coord,
-                    vec3 world_position,
-                    vec3 light_color,
-                    vec3 N,
-                    vec3 V,
-                    vec3 L,
-                    float depth)
+vec4 surface_shading(
+    //const in AtmosphereParameters ATMOSPHERE,
+    const in SCENE_CONSTANTS scene_constants,
+    const in VIEW_CONSTANTS view_constants,
+    const in LIGHT_CONSTANTS light_constants,
+    //const in POINT_LIGHTS point_lights,
+    const in vec3 base_color,
+    float opacity,
+    const in vec3 emissive_color,
+    const in float metallic,
+    float roughness,
+    const in float reflectance,
+    const in float ssao_factor,
+    const in vec4 scene_reflect_color,
+    //const in samplerCube texture_probe,
+    //const in sampler2D texture_shadow,
+    const in vec2 texCoord,
+    const in vec3 world_position,
+    vec3 light_color,
+    const in vec3 N,
+    const in vec3 V,
+    const in vec3 L,
+    const in float depth
+)
 {
-    // Atmosphere
-    vec3 scene_in_scatter;
-    vec3 scene_sun_irradiance;
-    vec3 scene_sky_irradiance;
-    float scene_shadow_length;
-    float scene_linear_depth = depth_to_linear_depth(depth);
-    GetSceneRadiance(ATMOSPHERE, scene_linear_depth, -V, N, scene_sun_irradiance, scene_sky_irradiance, scene_in_scatter);
-
-    light_color = light_color * scene_sun_irradiance;
-
     // safe roughness
     roughness = clamp(roughness, 0.05, 1.0);
 
@@ -262,84 +272,92 @@ vec4 surface_shading(vec4 base_color,
     float LdV = max(0.001, dot(L, V));
 
     vec3 result = vec3(0.0, 0.0, 0.0);
-    float opacity = base_color.w;
 
     vec3 F0 = vec3(0.04);
     F0 = mix(max(F0, reflectance), base_color.xyz, metallic);
     vec3 fresnel = fresnelSchlick(NdV, F0);
+    vec3 light_fresnel = fresnelSchlick(HdV, F0);
 
     vec3 ambient_light = vec3(0.0, 0.0, 0.0);
     vec3 diffuse_light = vec3(0.0, 0.0, 0.0);
     vec3 specular_light = vec3(0.0, 0.0, 0.0);
-    vec3 shadow_factor = vec3(get_shadow_factor(screen_tex_coord, world_position, dot(N, L), texture_shadow));
+    vec3 shadow_factor = vec3(1.0); //vec3(get_shadow_factor(light_constants, texCoord, world_position, dot(N, L), texture_shadow));
+
+    // Atmosphere
+    vec3 scene_in_scatter = vec3(0.0);
+    vec3 scene_sun_irradiance = vec3(1.0);
+    vec3 scene_sky_irradiance = vec3(0.0);
+    float scene_shadow_length = 0.0;
+    float scene_linear_depth = device_depth_to_linear_depth(view_constants.NEAR_FAR.x, view_constants.NEAR_FAR.y, depth);
+    //GetSceneRadiance(ATMOSPHERE, scene_linear_depth, -V, N, scene_sun_irradiance, scene_sky_irradiance, scene_in_scatter);
+
+    light_color = light_color * scene_sun_irradiance * shadow_factor;
 
     // Image based lighting
-    {
-        const vec2 env_size = textureSize(texture_probe, 0);
-        const float max_env_mipmap = 8.0; // log2(max(env_size.x, env_size.y));
-        vec2 envBRDF = clamp(env_BRDF_pproximate(NdV, roughness), 0.0, 1.0);
-        vec3 shValue = fresnel * envBRDF.x + envBRDF.y;
-
-        vec3 ibl_diffuse_light = textureCubeLod(texture_probe, invert_y(N), max_env_mipmap).xyz;
-        vec3 ibl_specular_light = textureCubeLod(texture_probe, invert_y(R), max_env_mipmap * roughness).xyz;
-
-        ambient_light = normalize(mix(ibl_diffuse_light, scene_sky_irradiance, 0.5)) * length(scene_sky_irradiance);
-        shadow_factor = max(shadow_factor, ambient_light);
-
-        diffuse_light += ibl_diffuse_light * shadow_factor;
-        specular_light += ibl_specular_light * shValue * shadow_factor;
-
-         // mix scene reflection
-        if(RENDER_SSR)
-        {
-            // NoShadow
-            specular_light.xyz = mix(specular_light.xyz, scene_reflect_color.xyz * shValue * shadow_factor, scene_reflect_color.w);
-        }
-    }
+//    {
+//        const vec2 env_size = textureSize(texture_probe, 0);
+//        const float max_env_mipmap = 8.0; // log2(max(env_size.x, env_size.y));
+//        vec2 envBRDF = clamp(env_BRDF_pproximate(NdV, roughness), 0.0, 1.0);
+//        vec3 shValue = fresnel * envBRDF.x + envBRDF.y;
+//
+//        vec3 ibl_diffuse_light = textureLod(texture_probe, invert_y(N), max_env_mipmap).xyz;
+//        vec3 ibl_specular_light = textureLod(texture_probe, invert_y(R), max_env_mipmap * roughness).xyz;
+//
+//        ambient_light = normalize(mix(ibl_diffuse_light, scene_sky_irradiance, 0.5)) * length(scene_sky_irradiance);
+//        shadow_factor = max(shadow_factor, ambient_light);
+//
+//        diffuse_light += ibl_diffuse_light * shadow_factor;
+//        specular_light += ibl_specular_light * shValue * shadow_factor;
+//
+//         // mix scene reflection
+//        //if(RENDER_SSR)
+//        {
+//            // NoShadow
+//            specular_light.xyz = mix(specular_light.xyz, scene_reflect_color.xyz * shValue * shadow_factor, scene_reflect_color.w);
+//        }
+//    }
 
 #if TRANSPARENT_MATERIAL == 1
     float reflectivity = max(max(fresnel.r, fresnel.g), fresnel.b);
-    opacity = clamp(base_color.w + base_color.w * reflectivity, 0.0, 1.0);
+    opacity = clamp(opacity + opacity * reflectivity, 0.0, 1.0);
 #endif
 
     // Dynamic Light
     {
-        vec3 light_fresnel = fresnelSchlick(HdV, F0);
-
         // Directional Light
-        diffuse_light += oren_nayar(roughness, NdL, NdV, N, V, L) / PI * NdL * light_color * shadow_factor;
-        specular_light += cooktorrance_specular(light_fresnel, NdL, NdV, NdH, roughness) * NdL * light_color * shadow_factor;
+        diffuse_light += oren_nayar(roughness * roughness, NdL, NdV, N, V, L) / PI * light_color;
+        specular_light += cooktorrance_specular(light_fresnel, NdL, NdV, NdH, roughness) * NdL * light_color;
 
         // Point Lights
-        for(int i=0; i<MAX_POINT_LIGHTS; ++i)
-        {
-            if(1.0 != POINT_LIGHTS[i].render)
-            {
-                break;
-            }
-
-            float point_light_radius = POINT_LIGHTS[i].radius;
-            vec3 point_light_dir = POINT_LIGHTS[i].pos.xyz - world_position;
-            float point_light_dist = length(point_light_dir);
-
-            if(point_light_radius < point_light_dist)
-            {
-                continue;
-            }
-
-            point_light_dir /= point_light_dist;
-
-            vec3 point_light_half = normalize(V + point_light_dir);
-            float point_light_attenuation = clamp(1.0 - point_light_dist / point_light_radius, 0.0, 1.0);
-            point_light_attenuation *= point_light_attenuation;
-            vec3 point_light_color = POINT_LIGHTS[i].color.xyz * point_light_attenuation;
-
-            float point_light_NdL = max(0.01, dot(N, point_light_dir));
-            float point_light_NdH = max(0.01, dot(N, point_light_half));
-
-            diffuse_light += oren_nayar(roughness, point_light_NdL, NdV, N, V, point_light_dir) / PI * point_light_NdL * point_light_color;
-            specular_light += cooktorrance_specular(light_fresnel, point_light_NdL, NdV, point_light_NdH, roughness) * point_light_NdL * point_light_color;
-        }
+//        for(int i = 0; i < MAX_POINT_LIGHTS; ++i)
+//        {
+//            if(1.0 != point_lights.data[i].render)
+//            {
+//                break;
+//            }
+//
+//            float point_light_radius = point_lights.data[i].radius;
+//            vec3 point_light_dir = point_lights.data[i].pos.xyz - world_position;
+//            float point_light_dist = length(point_light_dir);
+//
+//            if(point_light_radius < point_light_dist)
+//            {
+//                continue;
+//            }
+//
+//            point_light_dir /= point_light_dist;
+//
+//            vec3 point_light_half = normalize(V + point_light_dir);
+//            float point_light_attenuation = clamp(1.0 - point_light_dist / point_light_radius, 0.0, 1.0);
+//            point_light_attenuation *= point_light_attenuation;
+//            vec3 point_light_color = point_lights.data[i].color.xyz * point_light_attenuation;
+//
+//            float point_light_NdL = max(0.01, dot(N, point_light_dir));
+//            float point_light_NdH = max(0.01, dot(N, point_light_half));
+//
+//            diffuse_light += oren_nayar(roughness, point_light_NdL, NdV, N, V, point_light_dir) / PI * point_light_NdL * point_light_color;
+//            specular_light += cooktorrance_specular(light_fresnel, point_light_NdL, NdV, point_light_NdH, roughness) * point_light_NdL * point_light_color;
+//        }
     }
 
 /*
@@ -363,13 +381,13 @@ vec4 surface_shading(vec4 base_color,
 */
 
     // final result
-    diffuse_light *= base_color.xyz * clamp((vec3(1.0) - fresnel) * (1.0 - metallic), 0.0, 1.0);
-    specular_light = mix(specular_light, specular_light * base_color.xyz, vec3(metallic));
+    diffuse_light *= base_color * (1.0 - metallic);
+    specular_light = mix(specular_light, specular_light * base_color, vec3(metallic));
 
     result = diffuse_light + specular_light;
 
     // SSAO
-    if(RENDER_SSAO)
+    //if(RENDER_SSAO)
     {
         result *= ssao_factor;
     }
