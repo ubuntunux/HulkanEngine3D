@@ -1,27 +1,32 @@
-#version 450
-#extension GL_ARB_separate_shader_objects : enable
-#extension GL_ARB_shading_language_420pack : enable
+#include "quad.glsl"
 
-layout (binding = 0) uniform sampler2D samplerSSAO;
+uniform float blur_kernel_radius;
+uniform sampler2D texture_diffuse;
 
-layout (location = 0) in vec2 inUV;
+#ifdef FRAGMENT_SHADER
+layout (location = 0) in VERTEX_OUTPUT vs_output;
+layout (location = 0) out vec4 fs_output;
 
-layout (location = 0) out float outFragColor;
+void main() {
+    vec2 tex_coord = vs_output.tex_coord.xy;
+    vec2 scale = 1.0 / textureSize(texture_diffuse, 0);
 
-void main()
-{
-    const int blurRange = 2;
-    int n = 0;
-    vec2 texelSize = 1.0 / vec2(textureSize(samplerSSAO, 0));
-    float result = 0.0;
-    for (int x = -blurRange; x < blurRange; x++)
+    fs_output = vec4(0.0, 0.0, 0.0, 1.0);
+
+    float weight = 0.0;
+
+    float radius = sqrt(2.0) * blur_kernel_radius + 0.125;
+
+    for( float y = -blur_kernel_radius; y <= blur_kernel_radius; y++ )
     {
-        for (int y = -blurRange; y < blurRange; y++)
+        for( float x = -blur_kernel_radius; x <= blur_kernel_radius; x++ )
         {
-            vec2 offset = vec2(float(x), float(y)) * texelSize;
-            result += texture(samplerSSAO, inUV + offset).r;
-            n++;
+            float wg = pow(1.0 - length(vec2(x, y)) / radius, 3.0);
+            fs_output += texture2D(texture_diffuse, tex_coord + vec2(x, y) * scale) * wg;
+            weight += wg;
         }
     }
-    outFragColor = result / (float(n));
+
+    fs_output /= weight;
 }
+#endif // FRAGMENT_SHADER
