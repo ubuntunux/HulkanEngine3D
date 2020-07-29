@@ -68,8 +68,9 @@ getRenderPassDataCreateInfo rendererData = do
         pipelineDataCreateInfos =
             [ PipelineDataCreateInfo
                 { _pipelineDataCreateInfoName = "render_final"
-                , _vertexShaderFile = "Resource/Shaders/render_quad.vert"
-                , _fragmentShaderFile = "Resource/Shaders/render_final.frag"
+                , _pipelineVertexShaderFile = "render_quad.vert"
+                , _pipelineFragmentShaderFile = "render_final.frag"
+                , _pipelineShaderDefines = []
                 , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
                 , _pipelineSampleCount = sampleCount
                 , _pipelinePolygonMode = VK_POLYGON_MODE_FILL

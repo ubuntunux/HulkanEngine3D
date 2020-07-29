@@ -44,8 +44,9 @@ data RenderPassDataCreateInfo = RenderPassDataCreateInfo
 
 data PipelineDataCreateInfo = PipelineDataCreateInfo
     { _pipelineDataCreateInfoName :: Text.Text
-    , _vertexShaderFile :: String
-    , _fragmentShaderFile :: String
+    , _pipelineVertexShaderFile :: FilePath
+    , _pipelineFragmentShaderFile :: FilePath
+    , _pipelineShaderDefines :: [Text.Text]
     , _pipelineDynamicStateList :: [VkDynamicState]
     , _pipelineSampleCount :: VkSampleCountFlagBits
     , _pipelinePolygonMode :: VkPolygonMode
@@ -312,8 +313,8 @@ createGraphicsPipelineData :: VkDevice
                            -> DescriptorData
                            -> IO PipelineData
 createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineDataCreateInfo {..} descriptorData = do
-    vertexShaderCreateInfo <- createShaderStageCreateInfo device _vertexShaderFile VK_SHADER_STAGE_VERTEX_BIT
-    fragmentShaderCreateInfo <- createShaderStageCreateInfo device _fragmentShaderFile VK_SHADER_STAGE_FRAGMENT_BIT
+    vertexShaderCreateInfo <- createShaderStageCreateInfo device _pipelineVertexShaderFile _pipelineShaderDefines VK_SHADER_STAGE_VERTEX_BIT
+    fragmentShaderCreateInfo <- createShaderStageCreateInfo device _pipelineFragmentShaderFile _pipelineShaderDefines VK_SHADER_STAGE_FRAGMENT_BIT
 
     let depthStencilStateCreateInfo@DepthStencilStateCreateInfo {..} = _depthStencilStateCreateInfo
         pushConstantData = PushConstantData { modelMatrix = matrix4x4_indentity }
@@ -447,8 +448,9 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
         peek graphicsPipelinePtr
 
     logInfo $ "createGraphicsPipeline : " ++ Text.unpack _pipelineDataCreateInfoName ++ " (" ++ show graphicsPipeline ++ ")"
-    logInfo $ "    vertexShader : " ++ show _vertexShaderFile
-    logInfo $ "    fragmentShader : " ++ show _fragmentShaderFile
+    logInfo $ "    shaderDefines : " ++ show _pipelineShaderDefines
+    logInfo $ "    vertexShader : " ++ show _pipelineVertexShaderFile
+    logInfo $ "    fragmentShader : " ++ show _pipelineFragmentShaderFile
 
     return PipelineData
         { _pipelineDataName = _pipelineDataCreateInfoName
