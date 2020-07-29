@@ -5,7 +5,6 @@
 #include "scene_constants.glsl"
 #include "utility.glsl"
 #include "shading.glsl"
-#include "blending.glsl"
 
 layout(binding = 0) uniform SceneConstants
 {
@@ -82,16 +81,11 @@ void main() {
         //textureShadow,
         texCoord,
         world_position,
-        light_constants.LIGHT_COLOR.xyz * 10.0,
+        light_constants.LIGHT_COLOR.xyz,
         N,
         V,
         L,
         depth
     );
-
-    outColor.xyz = Uncharted2Tonemap(outColor.xyz, 1.0);
-    outColor.xyz *= vignetting(texCoord, 1.0, 0.20);
-    outColor.xyz = Contrast(outColor.xyz, 1.1);
-
     outColor.w = 1.0;
 }

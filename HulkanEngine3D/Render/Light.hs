@@ -36,7 +36,7 @@ defaultDirectionalLightCreateInfo :: LightCreateInfo
 defaultDirectionalLightCreateInfo = DirectionalLightCreateInfo
     { _directionalLightPosition' = vec3 0 0 0
     , _directionalLightRotation' = vec3 (-3.141592*0.5) 0 0
-    , _directionalLightColor' = vec3 1 1 1
+    , _directionalLightColor' = vec3 10 10 10
     , _directionalLightShadowSamples' = Constants.shadowSamples
     , _directionalLightShadowExp' = Constants.shadowExp
     , _directionalLightShadowBias' = Constants.shadowBias

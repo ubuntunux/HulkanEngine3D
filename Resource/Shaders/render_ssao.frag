@@ -6,8 +6,6 @@
 #include "utility.glsl"
 #include "PCFKernels.glsl"
 
-#define DISTANCE_CHECK true
-
 layout (constant_id = 0) const int SSAO_KERNEL_SIZE = 64;
 
 layout(binding = 0) uniform SceneConstants
@@ -52,14 +50,13 @@ void main() {
     vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
     const vec3 bitangent = normalize(cross(normal, tangent));
     const mat3 tnb = mat3(tangent, normal, bitangent);
-    const vec2 occlusion_distance_min_max = vec2(0.1, 1.5);
-    const float occlusion_density_min = 0.5;
+    const float occlusion_distance = 1.5;
 
     float occlusion = 0.0;
     const int sample_count = SSAO_KERNEL_SIZE;
     for (int i = 0; i < sample_count; ++i)
     {
-        vec3 pos = (tnb * uboSSAOKernel._SSAO_KERNEL_SAPLES[i].xyz) * occlusion_distance_min_max.y + relative_pos.xyz;
+        vec3 pos = (tnb * uboSSAOKernel._SSAO_KERNEL_SAPLES[i].xyz) * occlusion_distance + relative_pos.xyz;
 
         // project sample position:
         vec4 offset = vec4(pos, 1.0);
@@ -78,12 +75,14 @@ void main() {
             continue;
         }
 
+        #define DISTANCE_CHECK true
         if(DISTANCE_CHECK)
         {
             const vec4 occlusion_relative_pos = relative_world_from_device_depth(view_constants.INV_VIEW_ORIGIN_PROJECTION, offset.xy, occlusion_depth);
             const float distance = length(occlusion_relative_pos - relative_pos);
-            const float weight = 1.0 - smoothstep(occlusion_distance_min_max.x, occlusion_distance_min_max.y, distance);
-            occlusion += mix(occlusion_density_min, 1.0, weight);
+            const float occlusion_density_base = 1.0;
+            const float occlusion_density_closet = 1.0;
+            occlusion += (occlusion_density_base + occlusion_density_closet * exp(-distance));
         }
         else
         {

@@ -4,6 +4,7 @@
 
 #include "scene_constants.glsl"
 #include "utility.glsl"
+#include "blending.glsl"
 
 layout(binding = 0) uniform sampler2D textureColor;
 
@@ -14,6 +15,10 @@ layout(location = 2) in vec2 texCoord;
 layout(location = 0) out vec4 outColor;
 
 void main() {
+    // Tonemapping
     vec4 color = texture(textureColor, texCoord);
+    color.xyz = Uncharted2Tonemap(color.xyz, 1.0);
+    color.xyz *= vignetting(texCoord, 1.0, 0.20);
+    color.xyz = Contrast(color.xyz, 1.1);
     outColor = color;
 }
