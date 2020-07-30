@@ -92,3 +92,6 @@ _SSAO_RADIUS = 2.0
 
 _SSAO_NOISE_DIM :: Int
 _SSAO_NOISE_DIM = 4
+
+-- NOTE : sync with scene_constants.glsl
+data RenderMode = RenderMode_Common | RenderMode_Shadow deriving (Eq, Enum, Ord, Show, Read)

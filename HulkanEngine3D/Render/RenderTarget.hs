@@ -20,6 +20,7 @@ createRenderTargets rendererData renderTargetDataMap = do
     swapChainData <- getSwapChainData rendererData
     let windowWidth = getField @"width" (_swapChainExtent swapChainData)
         windowHeight = getField @"height" (_swapChainExtent swapChainData)
+        shadowMapSize = 1024
         samples = VK_SAMPLE_COUNT_1_BIT -- min VK_SAMPLE_COUNT_4_BIT (_msaaSamples . _renderFeatures $ rendererData)
         enableMipmap = True
         disableMipmap = False
@@ -135,6 +136,20 @@ createRenderTargets rendererData renderTargetDataMap = do
             VK_SAMPLE_COUNT_1_BIT
             VK_FILTER_LINEAR
             VK_FILTER_LINEAR
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+            disableMipmap
+            disableAnisotropy
+            mutable
+            emptyData
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_Shadow $
+        Texture.TextureCreateInfo
+            shadowMapSize
+            shadowMapSize
+            1
+            VK_FORMAT_D32_SFLOAT
+            samples
+            VK_FILTER_NEAREST
+            VK_FILTER_NEAREST
             VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
             disableMipmap
             disableAnisotropy

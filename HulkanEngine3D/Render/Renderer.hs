@@ -606,6 +606,20 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
             beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderFinal
             drawElements rendererData commandBuffer quadGeometryData
 
+            -- Render Debug
+            debugRenderTarget <- readIORef _debugRenderTargetRef
+            when (RenderTarget_BackBuffer /= debugRenderTarget) $ do
+                materialInst_renderDebug <- getMaterialInstanceData _resources "render_debug"
+                beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderDebug
+                let descriptorOffset = 0
+                    writeDescriptorSetPtr = ptrAtIndex ((_writeDescriptorSetPtrs materialInst_renderDebug) !! swapChainIndex) descriptorOffset
+                    descriptorWriteCount = 1
+                imageInfo <- getRenderTarget rendererData debugRenderTarget
+                withPtr (Texture._descriptorImageInfo imageInfo) $ \imageInfoPtr -> do
+                    writeField @"pImageInfo" writeDescriptorSetPtr imageInfoPtr
+                vkUpdateDescriptorSets _device descriptorWriteCount writeDescriptorSetPtr 0 VK_NULL
+                drawElements rendererData commandBuffer quadGeometryData
+
             -- End command buffer
             vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
 
@@ -682,7 +696,6 @@ renderPostProcess :: RendererData
 renderPostProcess rendererData@RendererData {..} commandBuffer swapChainIndex quadGeometryData = do
     materialInst_renderSSAO <- getMaterialInstanceData _resources "render_ssao"
     materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
-    materialInst_renderDebug <- getMaterialInstanceData _resources "render_debug"
 
     -- SSAO
     beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderSSAO
@@ -691,14 +704,3 @@ renderPostProcess rendererData@RendererData {..} commandBuffer swapChainIndex qu
     -- Composite GBuffer
     beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_compositeGBuffer
     drawElements rendererData commandBuffer quadGeometryData
-
-    -- Render Debug
-    debugRenderTarget <- readIORef _debugRenderTargetRef
-    when (RenderTarget_BackBuffer /= debugRenderTarget) $ do
-        beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderDebug
-        let writeDescriptorSetPtr = (_writeDescriptorSetPtrs materialInst_renderDebug) !! swapChainIndex
-        imageInfo <- getRenderTarget rendererData debugRenderTarget
-        withPtr (Texture._descriptorImageInfo imageInfo) $ \imageInfoPtr -> do
-            writeField @"pImageInfo" (ptrAtIndex writeDescriptorSetPtr 3) imageInfoPtr
-        vkUpdateDescriptorSets _device 4 writeDescriptorSetPtr 0 VK_NULL
-        drawElements rendererData commandBuffer quadGeometryData

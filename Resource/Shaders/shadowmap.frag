@@ -1,28 +1,24 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : enable
 
-
-#include "utility.glsl"
 #include "scene_constants.glsl"
-#include "default_vs.glsl"
+#include "utility.glsl"
+#include "blending.glsl"
 
-//-------------- MATERIAL_COMPONENTS ---------------//
+layout(binding = 0) uniform sampler2D textureBase;
 
-#include "default_material.glsl"
+layout(location = 0) in vec4 vertexColor;
+layout(location = 1) in vec3 vertexNormal;
+layout(location = 2) in vec2 texCoord;
 
-//----------- FRAGMENT_SHADER ---------------//
-
-
-#ifdef FRAGMENT_SHADER
-layout (location = 0) in VERTEX_OUTPUT vs_output;
-layout (location = 0) out vec4 fs_output;
+layout(location = 0) out float outColor;
 
 void main() {
-    vec4 base_color = get_base_color(vs_output.tex_coord.xy);
-
+    vec4 base_color = texture(textureBase, texCoord);
     if(base_color.a < 0.333f)
     {
         discard;
     }
-
-    fs_output = vec4(vec3(gl_FragCoord.z, 0.0, 0.0), 1.0);
+    outColor = 1.0;//vec4(vec3(gl_FragCoord.z, 0.0, 0.0), 1.0);
 }
-#endif

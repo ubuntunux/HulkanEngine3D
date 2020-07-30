@@ -1,43 +1,42 @@
-{-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE TypeApplications   #-}
 
-module HulkanEngine3D.Resource.RenderPassCreateInfo.RenderFinal where
+module HulkanEngine3D.Resource.RenderPassCreateInfo.RenderSSAO where
 
 import Data.Bits
 import qualified Data.Text as Text
-import Data.IORef
 
 import Graphics.Vulkan.Core_1_0
-import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTargetDeclaration
+import HulkanEngine3D.Render.UniformBufferDatas (UniformBufferType (..))
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.RenderPass
-import HulkanEngine3D.Vulkan.SwapChain
+import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.Vulkan
-import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.System (toText)
 
 renderPassName :: Text.Text
-renderPassName = "render_final"
+renderPassName = "render_ssao"
 
 getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
 getFrameBufferDataCreateInfo rendererData = do
-    swapChainData <- readIORef (_swapChainDataRef rendererData)
-    let imageSize = _swapChainExtent swapChainData
-        width = getField @"width" imageSize
-        height = getField @"height" imageSize
+    textureSSAO <- getRenderTarget rendererData RenderTarget_SSAO
+    let (width, height, depth) = (_imageWidth textureSSAO, _imageHeight textureSSAO, _imageDepth textureSSAO)
+        textures = [textureSSAO]
     return defaultFrameBufferDataCreateInfo
         { _frameBufferName = renderPassName
         , _frameBufferWidth = width
         , _frameBufferHeight = height
+        , _frameBufferDepth = depth
+        , _frameBufferSampleCount = _imageSampleCount textureSSAO
         , _frameBufferViewPort = createViewport 0 0 width height 0 1
         , _frameBufferScissorRect = createScissorRect 0 0 width height
-        , _frameBufferColorAttachmentFormats = [_swapChainImageFormat swapChainData]
-        , _frameBufferImageViewLists = applySwapChainIndex (\swapChainImageView -> [swapChainImageView]) (_swapChainImageViews swapChainData)
+        , _frameBufferColorAttachmentFormats = map _imageFormat textures
+        , _frameBufferImageViewLists = swapChainIndexMapSingleton (map _imageView textures)
+        , _frameBufferClearValues = [ getColorClearValue [ 1.0 ] ]
         }
 
 getRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
@@ -48,9 +47,9 @@ getRenderPassDataCreateInfo rendererData = do
             [ defaultAttachmentDescription
                 { _attachmentImageFormat = format
                 , _attachmentImageSamples = sampleCount
-                , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
                 , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
-                , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 } | format <- _frameBufferColorAttachmentFormats frameBufferDataCreateInfo
             ]
@@ -66,9 +65,9 @@ getRenderPassDataCreateInfo rendererData = do
             ]
         pipelineDataCreateInfos =
             [ PipelineDataCreateInfo
-                { _pipelineDataCreateInfoName = "render_final"
+                { _pipelineDataCreateInfoName = "render_ssao"
                 , _pipelineVertexShaderFile = "render_quad.vert"
-                , _pipelineFragmentShaderFile = "render_final.frag"
+                , _pipelineFragmentShaderFile = "render_ssao.frag"
                 , _pipelineShaderDefines = []
                 , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
                 , _pipelineSampleCount = sampleCount
@@ -77,15 +76,51 @@ getRenderPassDataCreateInfo rendererData = do
                 , _pipelineFrontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE
                 , _pipelineViewport = _frameBufferViewPort frameBufferDataCreateInfo
                 , _pipelineScissorRect = _frameBufferScissorRect frameBufferDataCreateInfo
-                , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
-                , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo  { _depthWriteEnable = VK_FALSE }
+                , _pipelineColorBlendModes = replicate (length colorAttachmentDescriptions) $ getColorBlendMode BlendMode_None
+                , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo { _depthWriteEnable = VK_FALSE }
                 , _descriptorDataCreateInfoList =
                     [ DescriptorDataCreateInfo
                         0
-                        (toText RenderTarget_SceneColor)
+                        (toText UniformBuffer_SceneConstants)
+                        DescriptorResourceType_UniformBuffer
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
+                    , DescriptorDataCreateInfo
+                        1
+                        (toText UniformBuffer_ViewConstants)
+                        DescriptorResourceType_UniformBuffer
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
+                    , DescriptorDataCreateInfo
+                        2
+                        (toText UniformBuffer_LightConstants)
+                        DescriptorResourceType_UniformBuffer
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
+                    , DescriptorDataCreateInfo
+                        3
+                        (toText RenderTarget_SceneNormal)
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
+                    , DescriptorDataCreateInfo
+                        4
+                        (toText RenderTarget_SceneDepth)
+                        DescriptorResourceType_RenderTarget
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                        VK_SHADER_STAGE_FRAGMENT_BIT
+                    , DescriptorDataCreateInfo
+                        5
+                        "ssaoNoise"
+                        DescriptorResourceType_Texture
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                        VK_SHADER_STAGE_FRAGMENT_BIT
+                    , DescriptorDataCreateInfo
+                        6
+                        (toText UniformBuffer_SSAOConstants)
+                        DescriptorResourceType_UniformBuffer
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
                     ]
                 }
             ]

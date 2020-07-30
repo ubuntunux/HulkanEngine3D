@@ -1,6 +1,10 @@
 #ifndef _SCENE_CONSTANTS_
 #define _SCENE_CONSTANTS_
 
+// NOTE : sync with Constants.hs, data RenderMode
+#define RenderMode_Common 0
+#define RenderMode_Shadow 1
+
 const int BLEND = 0;
 const int ADDITIVE = 1;
 const int MULTIPLY = 2;

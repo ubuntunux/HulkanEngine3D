@@ -39,7 +39,7 @@ shaderDirectory = "Resource/Shaders"
 spirvFilePathWithDefines :: String -> [Text.Text] -> FilePath
 spirvFilePathWithDefines shaderFileName shaderDefines =
     let (justFilePath, ext) = splitExtension shaderFileName
-        shaderFilePostFix = Text.unpack . Text.replace (Text.pack "=") (Text.pack "") . Text.replace (Text.pack " ") (Text.pack "_") . Text.unwords $ shaderDefines
+        shaderFilePostFix = Text.unpack . Text.replace "=" "" . Text.replace " " "_" . Text.unwords $ shaderDefines
     in
         materialDirectory </> (if null shaderFilePostFix then justFilePath else justFilePath ++ "_" ++ shaderFilePostFix) ++ ext ++ ".spirv"
 
@@ -55,7 +55,7 @@ compileGLSL shaderFileName shaderDefines = do
     tmpDir <- getTemporaryDirectory
     curDir <- getCurrentDirectory
     createDirectoryIfMissing True tmpDir
-    let shaderDefineArgs = Text.unpack . Text.unwords . map (Text.append $ Text.pack "-D") $ shaderDefines
+    let shaderDefineArgs = Text.unpack . Text.unwords . map (\d -> Text.append (Text.pack "-D") (Text.replace " " "" d)) $ shaderDefines
         shaderFilePath = shaderDirectory </> shaderFileName
         shaderDir = takeDirectory shaderFilePath
         spirvCodeFile = spirvFilePathWithDefines shaderFileName shaderDefines

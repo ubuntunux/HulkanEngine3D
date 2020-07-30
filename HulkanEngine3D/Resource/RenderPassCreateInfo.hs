@@ -8,19 +8,25 @@ import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.CompositeGBuffer a
 import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderDebug as RenderDebug
 import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderDefault as RenderDefault
 import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderFinal as RenderFinal
-import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.SSAO as SSAO
+import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderSSAO as RenderSSAO
+import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderShadow as RenderShadow
 import HulkanEngine3D.Vulkan.RenderPass
+
+data RenderPass
 
 getRenderPassDataCreateInfos :: RendererData -> IO [RenderPassDataCreateInfo]
 getRenderPassDataCreateInfos rendererData = do
     render_debug <- RenderDebug.getRenderPassDataCreateInfo rendererData
     render_default <- RenderDefault.getRenderPassDataCreateInfo rendererData
     composite_gbuffer <- CompositeGBuffer.getRenderPassDataCreateInfo rendererData
-    render_ssao <- SSAO.getRenderPassDataCreateInfo rendererData
     render_final <- RenderFinal.getRenderPassDataCreateInfo rendererData
+    render_ssao <- RenderSSAO.getRenderPassDataCreateInfo rendererData
+    render_shadow <- RenderShadow.getRenderPassDataCreateInfo rendererData
+
     return [ render_debug
            , render_default
            , composite_gbuffer
-           , render_ssao
            , render_final
+           , render_ssao
+           , render_shadow
            ]

@@ -25,7 +25,7 @@ renderPassName = "composite_gbuffer"
 
 getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
 getFrameBufferDataCreateInfo rendererData = do
-    renderTarget <- getRenderTarget rendererData RenderTarget_BackBuffer
+    renderTarget <- getRenderTarget rendererData RenderTarget_SceneColor
     let (width, height, depth) = (_imageWidth renderTarget, _imageHeight renderTarget, _imageDepth renderTarget)
     return defaultFrameBufferDataCreateInfo
         { _frameBufferName = renderPassName
@@ -128,6 +128,12 @@ getRenderPassDataCreateInfo rendererData = do
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
+--                    , DescriptorDataCreateInfo
+--                        8
+--                        (toText RenderTarget_Shadow)
+--                        DescriptorResourceType_RenderTarget
+--                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+--                        VK_SHADER_STAGE_FRAGMENT_BIT
                     ]
                 }
             ]
