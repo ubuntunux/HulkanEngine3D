@@ -28,7 +28,7 @@ swapChainImageIndices :: [Int]
 swapChainImageIndices = [0..(swapChainImageCount-1)]
 
 swapChainImageFormat :: VkFormat
-swapChainImageFormat = VK_FORMAT_B8G8R8A8_UNORM
+swapChainImageFormat = VK_FORMAT_B8G8R8A8_SRGB
 
 maxFrameCount :: Int
 maxFrameCount = 2
