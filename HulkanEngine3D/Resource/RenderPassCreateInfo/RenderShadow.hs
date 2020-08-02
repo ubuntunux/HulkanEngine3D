@@ -25,19 +25,19 @@ renderPassName = "render_shadow"
 
 getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
 getFrameBufferDataCreateInfo rendererData = do
-    textureSceneDepth <- getRenderTarget rendererData RenderTarget_SceneDepth
-    let (width, height, depth) = (_imageWidth textureSceneDepth, _imageHeight textureSceneDepth, _imageDepth textureSceneDepth)
+    textureDepth <- getRenderTarget rendererData RenderTarget_Shadow
+    let (width, height, depth) = (_imageWidth textureDepth, _imageHeight textureDepth, _imageDepth textureDepth)
     return defaultFrameBufferDataCreateInfo
         { _frameBufferName = renderPassName
         , _frameBufferWidth = width
         , _frameBufferHeight = height
         , _frameBufferDepth = depth
-        , _frameBufferSampleCount = _imageSampleCount textureSceneDepth
+        , _frameBufferSampleCount = _imageSampleCount textureDepth
         , _frameBufferViewPort = createViewport 0 0 width height 0 1
         , _frameBufferScissorRect = createScissorRect 0 0 width height
         , _frameBufferColorAttachmentFormats = []
-        , _frameBufferDepthAttachmentFormats = [_imageFormat textureSceneDepth]
-        , _frameBufferImageViewLists = swapChainIndexMapSingleton [ _imageView textureSceneDepth ]
+        , _frameBufferDepthAttachmentFormats = [_imageFormat textureDepth]
+        , _frameBufferImageViewLists = swapChainIndexMapSingleton [ _imageView textureDepth ]
         , _frameBufferClearValues = [ getDepthStencilClearValue 1.0 0 ]
         }
 

@@ -106,6 +106,7 @@ instance LightInterface DirectionalLightData where
                 }
         setPosition transformObjectData _directionalLightPosition'
         setRotation transformObjectData _directionalLightRotation'
+        updateShadowOrthogonal lightData
         updateLightData lightData float3_zero
         return lightData
         
@@ -126,17 +127,17 @@ instance LightInterface DirectionalLightData where
         depth <- readIORef _directionalLightShadowDepth
         let near = -depth
             far = depth
-        writeIORef _directionalLightShadowProjection (orthogonal near far width height)
+        writeIORef _directionalLightShadowProjection $ contract (orthogonal near far (width * 2.0) (height * 2.0)) clipSpaceMatrix
         writeIORef _directionalLightDataChanged True
 
     updateLightData :: DirectionalLightData -> Vec3f -> IO ()
     updateLightData lightData@DirectionalLightData {..} viewPosition = do
         updatedTransform <- updateTransformObject _directionalLightTransformObject
         dataChangedPrev <- readIORef _directionalLightDataChanged
-        let dataChanged = dataChangedPrev || updatedTransform
-            translationMatrix = translate3 (-viewPosition)
+        let dataChanged = True || dataChangedPrev || updatedTransform
+            translationMatrix = translate3 viewPosition
         when dataChanged $ do
             inverseMatrix <- getInverseMatrix _directionalLightTransformObject
             shadowProjection <- readIORef _directionalLightShadowProjection
             writeIORef _directionalLightShadowViewProjection (contract (contract translationMatrix inverseMatrix) shadowProjection)
-        writeIORef _directionalLightDataChanged dataChanged
+        writeIORef _directionalLightDataChanged False

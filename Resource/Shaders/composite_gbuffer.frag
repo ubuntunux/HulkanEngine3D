@@ -23,7 +23,7 @@ layout(binding = 4) uniform sampler2D textureSceneMaterial;
 layout(binding = 5) uniform sampler2D textureSceneNormal;
 layout(binding = 6) uniform sampler2D textureSceneDepth;
 layout(binding = 7) uniform sampler2D textureSSAO;
-//layout(binding = 8) uniform sampler2D textureShadow;
+layout(binding = 8) uniform sampler2D textureShadow;
 //layout(binding = 9) uniform samplerCube textureProbe;
 //layout(binding = 10) uniform sampler2D textureSceneReflect;
 
@@ -78,7 +78,7 @@ void main() {
         ssao,
         scene_reflect_color,
         //textureProbe,
-        //textureShadow,
+        textureShadow,
         texCoord,
         world_position,
         light_constants.LIGHT_COLOR.xyz,

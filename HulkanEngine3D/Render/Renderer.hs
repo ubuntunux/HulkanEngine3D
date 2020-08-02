@@ -597,8 +597,8 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
                 validationVK result "vkBeginCommandBuffer failed!"
 
             -- Render
+            renderShadow rendererData commandBuffer swapChainIndex sceneManagerData
             renderSolid rendererData commandBuffer swapChainIndex sceneManagerData
-
             renderPostProcess rendererData commandBuffer swapChainIndex quadGeometryData
 
             -- Render Final
@@ -607,6 +607,7 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
             drawElements rendererData commandBuffer quadGeometryData
 
             -- Render Debug
+            --writeIORef _debugRenderTargetRef RenderTarget_Shadow
             debugRenderTarget <- readIORef _debugRenderTargetRef
             when (RenderTarget_BackBuffer /= debugRenderTarget) $ do
                 materialInst_renderDebug <- getMaterialInstanceData _resources "render_debug"
@@ -672,6 +673,56 @@ renderSolid rendererData commandBuffer swapChainIndex sceneManagerData = do
 
         -- bind descriptorset
         vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (ptrAtIndex descriptorSetPtr swapChainIndex) 0 VK_NULL
+
+        -- update model view matrix
+        modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
+        let pushConstantData = PushConstantData { modelMatrix = modelMatrix }
+
+        with pushConstantData $ \pushConstantDataPtr ->
+            vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_ALL 0 (bSizeOf pushConstantData) (castPtr pushConstantDataPtr)
+
+        -- drawing commands
+        vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr (_vertexOffsetPtr rendererData)
+
+        vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
+        vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
+    vkCmdEndRenderPass commandBuffer
+
+
+renderShadow :: RendererData
+             -> VkCommandBuffer
+             -> Int
+             -> SceneManager.SceneManagerData
+             -> IO ()
+renderShadow rendererData commandBuffer swapChainIndex sceneManagerData = do
+    materialInst_renderShadow <- getMaterialInstanceData (_resources rendererData) "render_shadow"
+    -- beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderShadow
+
+    let renderPassData = _renderPassData materialInst_renderShadow
+    Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass._renderPassFrameBufferName (renderPassData::RenderPass.RenderPassData))
+    let renderPassBeginInfo = atSwapChainIndex swapChainIndex (_renderPassBeginInfos frameBufferData)
+        descriptorSetPtr = _descriptorSetsPtr materialInst_renderShadow
+        pipelineData = RenderPass._defaultPipelineData renderPassData
+        pipelineLayout = RenderPass._pipelineLayout pipelineData
+        pipeline = RenderPass._pipeline pipelineData
+
+    -- begin renderpass
+    withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
+        vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
+    withPtr (_frameBufferViewPort . _frameBufferInfo $ frameBufferData) $ \viewPortPtr ->
+        vkCmdSetViewport commandBuffer 0 1 viewPortPtr
+    withPtr (_frameBufferScissorRect . _frameBufferInfo $ frameBufferData) $ \scissorRectPtr ->
+        vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
+    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
+    vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (ptrAtIndex descriptorSetPtr swapChainIndex) 0 VK_NULL
+
+    staticObjectRenderElements <- SceneManager.getStaticObjectRenderElements sceneManagerData
+    forM_ (zip [(0::Int)..] staticObjectRenderElements) $ \(index, renderElement) -> do
+        let renderObject = RenderElement._renderObject renderElement
+            geometryBufferData = RenderElement._geometryData renderElement
+            vertexBufferPtr = _vertexBufferPtr geometryBufferData
+            indexBuffer = _indexBuffer geometryBufferData
+            indexCount = _vertexIndexCount geometryBufferData
 
         -- update model view matrix
         modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)

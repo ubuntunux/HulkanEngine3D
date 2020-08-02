@@ -78,7 +78,7 @@ instance SceneManagerInterface SceneManagerData where
         writeIORef _mainCamera mainCamera
 
         mainLight <- addDirectionalLightObject sceneManagerData "MainLight" $ Light.defaultDirectionalLightCreateInfo
-            { Light._directionalLightRotation' = vec3 (-3.141592*0.25) 0 0.5
+            { Light._directionalLightRotation' = vec3 (-3.141592*0.47) 0 0.3
             }
         writeIORef _mainLight mainLight
 
@@ -137,17 +137,11 @@ instance SceneManagerInterface SceneManagerData where
         cameraPosition <- Camera.getCameraPosition mainCamera
 
         mainLight <- getMainLight sceneManagerData
+--        TransformObject.rotationYaw (Light._directionalLightTransformObject mainLight) (deltaTime * 0.1)
         Light.updateLightData mainLight cameraPosition
 
         -- update objects
         flip HashTable.mapM_ _staticObjectMap $ \(objectName, staticObjectData) -> do
---            let transformObjectData = RenderObject.getTransformObjectData staticObjectData
---            if ("suzan" == T.unpack objectName) then
---                TransformObject.rotationYaw transformObjectData deltaTime
---            else do
---                TransformObject.rotationPitch transformObjectData (deltaTime * 0.5)
---                TransformObject.rotationYaw transformObjectData deltaTime
---                TransformObject.rotationRoll transformObjectData (deltaTime * 0.25)
             RenderObject.updateStaticObjectData staticObjectData
 
         -- gather render elements

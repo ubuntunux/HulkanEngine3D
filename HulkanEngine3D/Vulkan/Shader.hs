@@ -116,7 +116,7 @@ createShaderStageCreateInfo :: VkDevice -> String -> [Text.Text] -> VkShaderStag
 createShaderStageCreateInfo device shaderFileName shaderDefines stageBit = do
     logInfo $ "createShaderStageCreateInfo : " ++ show stageBit ++ ": " ++ shaderFileName
     -- ex) shaderDefines = ["STATIC_MESH", "RENDER_SHADOW=true", "SAMPLES=16"]
-    (codeSize, codePtr) <- compileGLSL shaderFileName []
+    (codeSize, codePtr) <- compileGLSL shaderFileName shaderDefines
     shaderModuleCreateInfo <- getShaderModuleCreateInfo codeSize codePtr
     shaderModule <- alloca $ \shaderModulePtr -> do
         result <- vkCreateShaderModule device (unsafePtr shaderModuleCreateInfo) VK_NULL shaderModulePtr

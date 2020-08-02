@@ -4,6 +4,30 @@
 //#include "precomputed_atmosphere/atmosphere_predefine.glsl"
 
 
+float get_shadow_factor_simple2(
+const in LIGHT_CONSTANTS light_constants,
+const in vec2 screen_tex_coord,
+const in vec3 world_position,
+const in float NdotL,
+sampler2D texture_shadow
+)
+{
+    vec2 shadow_size = textureSize(texture_shadow, 0);
+    vec2 shadow_texel_size = 1.0 / shadow_size;
+    vec4 shadow_proj = light_constants.SHADOW_VIEW_PROJECTION * vec4(world_position, 1.0);
+    shadow_proj.xyz /= shadow_proj.w;
+    shadow_proj.xy = shadow_proj.xy * 0.5 + 0.5;
+    float shadow_depth = shadow_proj.z;
+    vec2 shadow_uv = shadow_proj.xy;
+    float shadow_factor = textureLod(texture_shadow, shadow_uv, 0.0).x;
+    if(0.0 <= shadow_uv.x && shadow_uv.x <= 1.0 && 0.0 <= shadow_uv.y && shadow_uv.y <= 1.0 && shadow_factor < 1.0 && (shadow_factor + 0.01) < shadow_depth)
+    {
+        return 0.0;
+    }
+
+    return 1.0;
+}
+
 float get_shadow_factor_simple(
     const in LIGHT_CONSTANTS light_constants,
     const in vec2 screen_tex_coord,
@@ -16,7 +40,7 @@ float get_shadow_factor_simple(
     vec2 shadow_texel_size = 1.0 / shadow_size;
     vec4 shadow_proj = light_constants.SHADOW_VIEW_PROJECTION * vec4(world_position, 1.0);
     shadow_proj.xyz /= shadow_proj.w;
-    shadow_proj.xyz = shadow_proj.xyz * 0.5 + 0.5;
+    shadow_proj.xy = shadow_proj.xy * 0.5 + 0.5;
     float shadow_depth = shadow_proj.z;
     vec2 offsets[4] = {
         vec2(0.0, 0.0),
@@ -68,7 +92,7 @@ float get_shadow_factor(
     vec2 shadow_texel_size = 1.0 / shadow_size;
     vec4 shadow_proj = light_constants.SHADOW_VIEW_PROJECTION * vec4(world_position, 1.0);
     shadow_proj.xyz /= shadow_proj.w;
-    shadow_proj.xyz = shadow_proj.xyz * 0.5 + 0.5;
+    shadow_proj.xy = shadow_proj.xy * 0.5 + 0.5;
     float shadow_depth = shadow_proj.z;
     vec2 offsets[4] = {
         vec2(0.0, 0.0),
@@ -248,7 +272,7 @@ vec4 surface_shading(
     const in float ssao_factor,
     const in vec4 scene_reflect_color,
     //const in samplerCube texture_probe,
-    //const in sampler2D texture_shadow,
+    const in sampler2D texture_shadow,
     const in vec2 texCoord,
     const in vec3 world_position,
     vec3 light_color,
@@ -281,7 +305,7 @@ vec4 surface_shading(
     vec3 ambient_light = vec3(0.0, 0.0, 0.0);
     vec3 diffuse_light = vec3(0.0, 0.0, 0.0);
     vec3 specular_light = vec3(0.0, 0.0, 0.0);
-    vec3 shadow_factor = vec3(1.0); //vec3(get_shadow_factor(light_constants, texCoord, world_position, dot(N, L), texture_shadow));
+    vec3 shadow_factor = vec3(0.1 + get_shadow_factor_simple(light_constants, texCoord, world_position, dot(N, L), texture_shadow));
 
     // Atmosphere
     vec3 scene_in_scatter = vec3(0.0);
@@ -295,7 +319,7 @@ vec4 surface_shading(
 
     // Image based lighting
 //    {
-//        const vec2 env_size = textureSize(texture_probe, 0);
+//        const vec2 env_size = textureSize(texture_probe, 0);x
 //        const float max_env_mipmap = 8.0; // log2(max(env_size.x, env_size.y));
 //        vec2 envBRDF = clamp(env_BRDF_pproximate(NdV, roughness), 0.0, 1.0);
 //        vec3 shValue = fresnel * envBRDF.x + envBRDF.y;

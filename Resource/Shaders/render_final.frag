@@ -58,6 +58,6 @@ void main() {
     vec4 color = texture(textureColor, texCoord);
     color.xyz = ReinhardTonemap(color.xyz);
     color.xyz *= vignetting(texCoord, 1.0, 0.20);
-    color.xyz = Contrast(color.xyz, 1.05);
+    color.xyz = Contrast(color.xyz, 1.0);
     outColor = color;
 }

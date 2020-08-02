@@ -14,8 +14,15 @@ layout(location = 4) in vec2 inTexCoord;
 layout(location = 0) out VERTEX_OUTPUT vs_output;
 
 void main() {
-    vec3 world_pos = (pushConstant.localMatrix * vec4(inPosition, 1.0)).xyz;
-    vec4 projection_pos = view_constants.VIEW_PROJECTION * vec4(world_pos - view_constants.CAMERA_POSITION, 1.0);
+    mat4 localMatrix = pushConstant.localMatrix;
+    localMatrix[3].xyz -= view_constants.CAMERA_POSITION;
+
+    vec3 relative_pos = (localMatrix * vec4(inPosition, 1.0)).xyz;
+    #if (RenderMode_Common == RenderMode)
+    vec4 projection_pos = view_constants.VIEW_ORIGIN_PROJECTION * vec4(relative_pos, 1.0);
+    #elif (RenderMode_Shadow == RenderMode)
+    vec4 projection_pos = light_constants.SHADOW_VIEW_PROJECTION * vec4(relative_pos + view_constants.CAMERA_POSITION, 1.0);
+    #endif
     gl_Position = projection_pos;
 
     vs_output.color = inColor;
