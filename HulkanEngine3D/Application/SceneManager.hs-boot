@@ -1,6 +1,6 @@
 module HulkanEngine3D.Application.SceneManager where
 
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 import HulkanEngine3D.Render.RenderObject
 import qualified HulkanEngine3D.Render.Camera as Camera
@@ -15,11 +15,11 @@ class SceneManagerInterface a where
     newSceneManagerData :: Renderer.RendererData -> Resources -> IO a
     openSceneManagerData :: a -> Camera.CameraCreateData -> IO ()
     getMainCamera :: a -> IO Camera.CameraObjectData
-    addCameraObject :: a -> T.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData
+    addCameraObject :: a -> Text.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData
     getMainLight :: a -> IO Light.DirectionalLightData
-    addDirectionalLightObject :: a -> T.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
-    addStaticObject :: a -> T.Text -> StaticObjectCreateData -> IO StaticObjectData
-    getStaticObject :: a -> T.Text -> IO (Maybe StaticObjectData)
+    addDirectionalLightObject :: a -> Text.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
+    addStaticObject :: a -> Text.Text -> StaticObjectCreateData -> IO StaticObjectData
+    getStaticObject :: a -> Text.Text -> IO (Maybe StaticObjectData)
     getStaticObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
     updateSceneManagerData :: a -> Double -> Float -> IO ()
 

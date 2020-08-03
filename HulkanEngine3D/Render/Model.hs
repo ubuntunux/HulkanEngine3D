@@ -7,7 +7,7 @@
 module HulkanEngine3D.Render.Model where
 
 import Data.IORef
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Mesh
@@ -16,20 +16,20 @@ import HulkanEngine3D.Utilities.Logger
 
 
 data ModelCreateInfo = ModelCreateInfo
-    { _modelDataName' :: T.Text
+    { _modelDataName' :: Text.Text
     , _meshData' :: MeshData
     , _materialInstanceDatas' :: [MaterialInstanceData]
     } deriving Show
 
 data ModelData = ModelData
-    { _modelDataName :: IORef T.Text
+    { _modelDataName :: IORef Text.Text
     , _meshData :: MeshData
     , _materialInstanceDatas :: IORef [MaterialInstanceData]
     } deriving Show
 
 
 class ModelInterface a where
-    newModelData :: T.Text -> MeshData -> [MaterialInstanceData] -> IO a
+    newModelData :: Text.Text -> MeshData -> [MaterialInstanceData] -> IO a
     destroyModelData :: a -> IO ()
     getMeshData :: a -> MeshData
     getMaterialInstanceDataCount :: a -> IO Int
@@ -39,9 +39,9 @@ class ModelInterface a where
     updateModelData :: a -> IO ()
 
 instance ModelInterface ModelData where
-    newModelData :: T.Text -> MeshData -> [MaterialInstanceData] -> IO ModelData
+    newModelData :: Text.Text -> MeshData -> [MaterialInstanceData] -> IO ModelData
     newModelData name meshData materialInstanceDatas = do
-        logInfo $ "newModelData : " ++ T.unpack name
+        logInfo $ "newModelData : " ++ Text.unpack name
         modelDataName <- newIORef name
         materialInstanceDatasRef <- newIORef materialInstanceDatas
         return ModelData

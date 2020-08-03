@@ -8,7 +8,7 @@ module HulkanEngine3D.Render.Camera where
 
 --import Control.Monad
 import Data.IORef
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 import Numeric.DataFrame
 import Numeric.Dimensions
@@ -41,7 +41,7 @@ getDefaultCameraCreateData = CameraCreateData
 
 
 data CameraObjectData = CameraObjectData
-    { _name :: IORef T.Text
+    { _name :: IORef Text.Text
     , _meterPerUnit :: IORef Float
     , _near :: IORef Float
     , _far :: IORef Float
@@ -62,7 +62,7 @@ data CameraObjectData = CameraObjectData
 
 
 class CameraObjectInterface a where
-    createCameraObjectData :: T.Text -> CameraCreateData -> IO a
+    createCameraObjectData :: Text.Text -> CameraCreateData -> IO a
     getCameraPosition :: a -> IO Vec3f
     getViewMatrix :: a -> IO Mat44f
     getInvViewMatrix :: a -> IO Mat44f
@@ -79,7 +79,7 @@ class CameraObjectInterface a where
     updateProjectionMatrix :: a -> IO ()
 
 instance CameraObjectInterface CameraObjectData where
-    createCameraObjectData :: T.Text -> CameraCreateData -> IO CameraObjectData
+    createCameraObjectData :: Text.Text -> CameraCreateData -> IO CameraObjectData
     createCameraObjectData name cameraCreateData = do
         logInfo $ "createCameraObjectData :: " ++ show name
         nameRef <- newIORef name

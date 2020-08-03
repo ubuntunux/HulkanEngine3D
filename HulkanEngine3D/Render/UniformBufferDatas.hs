@@ -19,6 +19,8 @@ import Numeric.PrimBytes
 
 import HulkanEngine3D.Vulkan.UniformBuffer
 import HulkanEngine3D.Utilities.System
+import HulkanEngine3D.Utilities.Math
+import qualified HulkanEngine3D.Constants as Constants
 
 data UniformBufferType = UniformBuffer_SceneConstants
                        | UniformBuffer_ViewConstants
@@ -30,15 +32,17 @@ instance Hashable UniformBufferType
 
 type UniformBufferDataMap = HashTable.BasicHashTable UniformBufferType UniformBufferData
 
+-- scene_constants.glsl - struct SCENE_CONSTANTS
 data SceneConstants = SceneConstants
     { _SCREEN_SIZE :: Vec2f
     , _BACKBUFFER_SIZE :: Vec2f
     , _TIME :: Scalar Float
     , _DELTA_TIME :: Scalar Float
     , _JITTER_FRAME :: Scalar Float
-    , _SceneConstantsDummy0 :: Scalar Int
+    , _SceneConstantsDummy0 :: Scalar Int32
     } deriving (Show, Generic)
 
+-- scene_constants.glsl - struct VIEW_CONSTANTS
 data ViewConstants = ViewConstants
     { _VIEW :: Mat44f
     , _INV_VIEW :: Mat44f
@@ -59,6 +63,7 @@ data ViewConstants = ViewConstants
     , _VIEWCONSTANTS_DUMMY2 :: Scalar Float
     } deriving (Show, Generic)
 
+-- scene_constants.glsl - struct LIGHT_CONSTANTS
 data LightConstants = LightConstants
   { _SHADOW_VIEW_PROJECTION :: Mat44f
   , _LIGHT_POSITION :: Vec3f
@@ -66,9 +71,11 @@ data LightConstants = LightConstants
   , _LIGHT_DIRECTION :: Vec3f
   , _SHADOW_BIAS :: Scalar Float
   , _LIGHT_COLOR :: Vec3f
-  , _SHADOW_SAMPLES :: Scalar Int
+  , _SHADOW_SAMPLES :: Scalar Int32
+  , _SHADOW_DIMENSIONS :: Vec4f -- width height near far
   } deriving (Show, Generic)
 
+-- render_ssao.frag - UBOSSAOKernel
 data SSAOConstants = SSAOConstants
   { _SSAO_KERNEL_SAMPLES :: DataFrame Float '[64, 4]
   } deriving (Show, Generic)
@@ -101,6 +108,18 @@ instance Storable SSAOConstants where
     alignment _ = bAlignOf (undefined :: SSAOConstants)
     peek ptr = bPeek ptr
     poke ptr v = bPoke ptr v
+
+defaultLightConstants :: LightConstants
+defaultLightConstants = LightConstants
+    { _SHADOW_VIEW_PROJECTION = matrix4x4_indentity
+    , _LIGHT_POSITION = vec3 0 0 0
+    , _SHADOW_EXP = scalar Constants.shadowExp
+    , _LIGHT_DIRECTION = vec3 (-3.141592 * 0.5) 0 0
+    , _SHADOW_BIAS = scalar Constants.shadowBias
+    , _LIGHT_COLOR = vec3 10 10 10
+    , _SHADOW_SAMPLES = scalar (fromIntegral Constants.shadowSamples)
+    , _SHADOW_DIMENSIONS = vec4 (Constants.shadowDistance * 2.0) (Constants.shadowDistance * 2.0) (-Constants.shadowDistance) Constants.shadowDistance
+    }
 
 registUniformBufferDatas :: VkPhysicalDevice -> VkDevice -> UniformBufferDataMap -> IO ()
 registUniformBufferDatas physicalDevice device uniformBufferDataMap = do

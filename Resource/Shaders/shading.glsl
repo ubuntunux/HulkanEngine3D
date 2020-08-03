@@ -4,30 +4,6 @@
 //#include "precomputed_atmosphere/atmosphere_predefine.glsl"
 
 
-float get_shadow_factor_simple2(
-const in LIGHT_CONSTANTS light_constants,
-const in vec2 screen_tex_coord,
-const in vec3 world_position,
-const in float NdotL,
-sampler2D texture_shadow
-)
-{
-    vec2 shadow_size = textureSize(texture_shadow, 0);
-    vec2 shadow_texel_size = 1.0 / shadow_size;
-    vec4 shadow_proj = light_constants.SHADOW_VIEW_PROJECTION * vec4(world_position, 1.0);
-    shadow_proj.xyz /= shadow_proj.w;
-    shadow_proj.xy = shadow_proj.xy * 0.5 + 0.5;
-    float shadow_depth = shadow_proj.z;
-    vec2 shadow_uv = shadow_proj.xy;
-    float shadow_factor = textureLod(texture_shadow, shadow_uv, 0.0).x;
-    if(0.0 <= shadow_uv.x && shadow_uv.x <= 1.0 && 0.0 <= shadow_uv.y && shadow_uv.y <= 1.0 && shadow_factor < 1.0 && (shadow_factor + 0.01) < shadow_depth)
-    {
-        return 0.0;
-    }
-
-    return 1.0;
-}
-
 float get_shadow_factor_simple(
     const in LIGHT_CONSTANTS light_constants,
     const in vec2 screen_tex_coord,
@@ -88,13 +64,13 @@ float get_shadow_factor(
     sampler2D texture_shadow
 )
 {
-    vec2 shadow_size = textureSize(texture_shadow, 0);
-    vec2 shadow_texel_size = 1.0 / shadow_size;
+    const vec2 shadow_size = textureSize(texture_shadow, 0);
+    const vec2 shadow_texel_size = 1.0 / shadow_size;
     vec4 shadow_proj = light_constants.SHADOW_VIEW_PROJECTION * vec4(world_position, 1.0);
     shadow_proj.xyz /= shadow_proj.w;
     shadow_proj.xy = shadow_proj.xy * 0.5 + 0.5;
-    float shadow_depth = shadow_proj.z;
-    vec2 offsets[4] = {
+    const float shadow_depth = shadow_proj.z;
+    const vec2 offsets[4] = {
         vec2(0.0, 0.0),
         vec2(shadow_texel_size.x, 0.0),
         vec2(0.0, shadow_texel_size.y),
@@ -103,23 +79,34 @@ float get_shadow_factor(
 
     float shadow_factor = 0.0;
 
-    vec2 noise_size = (1 < light_constants.SHADOW_SAMPLES) ? (shadow_texel_size * 4.0) : vec2(0.0);
+    const int samnple_count = light_constants.SHADOW_SAMPLES;
+    const vec2 noise_size = (1 < samnple_count) ? (shadow_texel_size * 4.0) : vec2(0.0);
+    const float shadow_bias = light_constants.SHADOW_BIAS * (1.0 - saturate(NdotL));
 
-    for(int n = 0; n < light_constants.SHADOW_SAMPLES; ++n)
+    for(int n = 0; n < samnple_count; ++n)
     {
-        vec2 uv = shadow_proj.xy + PoissonSamples[n % PoissonSampleCount] * noise_size;
-        vec2 pixel_ratio = fract(uv * shadow_size);
+        const vec2 uv = shadow_proj.xy + PoissonSamples[n % PoissonSampleCount] * noise_size;
+        const vec2 pixel_ratio = fract(uv * shadow_size);
 
-        vec4 shadow_factors;
+        vec4 shadow_factors = vec4(1.0);
+
         for(int i = 0; i < 4; ++i)
         {
-            vec2 shadow_uv = uv + offsets[i];
+            const vec2 shadow_uv = uv + offsets[i];
+        //#define LINEAR_SHADOW_DEPTH
+        #if defined(LINEAR_SHADOW_DEPTH)
+            shadow_factors[i] = device_depth_to_linear_depth(light_constants.SHADOW_DIMENSIONS.z, light_constants.SHADOW_DIMENSIONS.w, textureLod(texture_shadow, shadow_uv, 0.0).x);
+            if(0.0 <= shadow_uv.x && shadow_uv.x <= 1.0 && 0.0 <= shadow_uv.y && shadow_uv.y <= 1.0 && shadow_factors[i] < light_constants.SHADOW_DIMENSIONS.w)
+            {
+                shadow_factors[i] = saturate(exp(-light_constants.SHADOW_EXP * (shadow_proj.w - shadow_factors[i] - shadow_bias * 100.0)));
+            }
+        #else
             shadow_factors[i] = textureLod(texture_shadow, shadow_uv, 0.0).x;
             if(0.0 <= shadow_uv.x && shadow_uv.x <= 1.0 && 0.0 <= shadow_uv.y && shadow_uv.y <= 1.0 && shadow_factors[i] < 1.0)
             {
-                float bias = light_constants.SHADOW_BIAS * (1.0 - saturate(NdotL));
-                shadow_factors[i] = saturate(exp(-light_constants.SHADOW_EXP * (shadow_depth - shadow_factors[i] - bias)));
+                shadow_factors[i] = saturate(exp(-light_constants.SHADOW_EXP * (shadow_depth - shadow_factors[i] - shadow_bias)));
             }
+        #endif
             else
             {
                 shadow_factors[i] = 1.0;
@@ -131,7 +118,7 @@ float get_shadow_factor(
             mix(shadow_factors.z, shadow_factors.w, pixel_ratio.x), pixel_ratio.y);
     }
 
-    return clamp(shadow_factor / float(light_constants.SHADOW_SAMPLES), 0.0, 1.0);
+    return clamp(shadow_factor / float(samnple_count), 0.0, 1.0);
 }
 
 
@@ -286,26 +273,26 @@ vec4 surface_shading(
     roughness = clamp(roughness, 0.05, 1.0);
 
     // compute material reflectance
-    vec3 R = reflect(-V, N);
-    vec3 H = normalize(V + L);
+    const vec3 R = reflect(-V, N);
+    const vec3 H = normalize(V + L);
 
-    float NdL = max(0.0, dot(N, L));
-    float NdV = max(0.001, dot(N, V));
-    float NdH = max(0.001, dot(N, H));
-    float HdV = max(0.001, dot(H, V));
-    float LdV = max(0.001, dot(L, V));
+    const float NdL = dot(N, L);
+    const float clampled_NdL = clamp(NdL, 0.0, 1.0);
+    const float NdV = clamp(dot(N, V), 0.001, 1.0);
+    const float NdH = clamp(dot(N, H), 0.001, 1.0);
+    const float HdV = clamp(dot(H, V), 0.001, 1.0);
+    const float LdV = clamp(dot(L, V), 0.001, 1.0);
 
     vec3 result = vec3(0.0, 0.0, 0.0);
 
-    vec3 F0 = vec3(0.04);
-    F0 = mix(max(F0, reflectance), base_color.xyz, metallic);
+    vec3 F0 = mix(vec3(max(0.04, reflectance)), base_color.xyz, metallic);
     vec3 fresnel = fresnelSchlick(NdV, F0);
     vec3 light_fresnel = fresnelSchlick(HdV, F0);
 
     vec3 ambient_light = vec3(0.0, 0.0, 0.0);
     vec3 diffuse_light = vec3(0.0, 0.0, 0.0);
     vec3 specular_light = vec3(0.0, 0.0, 0.0);
-    vec3 shadow_factor = vec3(0.1 + get_shadow_factor_simple(light_constants, texCoord, world_position, dot(N, L), texture_shadow));
+    vec3 shadow_factor = vec3(0.1 + get_shadow_factor(light_constants, texCoord, world_position, dot(N, L), texture_shadow));
 
     // Atmosphere
     vec3 scene_in_scatter = vec3(0.0);
@@ -349,8 +336,8 @@ vec4 surface_shading(
     // Dynamic Light
     {
         // Directional Light
-        diffuse_light += oren_nayar(roughness * roughness, NdL, NdV, N, V, L) / PI * light_color;
-        specular_light += cooktorrance_specular(light_fresnel, NdL, NdV, NdH, roughness) * NdL * light_color;
+        diffuse_light += oren_nayar(roughness * roughness, clampled_NdL, NdV, N, V, L) / PI * light_color;
+        specular_light += cooktorrance_specular(light_fresnel, clampled_NdL, NdV, NdH, roughness) * clampled_NdL * light_color;
 
         // Point Lights
 //        for(int i = 0; i < MAX_POINT_LIGHTS; ++i)

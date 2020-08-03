@@ -8,7 +8,7 @@ module HulkanEngine3D.Application.SceneManager where
 
 import Control.Monad
 import qualified Data.HashTable.IO as HashTable
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Data.IORef
 
 import Numeric.DataFrame
@@ -20,14 +20,15 @@ import qualified HulkanEngine3D.Render.Mesh as Mesh
 import qualified HulkanEngine3D.Render.Model as Model
 import qualified HulkanEngine3D.Render.RenderElement as RenderElement
 import qualified HulkanEngine3D.Render.Renderer as Renderer
+import qualified HulkanEngine3D.Render.UniformBufferDatas as UniformBufferDatas
 import qualified HulkanEngine3D.Resource.Resource as Resource
 --import qualified HulkanEngine3D.Render.TransformObject as TransformObject
 import qualified HulkanEngine3D.Utilities.System as System
 --import HulkanEngine3D.Utilities.Logger
 
-type CameraObjectMap = HashTable.BasicHashTable T.Text Camera.CameraObjectData
-type DirectionalLightObjectMap = HashTable.BasicHashTable T.Text Light.DirectionalLightData
-type StaticObjectMap = HashTable.BasicHashTable T.Text RenderObject.StaticObjectData
+type CameraObjectMap = HashTable.BasicHashTable Text.Text Camera.CameraObjectData
+type DirectionalLightObjectMap = HashTable.BasicHashTable Text.Text Light.DirectionalLightData
+type StaticObjectMap = HashTable.BasicHashTable Text.Text RenderObject.StaticObjectData
 
 data SceneManagerData = SceneManagerData
     { _rendererData :: Renderer.RendererData
@@ -44,11 +45,11 @@ class SceneManagerInterface a where
     newSceneManagerData :: Renderer.RendererData -> Resource.Resources -> IO a
     openSceneManagerData :: a -> Camera.CameraCreateData -> IO ()
     getMainCamera :: a -> IO Camera.CameraObjectData
-    addCameraObject :: a -> T.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData
+    addCameraObject :: a -> Text.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData
     getMainLight :: a -> IO Light.DirectionalLightData
-    addDirectionalLightObject :: a -> T.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
-    addStaticObject :: a -> T.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
-    getStaticObject :: a -> T.Text -> IO (Maybe RenderObject.StaticObjectData)
+    addDirectionalLightObject :: a -> Text.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
+    addStaticObject :: a -> Text.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
+    getStaticObject :: a -> Text.Text -> IO (Maybe RenderObject.StaticObjectData)
     getStaticObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
     updateSceneManagerData :: a -> Double -> Float -> IO ()
 
@@ -78,7 +79,11 @@ instance SceneManagerInterface SceneManagerData where
         writeIORef _mainCamera mainCamera
 
         mainLight <- addDirectionalLightObject sceneManagerData "MainLight" $ Light.defaultDirectionalLightCreateInfo
-            { Light._directionalLightRotation' = vec3 (-3.141592*0.47) 0 0.3
+            { Light._directionalLightPosition' = vec3 0 0 0
+            , Light._directionalLightRotation' = vec3 (-3.141592*0.47) 0 0.3
+            , Light._directionalLightConstants' = UniformBufferDatas.defaultLightConstants
+                { UniformBufferDatas._LIGHT_DIRECTION = vec3 (-3.141592 * 0.47) 0 0.3
+                }
             }
         writeIORef _mainLight mainLight
 
@@ -99,7 +104,7 @@ instance SceneManagerInterface SceneManagerData where
     getMainCamera :: SceneManagerData -> IO Camera.CameraObjectData
     getMainCamera sceneManagerData = readIORef (_mainCamera sceneManagerData)
 
-    addCameraObject :: SceneManagerData -> T.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData
+    addCameraObject :: SceneManagerData -> Text.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData
     addCameraObject sceneManagerData objectName cameraCreateData = do
         newObjectName <- System.generateUniqueName (_cameraObjectMap sceneManagerData) objectName
         cameraObjectData <- Camera.createCameraObjectData newObjectName cameraCreateData
@@ -109,21 +114,21 @@ instance SceneManagerInterface SceneManagerData where
     getMainLight :: SceneManagerData -> IO Light.DirectionalLightData
     getMainLight sceneManagerData = readIORef (_mainLight sceneManagerData)
 
-    addDirectionalLightObject :: SceneManagerData -> T.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
-    addDirectionalLightObject sceneManagerData objectName lightCreateData = do
+    addDirectionalLightObject :: SceneManagerData -> Text.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
+    addDirectionalLightObject sceneManagerData objectName lightCreateInfo = do
         newObjectName <- System.generateUniqueName (_directionalLightObjectMap sceneManagerData) objectName
-        lightObjectData <- Light.createLightData newObjectName lightCreateData
+        lightObjectData <- Light.createLightData newObjectName lightCreateInfo
         HashTable.insert (_directionalLightObjectMap sceneManagerData) newObjectName lightObjectData
         return lightObjectData
 
-    addStaticObject :: SceneManagerData -> T.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
+    addStaticObject :: SceneManagerData -> Text.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
     addStaticObject sceneManagerData objectName staticObjectCreateData = do
         newObjectName <- System.generateUniqueName (_staticObjectMap sceneManagerData) objectName
         staticObjectData <- RenderObject.createStaticObjectData newObjectName staticObjectCreateData
         HashTable.insert (_staticObjectMap sceneManagerData) newObjectName staticObjectData
         return staticObjectData
 
-    getStaticObject :: SceneManagerData -> T.Text -> IO (Maybe RenderObject.StaticObjectData)
+    getStaticObject :: SceneManagerData -> Text.Text -> IO (Maybe RenderObject.StaticObjectData)
     getStaticObject sceneManagerData objectName = HashTable.lookup (_staticObjectMap sceneManagerData) objectName
 
     getStaticObjectRenderElements :: SceneManagerData -> IO [RenderElement.RenderElementData]

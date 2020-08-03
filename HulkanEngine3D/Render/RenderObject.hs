@@ -7,7 +7,7 @@
 
 module HulkanEngine3D.Render.RenderObject where
 
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 import Numeric.DataFrame
 
@@ -24,7 +24,7 @@ data StaticObjectCreateData = StaticObjectCreateData
     } deriving Show
 
 data StaticObjectData = StaticObjectData
-    { _staticObjectName :: T.Text
+    { _staticObjectName :: Text.Text
     , _modelData :: ModelData
     , _transformObject :: TransformObjectData
     } deriving Show
@@ -39,13 +39,13 @@ defaultStaticObjectCreateData = StaticObjectCreateData
 
 
 class StaticObjectInterface a where
-    createStaticObjectData :: T.Text -> StaticObjectCreateData -> IO a
+    createStaticObjectData :: Text.Text -> StaticObjectCreateData -> IO a
     getModelData :: a -> ModelData
     getTransformObjectData :: a -> TransformObjectData
     updateStaticObjectData :: a -> IO ()
 
 instance StaticObjectInterface StaticObjectData where
-    createStaticObjectData :: T.Text -> StaticObjectCreateData -> IO StaticObjectData
+    createStaticObjectData :: Text.Text -> StaticObjectCreateData -> IO StaticObjectData
     createStaticObjectData staticObjectName staticObjectCreateData = do
         logInfo $ "createStaticObjectData :: " ++ show staticObjectName
         transformObjectData <- newTransformObjectData

@@ -532,13 +532,7 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
             invViewOriginProjectionMatrix <- Camera.getInvViewOriginProjectionMatrix mainCamera
 
             mainLight <- SceneManager.getMainLight sceneManagerData
-            shadowViewProjectionMatrix <- Light.getShadowViewProjectionMatrix mainLight
-            lightPosition <- Light.getLightPosition mainLight
-            lightDirection <- Light.getLightDirection mainLight
-            lightColor <- Light.getLightColor mainLight
-            shadowExp <- Light.getLightShadowExp mainLight
-            shadowBias <- Light.getLightShadowBias mainLight
-            shadowSamples <- Light.getLightShadowSamples mainLight
+            mainLightConstants <- Light.getLightConstants mainLight
             quadGeometryData <- Mesh.getDefaultGeometryData =<< getMeshData _resources "quad"
 
             rotation <- TransformObject.getRotation $ Light._directionalLightTransformObject mainLight
@@ -573,18 +567,9 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
                     , _CAMERA_POSITION = cameraPosition
                     , _VIEWCONSTANTS_DUMMY2 = 0.0
                     }
-                lightConstants = LightConstants
-                    { _SHADOW_VIEW_PROJECTION = shadowViewProjectionMatrix
-                    , _LIGHT_POSITION = lightPosition
-                    , _SHADOW_EXP = scalar shadowExp
-                    , _LIGHT_DIRECTION = lightDirection
-                    , _SHADOW_BIAS = scalar shadowBias
-                    , _LIGHT_COLOR = lightColor
-                    , _SHADOW_SAMPLES = scalar shadowSamples
-                    }
             uploadUniformBufferData rendererData swapChainIndex UniformBuffer_SceneConstants sceneConstants
             uploadUniformBufferData rendererData swapChainIndex UniformBuffer_ViewConstants viewConstants
-            uploadUniformBufferData rendererData swapChainIndex UniformBuffer_LightConstants lightConstants
+            uploadUniformBufferData rendererData swapChainIndex UniformBuffer_LightConstants mainLightConstants
             uploadUniformBufferData rendererData swapChainIndex UniformBuffer_SSAOConstants (PostProcess._ssao_kernel_samples _postprocess_ssao)
 
             -- Begin command buffer
