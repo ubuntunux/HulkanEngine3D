@@ -73,7 +73,7 @@ shadowSamples :: Int
 shadowSamples = 16
 
 shadowExp :: Float
-shadowExp = 1000.0
+shadowExp = 100.0
 
 shadowBias :: Float
 shadowBias = 0.005

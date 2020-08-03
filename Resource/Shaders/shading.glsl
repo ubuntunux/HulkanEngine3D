@@ -292,7 +292,7 @@ vec4 surface_shading(
     vec3 ambient_light = vec3(0.0, 0.0, 0.0);
     vec3 diffuse_light = vec3(0.0, 0.0, 0.0);
     vec3 specular_light = vec3(0.0, 0.0, 0.0);
-    vec3 shadow_factor = vec3(0.1 + get_shadow_factor(light_constants, texCoord, world_position, dot(N, L), texture_shadow));
+    vec3 shadow_factor = vec3(0.1 + get_shadow_factor(light_constants, texCoord, world_position, NdL, texture_shadow));
 
     // Atmosphere
     vec3 scene_in_scatter = vec3(0.0);
