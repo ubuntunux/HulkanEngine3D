@@ -69,8 +69,11 @@ cameraPanSpeed = 0.05
 cameraRotationSpeed :: Float
 cameraRotationSpeed = 0.005
 
+shadowMapSize :: Word32
+shadowMapSize = 2048
+
 shadowSamples :: Int
-shadowSamples = 16
+shadowSamples = 4
 
 shadowExp :: Float
 shadowExp = 100.0

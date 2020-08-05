@@ -3,59 +3,6 @@
 #include "utility.glsl"
 //#include "precomputed_atmosphere/atmosphere_predefine.glsl"
 
-
-float get_shadow_factor_simple(
-    const in LIGHT_CONSTANTS light_constants,
-    const in vec2 screen_tex_coord,
-    const in vec3 world_position,
-    const in float NdotL,
-    sampler2D texture_shadow
-)
-{
-    vec2 shadow_size = textureSize(texture_shadow, 0);
-    vec2 shadow_texel_size = 1.0 / shadow_size;
-    vec4 shadow_proj = light_constants.SHADOW_VIEW_PROJECTION * vec4(world_position, 1.0);
-    shadow_proj.xyz /= shadow_proj.w;
-    shadow_proj.xy = shadow_proj.xy * 0.5 + 0.5;
-    float shadow_depth = shadow_proj.z;
-    vec2 offsets[4] = {
-        vec2(0.0, 0.0),
-        vec2(shadow_texel_size.x, 0.0),
-        vec2(0.0, shadow_texel_size.y),
-        vec2(shadow_texel_size.x, shadow_texel_size.y),
-    };
-
-    float shadow_factor = 0.0;
-    vec2 shadow_uv = shadow_proj.xy;
-
-    vec2 pixel_ratio = fract(shadow_uv.xy * shadow_size);
-    vec2 pixel_pos = shadow_uv.xy * shadow_size - pixel_ratio + 0.5;
-    vec2 uv = pixel_pos * shadow_texel_size;
-
-    vec4 shadow_factors;
-
-    for(int i = 0; i < 4; ++i)
-    {
-        vec2 shadow_uv = uv + offsets[i];
-        shadow_factors[i] = textureLod(texture_shadow, shadow_uv, 0.0).x;
-        if(0.0 <= shadow_uv.x && shadow_uv.x <= 1.0 && 0.0 <= shadow_uv.y && shadow_uv.y <= 1.0 && shadow_factors[i] < 1.0)
-        {
-            shadow_factors[i] = saturate(exp(-light_constants.SHADOW_EXP * (shadow_depth - shadow_factors[i] - light_constants.SHADOW_BIAS * (1.0 - saturate(NdotL)))));
-        }
-        else
-        {
-            shadow_factors[i] = 1.0;
-        }
-    }
-
-    shadow_factor += mix(
-        mix(shadow_factors.x, shadow_factors.y, pixel_ratio.x),
-        mix(shadow_factors.z, shadow_factors.w, pixel_ratio.x), pixel_ratio.y);
-
-    return clamp(shadow_factor, 0.0, 1.0);
-}
-
-
 float get_shadow_factor(
     const in LIGHT_CONSTANTS light_constants,
     const in vec2 screen_tex_coord,
@@ -66,59 +13,50 @@ float get_shadow_factor(
 {
     const vec2 shadow_size = textureSize(texture_shadow, 0);
     const vec2 shadow_texel_size = 1.0 / shadow_size;
+    const int samnple_count = light_constants.SHADOW_SAMPLES;
+    const vec2 shadow_noise_radius = shadow_texel_size * max(1.0, log2(samnple_count));
+    const vec2 shadow_uv_min = shadow_texel_size * 0.5;
+    const vec2 shadow_uv_max = vec2(1.0) - shadow_texel_size * 0.5;
     vec4 shadow_proj = light_constants.SHADOW_VIEW_PROJECTION * vec4(world_position, 1.0);
     shadow_proj.xyz /= shadow_proj.w;
     shadow_proj.xy = shadow_proj.xy * 0.5 + 0.5;
-    const float shadow_depth = shadow_proj.z;
-    const vec2 offsets[4] = {
+
+    if(1.0 < shadow_proj.x || shadow_proj.x < 0.0 || 1.0 < shadow_proj.y || shadow_proj.y < 0.0 || 1.0 < shadow_proj.z || shadow_proj.z < 0.0)
+    {
+        return 1.0;
+    }
+
+    const vec2 uv_offsets[4] = {
         vec2(0.0, 0.0),
         vec2(shadow_texel_size.x, 0.0),
         vec2(0.0, shadow_texel_size.y),
         vec2(shadow_texel_size.x, shadow_texel_size.y),
     };
 
-    float shadow_factor = 0.0;
+    const float shadow_bias = light_constants.SHADOW_BIAS * tan(acos(saturate(NdotL)));
 
-    const int samnple_count = light_constants.SHADOW_SAMPLES;
-    const vec2 noise_size = (1 < samnple_count) ? (shadow_texel_size * 4.0) : vec2(0.0);
-    const float shadow_bias = light_constants.SHADOW_BIAS * (1.0 - saturate(NdotL));
-
-    for(int n = 0; n < samnple_count; ++n)
+    float total_shadow_factor = 0.0;
+    for(int sample_index = 0; sample_index < samnple_count; ++sample_index)
     {
-        const vec2 uv = shadow_proj.xy + PoissonSamples[n % PoissonSampleCount] * noise_size;
-        const vec2 pixel_ratio = fract(uv * shadow_size);
+        vec2 uv = shadow_proj.xy + PoissonSamples[sample_index % PoissonSampleCount] * shadow_noise_radius;
 
         vec4 shadow_factors = vec4(1.0);
-
-        for(int i = 0; i < 4; ++i)
+        for(int component_index = 0; component_index < 4; ++component_index)
         {
-            const vec2 shadow_uv = uv + offsets[i];
-        //#define LINEAR_SHADOW_DEPTH
-        #if defined(LINEAR_SHADOW_DEPTH)
-            shadow_factors[i] = device_depth_to_linear_depth(light_constants.SHADOW_DIMENSIONS.z, light_constants.SHADOW_DIMENSIONS.w, textureLod(texture_shadow, shadow_uv, 0.0).x);
-            if(0.0 <= shadow_uv.x && shadow_uv.x <= 1.0 && 0.0 <= shadow_uv.y && shadow_uv.y <= 1.0 && shadow_factors[i] < light_constants.SHADOW_DIMENSIONS.w)
+            const vec2 shadow_uv = clamp(uv + uv_offsets[component_index], shadow_uv_min, shadow_uv_max);
+            const float shadow_depth = textureLod(texture_shadow, shadow_uv, 0.0).x + shadow_bias;
+            if(shadow_depth <= shadow_proj.z)
             {
-                shadow_factors[i] = saturate(exp(-light_constants.SHADOW_EXP * (shadow_proj.w - shadow_factors[i] - shadow_bias * 100.0)));
-            }
-        #else
-            shadow_factors[i] = textureLod(texture_shadow, shadow_uv, 0.0).x;
-            if(0.0 <= shadow_uv.x && shadow_uv.x <= 1.0 && 0.0 <= shadow_uv.y && shadow_uv.y <= 1.0 && shadow_factors[i] < 1.0)
-            {
-                shadow_factors[i] = saturate(exp(-light_constants.SHADOW_EXP * (shadow_depth - shadow_factors[i] - shadow_bias)));
-            }
-        #endif
-            else
-            {
-                shadow_factors[i] = 1.0;
+                shadow_factors[component_index] = saturate(exp(-light_constants.SHADOW_EXP * (shadow_proj.z - shadow_depth)));
             }
         }
 
-        shadow_factor += mix(
-            mix(shadow_factors.x, shadow_factors.y, pixel_ratio.x),
-            mix(shadow_factors.z, shadow_factors.w, pixel_ratio.x), pixel_ratio.y);
+        const vec2 pixel_ratio = fract(uv * shadow_size);
+        total_shadow_factor += mix(
+            mix(shadow_factors[0], shadow_factors[1], pixel_ratio.x),
+            mix(shadow_factors[2], shadow_factors[3], pixel_ratio.x), pixel_ratio.y);
     }
-
-    return clamp(shadow_factor / float(samnple_count), 0.0, 1.0);
+    return clamp(total_shadow_factor / float(samnple_count), 0.0, 1.0);
 }
 
 

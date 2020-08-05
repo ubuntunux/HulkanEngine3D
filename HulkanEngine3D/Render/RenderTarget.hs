@@ -14,13 +14,14 @@ import HulkanEngine3D.Render.RenderTargetDeclaration
 import HulkanEngine3D.Vulkan.SwapChain
 import qualified HulkanEngine3D.Vulkan.Texture as Texture
 import HulkanEngine3D.Utilities.System
+import qualified HulkanEngine3D.Constants as Constants
+
 
 createRenderTargets :: RendererData -> RenderTargetDataMap -> IO ()
 createRenderTargets rendererData renderTargetDataMap = do
     swapChainData <- getSwapChainData rendererData
     let windowWidth = getField @"width" (_swapChainExtent swapChainData)
         windowHeight = getField @"height" (_swapChainExtent swapChainData)
-        shadowMapSize = 1024
         samples = VK_SAMPLE_COUNT_1_BIT -- min VK_SAMPLE_COUNT_4_BIT (_msaaSamples . _renderFeatures $ rendererData)
         enableMipmap = True
         disableMipmap = False
@@ -143,8 +144,8 @@ createRenderTargets rendererData renderTargetDataMap = do
             emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_Shadow $
         Texture.TextureCreateInfo
-            shadowMapSize
-            shadowMapSize
+            Constants.shadowMapSize
+            Constants.shadowMapSize
             1
             VK_FORMAT_D32_SFLOAT
             samples
