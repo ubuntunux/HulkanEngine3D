@@ -3,17 +3,17 @@
 #include "utility.glsl"
 //#include "precomputed_atmosphere/atmosphere_predefine.glsl"
 
-float get_shadow_factor(
+float get_shadow_factor_func(
     const in LIGHT_CONSTANTS light_constants,
-    const in vec2 screen_tex_coord,
     const in vec3 world_position,
     const in float NdotL,
-    sampler2D texture_shadow
+    sampler2D texture_shadow,
+    const bool isSimpleShadow
 )
 {
     const vec2 shadow_size = textureSize(texture_shadow, 0);
     const vec2 shadow_texel_size = 1.0 / shadow_size;
-    const int samnple_count = light_constants.SHADOW_SAMPLES;
+    const int samnple_count = isSimpleShadow ? 1 : light_constants.SHADOW_SAMPLES;
     const vec2 shadow_noise_radius = shadow_texel_size * max(1.0, log2(samnple_count));
     const vec2 shadow_uv_min = shadow_texel_size * 0.5;
     const vec2 shadow_uv_max = vec2(1.0) - shadow_texel_size * 0.5;
@@ -59,6 +59,25 @@ float get_shadow_factor(
     return clamp(total_shadow_factor / float(samnple_count), 0.0, 1.0);
 }
 
+float get_shadow_factor_simple(
+    const in LIGHT_CONSTANTS light_constants,
+    const in vec3 world_position,
+    const in float NdotL,
+    sampler2D texture_shadow)
+{
+    const bool isSimpleShadow = true;
+    return get_shadow_factor_func(light_constants, world_position, NdotL, texture_shadow, isSimpleShadow);
+}
+
+float get_shadow_factor(
+    const in LIGHT_CONSTANTS light_constants,
+    const in vec3 world_position,
+    const in float NdotL,
+    sampler2D texture_shadow)
+{
+    const bool isSimpleShadow = false;
+    return get_shadow_factor_func(light_constants, world_position, NdotL, texture_shadow, isSimpleShadow);
+}
 
 // https://en.wikipedia.org/wiki/Oren%E2%80%93Nayar_reflectance_model
 vec3 oren_nayar(float roughness2, float NdotL, float NdotV, vec3 N, vec3 V, vec3 L)
@@ -230,7 +249,7 @@ vec4 surface_shading(
     vec3 ambient_light = vec3(0.0, 0.0, 0.0);
     vec3 diffuse_light = vec3(0.0, 0.0, 0.0);
     vec3 specular_light = vec3(0.0, 0.0, 0.0);
-    vec3 shadow_factor = vec3(0.1 + get_shadow_factor(light_constants, texCoord, world_position, NdL, texture_shadow));
+    vec3 shadow_factor = vec3(0.1 + get_shadow_factor(light_constants, world_position, NdL, texture_shadow));
 
     // Atmosphere
     vec3 scene_in_scatter = vec3(0.0);
