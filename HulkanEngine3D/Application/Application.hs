@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE NegativeLiterals    #-}
+{-# LANGUAGE RecordWildCards     #-}
 
 module HulkanEngine3D.Application.Application
     ( ApplicationData (..)
@@ -71,7 +72,7 @@ instance ApplicationInterface ApplicationData where
         timeData <- readIORef (_timeData applicationData)
         return $ _elapsedTime timeData
 
-
+-- TODO: Use Queue or Stack
 mouseButtonCallback :: IORef MouseInputData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> IO ()
 mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifierKeys = do
     mouseInputData <- readIORef mouseInputDataRef
@@ -86,6 +87,7 @@ mouseButtonCallback mouseInputDataRef window mouseButton mouseButtonState modifi
         getMouseInputData mouseInputData GLFW.MouseButton'3 (down, up) = mouseInputData { _btn_m_down = down, _btn_m_up = up }
         getMouseInputData mouseInputData _ (down, up) = mouseInputData
 
+-- TODO: Use Queue or Stack
 scrollCallback :: IORef MouseMoveData -> GLFW.Window -> Double -> Double -> IO ()
 scrollCallback mouseMoveDataRef window xoffset yoffset = do
     mouseMoveData <- readIORef mouseMoveDataRef
@@ -94,6 +96,7 @@ scrollCallback mouseMoveDataRef window xoffset yoffset = do
         , _scroll_yoffset = realToFrac yoffset
         }
 
+-- TODO: Use Queue or Stack
 cursorPosCallback :: IORef MouseMoveData -> GLFW.Window -> Double -> Double -> IO ()
 cursorPosCallback mouseMoveDataRef windows posX posY = do
     mouseMoveData <- readIORef mouseMoveDataRef
@@ -104,6 +107,7 @@ cursorPosCallback mouseMoveDataRef windows posX posY = do
         , _mousePosDelta = posDelta
         }
 
+-- TODO: Use Queue or Stack
 keyCallBack :: IORef KeyboardInputData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
 keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
     keyboardInputData <- readIORef keyboardInputDataRef
@@ -119,6 +123,7 @@ keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
         , _keyboardUp = keyboardReleased
         , _modifierKeys = modifierKeys }
 
+-- TODO: Use Queue or Stack
 charCallBack :: GLFW.Window -> Char -> IO ()
 charCallBack windows key = do
     -- logInfo $ show key
@@ -161,11 +166,12 @@ destroyGLFWWindow window = do
     GLFW.terminate >> logInfo "Terminated GLFW."
 
 updateEvent :: ApplicationData -> IO ()
-updateEvent applicationData = do
+updateEvent applicationData@ApplicationData {..} = do
+    -- TODO: Use Queue or Stack for IO Events
     deltaTime <- realToFrac <$> getDeltaTime applicationData
-    keyboardInputData <- readIORef (_keyboardInputData applicationData)
-    mouseInputData <- readIORef (_mouseInputData applicationData)
-    mouseMoveData <- readIORef (_mouseMoveData applicationData)
+    keyboardInputData <- readIORef _keyboardInputData
+    mouseInputData <- readIORef _mouseInputData
+    mouseMoveData <- readIORef _mouseMoveData
     pressed_key_A <- getKeyPressed keyboardInputData GLFW.Key'A
     pressed_key_D <- getKeyPressed keyboardInputData GLFW.Key'D
     pressed_key_W <- getKeyPressed keyboardInputData GLFW.Key'W
@@ -174,8 +180,10 @@ updateEvent applicationData = do
     pressed_key_E <- getKeyPressed keyboardInputData GLFW.Key'E
     pressed_key_Z <- getKeyPressed keyboardInputData GLFW.Key'Z
     pressed_key_C <- getKeyPressed keyboardInputData GLFW.Key'C
-    mainCamera <- readIORef (SceneManager._mainCamera . _sceneManagerData $ applicationData)
-    cameraMoveSpeed <- readIORef $ _cameraMoveSpeed applicationData
+    released_key_LeftBracket <- getKeyReleased keyboardInputData GLFW.Key'LeftBracket
+    released_key_RightBracket <- getKeyReleased keyboardInputData GLFW.Key'RightBracket
+    mainCamera <- readIORef (SceneManager._mainCamera $ _sceneManagerData)
+    cameraMoveSpeed <- readIORef _cameraMoveSpeed
     let mousePosDelta = _mousePosDelta mouseMoveData
         mousePosDeltaX = fromIntegral . unScalar $ (mousePosDelta .! Idx 0) :: Float
         mousePosDeltaY = fromIntegral . unScalar $ (mousePosDelta .! Idx 1) :: Float
@@ -192,8 +200,13 @@ updateEvent applicationData = do
         rotationSpeed = Constants.cameraRotationSpeed
         cameraTransformObject = _transformObject mainCamera
 
+    if released_key_LeftBracket then
+        Renderer.prevDebugRenderTarget _rendererData
+    else when released_key_RightBracket $ do
+        Renderer.nextDebugRenderTarget _rendererData
+
     when (0.0 /= scroll_yoffset) $
-        writeIORef (_cameraMoveSpeed applicationData) modifiedCameraMoveSpeed
+        writeIORef _cameraMoveSpeed modifiedCameraMoveSpeed
 
     if btn_left && btn_right then do
         moveLeft cameraTransformObject (-panSpeed * mousePosDeltaX)
@@ -304,7 +317,7 @@ updateLoop applicationData commandToEditor commandToApp loopAction = do
     exit <- GLFW.windowShouldClose (_window applicationData)
     let closeApp = (Command_Close_App == recvCommand) || escReleased || exit
     when (not closeApp) $ do
-        -- reset input flags
+        -- clear IO events
         writeIORef (_keyboardInputData applicationData) keyboardInputData
             { _keyboardDown = False
             , _keyboardUp = False
@@ -315,9 +328,12 @@ updateLoop applicationData commandToEditor commandToApp loopAction = do
             , _mousePosDelta = vec2 0 0
             , _mousePosPrev = _mousePos moveMoveData
             }
+        clearHashTable (_keyReleasedMap keyboardInputData) (\_ -> return ())
 
+        -- receive events
         GLFW.pollEvents
 
+        -- update
         updateEvent applicationData
         loopAction applicationData recvCommand
         updateLoop applicationData commandToEditor commandToApp loopAction

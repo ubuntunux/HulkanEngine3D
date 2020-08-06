@@ -22,7 +22,7 @@ data RenderTargetType = RenderTarget_SceneColor
                       | RenderTarget_SceneVelocity
                       | RenderTarget_SSAO
                       | RenderTarget_Shadow
-                      deriving (Enum, Eq, Ord, Show, Read, Generic)
+                      deriving (Bounded, Enum, Eq, Ord, Show, Read, Generic)
 
 instance Hashable RenderTargetType
 

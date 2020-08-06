@@ -118,7 +118,7 @@ defaultLightConstants = LightConstants
     , _SHADOW_BIAS = scalar Constants.shadowBias
     , _LIGHT_COLOR = vec3 10 10 10
     , _SHADOW_SAMPLES = scalar (fromIntegral Constants.shadowSamples)
-    , _SHADOW_DIMENSIONS = vec4 (Constants.shadowDistance * 2.0) (Constants.shadowDistance * 2.0) (-Constants.shadowDistance) Constants.shadowDistance
+    , _SHADOW_DIMENSIONS = vec4 (Constants.shadowDistance * 2.0) (Constants.shadowDistance * 2.0) (-Constants.shadowDepth) Constants.shadowDepth
     }
 
 registUniformBufferDatas :: VkPhysicalDevice -> VkDevice -> UniformBufferDataMap -> IO ()

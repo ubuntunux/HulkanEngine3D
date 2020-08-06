@@ -51,12 +51,14 @@ void main() {
     vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
     const vec3 bitangent = normalize(cross(normal, tangent));
     const mat3 tnb = mat3(tangent, normal, bitangent);
-    const float occlusion_distance = 1.5;
+    const float occlusion_distance_min = 0.1;
+    const float occlusion_distance_max = 2.0;
 
     float occlusion = 0.0;
-    const int sample_count = SSAO_KERNEL_SIZE;
+    const int sample_count = 32;//SSAO_KERNEL_SIZE;
     for (int i = 0; i < sample_count; ++i)
     {
+        const float occlusion_distance = mix(occlusion_distance_min, occlusion_distance_max, float(i) / float(sample_count - 1));
         vec3 pos = (tnb * uboSSAOKernel._SSAO_KERNEL_SAPLES[i].xyz) * occlusion_distance + relative_pos.xyz;
 
         // project sample position:
@@ -82,8 +84,8 @@ void main() {
             const vec4 occlusion_relative_pos = relative_world_from_device_depth(view_constants.INV_VIEW_ORIGIN_PROJECTION, offset.xy, occlusion_depth);
             const float distance = length(occlusion_relative_pos - relative_pos);
             const float occlusion_density_base = 1.0;
-            const float occlusion_density_closet = 1.0;
-            occlusion += (occlusion_density_base + occlusion_density_closet * exp(-distance));
+            const float occlusion_density_closet = 2.0;
+            occlusion += mix(occlusion_density_base, occlusion_density_closet, exp(-distance));
         }
         else
         {

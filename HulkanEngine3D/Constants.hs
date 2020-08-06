@@ -82,7 +82,10 @@ shadowBias :: Float
 shadowBias = 0.005
 
 shadowDistance :: Float
-shadowDistance = 50.0
+shadowDistance = 25.0
+
+shadowDepth :: Float
+shadowDepth = 50.0
 
 shadowUpdateDistance :: Float
 shadowUpdateDistance = 10.0

@@ -118,6 +118,8 @@ class RendererInterface a where
     getGraphicsQueue :: a -> VkQueue
     getPresentQueue :: a -> VkQueue
     getUniformBufferData :: a -> UniformBufferType -> IO UniformBufferData
+    nextDebugRenderTarget :: a -> IO ()
+    prevDebugRenderTarget :: a -> IO ()
     createRenderTarget :: a -> Text.Text -> Texture.TextureCreateInfo -> IO Texture.TextureData
     createTexture :: a -> Text.Text -> Texture.TextureCreateInfo -> IO Texture.TextureData
     destroyTexture :: a -> Texture.TextureData -> IO ()
@@ -145,6 +147,18 @@ instance RendererInterface RendererData where
     getUniformBufferData :: RendererData -> UniformBufferType -> IO UniformBufferData
     getUniformBufferData rendererData uniformBufferType =
         Maybe.fromJust <$> HashTable.lookup (_uniformBufferDataMap rendererData) uniformBufferType
+
+    nextDebugRenderTarget rendererData = do
+        debugRenderTarget <- readIORef (_debugRenderTargetRef rendererData)
+        let nextValue = if debugRenderTarget == (maxBound::RenderTargetType) then (minBound::RenderTargetType) else succ debugRenderTarget
+        logInfo $ "Current DebugRenderTarget : " ++ show nextValue
+        writeIORef (_debugRenderTargetRef rendererData) nextValue
+
+    prevDebugRenderTarget rendererData = do
+        debugRenderTarget <- readIORef (_debugRenderTargetRef rendererData)
+        let prevValue = if debugRenderTarget == (minBound::RenderTargetType) then (maxBound::RenderTargetType) else pred debugRenderTarget
+        logInfo $ "Current DebugRenderTarget : " ++ show prevValue
+        writeIORef (_debugRenderTargetRef rendererData) prevValue
 
     createRenderTarget rendererData textureDataName textureCreateInfo =
         Texture.createRenderTarget
