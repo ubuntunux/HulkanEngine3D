@@ -33,6 +33,7 @@ data TextureCreateInfo = TextureCreateInfo
     , _textureCreateInfoHeight :: Word32
     , _textureCreateInfoDepth :: Word32
     , _textureCreateInfoFormat :: VkFormat
+    , _textureCreateFlags :: VkImageCreateFlags
     , _textureCreateInfoSamples :: VkSampleCountFlagBits
     , _textureCreateInfoMinFilter :: VkFilter
     , _textureCreateInfoMagFilter :: VkFilter
@@ -75,6 +76,7 @@ defaultTextureCreateInfo = TextureCreateInfo
     , _textureCreateInfoHeight = 1
     , _textureCreateInfoDepth = 1
     , _textureCreateInfoFormat = VK_FORMAT_R8G8B8A8_UNORM
+    , _textureCreateFlags = VK_ZERO_FLAGS
     , _textureCreateInfoSamples = VK_SAMPLE_COUNT_1_BIT
     , _textureCreateInfoMinFilter = VK_FILTER_LINEAR
     , _textureCreateInfoMagFilter = VK_FILTER_LINEAR
@@ -312,8 +314,9 @@ createImageView :: VkDevice
                 -> VkFormat
                 -> VkImageAspectFlags
                 -> Word32
+                -> Word32
                 -> IO VkImageView
-createImageView device image format aspectFlags mipLevels = do
+createImageView device image format aspectFlags layerCount mipLevels = do
     let componentMapping = createVk @VkComponentMapping
             $  set @"r" VK_COMPONENT_SWIZZLE_IDENTITY
             &* set @"g" VK_COMPONENT_SWIZZLE_IDENTITY
@@ -324,7 +327,7 @@ createImageView device image format aspectFlags mipLevels = do
             &* set @"baseMipLevel" 0
             &* set @"levelCount" mipLevels
             &* set @"baseArrayLayer" 0
-            &* set @"layerCount" 1
+            &* set @"layerCount" layerCount
         imageViewCreateInfo = createVk @VkImageViewCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
             &* set @"pNext" VK_NULL_HANDLE
@@ -345,9 +348,10 @@ transitionImageLayout :: VkImage
                       -> VkFormat
                       -> ImageLayoutTransition
                       -> Word32
+                      -> Word32
                       -> VkCommandBuffer
                       -> IO ()
-transitionImageLayout image format transition mipLevels commandBuffer = do
+transitionImageLayout image format transition layerCount mipLevels commandBuffer = do
     let TransitionDependent {..} = transitionDependent transition
         aspectMask = case _newLayout of
             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
@@ -367,7 +371,7 @@ transitionImageLayout image format transition mipLevels commandBuffer = do
                 &* set @"baseMipLevel" 0
                 &* set @"levelCount" mipLevels
                 &* set @"baseArrayLayer" 0
-                &* set @"layerCount" 1)
+                &* set @"layerCount" layerCount)
             &* set @"srcAccessMask" _srcAccessMask
             &* set @"dstAccessMask" _dstAccessMask
     withPtr barrier $ \barrierPtr -> vkCmdPipelineBarrier
@@ -386,18 +390,19 @@ createImage :: VkPhysicalDevice
             -> Word32
             -> Word32
             -> Word32
+            -> Word32
             -> VkSampleCountFlagBits
             -> VkFormat
             -> VkImageTiling
             -> VkImageUsageFlags
+            -> VkImageCreateFlags
             -> VkMemoryPropertyFlags
             -> IO (VkDeviceMemory, VkImage)
-createImage physicalDevice device width height depth mipLevels samples format tiling usage memoryPropertyFlags = do
+createImage physicalDevice device width height depth layerCount mipLevels samples format tiling usage imageCreateFlags memoryPropertyFlags = do
     let imageType
             | (height <= 1), (depth <= 1) = VK_IMAGE_TYPE_1D
             | (depth <= 1) = VK_IMAGE_TYPE_2D
             | otherwise = VK_IMAGE_TYPE_3D
-        imageCreateFlags = VK_ZERO_FLAGS
         imageCreateInfo = createVk @VkImageCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO
             &* set @"pNext" VK_NULL
@@ -409,7 +414,7 @@ createImage physicalDevice device width height depth mipLevels samples format ti
                 &* set @"depth" depth
                 )
             &* set @"mipLevels" mipLevels
-            &* set @"arrayLayers" 1
+            &* set @"arrayLayers" layerCount
             &* set @"format" format
             &* set @"tiling" tiling
             &* set @"initialLayout" VK_IMAGE_LAYOUT_UNDEFINED
@@ -420,21 +425,30 @@ createImage physicalDevice device width height depth mipLevels samples format ti
             &* set @"pQueueFamilyIndices" VK_NULL
 
     imageFormatProperties <- allocaPeek $ \pImageFormatProperties ->
-        throwingVK "vkGetPhysicalDeviceImageFormatProperties failed!" $ vkGetPhysicalDeviceImageFormatProperties physicalDevice format imageType tiling usage imageCreateFlags pImageFormatProperties
+        throwingVK "vkGetPhysicalDeviceImageFormatProperties failed!" $
+            vkGetPhysicalDeviceImageFormatProperties physicalDevice format imageType tiling usage imageCreateFlags pImageFormatProperties
+
     image <- withPtr imageCreateInfo $ \imageCreateInfoPtr -> allocaPeek $ \imagePtr ->
-        throwingVK "vkCreateImage failed!" $ vkCreateImage device imageCreateInfoPtr VK_NULL imagePtr
+        throwingVK "vkCreateImage failed!" $
+            vkCreateImage device imageCreateInfoPtr VK_NULL imagePtr
+
     memoryRequirements <- allocaPeek $ \memoryRequirementsPtr ->
         vkGetImageMemoryRequirements device image memoryRequirementsPtr
+
     memoryType <- findMemoryType physicalDevice(getField @"memoryTypeBits" memoryRequirements) memoryPropertyFlags
+
     let allocInfo = createVk @VkMemoryAllocateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO
             &* set @"pNext" VK_NULL
             &* set @"allocationSize" (getField @"size" memoryRequirements)
             &* set @"memoryTypeIndex" memoryType
+
     imageMemory <- withPtr allocInfo $ \allocInfoPtr ->
         allocaPeek $ \imageMemoryPtr ->
             throwingVK "vkAllocateMemory failed!" $ vkAllocateMemory device allocInfoPtr VK_NULL imageMemoryPtr
+
     vkBindImageMemory device image imageMemory 0
+
     return (imageMemory, image)
 
 destroyImage :: VkDevice -> VkImage -> VkDeviceMemory -> IO ()
@@ -450,8 +464,9 @@ copyBufferToImage :: VkDevice
                   -> Word32
                   -> Word32
                   -> Word32
+                  -> Word32
                   -> IO ()
-copyBufferToImage device commandBufferPool commandQueue buffer image width height depth =
+copyBufferToImage device commandBufferPool commandQueue buffer image width height depth layerCount =
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
         let region = createVk @VkBufferImageCopy
                 $  set @"bufferOffset" 0
@@ -461,7 +476,7 @@ copyBufferToImage device commandBufferPool commandQueue buffer image width heigh
                     (  set @"aspectMask" VK_IMAGE_ASPECT_COLOR_BIT
                     &* set @"mipLevel" 0
                     &* set @"baseArrayLayer" 0
-                    &* set @"layerCount" 1)
+                    &* set @"layerCount" layerCount)
                 &* setVk @"imageOffset"
                     (  set @"x" 0
                     &* set @"y" 0
@@ -482,6 +497,7 @@ createRenderTarget :: Text.Text
                    -> IO TextureData
 createRenderTarget textureDataName physicalDevice device commandBufferPool queue textureCreateInfo@TextureCreateInfo {..} = do
     let enableAnisotropy = if _textureCreateInfoEnableAnisotropy then VK_TRUE else VK_FALSE
+        layerCount = if VK_ZERO_FLAGS /= (VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT .&. _textureCreateFlags) then 6 else 1
         mipLevels = case _textureCreateInfoEnableMipmap of
             True -> calcMipLevels _textureCreateInfoWidth _textureCreateInfoHeight _textureCreateInfoDepth
             False -> 1
@@ -507,17 +523,19 @@ createRenderTarget textureDataName physicalDevice device commandBufferPool queue
         _textureCreateInfoWidth
         _textureCreateInfoHeight
         _textureCreateInfoDepth
+        layerCount
         mipLevels
         _textureCreateInfoSamples
         imageFormat
         VK_IMAGE_TILING_OPTIMAL
         imageUsage
+        _textureCreateFlags
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
-        transitionImageLayout image imageFormat imageLayoutTransition mipLevels commandBuffer
+        transitionImageLayout image imageFormat imageLayoutTransition layerCount mipLevels commandBuffer
 
-    imageView <- createImageView device image imageFormat imageAspect mipLevels
+    imageView <- createImageView device image imageFormat imageAspect layerCount mipLevels
     imageSampler <- createImageSampler device mipLevels _textureCreateInfoMinFilter _textureCreateInfoMagFilter _textureCreateInfoWrapMode enableAnisotropy
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
         textureData = TextureData
@@ -554,6 +572,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
     let (imageDataForeignPtr, imageDataLen) = SVector.unsafeToForeignPtr0 _textureCreateInfoData
         bufferSize = (fromIntegral imageDataLen)::VkDeviceSize
         enableAnisotropy = if _textureCreateInfoEnableAnisotropy then VK_TRUE else VK_FALSE
+        layerCount = if VK_ZERO_FLAGS /= (VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT .&. _textureCreateFlags) then 6 else 1
         mipLevels = case _textureCreateInfoEnableMipmap of
             True -> calcMipLevels _textureCreateInfoWidth _textureCreateInfoHeight _textureCreateInfoDepth
             False -> 1
@@ -564,15 +583,17 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
         _textureCreateInfoWidth
         _textureCreateInfoHeight
         _textureCreateInfoDepth
+        layerCount
         mipLevels
         _textureCreateInfoSamples
         _textureCreateInfoFormat
         VK_IMAGE_TILING_OPTIMAL
         (VK_IMAGE_USAGE_TRANSFER_SRC_BIT .|. VK_IMAGE_USAGE_TRANSFER_DST_BIT .|. VK_IMAGE_USAGE_SAMPLED_BIT)
+        _textureCreateFlags
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     -- run command
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
-        transitionImageLayout image _textureCreateInfoFormat TransferUndef_TransferDst mipLevels commandBuffer
+        transitionImageLayout image _textureCreateInfoFormat TransferUndef_TransferDst layerCount mipLevels commandBuffer
 
     -- create temporary staging buffer
     let stagingBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
@@ -586,7 +607,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
         copyArray (castPtr stagingDataPtr) imageDataPtr imageDataLen
     vkUnmapMemory device stagingBufferMemory
 
-    copyBufferToImage device commandBufferPool commandQueue stagingBuffer image _textureCreateInfoWidth _textureCreateInfoHeight _textureCreateInfoDepth
+    copyBufferToImage device commandBufferPool commandQueue stagingBuffer image _textureCreateInfoWidth _textureCreateInfoHeight _textureCreateInfoDepth layerCount
 
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
         -- generateMipmaps does this as a side effect:
@@ -602,7 +623,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
             commandBuffer
     destroyBuffer device stagingBuffer stagingBufferMemory
 
-    imageView <- createImageView device image _textureCreateInfoFormat VK_IMAGE_ASPECT_COLOR_BIT mipLevels
+    imageView <- createImageView device image _textureCreateInfoFormat VK_IMAGE_ASPECT_COLOR_BIT layerCount mipLevels
     imageSampler <- createImageSampler device mipLevels _textureCreateInfoMinFilter _textureCreateInfoMagFilter _textureCreateInfoWrapMode enableAnisotropy
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL imageView imageSampler
         textureData@TextureData {..} = TextureData

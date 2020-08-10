@@ -10,9 +10,12 @@ layout(binding = 2) uniform LightConstants
 {
     LIGHT_CONSTANTS light_constants;
 };
+
+#if (RenderMode_Common == RenderMode)
 layout(binding = 3) uniform sampler2D textureAlbedo;
 layout(binding = 4) uniform sampler2D textureMaterial;
 layout(binding = 5) uniform sampler2D textureNormal;
+#endif
 
 layout( push_constant ) uniform PushConstant
 {
