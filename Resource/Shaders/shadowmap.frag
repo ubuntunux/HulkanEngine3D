@@ -9,13 +9,11 @@
 
 layout(binding = 3) uniform sampler2D textureBase;
 
-layout(location = 0) in vec4 vertexColor;
-layout(location = 1) in vec3 vertexNormal;
-layout(location = 2) in vec2 texCoord;
+layout(location = 0) in VERTEX_OUTPUT vs_output;
 
 layout(location = 0) out float outColor;
 
 void main() {
-    vec4 base_color = texture(textureBase, texCoord);
+    vec4 base_color = texture(textureBase, vs_output.texCoord);
     outColor = gl_FragCoord.z;
 }

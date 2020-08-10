@@ -27,6 +27,6 @@ getRenderPassDataCreateInfos rendererData = do
            , render_default
            , composite_gbuffer
            , render_final
-           --, render_ssao
+           , render_ssao
            , render_shadow
            ]
