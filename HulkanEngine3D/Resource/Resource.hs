@@ -57,6 +57,9 @@ import HulkanEngine3D.Utilities.BoundingBox
 gatherAllFiles :: Bool
 gatherAllFiles = False
 
+materialFilePath :: FilePath
+materialFilePath = "Resource/Materials"
+
 materialInstanceFilePath :: FilePath
 materialInstanceFilePath = "Resource/MaterialInstances"
 
