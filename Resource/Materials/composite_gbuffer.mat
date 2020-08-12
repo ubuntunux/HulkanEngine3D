@@ -1,1 +1,1 @@
-{{ "render_pass_name": "composite_gbuffer", "pipeline_name": "" }}
+[{ "render_pass_name": "composite_gbuffer", "pipeline_name": "" }]
