@@ -19,6 +19,7 @@ import qualified Data.HashTable.IO as HashTable
 import qualified Data.ByteString as ByteString
 import qualified Data.Binary as Binary
 import qualified Data.Maybe as Maybe
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Storable as SVector
@@ -27,7 +28,7 @@ import System.Directory
 import System.FilePath.Posix
 import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map as Map
+--import qualified Data.Map as Map
 
 import Graphics.Vulkan.Core_1_0
 import qualified Codec.Picture as Image
@@ -36,6 +37,7 @@ import qualified HulkanEngine3D.Constants as Constants
 import {-# SOURCE #-} HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Mesh
 import qualified HulkanEngine3D.Render.Model as Model
+import qualified HulkanEngine3D.Render.Material as Material
 import HulkanEngine3D.Render.MaterialInstance
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Resource.ObjLoader
@@ -99,6 +101,9 @@ defaultModelName = "quad"
 defaultTextureName :: Text.Text
 defaultTextureName = "common/default"
 
+defaultMaterialName :: Text.Text
+defaultMaterialName = "render_object"
+
 defaultMaterialInstanceName :: Text.Text
 defaultMaterialInstanceName = "default"
 
@@ -111,6 +116,7 @@ defaultRenderPassName = "render_default"
 
 type ResourceDataMap a = HashTable.BasicHashTable Text.Text a
 type FrameBufferDataMap = ResourceDataMap FrameBufferData
+type MaterialDataMap = ResourceDataMap Material.MaterialData
 type MaterialInstanceDataMap = ResourceDataMap MaterialInstanceData
 type SceneManagerDataMap = ResourceDataMap SceneManagerData
 type MeshDataMap = ResourceDataMap MeshData
@@ -127,6 +133,7 @@ data Resources = Resources
     , _textureDataMap :: TextureDataMap
     , _frameBufferDataMap :: FrameBufferDataMap
     , _renderPassDataMap :: RenderPassDataMap
+    , _materialDataMap :: MaterialDataMap
     , _materialInstanceDataMap :: MaterialInstanceDataMap
     , _descriptorDataMap :: DescriptorDataMap
     } deriving (Show)
@@ -187,10 +194,15 @@ class ResourceInterface a where
     unloadRenderPassDatas :: a -> RendererData -> IO ()
     getRenderPassData :: a -> Text.Text -> IO (Maybe RenderPassData)
     getDefaultRenderPassData :: a -> IO (Maybe RenderPassData)
+    getRenderPassPipelineData :: a -> RenderPassPipelineDataName -> IO (RenderPassData, PipelineData)
+
+    loadMaterialDatas :: a -> RendererData -> IO ()
+    unloadMaterialDatas :: a -> RendererData -> IO ()
+    getMaterialData :: a -> Text.Text -> IO Material.MaterialData
 
     loadMaterialInstanceDatas :: a -> RendererData -> IO ()
     unloadMaterialInstanceDatas :: a -> RendererData -> IO ()
-    reloadMaterialInstanceDatas :: a -> RendererData -> IO ()
+    updateMaterialInstanceDatas :: a -> RendererData -> IO ()
     getMaterialInstanceData :: a -> Text.Text -> IO MaterialInstanceData
 
     getDescriptorData :: a -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO Descriptor.DescriptorData
@@ -206,6 +218,7 @@ instance ResourceInterface Resources where
         meshDataMap <- HashTable.new
         textureDataMap <- HashTable.new
         renderPassDataMap <- HashTable.new
+        materialDataMap <- HashTable.new
         materialInstanceDataMap <- HashTable.new
         descriptorDataMap <- HashTable.new
         return Resources
@@ -215,6 +228,7 @@ instance ResourceInterface Resources where
             , _meshDataMap = meshDataMap
             , _textureDataMap = textureDataMap
             , _renderPassDataMap = renderPassDataMap
+            , _materialDataMap = materialDataMap
             , _materialInstanceDataMap = materialInstanceDataMap
             , _descriptorDataMap = descriptorDataMap
             }
@@ -225,6 +239,7 @@ instance ResourceInterface Resources where
         loadTextureDatas resources rendererData
         loadRenderPassDatas resources rendererData
         loadFrameBufferDatas resources rendererData
+        loadMaterialDatas resources rendererData
         loadMaterialInstanceDatas resources rendererData
         loadMeshDatas resources rendererData
         loadModelDatas resources rendererData
@@ -235,6 +250,7 @@ instance ResourceInterface Resources where
         unloadModelDatas resources rendererData
         unloadMeshDatas resources rendererData
         unloadMaterialInstanceDatas resources rendererData
+        unloadMaterialDatas resources rendererData
         unloadFrameBufferDatas resources rendererData
         unloadRenderPassDatas resources rendererData
         unloadTextureDatas resources rendererData
@@ -255,13 +271,15 @@ instance ResourceInterface Resources where
         logInfo "Resources::loadGraphicsDatas"
         loadRenderPassDatas resources rendererData
         loadFrameBufferDatas resources rendererData
+        loadMaterialDatas resources rendererData
         loadMaterialInstanceDatas resources rendererData
-        reloadMaterialInstanceDatas resources rendererData
+        updateMaterialInstanceDatas resources rendererData
 
     unloadGraphicsDatas :: Resources -> RendererData -> IO ()
     unloadGraphicsDatas resources rendererData = do
         logInfo "Resources::unloadGraphicsDatas"
         unloadMaterialInstanceDatas resources rendererData
+        unloadMaterialDatas resources rendererData
         unloadFrameBufferDatas resources rendererData
         unloadRenderPassDatas resources rendererData
         unloadDescriptorDatas resources rendererData
@@ -467,6 +485,38 @@ instance ResourceInterface Resources where
     getDefaultRenderPassData resources =
         getRenderPassData resources defaultRenderPassName
 
+    getRenderPassPipelineData :: Resources -> RenderPassPipelineDataName -> IO (RenderPassData, PipelineData)
+    getRenderPassPipelineData resources (renderPassDataName, pipelineDataName) = do
+        Just renderPassData <- getRenderPassData resources renderPassDataName
+        pipelineData <- getPipelineData renderPassData pipelineDataName
+        return (renderPassData, pipelineData)
+
+    -- MaterialDatas
+    loadMaterialDatas :: Resources -> RendererData -> IO ()
+    loadMaterialDatas resources rendererData = do
+        materialFiles <- walkDirectory materialFilePath [".mat"]
+        forM_ materialFiles $ \materialFile -> do
+            materialName <- getUniqueResourceName (_materialDataMap resources) materialFilePath materialFile
+            contents <- ByteString.readFile materialFile
+            registMaterialData rendererData (_materialDataMap resources) materialName contents
+        where
+            registMaterialData rendererData materialDataMap materialName contents = do
+                let Just (Aeson.Array materialCreateInfoArray) = Aeson.decodeStrict contents
+                renderPassPipelineDataList <- forM materialCreateInfoArray $ \(Aeson.Object materialCreateInfo) -> do
+                    let Just (Aeson.String renderPassDataName) = HashMap.lookup "render_pass_name" materialCreateInfo
+                        Just (Aeson.String pipelineDataName) = HashMap.lookup "pipeline_name" materialCreateInfo
+                    getRenderPassPipelineData resources (renderPassDataName, pipelineDataName)
+                material <- Material.createMaterial materialName (Vector.toList renderPassPipelineDataList)
+                HashTable.insert (_materialDataMap resources) materialName material
+
+    unloadMaterialDatas :: Resources -> RendererData -> IO ()
+    unloadMaterialDatas resources rendererData =
+        clearHashTable (_materialDataMap resources) (\(k, v) -> Material.destroyMaterial v)
+
+    getMaterialData :: Resources -> Text.Text -> IO Material.MaterialData
+    getMaterialData resources resourceName =
+        getResourceData (_materialDataMap resources) resourceName defaultMaterialName
+
     -- MaterialInstanceDatas
     loadMaterialInstanceDatas :: Resources -> RendererData -> IO ()
     loadMaterialInstanceDatas resources rendererData = do
@@ -478,47 +528,46 @@ instance ResourceInterface Resources where
         where
             registMaterialInstanceData rendererData materialInstanceDataMap materialInstanceName contents = do
                 let Just (Aeson.Object materialInstanceCreateInfoMap) = Aeson.decodeStrict contents
-                    Just (Aeson.String renderPassDataName) = HashMap.lookup "render_pass_name" materialInstanceCreateInfoMap
-                    Just (Aeson.String pipelineDataName) = HashMap.lookup "pipeline_name" materialInstanceCreateInfoMap
+                    Just (Aeson.String materialDataName) = HashMap.lookup "material_name" materialInstanceCreateInfoMap
                     Just (Aeson.Object materialParameterMap) = HashMap.lookup "material_parameters" materialInstanceCreateInfoMap
 
-                Just renderPassData <- getRenderPassData resources renderPassDataName
-                pipelineData <- getPipelineData renderPassData pipelineDataName
-
-                let descriptorDataCreateInfoList = Descriptor._descriptorDataCreateInfoList $ _descriptorData pipelineData
-                descriptorResourceInfosList <- forM Constants.swapChainImageIndices $ \swapChainIndex -> do
-                    descriptorResourceInfos <- forM descriptorDataCreateInfoList $ \descriptorDataCreateInfo -> do
-                        let materialParameterName = Descriptor._descriptorName' descriptorDataCreateInfo
-                            materialParameterType = Descriptor._descriptorType' descriptorDataCreateInfo
-                            materialParameterResourceType = Descriptor._descriptorResourceType' descriptorDataCreateInfo
-                            maybeMaterialParameter = HashMap.lookup materialParameterName materialParameterMap
-                        case (materialParameterType, materialParameterResourceType) of
-                            (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, Descriptor.DescriptorResourceType_UniformBuffer) -> do
-                                uniformBufferData <- getUniformBufferData rendererData (fromText materialParameterName)
-                                return . Descriptor.DescriptorBufferInfo . atSwapChainIndex swapChainIndex $ _descriptorBufferInfos uniformBufferData
-                            (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_Texture) -> do
-                                textureData <- case maybeMaterialParameter of
-                                    Just (Aeson.String value) -> getTextureData resources value
-                                    otherwise -> getTextureData resources defaultTextureName
-                                return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
-                            (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_RenderTarget) -> do
-                                textureData <- getRenderTarget rendererData (fromText materialParameterName)
-                                return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
-                            otherwise -> return Descriptor.InvalidDescriptorInfo
-                    return $ filter (/= Descriptor.InvalidDescriptorInfo) descriptorResourceInfos
-                materialInstance <- createMaterialInstance (getDevice rendererData) materialInstanceName renderPassData pipelineData descriptorResourceInfosList
+                materialData <- getMaterialData resources materialDataName
+                pipelineBindingCreateInfoList <- forM (Map.toList $ Material._renderPassPipelineDataMap materialData) $ \(key, (renderPassData, pipelineData)) -> do
+                    let descriptorDataCreateInfoList = Descriptor._descriptorDataCreateInfoList $ _descriptorData pipelineData
+                    descriptorResourceInfosList <- forM Constants.swapChainImageIndices $ \swapChainIndex -> do
+                        descriptorResourceInfos <- forM descriptorDataCreateInfoList $ \descriptorDataCreateInfo -> do
+                            let materialParameterName = Descriptor._descriptorName' descriptorDataCreateInfo
+                                materialParameterType = Descriptor._descriptorType' descriptorDataCreateInfo
+                                materialParameterResourceType = Descriptor._descriptorResourceType' descriptorDataCreateInfo
+                                maybeMaterialParameter = HashMap.lookup materialParameterName materialParameterMap
+                            case (materialParameterType, materialParameterResourceType) of
+                                (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, Descriptor.DescriptorResourceType_UniformBuffer) -> do
+                                    uniformBufferData <- getUniformBufferData rendererData (fromText materialParameterName)
+                                    return . Descriptor.DescriptorBufferInfo . atSwapChainIndex swapChainIndex $ _descriptorBufferInfos uniformBufferData
+                                (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_Texture) -> do
+                                    textureData <- case maybeMaterialParameter of
+                                        Just (Aeson.String value) -> getTextureData resources value
+                                        otherwise -> getTextureData resources defaultTextureName
+                                    return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
+                                (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_RenderTarget) -> do
+                                    textureData <- getRenderTarget rendererData (fromText materialParameterName)
+                                    return $ Descriptor.DescriptorImageInfo (_descriptorImageInfo textureData)
+                                otherwise -> return Descriptor.InvalidDescriptorInfo
+                        return $ filter (/= Descriptor.InvalidDescriptorInfo) descriptorResourceInfos
+                    return (renderPassData, pipelineData, descriptorResourceInfosList)
+                materialInstance <- createMaterialInstance (getDevice rendererData) materialInstanceName materialData pipelineBindingCreateInfoList
                 HashTable.insert (_materialInstanceDataMap resources) materialInstanceName materialInstance
 
     unloadMaterialInstanceDatas :: Resources -> RendererData -> IO ()
     unloadMaterialInstanceDatas resources rendererData =
         clearHashTable (_materialInstanceDataMap resources) (\(k, v) -> destroyMaterialInstance (getDevice rendererData) v)
 
-    reloadMaterialInstanceDatas :: Resources -> RendererData -> IO ()
-    reloadMaterialInstanceDatas resources rendererData =
+    updateMaterialInstanceDatas :: Resources -> RendererData -> IO ()
+    updateMaterialInstanceDatas resources rendererData =
         flip HashTable.mapM_ (_modelDataMap resources) $ \(k, modelData) -> do
             materialInstances <- Model.getMaterialInstanceDataList modelData
             newMaterialInstances <- forM materialInstances $ \materialInstance ->
-                getMaterialInstanceData resources (_materialInstanceName materialInstance)
+                getMaterialInstanceData resources (_materialInstanceDataName materialInstance)
             Model.setMaterialInstanceDataList modelData newMaterialInstances
 
     getMaterialInstanceData :: Resources -> Text.Text -> IO MaterialInstanceData

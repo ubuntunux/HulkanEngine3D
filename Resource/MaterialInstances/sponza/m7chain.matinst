@@ -1,7 +1,6 @@
-{"render_pass_name": "render_default",
- "pipeline_name": "render_solid",
+{"material_name": "render_default",
  "material_parameters": {
-    "textureAlbedo": "sponza/chain_texture",
+    "textureBase": "sponza/chain_texture",
     "textureMaterial": "sponza/chain_texture",
     "textureNormal": "sponza/chain_texture_ddn"
     }

@@ -32,6 +32,9 @@ import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
 
+
+type RenderPassPipelineDataName = (Text.Text, Text.Text) -- (RenderPassDataName, PipelineDataName)
+
 data RenderPassDataCreateInfo = RenderPassDataCreateInfo
     { _renderPassCreateInfoName :: Text.Text
     , _renderPassFrameBufferCreateInfo :: FrameBufferDataCreateInfo

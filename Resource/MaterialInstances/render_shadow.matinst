@@ -1,3 +1,0 @@
-{"render_pass_name": "render_shadow",
- "pipeline_name": "render_shadow",
- "material_parameters": {"textureBase":"common/default"}}

@@ -126,7 +126,7 @@ class RendererInterface a where
     getRenderTarget :: a -> RenderTargetType -> IO Texture.TextureData
     createGeometryBuffer :: a -> Text.Text -> GeometryCreateInfo -> IO GeometryData
     destroyGeometryBuffer :: a -> GeometryData -> IO ()
-    beginRenderPassPipeline :: a -> VkCommandBuffer -> Int -> MaterialInstanceData -> IO ()
+    beginRenderPassPipeline :: a -> VkCommandBuffer -> Int -> RenderPass.RenderPassPipelineDataName -> MaterialInstanceData -> IO ()
     drawElements :: a -> VkCommandBuffer -> GeometryData -> IO ()
     deviceWaitIdle :: a -> IO ()
 
@@ -196,8 +196,8 @@ instance RendererInterface RendererData where
     destroyGeometryBuffer rendererData geometryBuffer =
         destroyGeometryData (_device rendererData) geometryBuffer
 
-    beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInstanceData =
-        beginRenderPassPipeline' commandBuffer swapChainIndex (_resources rendererData) materialInstanceData
+    beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassPipelineDataName materialInstanceData =
+        beginRenderPassPipeline' commandBuffer swapChainIndex (_resources rendererData) renderPassPipelineDataName materialInstanceData
 
     drawElements rendererData commandBuffer geometryData =
         drawElements' commandBuffer geometryData (_vertexOffsetPtr rendererData)
@@ -473,14 +473,15 @@ presentSwapChain rendererData@RendererData {..} commandBufferPtr frameFencePtr i
 beginRenderPassPipeline' :: VkCommandBuffer
                          -> Int
                          -> Resources
+                         -> RenderPass.RenderPassPipelineDataName
                          -> MaterialInstanceData
                          -> IO ()
-beginRenderPassPipeline' commandBuffer swapChainIndex resources materialInstanceData = do
-    let renderPassData = _renderPassData materialInstanceData
+beginRenderPassPipeline' commandBuffer swapChainIndex resources renderPassPipelineDataName materialInstanceData = do
+    (renderPassData, pipelineData) <- getRenderPassPipelineData resources renderPassPipelineDataName
     Just frameBufferData <- getFrameBufferData resources (RenderPass.getRenderPassFrameBufferName renderPassData)
-    let renderPassBeginInfo = atSwapChainIndex swapChainIndex (_renderPassBeginInfos frameBufferData)
-        descriptorSetsPtr = _descriptorSetsPtr materialInstanceData
-        pipelineData = RenderPass.getDefaultPipelineData renderPassData
+    let pipelineBindingData = getPipelineBindingData (_pipelineBindingDataMap materialInstanceData) renderPassPipelineDataName
+        renderPassBeginInfo = atSwapChainIndex swapChainIndex (_renderPassBeginInfos frameBufferData)
+        descriptorSetsPtr = _descriptorSetsPtr pipelineBindingData
         pipelineDynamicStates = RenderPass._pipelineDynamicStates pipelineData
 
     withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
@@ -602,17 +603,19 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
 
             -- Render Final
             materialInst_renderFinal <- getMaterialInstanceData _resources "render_final"
-            beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderFinal
+            beginRenderPassPipeline rendererData commandBuffer swapChainIndex ("render_final", "render_final") materialInst_renderFinal
             drawElements rendererData commandBuffer quadGeometryData
 
             -- Render Debug
             --writeIORef _debugRenderTargetRef RenderTarget_Shadow
             debugRenderTarget <- readIORef _debugRenderTargetRef
             when (RenderTarget_BackBuffer /= debugRenderTarget) $ do
+                let render_debug_dataName = ("render_debug", "render_debug")
                 materialInst_renderDebug <- getMaterialInstanceData _resources "render_debug"
-                beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderDebug
-                let descriptorOffset = 0
-                    writeDescriptorSetPtr = ptrAtIndex ((_writeDescriptorSetPtrs materialInst_renderDebug) !! swapChainIndex) descriptorOffset
+                beginRenderPassPipeline rendererData commandBuffer swapChainIndex render_debug_dataName materialInst_renderDebug
+                let pipelineBindingData = getPipelineBindingData (_pipelineBindingDataMap materialInst_renderDebug) render_debug_dataName
+                    descriptorOffset = 0
+                    writeDescriptorSetPtr = ptrAtIndex (_writeDescriptorSetPtrs pipelineBindingData !! swapChainIndex) descriptorOffset
                     descriptorWriteCount = 1
                 imageInfo <- getRenderTarget rendererData debugRenderTarget
                 withPtr (Texture._descriptorImageInfo imageInfo) $ \imageInfoPtr -> do
@@ -639,6 +642,8 @@ renderSolid :: RendererData
             -> SceneManager.SceneManagerData
             -> IO ()
 renderSolid rendererData commandBuffer swapChainIndex sceneManagerData = do
+    let renderPassPipelineDataName = ("render_default", "render_solid")
+    (renderPassData, pipelineData) <- getRenderPassPipelineData (_resources rendererData) renderPassPipelineDataName
     staticObjectRenderElements <- SceneManager.getStaticObjectRenderElements sceneManagerData
     forM_ (zip [(0::Int)..] staticObjectRenderElements) $ \(index, renderElement) -> do
         let renderObject = RenderElement._renderObject renderElement
@@ -647,11 +652,12 @@ renderSolid rendererData commandBuffer swapChainIndex sceneManagerData = do
             indexBuffer = _indexBuffer geometryBufferData
             indexCount = _vertexIndexCount geometryBufferData
             materialInstanceData = RenderElement._materialInstanceData renderElement
-            renderPassData = _renderPassData materialInstanceData
+            materialData = _materialData materialInstanceData
+            pipelineBindingData = getPipelineBindingData (_pipelineBindingDataMap materialInstanceData) renderPassPipelineDataName
 
-        Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass._renderPassFrameBufferName (renderPassData::RenderPass.RenderPassData))
+        Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass._renderPassFrameBufferName renderPassData)
         let renderPassBeginInfo = atSwapChainIndex swapChainIndex (_renderPassBeginInfos frameBufferData)
-            descriptorSetPtr = _descriptorSetsPtr materialInstanceData
+            descriptorSetPtr = _descriptorSetsPtr pipelineBindingData
             pipelineData = RenderPass._defaultPipelineData renderPassData
             pipelineLayout = RenderPass._pipelineLayout pipelineData
             pipeline = RenderPass._pipeline pipelineData
@@ -694,13 +700,16 @@ renderShadow :: RendererData
              -> SceneManager.SceneManagerData
              -> IO ()
 renderShadow rendererData commandBuffer swapChainIndex sceneManagerData = do
-    materialInst_renderShadow <- getMaterialInstanceData (_resources rendererData) "render_shadow"
+    let resources = _resources rendererData
+        renderPassPipelineDataName = ("render_shadow", "render_shadow")
+    (renderPassData, pipelineData) <- getRenderPassPipelineData resources renderPassPipelineDataName
+    materialInst_renderShadow <- getMaterialInstanceData resources "render_shadow"
     -- beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderShadow
 
-    let renderPassData = _renderPassData materialInst_renderShadow
-    Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass._renderPassFrameBufferName (renderPassData::RenderPass.RenderPassData))
+    Just frameBufferData <- getFrameBufferData resources (RenderPass._renderPassFrameBufferName renderPassData)
     let renderPassBeginInfo = atSwapChainIndex swapChainIndex (_renderPassBeginInfos frameBufferData)
-        descriptorSetPtr = _descriptorSetsPtr materialInst_renderShadow
+        pipelineBindingData = getPipelineBindingData (_pipelineBindingDataMap materialInst_renderShadow) renderPassPipelineDataName
+        descriptorSetPtr = _descriptorSetsPtr pipelineBindingData
         pipelineData = RenderPass._defaultPipelineData renderPassData
         pipelineLayout = RenderPass._pipelineLayout pipelineData
         pipeline = RenderPass._pipeline pipelineData
@@ -744,13 +753,12 @@ renderPostProcess :: RendererData
                   -> GeometryData
                   -> IO ()
 renderPostProcess rendererData@RendererData {..} commandBuffer swapChainIndex quadGeometryData = do
-    materialInst_renderSSAO <- getMaterialInstanceData _resources "render_ssao"
-    materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
-
     -- SSAO
-    beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderSSAO
+    materialInst_renderSSAO <- getMaterialInstanceData _resources "render_ssao"
+    beginRenderPassPipeline rendererData commandBuffer swapChainIndex ("render_ssao", "render_ssao") materialInst_renderSSAO
     drawElements rendererData commandBuffer quadGeometryData
 
     -- Composite GBuffer
-    beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_compositeGBuffer
+    materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
+    beginRenderPassPipeline rendererData commandBuffer swapChainIndex ("composite_gbuffer", "composite_gbuffer") materialInst_compositeGBuffer
     drawElements rendererData commandBuffer quadGeometryData

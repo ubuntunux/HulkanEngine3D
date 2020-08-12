@@ -12,7 +12,7 @@ layout(binding = 2) uniform LightConstants
 };
 
 #if (RenderMode_Common == RenderMode)
-layout(binding = 3) uniform sampler2D textureAlbedo;
+layout(binding = 3) uniform sampler2D textureBase;
 layout(binding = 4) uniform sampler2D textureMaterial;
 layout(binding = 5) uniform sampler2D textureNormal;
 #endif

@@ -14,7 +14,7 @@ layout(location = 3) out vec2 outVelocity;
 
 
 void main() {
-    vec4 baseColor = texture(textureAlbedo, vs_output.texCoord);
+    vec4 baseColor = texture(textureBase, vs_output.texCoord);
     baseColor.xyz = pow(baseColor.xyz, vec3(2.2));
     outAlbedo = baseColor * vs_output.color;
     if(outAlbedo.w < 0.333)

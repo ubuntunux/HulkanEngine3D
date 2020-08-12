@@ -129,7 +129,7 @@ getRenderPassDataCreateInfo rendererData = do
                         (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
                     , DescriptorDataCreateInfo
                         3
-                        "textureAlbedo"
+                        "textureBase"
                         DescriptorResourceType_Texture
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT

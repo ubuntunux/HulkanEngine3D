@@ -30,6 +30,7 @@ executable main
                       HulkanEngine3D.Render.Camera
                       HulkanEngine3D.Render.ImageSampler
                       HulkanEngine3D.Render.Light
+                      HulkanEngine3D.Render.Material
                       HulkanEngine3D.Render.MaterialInstance
                       HulkanEngine3D.Render.Mesh
                       HulkanEngine3D.Render.Model
