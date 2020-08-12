@@ -12,7 +12,6 @@ import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderSSAO as Rend
 import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderShadow as RenderShadow
 import HulkanEngine3D.Vulkan.RenderPass
 
-data RenderPass
 
 getRenderPassDataCreateInfos :: RendererData -> IO [RenderPassDataCreateInfo]
 getRenderPassDataCreateInfos rendererData = do
