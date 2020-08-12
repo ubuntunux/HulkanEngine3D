@@ -111,8 +111,17 @@ generateTextures rendererData = do
     textureCheck <- Renderer.createTexture rendererData "checker" Texture.defaultTextureCreateInfo
         { Texture._textureCreateInfoWidth = 2
         , Texture._textureCreateInfoHeight = 2
+        , Texture._textureCreateFlags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT
         , Texture._textureCreateInfoMinFilter = VK_FILTER_NEAREST
         , Texture._textureCreateInfoMagFilter = VK_FILTER_NEAREST
-        , Texture._textureCreateInfoData = SVector.unsafeCast $ SVector.fromList [white, black, black, white]
+        , Texture._textureCreateInfoData = SVector.unsafeCast $
+            SVector.fromList
+                [ white, black, black, white
+                , white, black, black, white
+                , white, black, black, white
+                , white, black, black, white
+                , white, black, black, white
+                , white, black, black, white
+                ]
         }
     return [ textureRandomNormal, textureCheck ]

@@ -29,8 +29,8 @@ import Graphics.Vulkan.Marshal.Create
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 
-materialDirectory :: FilePath
-materialDirectory = "Resource/Materials"
+shaderCacheDirectory :: FilePath
+shaderCacheDirectory = "Resource/ShaderCaches"
 
 shaderDirectory :: FilePath
 shaderDirectory = "Resource/Shaders"
@@ -41,7 +41,7 @@ spirvFilePathWithDefines shaderFileName shaderDefines =
     let (justFilePath, ext) = splitExtension shaderFileName
         shaderFilePostFix = Text.unpack . Text.replace "=" "" . Text.replace " " "_" . Text.unwords $ shaderDefines
     in
-        materialDirectory </> (if null shaderFilePostFix then justFilePath else justFilePath ++ "_" ++ shaderFilePostFix) ++ ext ++ ".spirv"
+        shaderCacheDirectory </> (if null shaderFilePostFix then justFilePath else justFilePath ++ "_" ++ shaderFilePostFix) ++ ext ++ ".spirv"
 
 
 compileGLSL :: FilePath -> [Text.Text] -> IO (Int, Ptr Word32)
