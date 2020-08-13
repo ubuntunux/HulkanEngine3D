@@ -47,7 +47,7 @@ executable main
                       HulkanEngine3D.Resource.ResourceData
                       HulkanEngine3D.Resource.RenderPassCreateInfo
                       HulkanEngine3D.Resource.RenderPassCreateInfo.CompositeGBuffer
-                      HulkanEngine3D.Resource.RenderPassCreateInfo.RenderDefault
+                      HulkanEngine3D.Resource.RenderPassCreateInfo.RenderObject
                       HulkanEngine3D.Resource.RenderPassCreateInfo.RenderDebug
                       HulkanEngine3D.Resource.RenderPassCreateInfo.RenderFinal
                       HulkanEngine3D.Resource.RenderPassCreateInfo.RenderSSAO

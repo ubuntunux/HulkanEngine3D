@@ -107,11 +107,8 @@ defaultMaterialName = "render_object"
 defaultMaterialInstanceName :: Text.Text
 defaultMaterialInstanceName = "default"
 
-defaultFrameBufferName :: Text.Text
-defaultFrameBufferName = "render_default"
-
 defaultRenderPassName :: Text.Text
-defaultRenderPassName = "render_default"
+defaultRenderPassName = "render_object"
 
 
 type ResourceDataMap a = HashTable.BasicHashTable Text.Text a

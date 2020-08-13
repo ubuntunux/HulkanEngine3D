@@ -20,11 +20,8 @@ import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Utilities.System
 
-renderPassName :: Text.Text
-renderPassName = "composite_gbuffer"
-
-getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
-getFrameBufferDataCreateInfo rendererData = do
+getFrameBufferDataCreateInfo :: RendererData -> Text.Text -> IO FrameBufferDataCreateInfo
+getFrameBufferDataCreateInfo rendererData renderPassName = do
     renderTarget <- getRenderTarget rendererData RenderTarget_SceneColor
     let (width, height, depth) = (_imageWidth renderTarget, _imageHeight renderTarget, _imageDepth renderTarget)
     return defaultFrameBufferDataCreateInfo
@@ -42,7 +39,8 @@ getFrameBufferDataCreateInfo rendererData = do
 
 getRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
 getRenderPassDataCreateInfo rendererData = do
-    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData
+    let renderPassName = "composite_gbuffer"
+    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
     let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
         colorAttachmentDescriptions =
             [ defaultAttachmentDescription

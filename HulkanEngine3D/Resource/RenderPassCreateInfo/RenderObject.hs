@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 
-module HulkanEngine3D.Resource.RenderPassCreateInfo.RenderDefault where
+module HulkanEngine3D.Resource.RenderPassCreateInfo.RenderObject where
 
 import Data.Bits
 import qualified Data.Text as Text
@@ -18,12 +18,8 @@ import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Utilities.System (toText)
 
-
-renderPassName :: Text.Text
-renderPassName = "render_default"
-
-getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
-getFrameBufferDataCreateInfo rendererData = do
+getFrameBufferDataCreateInfo :: RendererData -> Text.Text -> IO FrameBufferDataCreateInfo
+getFrameBufferDataCreateInfo rendererData renderPassName = do
     textureSceneAlbedo <- getRenderTarget rendererData RenderTarget_SceneAlbedo
     textureSceneMaterial <- getRenderTarget rendererData RenderTarget_SceneMaterial
     textureSceneNormal <- getRenderTarget rendererData RenderTarget_SceneNormal
@@ -53,7 +49,8 @@ getFrameBufferDataCreateInfo rendererData = do
 
 getRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
 getRenderPassDataCreateInfo rendererData = do
-    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData
+    let renderPassName = "render_object"
+    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
     let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
         colorAttachmentDescriptions =
             [ defaultAttachmentDescription

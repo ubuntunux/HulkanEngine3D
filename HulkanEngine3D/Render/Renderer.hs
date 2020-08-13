@@ -642,7 +642,7 @@ renderSolid :: RendererData
             -> SceneManager.SceneManagerData
             -> IO ()
 renderSolid rendererData commandBuffer swapChainIndex sceneManagerData = do
-    let renderPassPipelineDataName = ("render_default", "render_solid")
+    let renderPassPipelineDataName = ("render_object", "render_solid")
     (renderPassData, pipelineData) <- getRenderPassPipelineData (_resources rendererData) renderPassPipelineDataName
     staticObjectRenderElements <- SceneManager.getStaticObjectRenderElements sceneManagerData
     forM_ (zip [(0::Int)..] staticObjectRenderElements) $ \(index, renderElement) -> do

@@ -21,11 +21,8 @@ import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Utilities.System
 
-renderPassName :: Text.Text
-renderPassName = "render_debug"
-
-getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
-getFrameBufferDataCreateInfo rendererData = do
+getFrameBufferDataCreateInfo :: RendererData -> Text.Text -> IO FrameBufferDataCreateInfo
+getFrameBufferDataCreateInfo rendererData renderPassName = do
     swapChainData <- readIORef (_swapChainDataRef rendererData)
     let imageSize = _swapChainExtent swapChainData
         width = getField @"width" imageSize
@@ -42,7 +39,8 @@ getFrameBufferDataCreateInfo rendererData = do
 
 getRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
 getRenderPassDataCreateInfo rendererData = do
-    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData
+    let renderPassName = "render_debug"
+    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
     let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
         colorAttachmentDescriptions =
             [ defaultAttachmentDescription
