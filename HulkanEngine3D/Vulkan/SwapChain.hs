@@ -192,7 +192,7 @@ createSwapChainImageViews :: VkDevice -> SwapChainIndexMap VkImage -> VkFormat -
 createSwapChainImageViews device swapChainImages swapChainImageFormat = do
     applyIOSwapChainIndex createImageView' swapChainImages
     where
-        createImageView' swapChainImage = createImageView device swapChainImage swapChainImageFormat VK_IMAGE_ASPECT_COLOR_BIT 1 1
+        createImageView' swapChainImage = createImageView device swapChainImage VK_IMAGE_VIEW_TYPE_2D swapChainImageFormat VK_IMAGE_ASPECT_COLOR_BIT 1 1
 
 destroySwapChainImageViews :: VkDevice -> SwapChainIndexMap VkImageView -> IO (SwapChainIndexMap ())
 destroySwapChainImageViews device imageViews = applyIOSwapChainIndex (destroyImageView device) imageViews

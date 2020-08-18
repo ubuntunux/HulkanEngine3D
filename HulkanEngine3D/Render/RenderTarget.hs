@@ -29,7 +29,6 @@ createRenderTargets rendererData renderTargetDataMap = do
         disableAnisotropy = False
         immutable = True
         mutable = False
-        defaultTextureCreateFlags = VK_ZERO_FLAGS
         emptyData = (Texture._textureCreateInfoData Texture.defaultTextureCreateInfo)
     registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneColor $
         Texture.TextureCreateInfo
@@ -37,7 +36,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowHeight
             1
             VK_FORMAT_R16G16B16A16_SFLOAT
-            defaultTextureCreateFlags
+            VK_IMAGE_VIEW_TYPE_2D
             samples
             VK_FILTER_LINEAR
             VK_FILTER_LINEAR
@@ -52,7 +51,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowHeight
             1
             VK_FORMAT_D32_SFLOAT
-            defaultTextureCreateFlags
+            VK_IMAGE_VIEW_TYPE_2D
             samples
             VK_FILTER_NEAREST
             VK_FILTER_NEAREST
@@ -67,7 +66,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowHeight
             1
             VK_FORMAT_B8G8R8A8_UNORM
-            defaultTextureCreateFlags
+            VK_IMAGE_VIEW_TYPE_2D
             samples
             VK_FILTER_LINEAR
             VK_FILTER_LINEAR
@@ -82,7 +81,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowHeight
             1
             VK_FORMAT_R8G8B8A8_UNORM
-            defaultTextureCreateFlags
+            VK_IMAGE_VIEW_TYPE_2D
             VK_SAMPLE_COUNT_1_BIT
             VK_FILTER_LINEAR
             VK_FILTER_LINEAR
@@ -97,7 +96,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowHeight
             1
             VK_FORMAT_R8G8B8A8_UNORM
-            defaultTextureCreateFlags
+            VK_IMAGE_VIEW_TYPE_2D
             VK_SAMPLE_COUNT_1_BIT
             VK_FILTER_NEAREST
             VK_FILTER_NEAREST
@@ -112,7 +111,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowHeight
             1
             VK_FORMAT_R8G8B8A8_UNORM
-            defaultTextureCreateFlags
+            VK_IMAGE_VIEW_TYPE_2D
             VK_SAMPLE_COUNT_1_BIT
             VK_FILTER_NEAREST
             VK_FILTER_NEAREST
@@ -127,7 +126,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             windowHeight
             1
             VK_FORMAT_R16G16_SFLOAT
-            defaultTextureCreateFlags
+            VK_IMAGE_VIEW_TYPE_2D
             VK_SAMPLE_COUNT_1_BIT
             VK_FILTER_NEAREST
             VK_FILTER_NEAREST
@@ -142,7 +141,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             (div windowHeight 2)
             1
             VK_FORMAT_R16_SFLOAT
-            defaultTextureCreateFlags
+            VK_IMAGE_VIEW_TYPE_2D
             VK_SAMPLE_COUNT_1_BIT
             VK_FILTER_LINEAR
             VK_FILTER_LINEAR
@@ -157,7 +156,7 @@ createRenderTargets rendererData renderTargetDataMap = do
             Constants.shadowMapSize
             1
             VK_FORMAT_D32_SFLOAT
-            defaultTextureCreateFlags
+            VK_IMAGE_VIEW_TYPE_2D
             samples
             VK_FILTER_NEAREST
             VK_FILTER_NEAREST

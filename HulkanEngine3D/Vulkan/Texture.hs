@@ -33,7 +33,7 @@ data TextureCreateInfo = TextureCreateInfo
     , _textureCreateInfoHeight :: Word32
     , _textureCreateInfoDepth :: Word32
     , _textureCreateInfoFormat :: VkFormat
-    , _textureCreateFlags :: VkImageCreateFlags
+    , _textureCreateInfoViewType :: VkImageViewType
     , _textureCreateInfoSamples :: VkSampleCountFlagBits
     , _textureCreateInfoMinFilter :: VkFilter
     , _textureCreateInfoMagFilter :: VkFilter
@@ -76,7 +76,7 @@ defaultTextureCreateInfo = TextureCreateInfo
     , _textureCreateInfoHeight = 1
     , _textureCreateInfoDepth = 1
     , _textureCreateInfoFormat = VK_FORMAT_R8G8B8A8_UNORM
-    , _textureCreateFlags = VK_ZERO_FLAGS
+    , _textureCreateInfoViewType = VK_IMAGE_VIEW_TYPE_2D
     , _textureCreateInfoSamples = VK_SAMPLE_COUNT_1_BIT
     , _textureCreateInfoMinFilter = VK_FILTER_LINEAR
     , _textureCreateInfoMagFilter = VK_FILTER_LINEAR
@@ -311,12 +311,13 @@ destroyImageSampler device sampler = vkDestroySampler device sampler VK_NULL
 
 createImageView :: VkDevice
                 -> VkImage
+                -> VkImageViewType
                 -> VkFormat
                 -> VkImageAspectFlags
                 -> Word32
                 -> Word32
                 -> IO VkImageView
-createImageView device image format aspectFlags layerCount mipLevels = do
+createImageView device image viewType format aspectFlags layerCount mipLevels = do
     let componentMapping = createVk @VkComponentMapping
             $  set @"r" VK_COMPONENT_SWIZZLE_IDENTITY
             &* set @"g" VK_COMPONENT_SWIZZLE_IDENTITY
@@ -333,7 +334,7 @@ createImageView device image format aspectFlags layerCount mipLevels = do
             &* set @"pNext" VK_NULL_HANDLE
             &* set @"flags" VK_ZERO_FLAGS
             &* set @"image" image
-            &* set @"viewType" VK_IMAGE_VIEW_TYPE_2D
+            &* set @"viewType" viewType --VK_IMAGE_VIEW_TYPE_2D
             &* set @"format" format
             &* set @"components" componentMapping
             &* set @"subresourceRange" subresourceRange
@@ -497,7 +498,8 @@ createRenderTarget :: Text.Text
                    -> IO TextureData
 createRenderTarget textureDataName physicalDevice device commandBufferPool queue textureCreateInfo@TextureCreateInfo {..} = do
     let enableAnisotropy = if _textureCreateInfoEnableAnisotropy then VK_TRUE else VK_FALSE
-        layerCount = if VK_ZERO_FLAGS /= (VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT .&. _textureCreateFlags) then 6 else 1
+        textureCreateFlags = if (VK_IMAGE_VIEW_TYPE_CUBE == _textureCreateInfoViewType) then VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT else VK_ZERO_FLAGS
+        layerCount = if (VK_IMAGE_VIEW_TYPE_CUBE == _textureCreateInfoViewType) then 6 else 1
         mipLevels = case _textureCreateInfoEnableMipmap of
             True -> calcMipLevels _textureCreateInfoWidth _textureCreateInfoHeight _textureCreateInfoDepth
             False -> 1
@@ -529,13 +531,13 @@ createRenderTarget textureDataName physicalDevice device commandBufferPool queue
         imageFormat
         VK_IMAGE_TILING_OPTIMAL
         imageUsage
-        _textureCreateFlags
+        textureCreateFlags
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 
     runCommandsOnce device commandBufferPool queue $ \commandBuffer ->
         transitionImageLayout image imageFormat imageLayoutTransition layerCount mipLevels commandBuffer
 
-    imageView <- createImageView device image imageFormat imageAspect layerCount mipLevels
+    imageView <- createImageView device image _textureCreateInfoViewType imageFormat imageAspect layerCount mipLevels
     imageSampler <- createImageSampler device mipLevels _textureCreateInfoMinFilter _textureCreateInfoMagFilter _textureCreateInfoWrapMode enableAnisotropy
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_GENERAL imageView imageSampler
         textureData = TextureData
@@ -572,7 +574,8 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
     let (imageDataForeignPtr, imageDataLen) = SVector.unsafeToForeignPtr0 _textureCreateInfoData
         bufferSize = (fromIntegral imageDataLen)::VkDeviceSize
         enableAnisotropy = if _textureCreateInfoEnableAnisotropy then VK_TRUE else VK_FALSE
-        layerCount = if VK_ZERO_FLAGS /= (VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT .&. _textureCreateFlags) then 6 else 1
+        textureCreateFlags = if (VK_IMAGE_VIEW_TYPE_CUBE == _textureCreateInfoViewType) then VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT else VK_ZERO_FLAGS
+        layerCount = if (VK_IMAGE_VIEW_TYPE_CUBE == _textureCreateInfoViewType) then 6 else 1
         mipLevels = case _textureCreateInfoEnableMipmap of
             True -> calcMipLevels _textureCreateInfoWidth _textureCreateInfoHeight _textureCreateInfoDepth
             False -> 1
@@ -589,7 +592,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
         _textureCreateInfoFormat
         VK_IMAGE_TILING_OPTIMAL
         (VK_IMAGE_USAGE_TRANSFER_SRC_BIT .|. VK_IMAGE_USAGE_TRANSFER_DST_BIT .|. VK_IMAGE_USAGE_SAMPLED_BIT)
-        _textureCreateFlags
+        textureCreateFlags
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     -- run command
     runCommandsOnce device commandBufferPool commandQueue $ \commandBuffer ->
@@ -623,7 +626,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
             commandBuffer
     destroyBuffer device stagingBuffer stagingBufferMemory
 
-    imageView <- createImageView device image _textureCreateInfoFormat VK_IMAGE_ASPECT_COLOR_BIT layerCount mipLevels
+    imageView <- createImageView device image _textureCreateInfoViewType _textureCreateInfoFormat VK_IMAGE_ASPECT_COLOR_BIT layerCount mipLevels
     imageSampler <- createImageSampler device mipLevels _textureCreateInfoMinFilter _textureCreateInfoMagFilter _textureCreateInfoWrapMode enableAnisotropy
     let descriptorImageInfo = createDescriptorImageInfo VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL imageView imageSampler
         textureData@TextureData {..} = TextureData
