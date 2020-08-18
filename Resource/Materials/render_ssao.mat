@@ -1,1 +1,1 @@
-[{"render_pass_name": "render_ssao", "pipeline_name": "render_ssao"}]
+{"pipelines": [{"render_pass_name": "render_ssao", "pipeline_name": "render_ssao"}]}

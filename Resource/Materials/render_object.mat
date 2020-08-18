@@ -1,3 +1,8 @@
-[ {"render_pass_name": "render_object", "pipeline_name": "render_solid"}
-, {"render_pass_name": "render_shadow", "pipeline_name": "render_shadow"}
-]
+{ "pipelines": [ {"render_pass_name": "render_object", "pipeline_name": "render_solid"}
+               , {"render_pass_name": "render_shadow", "pipeline_name": "render_shadow"}
+               ]
+, "material_parameters": { "textureBase": "common/default"
+                         , "textureMaterial": "common/default_m"
+                         , "textureNormal": "common/default_n" }
+}
+

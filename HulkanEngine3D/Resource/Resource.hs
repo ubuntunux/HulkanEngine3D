@@ -498,12 +498,14 @@ instance ResourceInterface Resources where
             registMaterialData rendererData (_materialDataMap resources) materialName contents
         where
             registMaterialData rendererData materialDataMap materialName contents = do
-                let Just (Aeson.Array materialCreateInfoArray) = Aeson.decodeStrict contents
-                renderPassPipelineDataList <- forM materialCreateInfoArray $ \(Aeson.Object materialCreateInfo) -> do
-                    let Just (Aeson.String renderPassDataName) = HashMap.lookup "render_pass_name" materialCreateInfo
-                        Just (Aeson.String pipelineDataName) = HashMap.lookup "pipeline_name" materialCreateInfo
+                let Just (Aeson.Object materialCreateInfo) = Aeson.decodeStrict contents
+                    Just (Aeson.Array pipelineCreateInfoArray) = HashMap.lookup "pipelines" materialCreateInfo
+                    Aeson.Object materialParameterMap = HashMap.lookupDefault (Aeson.Object HashMap.empty) "material_parameters" materialCreateInfo
+                renderPassPipelineDataList <- forM pipelineCreateInfoArray $ \(Aeson.Object pipelineCreateInfo) -> do
+                    let Just (Aeson.String renderPassDataName) = HashMap.lookup "render_pass_name" pipelineCreateInfo
+                        Just (Aeson.String pipelineDataName) = HashMap.lookup "pipeline_name" pipelineCreateInfo
                     getRenderPassPipelineData resources (renderPassDataName, pipelineDataName)
-                material <- Material.createMaterial materialName (Vector.toList renderPassPipelineDataList)
+                material <- Material.createMaterial materialName (Vector.toList renderPassPipelineDataList) materialParameterMap
                 HashTable.insert (_materialDataMap resources) materialName material
 
     unloadMaterialDatas :: Resources -> RendererData -> IO ()
@@ -529,6 +531,7 @@ instance ResourceInterface Resources where
                     Just (Aeson.Object materialParameterMap) = HashMap.lookup "material_parameters" materialInstanceCreateInfoMap
 
                 materialData <- getMaterialData resources materialDataName
+                let defaultMaterialParameterMap = Material._materialParameterMap materialData
                 pipelineBindingCreateInfoList <- forM (Map.toList $ Material._renderPassPipelineDataMap materialData) $ \(key, (renderPassData, pipelineData)) -> do
                     let descriptorDataCreateInfoList = Descriptor._descriptorDataCreateInfoList $ _descriptorData pipelineData
                     descriptorResourceInfosList <- forM Constants.swapChainImageIndices $ \swapChainIndex -> do
@@ -536,7 +539,7 @@ instance ResourceInterface Resources where
                             let materialParameterName = Descriptor._descriptorName' descriptorDataCreateInfo
                                 materialParameterType = Descriptor._descriptorType' descriptorDataCreateInfo
                                 materialParameterResourceType = Descriptor._descriptorResourceType' descriptorDataCreateInfo
-                                maybeMaterialParameter = HashMap.lookup materialParameterName materialParameterMap
+                                maybeMaterialParameter = lookupWithDefaultMap materialParameterName materialParameterMap defaultMaterialParameterMap
                             case (materialParameterType, materialParameterResourceType) of
                                 (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, Descriptor.DescriptorResourceType_UniformBuffer) -> do
                                     uniformBufferData <- getUniformBufferData rendererData (fromText materialParameterName)

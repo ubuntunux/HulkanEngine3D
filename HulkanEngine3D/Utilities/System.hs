@@ -20,6 +20,7 @@ import Data.Hashable
 import qualified Data.Time.Clock.System as SystemTime
 import qualified Data.Vector.Mutable as MVector
 import qualified Data.HashTable.IO as HashTable
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import Foreign.C.String
 import Foreign.Marshal.Alloc
@@ -191,6 +192,13 @@ clearHashTable hashTable action = do
     HashTable.mapM_ action hashTable
     resourcesList <- HashTable.toList hashTable
     mapM_ (\(k, v) -> HashTable.delete hashTable k) resourcesList
+
+lookupWithDefaultMap :: (Eq k, Hashable k) => k -> HashMap.HashMap k v -> HashMap.HashMap k v -> Maybe v
+lookupWithDefaultMap key map defaultMap =
+    let maybeValue = HashMap.lookup key map
+    in case maybeValue of
+        Nothing -> HashMap.lookup key defaultMap
+        otherwise -> maybeValue
 
 toText :: (Show a) => a -> Text.Text
 toText = Text.pack . show
