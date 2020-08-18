@@ -502,8 +502,8 @@ instance ResourceInterface Resources where
                     Just (Aeson.Array pipelineCreateInfoArray) = HashMap.lookup "pipelines" materialCreateInfo
                     Aeson.Object materialParameterMap = HashMap.lookupDefault (Aeson.Object HashMap.empty) "material_parameters" materialCreateInfo
                 renderPassPipelineDataList <- forM pipelineCreateInfoArray $ \(Aeson.Object pipelineCreateInfo) -> do
-                    let Just (Aeson.String renderPassDataName) = HashMap.lookup "render_pass_name" pipelineCreateInfo
-                        Just (Aeson.String pipelineDataName) = HashMap.lookup "pipeline_name" pipelineCreateInfo
+                    let Just (Aeson.String renderPassDataName) = HashMap.lookup "renderPass" pipelineCreateInfo
+                        Just (Aeson.String pipelineDataName) = HashMap.lookup "pipleline" pipelineCreateInfo
                     getRenderPassPipelineData resources (renderPassDataName, pipelineDataName)
                 material <- Material.createMaterial materialName (Vector.toList renderPassPipelineDataList) materialParameterMap
                 HashTable.insert (_materialDataMap resources) materialName material

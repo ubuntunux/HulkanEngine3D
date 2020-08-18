@@ -1,1 +1,1 @@
-{"pipelines": [{ "render_pass_name": "composite_gbuffer", "pipeline_name": "composite_gbuffer" }]}
+{"pipelines": [{ "renderPass": "composite_gbuffer", "pipleline": "composite_gbuffer" }]}
