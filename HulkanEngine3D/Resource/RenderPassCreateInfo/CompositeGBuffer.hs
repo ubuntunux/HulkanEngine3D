@@ -132,6 +132,12 @@ getRenderPassDataCreateInfo rendererData = do
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
+                    , DescriptorDataCreateInfo
+                        9
+                        "textureProbe"
+                        DescriptorResourceType_Texture
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                        VK_SHADER_STAGE_FRAGMENT_BIT
                     ]
                 }
             ]

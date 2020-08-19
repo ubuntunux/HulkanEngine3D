@@ -1,1 +1,4 @@
-{"pipelines": [{ "renderPass": "composite_gbuffer", "pipleline": "composite_gbuffer" }]}
+{ "pipelines": [{ "renderPass": "composite_gbuffer", "pipleline": "composite_gbuffer" }]
+, "material_parameters": { "textureProbe": "color_cube" }
+}
+

@@ -100,6 +100,10 @@ generateTextures rendererData = do
         ssao_noise_dim = PostProcess._ssao_noise_dim postprocess_ssao
         white = Vulkan.getColor32 255 255 255 255
         black = Vulkan.getColor32 0 0 0 255
+        red = Vulkan.getColor32 255 0 0 255
+        green = Vulkan.getColor32 0 255 0 255
+        blue = Vulkan.getColor32 0 0 255 255
+        yellow = Vulkan.getColor32 255 255 0 255
 
     randomNormals <- SVector.fromList <$> (generateRandomNormals ssao_noise_dim ssao_noise_dim)
     textureRandomNormal <- Renderer.createTexture rendererData "random_normal" Texture.defaultTextureCreateInfo
@@ -111,17 +115,17 @@ generateTextures rendererData = do
     textureCheck <- Renderer.createTexture rendererData "checker" Texture.defaultTextureCreateInfo
         { Texture._textureCreateInfoWidth = 2
         , Texture._textureCreateInfoHeight = 2
-        , Texture._textureCreateInfoViewType = VK_IMAGE_VIEW_TYPE_CUBE
+        , Texture._textureCreateInfoViewType = VK_IMAGE_VIEW_TYPE_2D
         , Texture._textureCreateInfoMinFilter = VK_FILTER_NEAREST
         , Texture._textureCreateInfoMagFilter = VK_FILTER_NEAREST
         , Texture._textureCreateInfoData = SVector.unsafeCast $
-            SVector.fromList
-                [ white, black, black, white
-                , white, black, black, white
-                , white, black, black, white
-                , white, black, black, white
-                , white, black, black, white
-                , white, black, black, white
-                ]
+            SVector.fromList [ white, black, black, white ]
         }
-    return [ textureRandomNormal, textureCheck ]
+    textureColorCube <- Renderer.createTexture rendererData "color_cube" Texture.defaultTextureCreateInfo
+            { Texture._textureCreateInfoWidth = 1
+            , Texture._textureCreateInfoHeight = 1
+            , Texture._textureCreateInfoViewType = VK_IMAGE_VIEW_TYPE_CUBE
+            , Texture._textureCreateInfoData = SVector.unsafeCast $
+                SVector.fromList [ white, black, red, green, blue, yellow ]
+            }
+    return [ textureRandomNormal, textureCheck, textureColorCube ]

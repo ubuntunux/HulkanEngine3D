@@ -215,7 +215,7 @@ vec4 surface_shading(
     const in float reflectance,
     const in float ssao_factor,
     const in vec4 scene_reflect_color,
-    //const in samplerCube texture_probe,
+    const in samplerCube texture_probe,
     const in sampler2D texture_shadow,
     const in vec2 texCoord,
     const in vec3 world_position,
@@ -262,28 +262,26 @@ vec4 surface_shading(
     light_color = light_color * scene_sun_irradiance * shadow_factor;
 
     // Image based lighting
-//    {
-//        const vec2 env_size = textureSize(texture_probe, 0);x
-//        const float max_env_mipmap = 8.0; // log2(max(env_size.x, env_size.y));
-//        vec2 envBRDF = clamp(env_BRDF_pproximate(NdV, roughness), 0.0, 1.0);
-//        vec3 shValue = fresnel * envBRDF.x + envBRDF.y;
-//
-//        vec3 ibl_diffuse_light = textureLod(texture_probe, invert_y(N), max_env_mipmap).xyz;
-//        vec3 ibl_specular_light = textureLod(texture_probe, invert_y(R), max_env_mipmap * roughness).xyz;
-//
-//        ambient_light = normalize(mix(ibl_diffuse_light, scene_sky_irradiance, 0.5)) * length(scene_sky_irradiance);
-//        shadow_factor = max(shadow_factor, ambient_light);
-//
-//        diffuse_light += ibl_diffuse_light * shadow_factor;
-//        specular_light += ibl_specular_light * shValue * shadow_factor;
-//
-//         // mix scene reflection
-//        //if(RENDER_SSR)
-//        {
-//            // NoShadow
-//            specular_light.xyz = mix(specular_light.xyz, scene_reflect_color.xyz * shValue * shadow_factor, scene_reflect_color.w);
-//        }
-//    }
+    {
+        const vec2 env_size = textureSize(texture_probe, 0);
+        const float max_env_mipmap = 8.0; // log2(max(env_size.x, env_size.y));
+        vec2 envBRDF = clamp(env_BRDF_pproximate(NdV, roughness), 0.0, 1.0);
+        vec3 shValue = fresnel * envBRDF.x + envBRDF.y;
+
+        vec3 ibl_diffuse_light = textureLod(texture_probe, N, max_env_mipmap).xyz;
+        vec3 ibl_specular_light = textureLod(texture_probe, R, max_env_mipmap * roughness).xyz;
+
+        ambient_light = normalize(mix(ibl_diffuse_light, scene_sky_irradiance, 0.5)) * length(scene_sky_irradiance);
+        shadow_factor = max(shadow_factor, ambient_light);
+
+        diffuse_light += ibl_diffuse_light * shadow_factor;
+        specular_light += ibl_specular_light * shValue * shadow_factor;
+
+        // if(RENDER_SSR)
+        {
+            specular_light.xyz = mix(specular_light.xyz, scene_reflect_color.xyz * shValue * shadow_factor, scene_reflect_color.w);
+        }
+    }
 
 #if TRANSPARENT_MATERIAL == 1
     float reflectivity = max(max(fresnel.r, fresnel.g), fresnel.b);
