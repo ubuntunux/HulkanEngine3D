@@ -569,12 +569,13 @@ createRenderTarget textureDataName physicalDevice device commandBufferPool queue
             , _imageMipLevels = mipLevels
             , _descriptorImageInfo = descriptorImageInfo
             }
-    logInfo "createRenderTarget"
-    logInfo $ "    Name : " ++ Text.unpack textureDataName
-    logInfo $ "    Type : " ++ show _textureCreateInfoViewType
-    logInfo $ "    Format : " ++ show imageFormat
-    logInfo $ "    MultiSampleCount : " ++ show _textureCreateInfoSamples
-    logInfo $ "    Size : " ++ show (_textureCreateInfoWidth, _textureCreateInfoHeight, _textureCreateInfoDepth)
+    logInfo $ "createRenderTarget : "
+        ++ Text.unpack textureDataName
+        ++ " " ++ show _textureCreateInfoViewType
+        ++ " " ++ show _textureCreateInfoFormat
+        ++ " "  ++ show _textureCreateInfoWidth
+        ++ ", " ++ show _textureCreateInfoHeight
+        ++ ", " ++ show _textureCreateInfoDepth
     logInfo $ "    TextureData : image " ++ show image ++ ", imageView " ++ show imageView ++ ", imageMemory " ++ show imageMemory ++ ", sampler " ++ show imageSampler
     return textureData
 
@@ -663,11 +664,13 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
             , _descriptorImageInfo = descriptorImageInfo
             }
 
-    logInfo "createTextureData"
-    logInfo $ "    Name : " ++ Text.unpack textureDataName
-    logInfo $ "    Type : " ++ show _textureCreateInfoViewType
-    logInfo $ "    Format : " ++ show _textureCreateInfoFormat
-    logInfo $ "    Size : " ++ show _textureCreateInfoWidth ++ ", " ++ show _textureCreateInfoHeight ++ ", " ++ show _textureCreateInfoDepth
+    logInfo $ "createTextureData : "
+        ++ Text.unpack textureDataName
+        ++ " " ++ show _textureCreateInfoViewType
+        ++ " " ++ show _textureCreateInfoFormat
+        ++ " "  ++ show _textureCreateInfoWidth
+        ++ ", " ++ show _textureCreateInfoHeight
+        ++ ", " ++ show _textureCreateInfoDepth
     logInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
 
     return textureData
