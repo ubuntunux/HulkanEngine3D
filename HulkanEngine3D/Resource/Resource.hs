@@ -8,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE PolyKinds              #-}
 {-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE TupleSections          #-}
 
 module HulkanEngine3D.Resource.Resource
     ( Resources (..)
@@ -85,6 +86,9 @@ useJsonForMesh = False
 
 modelFilePath :: FilePath
 modelFilePath = "Resource/Models"
+
+cubeTextureFaces :: [Text.Text]
+cubeTextureFaces = ["front", "back", "left", "right", "top", "bottom"]
 
 textureSourceFilePath :: FilePath
 textureSourceFilePath = "Resource/Externals/Textures"
@@ -396,35 +400,54 @@ instance ResourceInterface Resources where
         forM_ textureDatas $ \textureData -> do
             HashTable.insert (_textureDataMap resources) (_textureDataName textureData) textureData
 
+        -- generate necessary texture datas
         generateImages rendererData textureSourceFilePath
 
-        textureFiles <- walkDirectory textureSourceFilePath [".jpg", ".png"]
+        -- load texture from files
+        textureFiles <- walkDirectory textureSourceFilePath [".jpg", ".png", ".tga", ".bmp"]
         forM_ textureFiles $ \textureFile -> do
-            textureDataName <- getUniqueResourceName (_textureDataMap resources) textureSourceFilePath textureFile
-            imageRawData <- Image.readImage textureFile
-            ((imageWidth, imageHeight, imageData), imageFormat) <- case imageRawData of
-                Left err -> throwVKMsg err
-                Right dynamicImage ->
-                    pure $ case dynamicImage of
-                        Image.ImageRGBA8 image -> (image8ToTuple image, VK_FORMAT_R8G8B8A8_UNORM)
-                        Image.ImageRGBF image -> (imageFloatToTuple image, VK_FORMAT_R32G32B32_SFLOAT)
-                        Image.ImageRGBA16 image -> (image16ToTuple image, VK_FORMAT_R16G16B16A16_UNORM)
-                        otherwise -> (image8ToTuple (Image.convertRGBA8 dynamicImage), VK_FORMAT_R8G8B8A8_UNORM)
-                        where
-                            image8ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
-                                let imageData8 = imageData::SVector.Vector Word8 in (imageWidth, imageHeight, imageData8)
-                            image16ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
-                                let imageData16 = imageData::SVector.Vector Word16 in (imageWidth, imageHeight, SVector.unsafeCast imageData16)
-                            imageFloatToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
-                                let imageDataFloat = imageData::SVector.Vector Float in (imageWidth, imageHeight, SVector.unsafeCast imageDataFloat)
-            let textureCreateInfo = defaultTextureCreateInfo
-                    { _textureCreateInfoWidth = fromIntegral imageWidth
-                    , _textureCreateInfoHeight = fromIntegral imageHeight
-                    , _textureCreateInfoData = imageData
-                    , _textureCreateInfoFormat = imageFormat
-                    }
-            textureData <- createTexture rendererData textureDataName textureCreateInfo
-            HashTable.insert (_textureDataMap resources) textureDataName textureData
+            let (textureDataName, cubeTextureFiles) = getTextureDataName textureFiles textureFile
+                isCubeTexture = not $ null cubeTextureFiles
+            existingResourceData <- HashTable.lookup (_textureDataMap resources) textureDataName
+            when (Nothing == existingResourceData) $ do
+                imageRawData <- Image.readImage textureFile
+                ((imageWidth, imageHeight, imageData), imageFormat) <- case imageRawData of
+                    Left err -> throwVKMsg err
+                    Right dynamicImage ->
+                        pure $ case dynamicImage of
+                            Image.ImageRGBA8 image -> (image8ToTuple image, VK_FORMAT_R8G8B8A8_UNORM)
+                            Image.ImageRGBF image -> (imageFloatToTuple image, VK_FORMAT_R32G32B32_SFLOAT)
+                            Image.ImageRGBA16 image -> (image16ToTuple image, VK_FORMAT_R16G16B16A16_UNORM)
+                            otherwise -> (image8ToTuple (Image.convertRGBA8 dynamicImage), VK_FORMAT_R8G8B8A8_UNORM)
+                            where
+                                image8ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
+                                    let imageData8 = imageData::SVector.Vector Word8 in (imageWidth, imageHeight, imageData8)
+                                image16ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
+                                    let imageData16 = imageData::SVector.Vector Word16 in (imageWidth, imageHeight, SVector.unsafeCast imageData16)
+                                imageFloatToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
+                                    let imageDataFloat = imageData::SVector.Vector Float in (imageWidth, imageHeight, SVector.unsafeCast imageDataFloat)
+                let textureCreateInfo = defaultTextureCreateInfo
+                        { _textureCreateInfoWidth = fromIntegral imageWidth
+                        , _textureCreateInfoHeight = fromIntegral imageHeight
+                        , _textureCreateInfoData = imageData
+                        , _textureCreateInfoFormat = imageFormat
+                        , _textureCreateInfoViewType = if isCubeTexture then VK_IMAGE_VIEW_TYPE_CUBE else VK_IMAGE_VIEW_TYPE_2D
+                        }
+                textureData <- createTexture rendererData textureDataName textureCreateInfo
+                HashTable.insert (_textureDataMap resources) textureDataName textureData
+        where
+            getTextureDataName :: [FilePath] -> FilePath -> (Text.Text, [String])
+            getTextureDataName textureFiles textureFile =
+                let textureDataName = getResourceNameFromFilePath textureSourceFilePath textureFile
+                    (textureFileName, _) = Text.breakOnEnd "_" (Text.pack textureFile)
+                    fileExt = Text.pack $ takeExtension textureFile
+                    cubeFaceFiles = [Text.unpack $ Text.concat [textureFileName, face, fileExt] | face <- cubeTextureFaces]
+                    isCubeTexture = ("" /= textureFileName) && (all id [elem filePath textureFiles | filePath <- cubeFaceFiles])
+                    cubeTextureFileName = Text.dropWhileEnd (== '_') textureFileName
+                in if isCubeTexture then
+                        (getResourceNameFromFilePath textureSourceFilePath $ Text.unpack cubeTextureFileName, cubeFaceFiles)
+                    else
+                        (textureDataName, [])
 
     unloadTextureDatas :: Resources -> RendererData -> IO ()
     unloadTextureDatas resources rendererData =
