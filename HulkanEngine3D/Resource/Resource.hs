@@ -88,7 +88,7 @@ modelFilePath :: FilePath
 modelFilePath = "Resource/Models"
 
 cubeTextureFaces :: [Text.Text]
-cubeTextureFaces = ["front", "back", "left", "right", "top", "bottom"]
+cubeTextureFaces = ["right", "left", "top", "bottom", "front", "back"]
 
 textureSourceFilePath :: FilePath
 textureSourceFilePath = "Resource/Externals/Textures"
