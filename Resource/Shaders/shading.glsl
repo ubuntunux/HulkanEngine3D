@@ -33,7 +33,7 @@ float get_shadow_factor_func(
         vec2(shadow_texel_size.x, shadow_texel_size.y),
     };
 
-    const float shadow_bias = light_constants.SHADOW_BIAS * tan(acos(saturate(NdotL)));
+    const float shadow_bias = light_constants.SHADOW_BIAS * tan(1.0 - acos(saturate(NdotL)));
 
     float total_shadow_factor = 0.0;
     for(int sample_index = 0; sample_index < samnple_count; ++sample_index)
@@ -249,7 +249,9 @@ vec4 surface_shading(
     vec3 ambient_light = vec3(0.0, 0.0, 0.0);
     vec3 diffuse_light = vec3(0.0, 0.0, 0.0);
     vec3 specular_light = vec3(0.0, 0.0, 0.0);
-    vec3 shadow_factor = vec3(0.1 + get_shadow_factor(light_constants, world_position, NdL, texture_shadow));
+    vec3 shadow_factor = vec3(get_shadow_factor(light_constants, world_position, NdL, texture_shadow));
+
+    return vec4(shadow_factor, 1.0);
 
     // Atmosphere
     vec3 scene_in_scatter = vec3(0.0);

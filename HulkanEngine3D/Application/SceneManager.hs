@@ -97,7 +97,7 @@ instance SceneManagerInterface SceneManagerData where
         addStaticObject sceneManagerData "object1" $ RenderObject.defaultStaticObjectCreateData
                     { RenderObject._modelData' = modelData1
                     , RenderObject._position' = vec3 0 1.5 0
-                    , RenderObject._scale' = vec3 0.5 0.5 0.5
+                    , RenderObject._scale' = vec3 1.0 1.0 1.0
                     }
         return ()
 
