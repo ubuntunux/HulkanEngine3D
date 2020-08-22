@@ -88,7 +88,7 @@ instance SceneManagerInterface SceneManagerData where
         writeIORef _mainLight mainLight
 
         modelData0 <- Resource.getModelData _resources "sponza/sponza"
-        modelData1 <- Resource.getModelData _resources "cube"
+        modelData1 <- Resource.getModelData _resources "sphere"
         addStaticObject sceneManagerData "object0" $ RenderObject.defaultStaticObjectCreateData
                     { RenderObject._modelData' = modelData0
                     , RenderObject._position' = vec3 0 0 0
@@ -96,8 +96,8 @@ instance SceneManagerInterface SceneManagerData where
                     }
         addStaticObject sceneManagerData "object1" $ RenderObject.defaultStaticObjectCreateData
                     { RenderObject._modelData' = modelData1
-                    , RenderObject._position' = vec3 0 0 0
-                    , RenderObject._scale' = vec3 1 1 1
+                    , RenderObject._position' = vec3 0 1.5 0
+                    , RenderObject._scale' = vec3 0.5 0.5 0.5
                     }
         return ()
 

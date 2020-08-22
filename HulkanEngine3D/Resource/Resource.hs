@@ -410,22 +410,11 @@ instance ResourceInterface Resources where
                 isCubeTexture = not $ null cubeTextureFiles
             existingResourceData <- HashTable.lookup (_textureDataMap resources) textureDataName
             when (Nothing == existingResourceData) $ do
-                imageRawData <- Image.readImage textureFile
-                ((imageWidth, imageHeight, imageData), imageFormat) <- case imageRawData of
-                    Left err -> throwVKMsg err
-                    Right dynamicImage ->
-                        pure $ case dynamicImage of
-                            Image.ImageRGBA8 image -> (image8ToTuple image, VK_FORMAT_R8G8B8A8_UNORM)
-                            Image.ImageRGBF image -> (imageFloatToTuple image, VK_FORMAT_R32G32B32_SFLOAT)
-                            Image.ImageRGBA16 image -> (image16ToTuple image, VK_FORMAT_R16G16B16A16_UNORM)
-                            otherwise -> (image8ToTuple (Image.convertRGBA8 dynamicImage), VK_FORMAT_R8G8B8A8_UNORM)
-                            where
-                                image8ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
-                                    let imageData8 = imageData::SVector.Vector Word8 in (imageWidth, imageHeight, imageData8)
-                                image16ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
-                                    let imageData16 = imageData::SVector.Vector Word16 in (imageWidth, imageHeight, SVector.unsafeCast imageData16)
-                                imageFloatToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
-                                    let imageDataFloat = imageData::SVector.Vector Float in (imageWidth, imageHeight, SVector.unsafeCast imageDataFloat)
+                ((imageWidth, imageHeight, imageData), imageFormat) <-
+                    if isCubeTexture then
+                        loadImageDatas cubeTextureFiles
+                    else
+                        loadImageData textureFile
                 let textureCreateInfo = defaultTextureCreateInfo
                         { _textureCreateInfoWidth = fromIntegral imageWidth
                         , _textureCreateInfoHeight = fromIntegral imageHeight
@@ -448,6 +437,29 @@ instance ResourceInterface Resources where
                         (getResourceNameFromFilePath textureSourceFilePath $ Text.unpack cubeTextureFileName, cubeFaceFiles)
                     else
                         (textureDataName, [])
+            loadImageData :: FilePath -> IO ((Int, Int, SVector.Vector Word8), VkFormat)
+            loadImageData textureFile = do
+                imageRawData <- Image.readImage textureFile
+                case imageRawData of
+                    Left err -> throwVKMsg err
+                    Right dynamicImage ->
+                        pure $ case dynamicImage of
+                            Image.ImageRGBA8 image -> (image8ToTuple image, VK_FORMAT_R8G8B8A8_UNORM)
+                            Image.ImageRGBF image -> (imageFloatToTuple image, VK_FORMAT_R32G32B32_SFLOAT)
+                            Image.ImageRGBA16 image -> (image16ToTuple image, VK_FORMAT_R16G16B16A16_UNORM)
+                            otherwise -> (image8ToTuple (Image.convertRGBA8 dynamicImage), VK_FORMAT_R8G8B8A8_UNORM)
+                            where
+                                image8ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
+                                    let imageData8 = imageData::SVector.Vector Word8 in (imageWidth, imageHeight, imageData8)
+                                image16ToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
+                                    let imageData16 = imageData::SVector.Vector Word16 in (imageWidth, imageHeight, SVector.unsafeCast imageData16)
+                                imageFloatToTuple (Image.Image {imageWidth, imageHeight, imageData}) =
+                                    let imageDataFloat = imageData::SVector.Vector Float in (imageWidth, imageHeight, SVector.unsafeCast imageDataFloat)
+            loadImageDatas :: [FilePath] -> IO ((Int, Int, SVector.Vector Word8), VkFormat)
+            loadImageDatas textureFiles = do
+                imageDatas <- mapM loadImageData textureFiles
+                return $ flip foldl1 imageDatas (\((width, height, accImageData), format) ((_, _, imageData), _) ->
+                    ((width, height, accImageData SVector.++ imageData), format))
 
     unloadTextureDatas :: Resources -> RendererData -> IO ()
     unloadTextureDatas resources rendererData =
