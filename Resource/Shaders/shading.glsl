@@ -251,8 +251,6 @@ vec4 surface_shading(
     vec3 specular_light = vec3(0.0, 0.0, 0.0);
     vec3 shadow_factor = vec3(get_shadow_factor(light_constants, world_position, NdL, texture_shadow));
 
-    return vec4(shadow_factor, 1.0);
-
     // Atmosphere
     vec3 scene_in_scatter = vec3(0.0);
     vec3 scene_sun_irradiance = vec3(1.0);
@@ -261,8 +259,6 @@ vec4 surface_shading(
     float scene_linear_depth = device_depth_to_linear_depth(view_constants.NEAR_FAR.x, view_constants.NEAR_FAR.y, depth);
     //GetSceneRadiance(ATMOSPHERE, scene_linear_depth, -V, N, scene_sun_irradiance, scene_sky_irradiance, scene_in_scatter);
 
-    light_color = light_color * scene_sun_irradiance * shadow_factor;
-
     // Image based lighting
     {
         const vec2 env_size = textureSize(texture_probe, 0);
@@ -270,11 +266,12 @@ vec4 surface_shading(
         vec2 envBRDF = clamp(env_BRDF_pproximate(NdV, roughness), 0.0, 1.0);
         vec3 shValue = fresnel * envBRDF.x + envBRDF.y;
 
-        vec3 ibl_diffuse_light = textureLod(texture_probe, N, max_env_mipmap).xyz;
-        vec3 ibl_specular_light = textureLod(texture_probe, R, max_env_mipmap * roughness).xyz;
+        vec3 ibl_diffuse_light = pow(textureLod(texture_probe, N, max_env_mipmap).xyz, vec3(2.2));
+        vec3 ibl_specular_light = pow(textureLod(texture_probe, R, max_env_mipmap * roughness).xyz, vec3(2.2));
 
         ambient_light = normalize(mix(ibl_diffuse_light, scene_sky_irradiance, 0.5)) * length(scene_sky_irradiance);
-        shadow_factor = max(shadow_factor, ambient_light);
+        shadow_factor = max(shadow_factor, vec3(0.1));
+        light_color = light_color * scene_sun_irradiance * shadow_factor;
 
         diffuse_light += ibl_diffuse_light * shadow_factor;
         specular_light += ibl_specular_light * shValue * shadow_factor;
