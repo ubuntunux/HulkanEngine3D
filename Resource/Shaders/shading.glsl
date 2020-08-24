@@ -200,6 +200,7 @@ vec4 surface_shading(
     const in float ssao_factor,
     const in vec4 scene_reflect_color,
     const in samplerCube texture_probe,
+    //const in sampler2D ibl_brdf_lut,
     const in sampler2D texture_shadow,
     const in vec2 texCoord,
     const in vec3 world_position,
@@ -245,8 +246,9 @@ vec4 surface_shading(
     {
         const vec2 env_size = textureSize(texture_probe, 0);
         const float max_env_mipmap = min(8.0, log2(max(env_size.x, env_size.y)) - 1.0);
-        const vec2 envBRDF = clamp(env_BRDF_pproximate(NdV, roughness), 0.0, 1.0);
-        //const vec2 envBRDF  = texture(ibl_brdf_lut, vec2(NdV, roughness)).rg;
+        vec2 envBRDF = env_BRDF_pproximate(NdV, roughness);
+        // clamp uv ( half_texel ~ 1.0 - half_texel)
+        //vec2 envBRDF2  = texture(ibl_brdf_lut, clamp(vec2(NdV, 1.0 - roughness), vec2(0.0009765625), vec2(0.9990234375))).xy;
         const vec3 kS = fresnelSchlickRoughness(NdV, F0, roughness);
         const vec3 kD = vec3(1.0) - kS;
         const vec3 shValue = kS * envBRDF.x + envBRDF.y;

@@ -138,6 +138,12 @@ getRenderPassDataCreateInfo rendererData = do
                         DescriptorResourceType_Texture
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT
+--                    , DescriptorDataCreateInfo
+--                        10
+--                        "ibl_brdf_lut"
+--                        DescriptorResourceType_Texture
+--                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+--                        VK_SHADER_STAGE_FRAGMENT_BIT
                     ]
                 }
             ]
