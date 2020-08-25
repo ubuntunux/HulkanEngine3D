@@ -767,3 +767,8 @@ renderPostProcess rendererData@RendererData {..} commandBuffer swapChainIndex qu
     materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
     beginRenderPassPipeline rendererData commandBuffer swapChainIndex ("composite_gbuffer", "composite_gbuffer") materialInst_compositeGBuffer
     drawElements rendererData commandBuffer quadGeometryData
+
+    -- MotionBlur
+    materialInst_motionBlur <- getMaterialInstanceData _resources "render_motion_blur"
+    beginRenderPassPipeline rendererData commandBuffer swapChainIndex ("render_motion_blur", "render_motion_blur") materialInst_motionBlur
+    drawElements rendererData commandBuffer quadGeometryData

@@ -18,12 +18,14 @@ void main() {
     localMatrix[3].xyz -= view_constants.CAMERA_POSITION;
 
     vec3 relative_pos = (localMatrix * vec4(inPosition, 1.0)).xyz;
-    #if (RenderMode_Common == RenderMode)
-    vec4 projection_pos = view_constants.VIEW_ORIGIN_PROJECTION * vec4(relative_pos, 1.0);
-    #elif (RenderMode_Shadow == RenderMode)
-    vec4 projection_pos = light_constants.SHADOW_VIEW_PROJECTION * vec4(relative_pos + view_constants.CAMERA_POSITION, 1.0);
-    #endif
-    gl_Position = projection_pos;
+#if (RenderMode_Common == RenderMode)
+    vec3 relative_pos_prev = relative_pos + view_constants.CAMERA_POSITION - view_constants.CAMERA_POSITION_PREV;
+    vs_output.projection_pos_prev = view_constants.VIEW_ORIGIN_PROJECTION_PREV * vec4(relative_pos_prev, 1.0);
+    vs_output.projection_pos = view_constants.VIEW_ORIGIN_PROJECTION * vec4(relative_pos, 1.0);
+#elif (RenderMode_Shadow == RenderMode)
+    vs_output.projection_pos = light_constants.SHADOW_VIEW_PROJECTION * vec4(relative_pos + view_constants.CAMERA_POSITION, 1.0);
+#endif
+    gl_Position = vs_output.projection_pos;
 
     vs_output.color = inColor;
     vec3 bitangent = cross(inTangent, inNormal);

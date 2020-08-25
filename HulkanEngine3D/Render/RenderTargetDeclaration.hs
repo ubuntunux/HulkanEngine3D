@@ -14,8 +14,10 @@ import qualified Data.HashTable.IO as HashTable
 import qualified HulkanEngine3D.Vulkan.Texture as Texture
 
 data RenderTargetType = RenderTarget_SceneColor
+                      | RenderTarget_SceneColorCopy 
                       | RenderTarget_SceneDepth
                       | RenderTarget_BackBuffer
+                      | RenderTarget_BackBufferCopy
                       | RenderTarget_SceneAlbedo
                       | RenderTarget_SceneNormal
                       | RenderTarget_SceneMaterial

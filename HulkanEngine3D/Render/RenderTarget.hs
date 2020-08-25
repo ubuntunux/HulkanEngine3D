@@ -45,6 +45,21 @@ createRenderTargets rendererData renderTargetDataMap = do
             disableAnisotropy
             mutable
             emptyData
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneColorCopy $
+        Texture.TextureCreateInfo
+            windowWidth
+            windowHeight
+            1
+            VK_FORMAT_R16G16B16A16_SFLOAT
+            VK_IMAGE_VIEW_TYPE_2D
+            samples
+            VK_FILTER_LINEAR
+            VK_FILTER_LINEAR
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+            disableMipmap
+            disableAnisotropy
+            mutable
+            emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_SceneDepth $
         Texture.TextureCreateInfo
             windowWidth
@@ -61,6 +76,21 @@ createRenderTargets rendererData renderTargetDataMap = do
             mutable
             emptyData
     registRenderTarget rendererData renderTargetDataMap RenderTarget_BackBuffer $
+        Texture.TextureCreateInfo
+            windowWidth
+            windowHeight
+            1
+            VK_FORMAT_B8G8R8A8_UNORM
+            VK_IMAGE_VIEW_TYPE_2D
+            samples
+            VK_FILTER_LINEAR
+            VK_FILTER_LINEAR
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+            disableMipmap
+            disableAnisotropy
+            mutable
+            emptyData
+    registRenderTarget rendererData renderTargetDataMap RenderTarget_BackBufferCopy $
         Texture.TextureCreateInfo
             windowWidth
             windowHeight

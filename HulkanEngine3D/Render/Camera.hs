@@ -163,7 +163,8 @@ instance CameraObjectInterface CameraObjectData where
             invViewOriginMatrix = (transpose viewOriginMatrix)
         writeIORef _viewOriginMatrix viewOriginMatrix
         writeIORef _invViewOriginMatrix invViewOriginMatrix
-        writeIORef _viewOriginProjectionMatrixPrev <$> readIORef _viewOriginProjectionMatrix
+        viewOriginProjectionMatrixPrev <- readIORef _viewOriginProjectionMatrix
+        writeIORef _viewOriginProjectionMatrixPrev viewOriginProjectionMatrixPrev
         writeIORef _viewOriginProjectionMatrix (contract viewOriginMatrix projectionMatrix)
         writeIORef _invViewOriginProjectionMatrix (contract invProjectionMatrix invViewOriginMatrix)
 

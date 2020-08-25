@@ -27,4 +27,6 @@ struct VERTEX_OUTPUT
     mat3 tangent_to_world;
     vec4 color;
     vec2 texCoord;
+    vec4 projection_pos;
+    vec4 projection_pos_prev;
 };

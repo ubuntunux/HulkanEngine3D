@@ -149,7 +149,7 @@ instance TransformObjectInterface TransformObjectData where
     getFront transformObjectData = readIORef (_front transformObjectData)
 
     getPosition transformObjectData = readIORef (_position transformObjectData)
-    getPrevPosition transformObjectData = readIORef (_prevPosition transformObjectData)
+    getPrevPosition transformObjectData = readIORef (_prevPositionStore transformObjectData)
     setPosition transformObjectData vector = writeIORef (_position transformObjectData) vector
 
     moveFunc transformObjectData vector moveSpeed = do
@@ -209,9 +209,10 @@ instance TransformObjectInterface TransformObjectData where
         prevRotation <- readIORef _prevRotation
         prevScale <- readIORef _prevScale
 
+        writeIORef _prevPositionStore prevPosition
+
         updatedPosition <- let updated = (forceUpdate || (position /= prevPosition)) in do
             when updated $ do
-                writeIORef _prevPositionStore prevPosition
                 writeIORef _prevPosition position
             return updated
 
