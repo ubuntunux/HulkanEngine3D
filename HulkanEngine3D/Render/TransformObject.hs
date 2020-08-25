@@ -63,6 +63,7 @@ class TransformObjectInterface a where
     getUp :: a -> IO Vec3f
     getFront :: a -> IO Vec3f
     getPosition :: a -> IO Vec3f
+    getPrevPosition :: a -> IO Vec3f
     setPosition :: a -> Vec3f -> IO ()
     moveFunc :: a -> Vec3f -> Float -> IO ()
     moveLeft :: a -> Float -> IO ()
@@ -148,6 +149,7 @@ instance TransformObjectInterface TransformObjectData where
     getFront transformObjectData = readIORef (_front transformObjectData)
 
     getPosition transformObjectData = readIORef (_position transformObjectData)
+    getPrevPosition transformObjectData = readIORef (_prevPosition transformObjectData)
     setPosition transformObjectData vector = writeIORef (_position transformObjectData) vector
 
     moveFunc transformObjectData vector moveSpeed = do

@@ -535,6 +535,7 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
 
             mainCamera <- SceneManager.getMainCamera sceneManagerData
             cameraPosition <- Camera.getCameraPosition mainCamera
+            cameraPositionPrev <- Camera.getCameraPositionPrev mainCamera
             viewMatrix <- Camera.getViewMatrix mainCamera
             invViewMatrix <- Camera.getInvViewMatrix mainCamera
             viewOriginMatrix <- Camera.getViewOriginMatrix mainCamera
@@ -545,6 +546,7 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
             invViewProjectionMatrix <- Camera.getInvViewProjectionMatrix mainCamera
             viewOriginProjectionMatrix <- Camera.getViewOriginProjectionMatrix mainCamera
             invViewOriginProjectionMatrix <- Camera.getInvViewOriginProjectionMatrix mainCamera
+            viewOriginProjectionMatrixPrev <- Camera.getViewOriginProjectionMatrixPrev mainCamera
 
             mainLight <- SceneManager.getMainLight sceneManagerData
             mainLightConstants <- Light.getLightConstants mainLight
@@ -574,13 +576,16 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
                     , _INV_VIEW_PROJECTION = invViewProjectionMatrix
                     , _VIEW_ORIGIN_PROJECTION = viewOriginProjectionMatrix
                     , _INV_VIEW_ORIGIN_PROJECTION = invViewOriginProjectionMatrix
+                    , _VIEW_ORIGIN_PROJECTION_PREV = viewOriginProjectionMatrixPrev
+                    , _CAMERA_POSITION = cameraPosition
+                    , _VIEWCONSTANTS_DUMMY0 = 0.0
+                    , _CAMERA_POSITION_PREV = cameraPositionPrev
+                    , _VIEWCONSTANTS_DUMMY1 = 0.0
                     , _NEAR_FAR = vec2 Constants.near Constants.far
                     , _JITTER_DELTA = vec2 0.0 0.0
                     , _JITTER_OFFSET = vec2 0.0 0.0
-                    , _VIEWCONSTANTS_DUMMY0 = 0.0
-                    , _VIEWCONSTANTS_DUMMY1 = 0.0
-                    , _CAMERA_POSITION = cameraPosition
                     , _VIEWCONSTANTS_DUMMY2 = 0.0
+                    , _VIEWCONSTANTS_DUMMY3 = 0.0
                     }
             uploadUniformBufferData rendererData swapChainIndex UniformBuffer_SceneConstants sceneConstants
             uploadUniformBufferData rendererData swapChainIndex UniformBuffer_ViewConstants viewConstants

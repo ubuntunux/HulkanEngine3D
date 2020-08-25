@@ -57,6 +57,7 @@ data CameraObjectData = CameraObjectData
     , _invViewProjectionMatrix :: IORef Mat44f
     , _viewOriginProjectionMatrix :: IORef Mat44f
     , _invViewOriginProjectionMatrix :: IORef Mat44f
+    , _viewOriginProjectionMatrixPrev :: IORef Mat44f
     , _transformObject :: TransformObjectData
     } deriving (Show)
 
@@ -64,6 +65,7 @@ data CameraObjectData = CameraObjectData
 class CameraObjectInterface a where
     createCameraObjectData :: Text.Text -> CameraCreateData -> IO a
     getCameraPosition :: a -> IO Vec3f
+    getCameraPositionPrev :: a -> IO Vec3f
     getViewMatrix :: a -> IO Mat44f
     getInvViewMatrix :: a -> IO Mat44f
     getViewOriginMatrix :: a -> IO Mat44f
@@ -74,6 +76,7 @@ class CameraObjectInterface a where
     getInvViewProjectionMatrix :: a -> IO Mat44f
     getViewOriginProjectionMatrix :: a -> IO Mat44f
     getInvViewOriginProjectionMatrix :: a -> IO Mat44f
+    getViewOriginProjectionMatrixPrev :: a -> IO Mat44f
     setAspect :: a -> Float -> IO ()
     updateCameraObjectData :: a -> IO ()
     updateProjectionMatrix :: a -> IO ()
@@ -98,6 +101,7 @@ instance CameraObjectInterface CameraObjectData where
         invViewProjectionMatrix <- newIORef matrix4x4_indentity
         viewOriginProjectionMatrix <- newIORef matrix4x4_indentity
         invViewOriginProjectionMatrix <- newIORef matrix4x4_indentity
+        viewOriginProjectionMatrixPrev <- newIORef matrix4x4_indentity
         transformObjectData <- newTransformObjectData
         let cameraObjectData = CameraObjectData
                 { _name = nameRef
@@ -116,6 +120,7 @@ instance CameraObjectInterface CameraObjectData where
                 , _invViewProjectionMatrix = invViewProjectionMatrix
                 , _viewOriginProjectionMatrix = viewOriginProjectionMatrix
                 , _invViewOriginProjectionMatrix = invViewOriginProjectionMatrix
+                , _viewOriginProjectionMatrixPrev = viewOriginProjectionMatrixPrev
                 , _transformObject = transformObjectData
                 }
 
@@ -125,6 +130,7 @@ instance CameraObjectInterface CameraObjectData where
         return cameraObjectData
 
     getCameraPosition cameraObjectData = getPosition $ _transformObject cameraObjectData
+    getCameraPositionPrev cameraObjectData = getPrevPosition $ _transformObject cameraObjectData
     getViewMatrix cameraObjectData = readIORef (_viewMatrix cameraObjectData)
     getInvViewMatrix cameraObjectData = readIORef (_invViewMatrix cameraObjectData)
     getViewOriginMatrix cameraObjectData = readIORef (_viewOriginMatrix cameraObjectData)
@@ -135,6 +141,7 @@ instance CameraObjectInterface CameraObjectData where
     getInvViewProjectionMatrix cameraObjectData = readIORef (_invViewProjectionMatrix cameraObjectData)
     getViewOriginProjectionMatrix cameraObjectData = readIORef (_viewOriginProjectionMatrix cameraObjectData)
     getInvViewOriginProjectionMatrix cameraObjectData = readIORef (_invViewOriginProjectionMatrix cameraObjectData)
+    getViewOriginProjectionMatrixPrev cameraObjectData = readIORef (_viewOriginProjectionMatrixPrev cameraObjectData)
 
     setAspect :: CameraObjectData -> Float -> IO ()
     setAspect cameraObjectData aspect = do
@@ -156,6 +163,7 @@ instance CameraObjectInterface CameraObjectData where
             invViewOriginMatrix = (transpose viewOriginMatrix)
         writeIORef _viewOriginMatrix viewOriginMatrix
         writeIORef _invViewOriginMatrix invViewOriginMatrix
+        writeIORef _viewOriginProjectionMatrixPrev <$> readIORef _viewOriginProjectionMatrix
         writeIORef _viewOriginProjectionMatrix (contract viewOriginMatrix projectionMatrix)
         writeIORef _invViewOriginProjectionMatrix (contract invProjectionMatrix invViewOriginMatrix)
 

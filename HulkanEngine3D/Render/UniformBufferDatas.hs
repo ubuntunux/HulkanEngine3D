@@ -54,13 +54,16 @@ data ViewConstants = ViewConstants
     , _INV_VIEW_PROJECTION :: Mat44f
     , _VIEW_ORIGIN_PROJECTION :: Mat44f
     , _INV_VIEW_ORIGIN_PROJECTION :: Mat44f
+    , _VIEW_ORIGIN_PROJECTION_PREV :: Mat44f
+    , _CAMERA_POSITION :: Vec3f
+    , _VIEWCONSTANTS_DUMMY0 :: Scalar Float
+    , _CAMERA_POSITION_PREV :: Vec3f
+    , _VIEWCONSTANTS_DUMMY1 :: Scalar Float
     , _NEAR_FAR :: Vec2f
     , _JITTER_DELTA :: Vec2f
     , _JITTER_OFFSET :: Vec2f
-    , _VIEWCONSTANTS_DUMMY0 :: Scalar Float
-    , _VIEWCONSTANTS_DUMMY1 :: Scalar Float
-    , _CAMERA_POSITION :: Vec3f
     , _VIEWCONSTANTS_DUMMY2 :: Scalar Float
+    , _VIEWCONSTANTS_DUMMY3 :: Scalar Float
     } deriving (Show, Generic)
 
 -- scene_constants.glsl - struct LIGHT_CONSTANTS
