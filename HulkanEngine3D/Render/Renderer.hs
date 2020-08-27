@@ -649,8 +649,8 @@ renderSolid :: RendererData
 renderSolid rendererData commandBuffer swapChainIndex sceneManagerData = do
     let renderPassPipelineDataName = ("render_object", "render_solid")
     (renderPassData, pipelineData) <- getRenderPassPipelineData (_resources rendererData) renderPassPipelineDataName
-    staticObjectRenderElements <- SceneManager.getStaticObjectRenderElements sceneManagerData
-    forM_ (zip [(0::Int)..] staticObjectRenderElements) $ \(index, renderElement) -> do
+    renderObjectRenderElements <- SceneManager.getRenderObjectRenderElements sceneManagerData
+    forM_ (zip [(0::Int)..] renderObjectRenderElements) $ \(index, renderElement) -> do
         let renderObject = RenderElement._renderObject renderElement
             geometryBufferData = RenderElement._geometryData renderElement
             vertexBufferPtr = _vertexBufferPtr geometryBufferData
@@ -729,8 +729,8 @@ renderShadow rendererData commandBuffer swapChainIndex sceneManagerData = do
     vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
     vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (ptrAtIndex descriptorSetPtr swapChainIndex) 0 VK_NULL
 
-    staticObjectRenderElements <- SceneManager.getStaticObjectRenderElements sceneManagerData
-    forM_ (zip [(0::Int)..] staticObjectRenderElements) $ \(index, renderElement) -> do
+    renderObjectRenderElements <- SceneManager.getRenderObjectRenderElements sceneManagerData
+    forM_ (zip [(0::Int)..] renderObjectRenderElements) $ \(index, renderElement) -> do
         let renderObject = RenderElement._renderObject renderElement
             geometryBufferData = RenderElement._geometryData renderElement
             vertexBufferPtr = _vertexBufferPtr geometryBufferData

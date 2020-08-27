@@ -18,9 +18,9 @@ class SceneManagerInterface a where
     addCameraObject :: a -> Text.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData
     getMainLight :: a -> IO Light.DirectionalLightData
     addDirectionalLightObject :: a -> Text.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
-    addStaticObject :: a -> Text.Text -> StaticObjectCreateData -> IO StaticObjectData
-    getStaticObject :: a -> Text.Text -> IO (Maybe StaticObjectData)
-    getStaticObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
+    addRenderObject :: a -> Text.Text -> RenderObjectCreateData -> IO RenderObjectData
+    getRenderObject :: a -> Text.Text -> IO (Maybe RenderObjectData)
+    getRenderObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
     updateSceneManagerData :: a -> Double -> Float -> IO ()
 
 instance SceneManagerInterface SceneManagerData where

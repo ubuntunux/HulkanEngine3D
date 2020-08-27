@@ -21,7 +21,7 @@ data ModelCreateInfo = ModelCreateInfo
     , _materialInstanceDatas' :: [MaterialInstanceData]
     } deriving Show
 
-data ModelData = ModelData
+data ModelData = EmptyModelData | ModelData
     { _modelDataName :: IORef Text.Text
     , _meshData :: MeshData
     , _materialInstanceDatas :: IORef [MaterialInstanceData]

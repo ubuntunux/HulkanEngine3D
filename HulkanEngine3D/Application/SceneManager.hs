@@ -28,7 +28,7 @@ import qualified HulkanEngine3D.Utilities.System as System
 
 type CameraObjectMap = HashTable.BasicHashTable Text.Text Camera.CameraObjectData
 type DirectionalLightObjectMap = HashTable.BasicHashTable Text.Text Light.DirectionalLightData
-type StaticObjectMap = HashTable.BasicHashTable Text.Text RenderObject.StaticObjectData
+type RenderObjectMap = HashTable.BasicHashTable Text.Text RenderObject.RenderObjectData
 
 data SceneManagerData = SceneManagerData
     { _rendererData :: Renderer.RendererData
@@ -37,8 +37,8 @@ data SceneManagerData = SceneManagerData
     , _mainLight :: IORef Light.DirectionalLightData
     , _cameraObjectMap :: CameraObjectMap
     , _directionalLightObjectMap :: DirectionalLightObjectMap
-    , _staticObjectMap :: StaticObjectMap
-    , _staticObjectRenderElements :: IORef [RenderElement.RenderElementData]
+    , _renderObjectMap :: RenderObjectMap
+    , _renderObjectRenderElements :: IORef [RenderElement.RenderElementData]
     } deriving (Show)
 
 class SceneManagerInterface a where
@@ -48,9 +48,9 @@ class SceneManagerInterface a where
     addCameraObject :: a -> Text.Text -> Camera.CameraCreateData -> IO Camera.CameraObjectData
     getMainLight :: a -> IO Light.DirectionalLightData
     addDirectionalLightObject :: a -> Text.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
-    addStaticObject :: a -> Text.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
-    getStaticObject :: a -> Text.Text -> IO (Maybe RenderObject.StaticObjectData)
-    getStaticObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
+    addRenderObject :: a -> Text.Text -> RenderObject.RenderObjectCreateData -> IO RenderObject.RenderObjectData
+    getRenderObject :: a -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
+    getRenderObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
     updateSceneManagerData :: a -> Double -> Float -> IO ()
 
 instance SceneManagerInterface SceneManagerData where
@@ -60,8 +60,8 @@ instance SceneManagerInterface SceneManagerData where
         mainLight <- newIORef (undefined::Light.DirectionalLightData)
         cameraObjectMap <- HashTable.new
         directionalLightObjectMap <- HashTable.new
-        staticObjectMap <- HashTable.new
-        staticObjectRenderElements <- newIORef []
+        renderObjectMap <- HashTable.new
+        renderObjectRenderElements <- newIORef []
         return SceneManagerData
             { _rendererData = rendererData
             , _resources = resources
@@ -69,8 +69,8 @@ instance SceneManagerInterface SceneManagerData where
             , _mainLight = mainLight
             , _cameraObjectMap = cameraObjectMap
             , _directionalLightObjectMap = directionalLightObjectMap
-            , _staticObjectMap = staticObjectMap
-            , _staticObjectRenderElements = staticObjectRenderElements
+            , _renderObjectMap = renderObjectMap
+            , _renderObjectRenderElements = renderObjectRenderElements
             }
 
     openSceneManagerData :: SceneManagerData -> Camera.CameraCreateData -> IO ()
@@ -89,12 +89,12 @@ instance SceneManagerInterface SceneManagerData where
 
         modelData0 <- Resource.getModelData _resources "sponza/sponza"
         modelData1 <- Resource.getModelData _resources "sphere"
-        addStaticObject sceneManagerData "object0" $ RenderObject.defaultStaticObjectCreateData
+        addRenderObject sceneManagerData "object0" $ RenderObject.defaultRenderObjectCreateData
                     { RenderObject._modelData' = modelData0
                     , RenderObject._position' = vec3 0 0 0
                     , RenderObject._scale' = vec3 0.1 0.1 0.1
                     }
-        addStaticObject sceneManagerData "object1" $ RenderObject.defaultStaticObjectCreateData
+        addRenderObject sceneManagerData "object1" $ RenderObject.defaultRenderObjectCreateData
                     { RenderObject._modelData' = modelData1
                     , RenderObject._position' = vec3 0 1.5 0
                     , RenderObject._scale' = vec3 1.0 1.0 1.0
@@ -121,18 +121,18 @@ instance SceneManagerInterface SceneManagerData where
         HashTable.insert (_directionalLightObjectMap sceneManagerData) newObjectName lightObjectData
         return lightObjectData
 
-    addStaticObject :: SceneManagerData -> Text.Text -> RenderObject.StaticObjectCreateData -> IO RenderObject.StaticObjectData
-    addStaticObject sceneManagerData objectName staticObjectCreateData = do
-        newObjectName <- System.generateUniqueName (_staticObjectMap sceneManagerData) objectName
-        staticObjectData <- RenderObject.createStaticObjectData newObjectName staticObjectCreateData
-        HashTable.insert (_staticObjectMap sceneManagerData) newObjectName staticObjectData
-        return staticObjectData
+    addRenderObject :: SceneManagerData -> Text.Text -> RenderObject.RenderObjectCreateData -> IO RenderObject.RenderObjectData
+    addRenderObject sceneManagerData objectName renderObjectCreateData = do
+        newObjectName <- System.generateUniqueName (_renderObjectMap sceneManagerData) objectName
+        renderObjectData <- RenderObject.createRenderObjectData newObjectName renderObjectCreateData
+        HashTable.insert (_renderObjectMap sceneManagerData) newObjectName renderObjectData
+        return renderObjectData
 
-    getStaticObject :: SceneManagerData -> Text.Text -> IO (Maybe RenderObject.StaticObjectData)
-    getStaticObject sceneManagerData objectName = HashTable.lookup (_staticObjectMap sceneManagerData) objectName
+    getRenderObject :: SceneManagerData -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
+    getRenderObject sceneManagerData objectName = HashTable.lookup (_renderObjectMap sceneManagerData) objectName
 
-    getStaticObjectRenderElements :: SceneManagerData -> IO [RenderElement.RenderElementData]
-    getStaticObjectRenderElements sceneManagerData = readIORef (_staticObjectRenderElements sceneManagerData)
+    getRenderObjectRenderElements :: SceneManagerData -> IO [RenderElement.RenderElementData]
+    getRenderObjectRenderElements sceneManagerData = readIORef (_renderObjectRenderElements sceneManagerData)
     
     updateSceneManagerData :: SceneManagerData -> Double -> Float -> IO ()
     updateSceneManagerData sceneManagerData@SceneManagerData {..} elapsedTime deltaTime = do
@@ -146,24 +146,24 @@ instance SceneManagerInterface SceneManagerData where
         Light.updateLightData mainLight cameraPosition
 
         -- update objects
-        flip HashTable.mapM_ _staticObjectMap $ \(objectName, staticObjectData) -> do
-            RenderObject.updateStaticObjectData staticObjectData
+        flip HashTable.mapM_ _renderObjectMap $ \(objectName, renderObjectData) -> do
+            RenderObject.updateRenderObjectData renderObjectData
 
         -- gather render elements
-        writeIORef _staticObjectRenderElements []
-        flip HashTable.mapM_ _staticObjectMap $ \(objectName, staticObjectData) -> do
-            staticObjectRenderElements <- readIORef _staticObjectRenderElements
-            geometryBufferDatas <- readIORef (Mesh._geometryBufferDatas . Model._meshData . RenderObject._modelData $ staticObjectData)
-            materialInstanceDatas <- readIORef (Model._materialInstanceDatas . RenderObject._modelData $ staticObjectData)
+        writeIORef _renderObjectRenderElements []
+        flip HashTable.mapM_ _renderObjectMap $ \(objectName, renderObjectData) -> do
+            renderObjectRenderElements <- readIORef _renderObjectRenderElements
+            geometryBufferDatas <- readIORef (Mesh._geometryBufferDatas . Model._meshData . RenderObject._modelData $ renderObjectData)
+            materialInstanceDatas <- readIORef (Model._materialInstanceDatas . RenderObject._modelData $ renderObjectData)
             let geometryDataCount = length geometryBufferDatas
             renderElementList <- forM [0..(geometryDataCount - 1)] $ \index -> do
                 let geometryData = geometryBufferDatas !! index
                     materialInstanceData = materialInstanceDatas !! index
                 return RenderElement.RenderElementData
-                    { _renderObject = staticObjectData
+                    { _renderObject = renderObjectData
                     , _geometryData = geometryData
                     , _materialInstanceData = materialInstanceData
                     }
-            writeIORef _staticObjectRenderElements (staticObjectRenderElements ++ renderElementList)
+            writeIORef _renderObjectRenderElements (renderObjectRenderElements ++ renderElementList)
 
 

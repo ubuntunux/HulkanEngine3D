@@ -9,7 +9,7 @@ import HulkanEngine3D.Render.RenderObject
 import HulkanEngine3D.Vulkan.GeometryBuffer
 
 data RenderElementData = RenderElementData
-    { _renderObject :: StaticObjectData
+    { _renderObject :: RenderObjectData
     , _geometryData :: GeometryData
     , _materialInstanceData :: MaterialInstanceData
     } deriving Show
