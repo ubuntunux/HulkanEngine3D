@@ -22,7 +22,8 @@ import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import HulkanEngine3D.Utilities.Logger
 
 data PipelineBindingData = PipelineBindingData
-    { _descriptorSetsPtr :: Ptr VkDescriptorSet
+    { _pipelineData :: RenderPass.PipelineData
+    , _descriptorSetsPtr :: Ptr VkDescriptorSet
     , _writeDescriptorSetPtrs :: [Ptr VkWriteDescriptorSet]
     } deriving Show
 
@@ -59,7 +60,8 @@ createMaterialInstance device materialInstanceDataName materialData pipelineBind
             pokeArray writeDescriptorSetPtr descriptorWrites
             vkUpdateDescriptorSets device (fromIntegral count) writeDescriptorSetPtr 0 VK_NULL
             return writeDescriptorSetPtr
-        return (renderPassPipelineDataName, PipelineBindingData { _descriptorSetsPtr = descriptorSetsPtr, _writeDescriptorSetPtrs = writeDescriptorSetPtrs })
+        let pipelineBindingData = PipelineBindingData { _pipelineData = pipelineData, _descriptorSetsPtr = descriptorSetsPtr, _writeDescriptorSetPtrs = writeDescriptorSetPtrs }
+        return (renderPassPipelineDataName, pipelineBindingData)
     return MaterialInstanceData
         { _materialInstanceDataName = materialInstanceDataName
         , _materialData = materialData
@@ -72,5 +74,5 @@ destroyMaterialInstance device materialInstanceData = do
         free (_descriptorSetsPtr pipelineBindingData)
         mapM_ free (_writeDescriptorSetPtrs pipelineBindingData)
 
-getPipelineBindingData :: PipelineBindingDataMap -> RenderPass.RenderPassPipelineDataName -> PipelineBindingData
-getPipelineBindingData pipelineBindingDataMap renderPassPipelineDataName = Maybe.fromJust $ Map.lookup renderPassPipelineDataName pipelineBindingDataMap
+getPipelineBindingData :: MaterialInstanceData -> RenderPass.RenderPassPipelineDataName -> PipelineBindingData
+getPipelineBindingData materialInstanceData renderPassPipelineDataName = Maybe.fromJust $ Map.lookup renderPassPipelineDataName (_pipelineBindingDataMap materialInstanceData)

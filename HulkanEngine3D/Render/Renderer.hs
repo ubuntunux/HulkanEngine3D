@@ -49,7 +49,7 @@ import qualified HulkanEngine3D.Render.Light as Light
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.RenderTargetDeclaration
 import HulkanEngine3D.Render.ImageSampler
-import HulkanEngine3D.Render.MaterialInstance
+import qualified HulkanEngine3D.Render.MaterialInstance as MaterialInstance
 import qualified HulkanEngine3D.Render.RenderElement as RenderElement
 import qualified HulkanEngine3D.Render.RenderObject as RenderObject
 import qualified HulkanEngine3D.Render.TransformObject as TransformObject
@@ -126,8 +126,10 @@ class RendererInterface a where
     getRenderTarget :: a -> RenderTargetType -> IO Texture.TextureData
     createGeometryBuffer :: a -> Text.Text -> GeometryCreateInfo -> IO GeometryData
     destroyGeometryBuffer :: a -> GeometryData -> IO ()
-    beginRenderPassPipeline :: a -> VkCommandBuffer -> Int -> RenderPass.RenderPassPipelineDataName -> MaterialInstanceData -> IO ()
+    beginRenderPassPipeline :: a -> VkCommandBuffer -> Int -> RenderPass.RenderPassPipelineDataName -> IO (RenderPass.RenderPassData, RenderPass.PipelineData)
+    bindDescriptorSets :: a -> VkCommandBuffer -> Int -> MaterialInstance.PipelineBindingData -> IO ()
     drawElements :: a -> VkCommandBuffer -> GeometryData -> IO ()
+    endRenderPass :: a -> VkCommandBuffer -> IO ()
     deviceWaitIdle :: a -> IO ()
 
 instance RendererInterface RendererData where
@@ -196,11 +198,35 @@ instance RendererInterface RendererData where
     destroyGeometryBuffer rendererData geometryBuffer =
         destroyGeometryData (_device rendererData) geometryBuffer
 
-    beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassPipelineDataName materialInstanceData =
-        beginRenderPassPipeline' commandBuffer swapChainIndex (_resources rendererData) renderPassPipelineDataName materialInstanceData
+    beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassPipelineDataName = do
+        let resources = _resources rendererData
+        (renderPassData, pipelineData) <- getRenderPassPipelineData resources renderPassPipelineDataName
+        Just frameBufferData <- getFrameBufferData resources (RenderPass.getRenderPassFrameBufferName renderPassData)
+        let renderPassBeginInfo = atSwapChainIndex swapChainIndex (_renderPassBeginInfos frameBufferData)
+            pipelineDynamicStates = RenderPass._pipelineDynamicStates pipelineData
+        withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
+            vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
+        when (elem VK_DYNAMIC_STATE_VIEWPORT pipelineDynamicStates) $
+            withPtr (_frameBufferViewPort . _frameBufferInfo $ frameBufferData) $ \viewPortPtr ->
+                vkCmdSetViewport commandBuffer 0 1 viewPortPtr
+        when (elem VK_DYNAMIC_STATE_SCISSOR pipelineDynamicStates) $
+            withPtr (_frameBufferScissorRect . _frameBufferInfo $ frameBufferData) $ \scissorRectPtr ->
+                vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
+        vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS (RenderPass._pipeline pipelineData)
+        return (renderPassData, pipelineData)
 
-    drawElements rendererData commandBuffer geometryData =
-        drawElements' commandBuffer geometryData (_vertexOffsetPtr rendererData)
+    bindDescriptorSets :: RendererData -> VkCommandBuffer -> Int -> MaterialInstance.PipelineBindingData -> IO ()
+    bindDescriptorSets rendererData commandBuffer swapChainIndex pipelineBindingData = do
+        let pipelineLayout = RenderPass._pipelineLayout . MaterialInstance._pipelineData $ pipelineBindingData
+            descriptorSetsPtr = MaterialInstance._descriptorSetsPtr pipelineBindingData
+        vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (ptrAtIndex descriptorSetsPtr swapChainIndex) 0 VK_NULL
+
+    drawElements rendererData commandBuffer geometryData = do
+        vkCmdBindVertexBuffers commandBuffer 0 1 (_vertexBufferPtr geometryData) (_vertexOffsetPtr rendererData)
+        vkCmdBindIndexBuffer commandBuffer (_indexBuffer geometryData) 0 VK_INDEX_TYPE_UINT32
+        vkCmdDrawIndexed commandBuffer (_vertexIndexCount geometryData) 1 0 0 0
+
+    endRenderPass _ commandBuffer = vkCmdEndRenderPass commandBuffer
 
     deviceWaitIdle rendererData =
         throwingVK "vkDeviceWaitIdle failed!" (vkDeviceWaitIdle $ getDevice rendererData)
@@ -470,43 +496,6 @@ presentSwapChain rendererData@RendererData {..} commandBufferPtr frameFencePtr i
     return result
 
 
-beginRenderPassPipeline' :: VkCommandBuffer
-                         -> Int
-                         -> Resources
-                         -> RenderPass.RenderPassPipelineDataName
-                         -> MaterialInstanceData
-                         -> IO ()
-beginRenderPassPipeline' commandBuffer swapChainIndex resources renderPassPipelineDataName materialInstanceData = do
-    (renderPassData, pipelineData) <- getRenderPassPipelineData resources renderPassPipelineDataName
-    Just frameBufferData <- getFrameBufferData resources (RenderPass.getRenderPassFrameBufferName renderPassData)
-    let pipelineBindingData = getPipelineBindingData (_pipelineBindingDataMap materialInstanceData) renderPassPipelineDataName
-        renderPassBeginInfo = atSwapChainIndex swapChainIndex (_renderPassBeginInfos frameBufferData)
-        descriptorSetsPtr = _descriptorSetsPtr pipelineBindingData
-        pipelineDynamicStates = RenderPass._pipelineDynamicStates pipelineData
-
-    withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
-        vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
-
-    when (elem VK_DYNAMIC_STATE_VIEWPORT pipelineDynamicStates) $
-        withPtr (_frameBufferViewPort . _frameBufferInfo $ frameBufferData) $ \viewPortPtr ->
-            vkCmdSetViewport commandBuffer 0 1 viewPortPtr
-
-    when (elem VK_DYNAMIC_STATE_SCISSOR pipelineDynamicStates) $
-        withPtr (_frameBufferScissorRect . _frameBufferInfo $ frameBufferData) $ \scissorRectPtr ->
-            vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
-
-    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS (RenderPass._pipeline pipelineData)
-    vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS (RenderPass._pipelineLayout pipelineData) 0 1 (ptrAtIndex descriptorSetsPtr swapChainIndex) 0 VK_NULL
-
-
-drawElements' :: VkCommandBuffer -> GeometryData -> Ptr VkDeviceSize -> IO ()
-drawElements' commandBuffer geometryData vertexOffsetPtr = do
-    vkCmdBindVertexBuffers commandBuffer 0 1 (_vertexBufferPtr geometryData) vertexOffsetPtr
-    vkCmdBindIndexBuffer commandBuffer (_indexBuffer geometryData) 0 VK_INDEX_TYPE_UINT32
-    vkCmdDrawIndexed commandBuffer (_vertexIndexCount geometryData) 1 0 0 0
-    vkCmdEndRenderPass commandBuffer
-
-
 uploadUniformBufferData :: (Storable a) => RendererData -> Int -> UniformBufferType -> a -> IO ()
 uploadUniformBufferData rendererData@RendererData {..} swapChainIndex uniformBufferType uploadData = do
     uniformBufferData <- getUniformBufferData rendererData uniformBufferType
@@ -609,26 +598,34 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
             renderPostProcess rendererData commandBuffer swapChainIndex quadGeometryData
 
             -- Render Final
-            materialInst_renderFinal <- getMaterialInstanceData _resources "render_final"
-            beginRenderPassPipeline rendererData commandBuffer swapChainIndex ("render_final", "render_final") materialInst_renderFinal
+            let renderFinalRenderPassPipelineName = ("render_final", "render_final")
+                renderFinalMaterialInstanceName = "render_final"
+            beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderFinalRenderPassPipelineName
+            renderFinalMaterialInstance <- getMaterialInstanceData _resources renderFinalMaterialInstanceName
+            let renderFinalPipelineBindingData = MaterialInstance.getPipelineBindingData renderFinalMaterialInstance renderFinalRenderPassPipelineName
+            bindDescriptorSets rendererData commandBuffer swapChainIndex renderFinalPipelineBindingData
             drawElements rendererData commandBuffer quadGeometryData
+            endRenderPass rendererData commandBuffer
 
             -- Render Debug
             --writeIORef _debugRenderTargetRef RenderTarget_Shadow
             debugRenderTarget <- readIORef _debugRenderTargetRef
             when (RenderTarget_BackBuffer /= debugRenderTarget) $ do
-                let render_debug_dataName = ("render_debug", "render_debug")
-                materialInst_renderDebug <- getMaterialInstanceData _resources "render_debug"
-                beginRenderPassPipeline rendererData commandBuffer swapChainIndex render_debug_dataName materialInst_renderDebug
-                let pipelineBindingData = getPipelineBindingData (_pipelineBindingDataMap materialInst_renderDebug) render_debug_dataName
-                    descriptorOffset = 0
-                    writeDescriptorSetPtr = ptrAtIndex (_writeDescriptorSetPtrs pipelineBindingData !! swapChainIndex) descriptorOffset
+                let renderDebugRenderPassPipelineName = ("render_debug", "render_debug")
+                    renderDebugMaterialInstanceName = "render_debug"
+                renderDebugMaterialInstance <- getMaterialInstanceData _resources renderDebugMaterialInstanceName
+                beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderDebugRenderPassPipelineName
+                let renderDebugPipelineBindingData = MaterialInstance.getPipelineBindingData renderDebugMaterialInstance renderDebugRenderPassPipelineName
+                bindDescriptorSets rendererData commandBuffer swapChainIndex renderDebugPipelineBindingData
+                let descriptorOffset = 0
+                    writeDescriptorSetPtr = ptrAtIndex (MaterialInstance._writeDescriptorSetPtrs renderDebugPipelineBindingData !! swapChainIndex) descriptorOffset
                     descriptorWriteCount = 1
                 imageInfo <- getRenderTarget rendererData debugRenderTarget
                 withPtr (Texture._descriptorImageInfo imageInfo) $ \imageInfoPtr -> do
                     writeField @"pImageInfo" writeDescriptorSetPtr imageInfoPtr
                 vkUpdateDescriptorSets _device descriptorWriteCount writeDescriptorSetPtr 0 VK_NULL
                 drawElements rendererData commandBuffer quadGeometryData
+                endRenderPass rendererData commandBuffer
 
             -- End command buffer
             vkEndCommandBuffer commandBuffer >>= flip validationVK "vkEndCommandBuffer failed!"
@@ -658,12 +655,12 @@ renderSolid rendererData commandBuffer swapChainIndex renderElements = do
             indexBuffer = _indexBuffer geometryBufferData
             indexCount = _vertexIndexCount geometryBufferData
             materialInstanceData = RenderElement._materialInstanceData renderElement
-            materialData = _materialData materialInstanceData
-            pipelineBindingData = getPipelineBindingData (_pipelineBindingDataMap materialInstanceData) renderPassPipelineDataName
+            materialData = MaterialInstance._materialData materialInstanceData
+            pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstanceData renderPassPipelineDataName
 
         Just frameBufferData <- getFrameBufferData (_resources rendererData) (RenderPass._renderPassFrameBufferName renderPassData)
         let renderPassBeginInfo = atSwapChainIndex swapChainIndex (_renderPassBeginInfos frameBufferData)
-            descriptorSetPtr = _descriptorSetsPtr pipelineBindingData
+            descriptorSetPtr = MaterialInstance._descriptorSetsPtr pipelineBindingData
             pipelineData = RenderPass._defaultPipelineData renderPassData
             pipelineLayout = RenderPass._pipelineLayout pipelineData
             pipeline = RenderPass._pipeline pipelineData
@@ -694,7 +691,6 @@ renderSolid rendererData commandBuffer swapChainIndex renderElements = do
 
         -- drawing commands
         vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr (_vertexOffsetPtr rendererData)
-
         vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
         vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
     vkCmdEndRenderPass commandBuffer
@@ -706,29 +702,12 @@ renderShadow :: RendererData
              -> [RenderElement.RenderElementData]
              -> IO ()
 renderShadow rendererData commandBuffer swapChainIndex renderElements = do
-    let resources = _resources rendererData
-        renderPassPipelineDataName = ("render_shadow", "render_shadow")
-    (renderPassData, pipelineData) <- getRenderPassPipelineData resources renderPassPipelineDataName
-    materialInst_renderShadow <- getMaterialInstanceData resources "render_shadow"
-    -- beginRenderPassPipeline rendererData commandBuffer swapChainIndex materialInst_renderShadow
-
-    Just frameBufferData <- getFrameBufferData resources (RenderPass._renderPassFrameBufferName renderPassData)
-    let renderPassBeginInfo = atSwapChainIndex swapChainIndex (_renderPassBeginInfos frameBufferData)
-        pipelineBindingData = getPipelineBindingData (_pipelineBindingDataMap materialInst_renderShadow) renderPassPipelineDataName
-        descriptorSetPtr = _descriptorSetsPtr pipelineBindingData
-        pipelineData = RenderPass._defaultPipelineData renderPassData
-        pipelineLayout = RenderPass._pipelineLayout pipelineData
-        pipeline = RenderPass._pipeline pipelineData
-
-    -- begin renderpass
-    withPtr renderPassBeginInfo $ \renderPassBeginInfoPtr ->
-        vkCmdBeginRenderPass commandBuffer renderPassBeginInfoPtr VK_SUBPASS_CONTENTS_INLINE
-    withPtr (_frameBufferViewPort . _frameBufferInfo $ frameBufferData) $ \viewPortPtr ->
-        vkCmdSetViewport commandBuffer 0 1 viewPortPtr
-    withPtr (_frameBufferScissorRect . _frameBufferInfo $ frameBufferData) $ \scissorRectPtr ->
-        vkCmdSetScissor commandBuffer 0 1 scissorRectPtr
-    vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
-    vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (ptrAtIndex descriptorSetPtr swapChainIndex) 0 VK_NULL
+    let renderPassPipelineDataName = ("render_shadow", "render_shadow")
+        materialInstanceName = "render_shadow"
+    (renderPassData, pipelineData) <- beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassPipelineDataName
+    materialInstance <- getMaterialInstanceData (_resources rendererData) materialInstanceName
+    let pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstance renderPassPipelineDataName
+    bindDescriptorSets rendererData commandBuffer swapChainIndex pipelineBindingData
 
     forM_ (zip [(0::Int)..] renderElements) $ \(index, renderElement) -> do
         let renderObject = RenderElement._renderObject renderElement
@@ -742,14 +721,10 @@ renderShadow rendererData commandBuffer swapChainIndex renderElements = do
         let pushConstantData = PushConstantData { modelMatrix = modelMatrix }
 
         with pushConstantData $ \pushConstantDataPtr ->
-            vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_ALL 0 (bSizeOf pushConstantData) (castPtr pushConstantDataPtr)
+            vkCmdPushConstants commandBuffer (RenderPass._pipelineLayout pipelineData) VK_SHADER_STAGE_ALL 0 (bSizeOf pushConstantData) (castPtr pushConstantDataPtr)
 
-        -- drawing commands
-        vkCmdBindVertexBuffers commandBuffer 0 1 vertexBufferPtr (_vertexOffsetPtr rendererData)
-
-        vkCmdBindIndexBuffer commandBuffer indexBuffer 0 VK_INDEX_TYPE_UINT32
-        vkCmdDrawIndexed commandBuffer indexCount 1 0 0 0
-    vkCmdEndRenderPass commandBuffer
+        drawElements rendererData commandBuffer geometryBufferData
+    endRenderPass rendererData commandBuffer
 
 
 renderPostProcess :: RendererData
@@ -759,16 +734,31 @@ renderPostProcess :: RendererData
                   -> IO ()
 renderPostProcess rendererData@RendererData {..} commandBuffer swapChainIndex quadGeometryData = do
     -- SSAO
-    materialInst_renderSSAO <- getMaterialInstanceData _resources "render_ssao"
-    beginRenderPassPipeline rendererData commandBuffer swapChainIndex ("render_ssao", "render_ssao") materialInst_renderSSAO
+    let renderSSAORenderPassPipelineName = ("render_ssao", "render_ssao")
+        renderSSAOMaterialInstanceName = "render_ssao"
+    beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderSSAORenderPassPipelineName
+    renderSSAOMaterialInstance <- getMaterialInstanceData _resources renderSSAOMaterialInstanceName
+    let renderSSAOPipelineBindingData = MaterialInstance.getPipelineBindingData renderSSAOMaterialInstance renderSSAORenderPassPipelineName
+    bindDescriptorSets rendererData commandBuffer swapChainIndex renderSSAOPipelineBindingData
     drawElements rendererData commandBuffer quadGeometryData
+    endRenderPass rendererData commandBuffer
 
     -- Composite GBuffer
-    materialInst_compositeGBuffer <- getMaterialInstanceData _resources "composite_gbuffer"
-    beginRenderPassPipeline rendererData commandBuffer swapChainIndex ("composite_gbuffer", "composite_gbuffer") materialInst_compositeGBuffer
+    let compositeGBufferRenderPassPipelineName = ("composite_gbuffer", "composite_gbuffer")
+        compositeGBufferMaterialInstanceName = "composite_gbuffer"
+    beginRenderPassPipeline rendererData commandBuffer swapChainIndex compositeGBufferRenderPassPipelineName
+    compositeGBufferMaterialInstance <- getMaterialInstanceData _resources compositeGBufferMaterialInstanceName
+    let compositeGBufferPipelineBindingData = MaterialInstance.getPipelineBindingData compositeGBufferMaterialInstance compositeGBufferRenderPassPipelineName
+    bindDescriptorSets rendererData commandBuffer swapChainIndex compositeGBufferPipelineBindingData
     drawElements rendererData commandBuffer quadGeometryData
+    endRenderPass rendererData commandBuffer
 
     -- MotionBlur
-    materialInst_motionBlur <- getMaterialInstanceData _resources "render_motion_blur"
-    beginRenderPassPipeline rendererData commandBuffer swapChainIndex ("render_motion_blur", "render_motion_blur") materialInst_motionBlur
+    let renderMotionBlurRenderPassPipelineName = ("render_motion_blur", "render_motion_blur")
+        renderMotionBlurMaterialInstanceName = "render_motion_blur"
+    beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderMotionBlurRenderPassPipelineName
+    motionBlurMaterialInstance <- getMaterialInstanceData _resources renderMotionBlurMaterialInstanceName
+    let renderMotionBlurPipelineBindingData = MaterialInstance.getPipelineBindingData motionBlurMaterialInstance renderMotionBlurRenderPassPipelineName
+    bindDescriptorSets rendererData commandBuffer swapChainIndex renderMotionBlurPipelineBindingData
     drawElements rendererData commandBuffer quadGeometryData
+    endRenderPass rendererData commandBuffer

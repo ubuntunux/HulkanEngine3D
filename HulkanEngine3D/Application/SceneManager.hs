@@ -51,7 +51,8 @@ class SceneManagerInterface a where
     getMainLight :: a -> IO Light.DirectionalLightData
     addDirectionalLightObject :: a -> Text.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
     addRenderObject :: a -> Text.Text -> RenderObject.RenderObjectCreateData -> IO RenderObject.RenderObjectData
-    getRenderObject :: a -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
+    getStaticRenderObject :: a -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
+    getSkeletalRenderObject :: a -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
     getStaticObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
     getSkeletalObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
     updateSceneManagerData :: a -> Double -> Float -> IO ()
@@ -96,15 +97,16 @@ instance SceneManagerInterface SceneManagerData where
 
         modelData0 <- Resource.getModelData _resources "sponza/sponza"
         modelData1 <- Resource.getModelData _resources "sphere"
-        addRenderObject sceneManagerData "object0" $ RenderObject.defaultRenderObjectCreateData
+        addRenderObject sceneManagerData "sponza" $ RenderObject.defaultRenderObjectCreateData
                     { RenderObject._modelData' = modelData0
                     , RenderObject._position' = vec3 0 0 0
                     , RenderObject._scale' = vec3 0.1 0.1 0.1
                     }
-        addRenderObject sceneManagerData "object1" $ RenderObject.defaultRenderObjectCreateData
+        addRenderObject sceneManagerData "sphere" $ RenderObject.defaultRenderObjectCreateData
                     { RenderObject._modelData' = modelData1
                     , RenderObject._position' = vec3 0 1.5 0
                     , RenderObject._scale' = vec3 1.0 1.0 1.0
+                    , RenderObject._has_animation_data' = True
                     }
         return ()
 
@@ -130,13 +132,22 @@ instance SceneManagerInterface SceneManagerData where
 
     addRenderObject :: SceneManagerData -> Text.Text -> RenderObject.RenderObjectCreateData -> IO RenderObject.RenderObjectData
     addRenderObject sceneManagerData objectName renderObjectCreateData = do
-        newObjectName <- System.generateUniqueName (_staticRenderObjectMap sceneManagerData) objectName
-        renderObjectData <- RenderObject.createRenderObjectData newObjectName renderObjectCreateData
-        HashTable.insert (_staticRenderObjectMap sceneManagerData) newObjectName renderObjectData
-        return renderObjectData
+        if (RenderObject._has_animation_data' renderObjectCreateData) then
+            registRenderObject (_skeletalRenderObjectMap sceneManagerData) objectName
+        else
+            registRenderObject (_staticRenderObjectMap sceneManagerData) objectName
+        where
+            registRenderObject renderObjectMap objectName = do
+                newObjectName <- System.generateUniqueName renderObjectMap objectName
+                renderObjectData <- RenderObject.createRenderObjectData newObjectName renderObjectCreateData
+                HashTable.insert renderObjectMap newObjectName renderObjectData
+                return renderObjectData
 
-    getRenderObject :: SceneManagerData -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
-    getRenderObject sceneManagerData objectName = HashTable.lookup (_staticRenderObjectMap sceneManagerData) objectName
+    getStaticRenderObject :: SceneManagerData -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
+    getStaticRenderObject sceneManagerData objectName = HashTable.lookup (_staticRenderObjectMap sceneManagerData) objectName
+
+    getSkeletalRenderObject :: SceneManagerData -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
+    getSkeletalRenderObject sceneManagerData objectName = HashTable.lookup (_skeletalRenderObjectMap sceneManagerData) objectName
 
     getStaticObjectRenderElements :: SceneManagerData -> IO [RenderElement.RenderElementData]
     getStaticObjectRenderElements sceneManagerData = readIORef (_staticRenderElements sceneManagerData)

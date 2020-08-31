@@ -172,7 +172,6 @@ walkDirectory currentDirectory filter = do
         )
     return $ concat [filepath | filepath <- filepaths, not (null filepath)]
 
-
 generateUniqueName :: HashTable.BasicHashTable Text.Text v -> Text.Text -> IO Text.Text
 generateUniqueName objectMap objectName = do
     objectData <- HashTable.lookup objectMap objectName
