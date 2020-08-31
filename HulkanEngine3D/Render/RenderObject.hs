@@ -23,30 +23,29 @@ data RenderObjectCreateData = RenderObjectCreateData
     , _position' :: Vec3f
     , _rotation' :: Vec3f
     , _scale' :: Vec3f
-    , _animation_data' :: AnimationData
     } deriving Show
 
 data RenderObjectData = RenderObjectData
     { _renderObjectName :: Text.Text
     , _modelData :: ModelData
     , _transformObject :: TransformObjectData
-    , _animation_data :: AnimationData
+    , _animation_play_info :: AnimationPlayInfo
     } deriving Show
 
-data AnimationData = AnimationData
-    { _last_animation_frame :: {-# UNPACK #-}!Float
-    , _animation_loop :: {-# UNPACK #-}!Bool
-    , _animation_blend_time :: {-# UNPACK #-}!Float
-    , _animation_elapsed_time :: {-# UNPACK #-}!Float
-    , _animation_speed :: {-# UNPACK #-}!Float
-    , _animation_frame :: {-# UNPACK #-}!Float
-    , _animation_start_time :: {-# UNPACK #-}!Float
-    , _animation_end_time :: {-# UNPACK #-}!Float
-    , _is_animation_end :: {-# UNPACK #-}!Bool
-    , _animation_buffers :: {-# UNPACK #-}!(Vector.Vector Mat44f)
-    , _prev_animation_buffers :: {-# UNPACK #-}!(Vector.Vector Mat44f)
-    , _blend_animation_buffers :: {-# UNPACK #-}!(Vector.Vector Mat44f)
-    , _animation_count :: {-# UNPACK #-}!Int
+data AnimationPlayInfo = AnimationPlayInfo
+    { _last_animation_frame :: Float
+    , _animation_loop :: Bool
+    , _animation_blend_time :: Float
+    , _animation_elapsed_time :: Float
+    , _animation_speed :: Float
+    , _animation_frame :: Float
+    , _animation_start_time :: Float
+    , _animation_end_time :: Float
+    , _is_animation_end :: Bool
+    , _animation_buffers :: Vector.Vector Mat44f
+    , _prev_animation_buffers :: Vector.Vector Mat44f
+    , _blend_animation_buffers :: Vector.Vector Mat44f
+    , _animation_count :: Int
     , _animation_mesh :: Mesh.MeshData
     } | EmptyAnimationData deriving Show
 
@@ -56,11 +55,10 @@ defaultRenderObjectCreateData = RenderObjectCreateData
     , _position' = vec3 0 0 0
     , _rotation' = vec3 0 0 0
     , _scale' = vec3 1 1 1
-    , _animation_data' = EmptyAnimationData
     }
 
-default_animation_data_create_info :: AnimationData
-default_animation_data_create_info = AnimationData
+default_animation_play_info :: AnimationPlayInfo
+default_animation_play_info = AnimationPlayInfo
     { _last_animation_frame = 0.0
     , _animation_loop = True
     , _animation_blend_time = 0.5
@@ -95,7 +93,7 @@ instance RenderObjectInterface RenderObjectData where
             { _renderObjectName = renderObjectName
             , _modelData = _modelData' renderObjectCreateData
             , _transformObject = transformObjectData
-            , _animation_data = _animation_data' renderObjectCreateData
+            , _animation_play_info = default_animation_play_info
             }
 
     getModelData :: RenderObjectData -> ModelData
