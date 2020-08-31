@@ -23,6 +23,7 @@ data RenderObjectCreateData = RenderObjectCreateData
     , _position' :: Vec3f
     , _rotation' :: Vec3f
     , _scale' :: Vec3f
+    , _has_animation_data' :: Bool
     } deriving Show
 
 data RenderObjectData = RenderObjectData
@@ -32,22 +33,25 @@ data RenderObjectData = RenderObjectData
     , _animation_play_info :: AnimationPlayInfo
     } deriving Show
 
-data AnimationPlayInfo = AnimationPlayInfo
-    { _last_animation_frame :: Float
-    , _animation_loop :: Bool
-    , _animation_blend_time :: Float
-    , _animation_elapsed_time :: Float
-    , _animation_speed :: Float
-    , _animation_frame :: Float
-    , _animation_start_time :: Float
-    , _animation_end_time :: Float
-    , _is_animation_end :: Bool
-    , _animation_buffers :: Vector.Vector Mat44f
-    , _prev_animation_buffers :: Vector.Vector Mat44f
-    , _blend_animation_buffers :: Vector.Vector Mat44f
-    , _animation_count :: Int
-    , _animation_mesh :: Mesh.MeshData
-    } | EmptyAnimationData deriving Show
+data AnimationPlayInfo
+    = EmptyAnimationPlayInfo
+    | AnimationPlayInfo
+        { _last_animation_frame :: Float
+        , _animation_loop :: Bool
+        , _animation_blend_time :: Float
+        , _animation_elapsed_time :: Float
+        , _animation_speed :: Float
+        , _animation_frame :: Float
+        , _animation_start_time :: Float
+        , _animation_end_time :: Float
+        , _is_animation_end :: Bool
+        , _animation_buffers :: Vector.Vector Mat44f
+        , _prev_animation_buffers :: Vector.Vector Mat44f
+        , _blend_animation_buffers :: Vector.Vector Mat44f
+        , _animation_count :: Int
+        , _animation_mesh :: Mesh.MeshData
+        }
+    deriving Show
 
 defaultRenderObjectCreateData :: RenderObjectCreateData
 defaultRenderObjectCreateData = RenderObjectCreateData
@@ -55,6 +59,7 @@ defaultRenderObjectCreateData = RenderObjectCreateData
     , _position' = vec3 0 0 0
     , _rotation' = vec3 0 0 0
     , _scale' = vec3 1 1 1
+    , _has_animation_data' = False
     }
 
 default_animation_play_info :: AnimationPlayInfo
@@ -93,7 +98,10 @@ instance RenderObjectInterface RenderObjectData where
             { _renderObjectName = renderObjectName
             , _modelData = _modelData' renderObjectCreateData
             , _transformObject = transformObjectData
-            , _animation_play_info = default_animation_play_info
+            , _animation_play_info =
+                case _has_animation_data' renderObjectCreateData of
+                    True -> default_animation_play_info
+                    otherwise -> EmptyAnimationPlayInfo
             }
 
     getModelData :: RenderObjectData -> ModelData
