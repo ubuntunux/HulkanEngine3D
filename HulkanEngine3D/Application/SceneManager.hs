@@ -37,8 +37,10 @@ data SceneManagerData = SceneManagerData
     , _mainLight :: IORef Light.DirectionalLightData
     , _cameraObjectMap :: CameraObjectMap
     , _directionalLightObjectMap :: DirectionalLightObjectMap
-    , _renderObjectMap :: RenderObjectMap
-    , _renderObjectRenderElements :: IORef [RenderElement.RenderElementData]
+    , _staticRenderObjectMap :: RenderObjectMap
+    , _staticRenderElements :: IORef [RenderElement.RenderElementData]
+    , _skeletalRenderObjectMap :: RenderObjectMap
+    , _skeletalRenderElements :: IORef [RenderElement.RenderElementData]
     } deriving (Show)
 
 class SceneManagerInterface a where
@@ -50,7 +52,8 @@ class SceneManagerInterface a where
     addDirectionalLightObject :: a -> Text.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
     addRenderObject :: a -> Text.Text -> RenderObject.RenderObjectCreateData -> IO RenderObject.RenderObjectData
     getRenderObject :: a -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
-    getRenderObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
+    getStaticObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
+    getSkeletalObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
     updateSceneManagerData :: a -> Double -> Float -> IO ()
 
 instance SceneManagerInterface SceneManagerData where
@@ -60,8 +63,10 @@ instance SceneManagerInterface SceneManagerData where
         mainLight <- newIORef (undefined::Light.DirectionalLightData)
         cameraObjectMap <- HashTable.new
         directionalLightObjectMap <- HashTable.new
-        renderObjectMap <- HashTable.new
-        renderObjectRenderElements <- newIORef []
+        staticRenderObjectMap <- HashTable.new
+        staticRenderElements <- newIORef []
+        skeletalRenderObjectMap <- HashTable.new
+        skeletalRenderElements <- newIORef []
         return SceneManagerData
             { _rendererData = rendererData
             , _resources = resources
@@ -69,8 +74,10 @@ instance SceneManagerInterface SceneManagerData where
             , _mainLight = mainLight
             , _cameraObjectMap = cameraObjectMap
             , _directionalLightObjectMap = directionalLightObjectMap
-            , _renderObjectMap = renderObjectMap
-            , _renderObjectRenderElements = renderObjectRenderElements
+            , _staticRenderObjectMap = staticRenderObjectMap
+            , _staticRenderElements = staticRenderElements
+            , _skeletalRenderObjectMap = skeletalRenderObjectMap
+            , _skeletalRenderElements = skeletalRenderElements
             }
 
     openSceneManagerData :: SceneManagerData -> Camera.CameraCreateData -> IO ()
@@ -123,47 +130,52 @@ instance SceneManagerInterface SceneManagerData where
 
     addRenderObject :: SceneManagerData -> Text.Text -> RenderObject.RenderObjectCreateData -> IO RenderObject.RenderObjectData
     addRenderObject sceneManagerData objectName renderObjectCreateData = do
-        newObjectName <- System.generateUniqueName (_renderObjectMap sceneManagerData) objectName
+        newObjectName <- System.generateUniqueName (_staticRenderObjectMap sceneManagerData) objectName
         renderObjectData <- RenderObject.createRenderObjectData newObjectName renderObjectCreateData
-        HashTable.insert (_renderObjectMap sceneManagerData) newObjectName renderObjectData
+        HashTable.insert (_staticRenderObjectMap sceneManagerData) newObjectName renderObjectData
         return renderObjectData
 
     getRenderObject :: SceneManagerData -> Text.Text -> IO (Maybe RenderObject.RenderObjectData)
-    getRenderObject sceneManagerData objectName = HashTable.lookup (_renderObjectMap sceneManagerData) objectName
+    getRenderObject sceneManagerData objectName = HashTable.lookup (_staticRenderObjectMap sceneManagerData) objectName
 
-    getRenderObjectRenderElements :: SceneManagerData -> IO [RenderElement.RenderElementData]
-    getRenderObjectRenderElements sceneManagerData = readIORef (_renderObjectRenderElements sceneManagerData)
+    getStaticObjectRenderElements :: SceneManagerData -> IO [RenderElement.RenderElementData]
+    getStaticObjectRenderElements sceneManagerData = readIORef (_staticRenderElements sceneManagerData)
+
+    getSkeletalObjectRenderElements :: SceneManagerData -> IO [RenderElement.RenderElementData]
+    getSkeletalObjectRenderElements sceneManagerData = readIORef (_skeletalRenderElements sceneManagerData)
     
     updateSceneManagerData :: SceneManagerData -> Double -> Float -> IO ()
     updateSceneManagerData sceneManagerData@SceneManagerData {..} elapsedTime deltaTime = do
-        -- update camera & light
         mainCamera <- getMainCamera sceneManagerData
         Camera.updateCameraObjectData mainCamera
         cameraPosition <- Camera.getCameraPosition mainCamera
 
         mainLight <- getMainLight sceneManagerData
---        TransformObject.rotationYaw (Light._directionalLightTransformObject mainLight) (deltaTime * 0.1)
         Light.updateLightData mainLight cameraPosition
 
-        -- update objects
-        flip HashTable.mapM_ _renderObjectMap $ \(objectName, renderObjectData) -> do
+        flip HashTable.mapM_ _staticRenderObjectMap $ \(objectName, renderObjectData) -> do
             RenderObject.updateRenderObjectData renderObjectData
 
-        -- gather render elements
-        writeIORef _renderObjectRenderElements []
-        flip HashTable.mapM_ _renderObjectMap $ \(objectName, renderObjectData) -> do
-            renderObjectRenderElements <- readIORef _renderObjectRenderElements
-            geometryBufferDatas <- readIORef (Mesh._geometryBufferDatas . Model._meshData . RenderObject._modelData $ renderObjectData)
-            materialInstanceDatas <- readIORef (Model._materialInstanceDatas . RenderObject._modelData $ renderObjectData)
-            let geometryDataCount = length geometryBufferDatas
-            renderElementList <- forM [0..(geometryDataCount - 1)] $ \index -> do
-                let geometryData = geometryBufferDatas !! index
-                    materialInstanceData = materialInstanceDatas !! index
-                return RenderElement.RenderElementData
-                    { _renderObject = renderObjectData
-                    , _geometryData = geometryData
-                    , _materialInstanceData = materialInstanceData
-                    }
-            writeIORef _renderObjectRenderElements (renderObjectRenderElements ++ renderElementList)
+        flip HashTable.mapM_ _skeletalRenderObjectMap $ \(objectName, renderObjectData) -> do
+            RenderObject.updateRenderObjectData renderObjectData
+
+        gatherRenderElementsOfRenderObject _staticRenderObjectMap _staticRenderElements
+        gatherRenderElementsOfRenderObject _skeletalRenderObjectMap _skeletalRenderElements
+
+        where
+            gatherRenderElementsOfRenderObject :: RenderObjectMap -> IORef [RenderElement.RenderElementData] -> IO ()
+            gatherRenderElementsOfRenderObject renderObjectMap renderElements = do
+                writeIORef renderElements []
+                flip HashTable.mapM_ renderObjectMap $ \(objectName, renderObjectData) -> do
+                    renderObjectRenderElements <- readIORef renderElements
+                    geometryBufferDatas <- readIORef (Mesh._geometryBufferDatas . Model._meshData . RenderObject._modelData $ renderObjectData)
+                    materialInstanceDatas <- readIORef (Model._materialInstanceDatas . RenderObject._modelData $ renderObjectData)
+                    renderElementList <- forM [0..(length geometryBufferDatas - 1)] $ \index -> do
+                        return RenderElement.RenderElementData
+                            { _renderObject = renderObjectData
+                            , _geometryData = geometryBufferDatas !! index
+                            , _materialInstanceData = materialInstanceDatas !! index
+                            }
+                    writeIORef renderElements (renderObjectRenderElements ++ renderElementList)
 
 

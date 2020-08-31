@@ -20,7 +20,8 @@ class SceneManagerInterface a where
     addDirectionalLightObject :: a -> Text.Text -> Light.LightCreateInfo -> IO Light.DirectionalLightData
     addRenderObject :: a -> Text.Text -> RenderObjectCreateData -> IO RenderObjectData
     getRenderObject :: a -> Text.Text -> IO (Maybe RenderObjectData)
-    getRenderObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
+    getStaticObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
+    getSkeletalObjectRenderElements :: a -> IO [RenderElement.RenderElementData]
     updateSceneManagerData :: a -> Double -> Float -> IO ()
 
 instance SceneManagerInterface SceneManagerData where

@@ -602,8 +602,10 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
                 validationVK result "vkBeginCommandBuffer failed!"
 
             -- Render
-            renderShadow rendererData commandBuffer swapChainIndex sceneManagerData
-            renderSolid rendererData commandBuffer swapChainIndex sceneManagerData
+            staticRenderElements <- SceneManager.getStaticObjectRenderElements sceneManagerData
+            skeletalRenderElements <- SceneManager.getSkeletalObjectRenderElements sceneManagerData
+            renderShadow rendererData commandBuffer swapChainIndex staticRenderElements
+            renderSolid rendererData commandBuffer swapChainIndex staticRenderElements
             renderPostProcess rendererData commandBuffer swapChainIndex quadGeometryData
 
             -- Render Final
@@ -644,13 +646,12 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
 renderSolid :: RendererData
             -> VkCommandBuffer
             -> Int
-            -> SceneManager.SceneManagerData
+            -> [RenderElement.RenderElementData]
             -> IO ()
-renderSolid rendererData commandBuffer swapChainIndex sceneManagerData = do
+renderSolid rendererData commandBuffer swapChainIndex renderElements = do
     let renderPassPipelineDataName = ("render_object", "render_solid")
     (renderPassData, pipelineData) <- getRenderPassPipelineData (_resources rendererData) renderPassPipelineDataName
-    renderObjectRenderElements <- SceneManager.getRenderObjectRenderElements sceneManagerData
-    forM_ (zip [(0::Int)..] renderObjectRenderElements) $ \(index, renderElement) -> do
+    forM_ (zip [(0::Int)..] renderElements) $ \(index, renderElement) -> do
         let renderObject = RenderElement._renderObject renderElement
             geometryBufferData = RenderElement._geometryData renderElement
             vertexBufferPtr = _vertexBufferPtr geometryBufferData
@@ -702,9 +703,9 @@ renderSolid rendererData commandBuffer swapChainIndex sceneManagerData = do
 renderShadow :: RendererData
              -> VkCommandBuffer
              -> Int
-             -> SceneManager.SceneManagerData
+             -> [RenderElement.RenderElementData]
              -> IO ()
-renderShadow rendererData commandBuffer swapChainIndex sceneManagerData = do
+renderShadow rendererData commandBuffer swapChainIndex renderElements = do
     let resources = _resources rendererData
         renderPassPipelineDataName = ("render_shadow", "render_shadow")
     (renderPassData, pipelineData) <- getRenderPassPipelineData resources renderPassPipelineDataName
@@ -729,8 +730,7 @@ renderShadow rendererData commandBuffer swapChainIndex sceneManagerData = do
     vkCmdBindPipeline commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipeline
     vkCmdBindDescriptorSets commandBuffer VK_PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 1 (ptrAtIndex descriptorSetPtr swapChainIndex) 0 VK_NULL
 
-    renderObjectRenderElements <- SceneManager.getRenderObjectRenderElements sceneManagerData
-    forM_ (zip [(0::Int)..] renderObjectRenderElements) $ \(index, renderElement) -> do
+    forM_ (zip [(0::Int)..] renderElements) $ \(index, renderElement) -> do
         let renderObject = RenderElement._renderObject renderElement
             geometryBufferData = RenderElement._geometryData renderElement
             vertexBufferPtr = _vertexBufferPtr geometryBufferData
