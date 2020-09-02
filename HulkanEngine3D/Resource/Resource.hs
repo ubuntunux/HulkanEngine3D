@@ -39,7 +39,7 @@ import {-# SOURCE #-} HulkanEngine3D.Application.SceneManager
 import HulkanEngine3D.Render.Mesh
 import qualified HulkanEngine3D.Render.Model as Model
 import qualified HulkanEngine3D.Render.Material as Material
-import HulkanEngine3D.Render.MaterialInstance
+import qualified HulkanEngine3D.Render.MaterialInstance as MaterialInstance
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Resource.ObjLoader
 import qualified HulkanEngine3D.Resource.RenderPassCreateInfo as RenderPassCreateInfo
@@ -118,7 +118,7 @@ defaultRenderPassName = "render_object"
 type ResourceDataMap a = HashTable.BasicHashTable Text.Text a
 type FrameBufferDataMap = ResourceDataMap FrameBufferData
 type MaterialDataMap = ResourceDataMap Material.MaterialData
-type MaterialInstanceDataMap = ResourceDataMap MaterialInstanceData
+type MaterialInstanceDataMap = ResourceDataMap MaterialInstance.MaterialInstanceData
 type SceneManagerDataMap = ResourceDataMap SceneManagerData
 type MeshDataMap = ResourceDataMap MeshData
 type ModelDataMap = ResourceDataMap Model.ModelData
@@ -204,7 +204,7 @@ class ResourceInterface a where
     loadMaterialInstanceDatas :: a -> RendererData -> IO ()
     unloadMaterialInstanceDatas :: a -> RendererData -> IO ()
     updateMaterialInstanceDatas :: a -> RendererData -> IO ()
-    getMaterialInstanceData :: a -> Text.Text -> IO MaterialInstanceData
+    getMaterialInstanceData :: a -> Text.Text -> IO MaterialInstance.MaterialInstanceData
 
     getDescriptorData :: a -> RendererData -> Text.Text -> PipelineDataCreateInfo -> IO Descriptor.DescriptorData
     unloadDescriptorDatas :: a -> RendererData -> IO ()
@@ -578,7 +578,7 @@ instance ResourceInterface Resources where
                             case (materialParameterType, materialParameterResourceType) of
                                 (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, Descriptor.DescriptorResourceType_UniformBuffer) -> do
                                     uniformBufferData <- getUniformBufferData rendererData (fromText materialParameterName)
-                                    return . Descriptor.DescriptorBufferInfo . atSwapChainIndex swapChainIndex $ _descriptorBufferInfos uniformBufferData
+                                    return $ Descriptor.DescriptorBufferInfo (atSwapChainIndex swapChainIndex (_descriptorBufferInfos uniformBufferData))
                                 (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Descriptor.DescriptorResourceType_Texture) -> do
                                     textureData <- case maybeMaterialParameter of
                                         Just (Aeson.String value) -> getTextureData resources value
@@ -590,22 +590,22 @@ instance ResourceInterface Resources where
                                 otherwise -> return Descriptor.InvalidDescriptorInfo
                         return $ filter (/= Descriptor.InvalidDescriptorInfo) descriptorResourceInfos
                     return (renderPassData, pipelineData, descriptorResourceInfosList)
-                materialInstance <- createMaterialInstance (getDevice rendererData) materialInstanceName materialData pipelineBindingCreateInfoList
+                materialInstance <- MaterialInstance.createMaterialInstance (getDevice rendererData) materialInstanceName materialData pipelineBindingCreateInfoList
                 HashTable.insert (_materialInstanceDataMap resources) materialInstanceName materialInstance
 
     unloadMaterialInstanceDatas :: Resources -> RendererData -> IO ()
     unloadMaterialInstanceDatas resources rendererData =
-        clearHashTable (_materialInstanceDataMap resources) (\(k, v) -> destroyMaterialInstance (getDevice rendererData) v)
+        clearHashTable (_materialInstanceDataMap resources) (\(k, v) -> MaterialInstance.destroyMaterialInstance (getDevice rendererData) v)
 
     updateMaterialInstanceDatas :: Resources -> RendererData -> IO ()
     updateMaterialInstanceDatas resources rendererData =
         flip HashTable.mapM_ (_modelDataMap resources) $ \(k, modelData) -> do
             materialInstances <- Model.getMaterialInstanceDataList modelData
             newMaterialInstances <- forM materialInstances $ \materialInstance ->
-                getMaterialInstanceData resources (_materialInstanceDataName materialInstance)
+                getMaterialInstanceData resources (MaterialInstance._materialInstanceDataName materialInstance)
             Model.setMaterialInstanceDataList modelData newMaterialInstances
 
-    getMaterialInstanceData :: Resources -> Text.Text -> IO MaterialInstanceData
+    getMaterialInstanceData :: Resources -> Text.Text -> IO MaterialInstance.MaterialInstanceData
     getMaterialInstanceData resources resourceName =
         getResourceData (_materialInstanceDataMap resources) resourceName defaultMaterialInstanceName
 

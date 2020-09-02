@@ -197,3 +197,16 @@ createWriteDescriptorSets descriptorSet descriptorBindIndices descriptorSetLayou
                             set @"pBufferInfo" VK_NULL
                             &* set @"pImageInfo" VK_NULL
                 &* set @"pTexelBufferView" VK_NULL
+
+
+updateWriteDescriptorSet :: Ptr VkWriteDescriptorSet -> Int -> DescriptorResourceInfo -> IO ()
+updateWriteDescriptorSet writeDescriptorSetPtr descriptorOffset descriptorResourceInfo = do
+    let writeDescriptorSetPtrOffset = ptrAtIndex writeDescriptorSetPtr descriptorOffset
+    case descriptorResourceInfo of
+        DescriptorBufferInfo bufferInfo ->
+            withPtr bufferInfo $ \bufferInfoPtr ->
+                writeField @"pBufferInfo" writeDescriptorSetPtrOffset bufferInfoPtr
+        DescriptorImageInfo imageInfo ->
+            withPtr imageInfo $ \imageInfoPtr ->
+                writeField @"pImageInfo" writeDescriptorSetPtrOffset imageInfoPtr
+        otherwise -> return ()

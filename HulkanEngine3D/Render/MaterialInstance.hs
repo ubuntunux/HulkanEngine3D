@@ -17,14 +17,17 @@ import Graphics.Vulkan
 import Graphics.Vulkan.Core_1_0
 
 import qualified HulkanEngine3D.Render.Material as Material
+import HulkanEngine3D.Vulkan.Vulkan
 import qualified HulkanEngine3D.Vulkan.RenderPass as RenderPass
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import HulkanEngine3D.Utilities.Logger
 
 data PipelineBindingData = PipelineBindingData
-    { _pipelineData :: RenderPass.PipelineData
+    { _renderPassData :: RenderPass.RenderPassData
+    , _pipelineData :: RenderPass.PipelineData
     , _descriptorSetsPtr :: Ptr VkDescriptorSet
-    , _writeDescriptorSetPtrs :: [Ptr VkWriteDescriptorSet]
+    , _writeDescriptorSetPtrs :: SwapChainIndexMap (Ptr VkWriteDescriptorSet)
+    , _descriptorSetCount :: Int
     } deriving Show
 
 type PipelineBindingDataMap = Map.Map RenderPass.RenderPassPipelineDataName PipelineBindingData
@@ -53,14 +56,22 @@ createMaterialInstance device materialInstanceDataName materialData pipelineBind
         let descriptorData = RenderPass._descriptorData $ pipelineData
             descriptorBindingIndices = map Descriptor._descriptorBindingIndex' (Descriptor._descriptorDataCreateInfoList descriptorData)
             descriptorSetLayoutBindingList = Descriptor._descriptorSetLayoutBindingList descriptorData
+            descriptorSetBindingCount = length descriptorBindingIndices
         writeDescriptorSetPtrs <- forM (zip descriptorSets descriptorResourceInfosList) $ \(descriptorSet, descriptorResourceInfos) -> do
             let descriptorWrites = Descriptor.createWriteDescriptorSets descriptorSet descriptorBindingIndices descriptorSetLayoutBindingList descriptorResourceInfos
-                count = length descriptorWrites
-            writeDescriptorSetPtr <- mallocArray count
+                descriptorWritesCount = length descriptorWrites
+            when (descriptorWritesCount /= descriptorSetBindingCount) $ error "descriptorWritesCount Error"
+            writeDescriptorSetPtr <- mallocArray descriptorWritesCount
             pokeArray writeDescriptorSetPtr descriptorWrites
-            vkUpdateDescriptorSets device (fromIntegral count) writeDescriptorSetPtr 0 VK_NULL
+            vkUpdateDescriptorSets device (fromIntegral descriptorWritesCount) writeDescriptorSetPtr 0 VK_NULL
             return writeDescriptorSetPtr
-        let pipelineBindingData = PipelineBindingData { _pipelineData = pipelineData, _descriptorSetsPtr = descriptorSetsPtr, _writeDescriptorSetPtrs = writeDescriptorSetPtrs }
+        let pipelineBindingData = PipelineBindingData
+                { _renderPassData = renderPassData
+                , _pipelineData = pipelineData
+                , _descriptorSetsPtr = descriptorSetsPtr
+                , _writeDescriptorSetPtrs = swapChainIndexMapFromList writeDescriptorSetPtrs
+                , _descriptorSetCount = descriptorSetBindingCount
+                }
         return (renderPassPipelineDataName, pipelineBindingData)
     return MaterialInstanceData
         { _materialInstanceDataName = materialInstanceDataName
@@ -72,7 +83,12 @@ destroyMaterialInstance :: VkDevice -> MaterialInstanceData -> IO ()
 destroyMaterialInstance device materialInstanceData = do
     forM_ (_pipelineBindingDataMap materialInstanceData) $ \pipelineBindingData -> do
         free (_descriptorSetsPtr pipelineBindingData)
-        mapM_ free (_writeDescriptorSetPtrs pipelineBindingData)
+        applyIOSwapChainIndex' free (_writeDescriptorSetPtrs pipelineBindingData)
+
+getRenderPassPipelineData :: MaterialInstanceData -> RenderPass.RenderPassPipelineDataName -> (RenderPass.RenderPassData, RenderPass.PipelineData)
+getRenderPassPipelineData materialInstanceData renderPassPipelineDataName =
+    let pipelineBindingData = getPipelineBindingData materialInstanceData renderPassPipelineDataName
+    in (_renderPassData pipelineBindingData, _pipelineData pipelineBindingData)
 
 getPipelineBindingData :: MaterialInstanceData -> RenderPass.RenderPassPipelineDataName -> PipelineBindingData
 getPipelineBindingData materialInstanceData renderPassPipelineDataName = Maybe.fromJust $ Map.lookup renderPassPipelineDataName (_pipelineBindingDataMap materialInstanceData)

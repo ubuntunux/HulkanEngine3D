@@ -8,6 +8,7 @@ module HulkanEngine3D.Render.Material where
 
 import Control.Monad
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
 
@@ -19,6 +20,7 @@ data MaterialData = MaterialData
     , _renderPassPipelineDataMap :: Map.Map RenderPass.RenderPassPipelineDataName (RenderPass.RenderPassData, RenderPass.PipelineData)
     , _materialParameterMap :: Aeson.Object
     } deriving Show
+
 
 createMaterial :: Text.Text
                -> [(RenderPass.RenderPassData, RenderPass.PipelineData)]
@@ -38,3 +40,6 @@ createMaterial materialDataName renderPassPipelineDataList materialParameterMap 
 
 destroyMaterial :: MaterialData -> IO ()
 destroyMaterial materialData = return ()
+
+getRenderPassPipelineData :: MaterialData -> RenderPass.RenderPassPipelineDataName -> (RenderPass.RenderPassData, RenderPass.PipelineData)
+getRenderPassPipelineData materialData renderPassPipelineDataName = Maybe.fromJust $ Map.lookup renderPassPipelineDataName (_renderPassPipelineDataMap materialData)

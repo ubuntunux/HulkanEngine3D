@@ -48,8 +48,8 @@ applyIOSwapChainIndex f (SwapChainIndexMap a b c) = do
 applyIOSwapChainIndex f _ = return SwapChainIndexMapEmpty
 
 applyIOSwapChainIndex' :: (a -> IO b) -> SwapChainIndexMap a -> IO ()
-applyIOSwapChainIndex' f xs = do
-    applyIOSwapChainIndex f xs
+applyIOSwapChainIndex' f abc = do
+    applyIOSwapChainIndex f abc
     return ()
 
 atSwapChainIndex :: Int -> SwapChainIndexMap a -> a
@@ -86,8 +86,8 @@ applyIOFrameIndex f (FrameIndexMap a b) = do
 applyIOFrameIndex f _ = return FrameIndexMapEmpty
 
 applyIOFrameIndex' :: (a -> IO b) -> FrameIndexMap a -> IO ()
-applyIOFrameIndex' f xs = do
-    applyIOFrameIndex f xs
+applyIOFrameIndex' f ab = do
+    applyIOFrameIndex f ab
     return ()
 
 frameIndexMapSingleton :: a -> FrameIndexMap a
