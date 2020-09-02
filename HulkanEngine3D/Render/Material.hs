@@ -30,7 +30,7 @@ createMaterial materialDataName renderPassPipelineDataList materialParameterMap 
     logInfo $ "createMaterial : " ++ Text.unpack materialDataName
     renderPassPipelineDataMap <- forM renderPassPipelineDataList $ \(renderPassData, pipelineData) -> do
         let renderPassPipelineDataName = (RenderPass._renderPassDataName renderPassData, RenderPass._pipelineDataName pipelineData)
-        logInfo $ "    renderPass, pipeline : " ++ show renderPassPipelineDataName
+        logTrivialInfo $ "    renderPass, pipeline : " ++ show renderPassPipelineDataName
         return (renderPassPipelineDataName, (renderPassData, pipelineData))
     return MaterialData
         { _materialDataName = materialDataName

@@ -1,7 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module HulkanEngine3D.Utilities.Logger
-    ( logInfo
+    ( logTrivialInfo
+    , logInfo
     , logDebug
     , logWarn
     , logError
@@ -10,6 +11,7 @@ module HulkanEngine3D.Utilities.Logger
 import GHC.Stack hiding (prettyCallStack, prettySrcLoc)
 import Data.List
 import Data.Time
+import Control.Monad
 
 prettySrcLoc :: SrcLoc -> String
 prettySrcLoc SrcLoc {..}
@@ -43,6 +45,15 @@ prettyCallStackLines cs time loggerLevel msg = case getCallStack cs of
 
 getLoggerTime :: IO String
 getLoggerTime = formatTime defaultTimeLocale "%F %T.%3q" <$> getZonedTime
+
+enableLogTrivialInfo :: Bool
+enableLogTrivialInfo = False
+
+logTrivialInfo :: HasCallStack => String -> IO ()
+logTrivialInfo msg =
+    when enableLogTrivialInfo $ do
+        time <- getLoggerTime
+        putStrLn $ prettyCallStack callStack time "INFO" msg
 
 logInfo :: HasCallStack => String -> IO ()
 logInfo msg = do

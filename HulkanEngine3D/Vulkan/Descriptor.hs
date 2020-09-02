@@ -69,12 +69,12 @@ createDescriptorPool device poolSizeList maxDescriptorSetsCount = do
     descriptorPool <- allocaPeek $ \descriptorPoolPtr ->
         withPtr poolCreateInfo $ \poolCreateInfoPtr ->
             vkCreateDescriptorPool device poolCreateInfoPtr VK_NULL descriptorPoolPtr
-    logInfo $ "    createDescriptorPool : " ++ show descriptorPool
+    logTrivialInfo $ "    createDescriptorPool : " ++ show descriptorPool
     return descriptorPool
 
 destroyDescriptorPool :: VkDevice -> VkDescriptorPool -> IO ()
 destroyDescriptorPool device descriptorPool = do
-    logInfo $ "    destroyDescriptorPool : " ++ show descriptorPool
+    logTrivialInfo $ "    destroyDescriptorPool : " ++ show descriptorPool
     vkDestroyDescriptorPool device descriptorPool VK_NULL
 
 
@@ -89,13 +89,13 @@ createDescriptorSetLayout device layoutBindingList = do
     descriptorSetLayout <- allocaPeek $ \descriptorSetLayoutPtr ->
         withPtr layoutCreateInfo $ \layoutCreateInfoPtr ->
             vkCreateDescriptorSetLayout device layoutCreateInfoPtr VK_NULL descriptorSetLayoutPtr
-    logInfo $ "    createDescriptorSetLayout : " ++ show descriptorSetLayout
+    logTrivialInfo $ "    createDescriptorSetLayout : " ++ show descriptorSetLayout
     return descriptorSetLayout
 
 
 destroyDescriptorSetLayout :: VkDevice -> VkDescriptorSetLayout -> IO ()
 destroyDescriptorSetLayout device descriptorSetLayout = do
-    logInfo $ "    destroyDescriptorSetLayout : " ++ show descriptorSetLayout
+    logTrivialInfo $ "    destroyDescriptorSetLayout : " ++ show descriptorSetLayout
     vkDestroyDescriptorSetLayout device descriptorSetLayout VK_NULL
 
 
@@ -156,12 +156,12 @@ createDescriptorSet device descriptorData@DescriptorData {..} = do
         descriptorSets <- allocaPeekArray Constants.descriptorSetCountAtOnce $ \descriptorSetPtr ->
             withPtr allocateInfo $ \allocateInfoPtr ->
                 vkAllocateDescriptorSets device allocateInfoPtr descriptorSetPtr
-        logInfo $ "    createDescriptorSet : " ++ show descriptorSets
+        logTrivialInfo $ "    createDescriptorSet : " ++ show descriptorSets
         return descriptorSets
 
 destroyDescriptorSet :: VkDevice -> VkDescriptorPool -> [VkDescriptorSet] -> Ptr VkDescriptorSet -> IO ()
 destroyDescriptorSet device descriptorPool descriptorSets descriptorSetPtr = do
-    logInfo $ "    destroyDescriptorSet : " ++ show descriptorSets
+    logTrivialInfo $ "    destroyDescriptorSet : " ++ show descriptorSets
     -- need VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag for vkFreeDescriptorSets
     when (descriptorSetPtr /= VK_NULL) $
         vkFreeDescriptorSets device descriptorPool (fromIntegral . length $ descriptorSets) descriptorSetPtr

@@ -120,10 +120,10 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
             result <- vkAllocateMemory device allocInfoPtr VK_NULL bufferMemoryPtr
             validationVK result "vkAllocateMemory failed!"
 
-    logInfo $ "    Create Buffer : "  ++ show buffer ++ ", Memory : " ++ show bufferMemory
-    logInfo $ "        bufferSize : " ++ show bufferSize
-    logInfo $ "        memoryTypeIndex : " ++ show memoryTypeIndex
-    logInfo $ "        " ++ show memoryRequirements
+    logTrivialInfo $ "    Create Buffer : "  ++ show buffer ++ ", Memory : " ++ show bufferMemory
+    logTrivialInfo $ "        bufferSize : " ++ show bufferSize
+    logTrivialInfo $ "        memoryTypeIndex : " ++ show memoryTypeIndex
+    logTrivialInfo $ "        " ++ show memoryRequirements
 
     let memoryOffset = 0 :: VkDeviceSize
     vkBindBufferMemory device buffer bufferMemory memoryOffset
@@ -132,7 +132,7 @@ createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFla
 
 destroyBuffer :: VkDevice -> VkBuffer -> VkDeviceMemory -> IO ()
 destroyBuffer device buffer memory = do
-    logInfo $ "    Destroy Buffer : buffer "  ++ show buffer ++ ", memory " ++ show memory
+    logTrivialInfo $ "    Destroy Buffer : buffer "  ++ show buffer ++ ", memory " ++ show memory
     vkDestroyBuffer device buffer VK_NULL
     vkFreeMemory device memory VK_NULL
 
@@ -146,7 +146,7 @@ copyBuffer :: VkDevice
            -> VkDeviceSize 
            -> IO ()
 copyBuffer device commandPool commandQueue srcBuffer dstBuffer bufferSize = do
-    logInfo $ "    CopyBuffer : " ++ show srcBuffer ++ " -> " ++ show dstBuffer ++ " { size = " ++ show bufferSize ++ " }"
+    logTrivialInfo $ "    CopyBuffer : " ++ show srcBuffer ++ " -> " ++ show dstBuffer ++ " { size = " ++ show bufferSize ++ " }"
     runCommandsOnce device commandPool commandQueue $ \commandBuffer -> do
         let copyRegion = createVk @VkBufferCopy
                 $  set @"srcOffset" 0

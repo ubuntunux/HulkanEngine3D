@@ -46,10 +46,10 @@ createMaterialInstance :: VkDevice
                        -> IO MaterialInstanceData
 createMaterialInstance device materialInstanceDataName materialData pipelineBindingCreateInfoList = do
     logInfo $ "createMaterialInstance : " ++ Text.unpack materialInstanceDataName
-    logInfo $ "    materialData : " ++ Text.unpack (Material._materialDataName materialData)
+    logTrivialInfo $ "    materialData : " ++ Text.unpack (Material._materialDataName materialData)
     pipelineBindingDataList <- forM pipelineBindingCreateInfoList $ \(renderPassData, pipelineData, descriptorResourceInfosList) -> do
         let renderPassPipelineDataName = (RenderPass._renderPassDataName renderPassData, RenderPass._pipelineDataName pipelineData)
-        logInfo $ "        (RenderPass, Pipeline) : " ++ show renderPassPipelineDataName
+        logTrivialInfo $ "        (RenderPass, Pipeline) : " ++ show renderPassPipelineDataName
         descriptorSets <- Descriptor.createDescriptorSet device (RenderPass._descriptorData pipelineData)
         descriptorSetsPtr <- mallocArray (length descriptorSets)
         pokeArray descriptorSetsPtr descriptorSets

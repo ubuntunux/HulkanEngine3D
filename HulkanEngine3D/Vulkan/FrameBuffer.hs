@@ -60,12 +60,12 @@ createFrameBufferData :: VkDevice
                       -> FrameBufferDataCreateInfo
                       -> IO FrameBufferData
 createFrameBufferData device renderPass frameBufferDataCreateInfo = do
-    logInfo $ "Create Framebuffers : " ++ (Text.unpack $ _frameBufferName frameBufferDataCreateInfo)
-    logInfo $ "    ImageSize " ++ show
-        ( _frameBufferWidth $ frameBufferDataCreateInfo
-        , _frameBufferHeight $ frameBufferDataCreateInfo
-        , _frameBufferDepth $ frameBufferDataCreateInfo
-        )
+    logInfo $ "Create Framebuffers : "
+        ++ (Text.unpack $ _frameBufferName frameBufferDataCreateInfo)
+        ++ show ( _frameBufferWidth $ frameBufferDataCreateInfo
+                , _frameBufferHeight $ frameBufferDataCreateInfo
+                , _frameBufferDepth $ frameBufferDataCreateInfo
+                )
     frameBuffers <- applyIOSwapChainIndex createFrameBuffer (_frameBufferImageViewLists frameBufferDataCreateInfo)
     let renderPassBeginInfo frameBuffer = createVk @VkRenderPassBeginInfo
             $  set @"sType" VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO

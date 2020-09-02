@@ -576,7 +576,7 @@ createRenderTarget textureDataName physicalDevice device commandBufferPool queue
         ++ " "  ++ show _textureCreateInfoWidth
         ++ ", " ++ show _textureCreateInfoHeight
         ++ ", " ++ show _textureCreateInfoDepth
-    logInfo $ "    TextureData : image " ++ show image ++ ", imageView " ++ show imageView ++ ", imageMemory " ++ show imageMemory ++ ", sampler " ++ show imageSampler
+    logTrivialInfo $ "    TextureData : image " ++ show image ++ ", imageView " ++ show imageView ++ ", imageMemory " ++ show imageMemory ++ ", sampler " ++ show imageSampler
     return textureData
 
 
@@ -671,7 +671,7 @@ createTextureData textureDataName physicalDevice device commandBufferPool comman
         ++ " "  ++ show _textureCreateInfoWidth
         ++ ", " ++ show _textureCreateInfoHeight
         ++ ", " ++ show _textureCreateInfoDepth
-    logInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
+    logTrivialInfo $ "    TextureData : image " ++ show _image ++ ", imageView " ++ show _imageView ++ ", imageMemory " ++ show _imageMemory ++ ", sampler " ++ show _imageSampler
 
     return textureData
 

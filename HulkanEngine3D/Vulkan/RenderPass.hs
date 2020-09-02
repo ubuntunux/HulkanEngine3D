@@ -300,13 +300,13 @@ createPipelineLayout device pushConstantRanges descriptorSetLayouts = do
         validationVK result "vkCreatePipelineLayout failed!"
         peek pipelineLayoutPtr
     touchVkData pipelineCreateInfo
-    logInfo $ "Create PipelineLayout : " ++ (show pipelineLayout)
+    logTrivialInfo $ "Create PipelineLayout : " ++ (show pipelineLayout)
     return pipelineLayout
 
 
 destroyPipelineLayout :: VkDevice -> VkPipelineLayout -> IO ()
 destroyPipelineLayout device pipelineLayout = do
-    logInfo $ "Destroy PipelineLayout" ++ show pipelineLayout
+    logTrivialInfo $ "Destroy PipelineLayout" ++ show pipelineLayout
     vkDestroyPipelineLayout device pipelineLayout VK_NULL
 
 
@@ -451,9 +451,9 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
         peek graphicsPipelinePtr
 
     logInfo $ "createGraphicsPipeline : " ++ Text.unpack _pipelineDataCreateInfoName ++ " (" ++ show graphicsPipeline ++ ")"
-    logInfo $ "    shaderDefines : " ++ show _pipelineShaderDefines
-    logInfo $ "    vertexShader : " ++ show _pipelineVertexShaderFile
-    logInfo $ "    fragmentShader : " ++ show _pipelineFragmentShaderFile
+    logTrivialInfo $ "    shaderDefines : " ++ show _pipelineShaderDefines
+    logTrivialInfo $ "    vertexShader : " ++ show _pipelineVertexShaderFile
+    logTrivialInfo $ "    fragmentShader : " ++ show _pipelineFragmentShaderFile
 
     return PipelineData
         { _pipelineDataName = _pipelineDataCreateInfoName

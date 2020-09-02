@@ -168,7 +168,7 @@ createVertexBuffer physicalDevice device graphicsQueue commandPool vertices = do
         bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
         memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 
-    logInfo $ "createVertexBuffer : bufferSize " ++ show bufferSize
+    logTrivialInfo $ "createVertexBuffer : bufferSize " ++ show bufferSize
 
     -- create temporary staging buffer
     let stagingBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
@@ -203,7 +203,7 @@ createIndexBuffer physicalDevice device graphicsQueue commandPool indices = do
         bufferUsageFlags = (VK_BUFFER_USAGE_TRANSFER_DST_BIT .|. VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
         memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 
-    logInfo $ "createIndexBuffer : bufferSize " ++ show bufferSize
+    logTrivialInfo $ "createIndexBuffer : bufferSize " ++ show bufferSize
 
     -- create index buffer
     (indexBufferMemory, indexBuffer) <- createBuffer physicalDevice device bufferSize bufferUsageFlags memoryPropertyFlags
