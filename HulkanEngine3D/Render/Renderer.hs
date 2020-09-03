@@ -699,9 +699,7 @@ renderSolid rendererData commandBuffer swapChainIndex renderElements = do
 
         modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
         let pushConstantData = PushConstantData { modelMatrix = modelMatrix }
-
-        with pushConstantData $ \pushConstantDataPtr ->
-            vkCmdPushConstants commandBuffer pipelineLayout VK_SHADER_STAGE_ALL 0 (bSizeOf pushConstantData) (castPtr pushConstantDataPtr)
+        uploadPushConstantData rendererData commandBuffer pipelineData pushConstantData
 
         drawElements rendererData commandBuffer geometryBufferData
     endRenderPass rendererData commandBuffer
@@ -726,9 +724,7 @@ renderShadow rendererData commandBuffer swapChainIndex renderElements = do
 
         modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
         let pushConstantData = PushConstantData { modelMatrix = modelMatrix }
-
-        with pushConstantData $ \pushConstantDataPtr ->
-            vkCmdPushConstants commandBuffer (RenderPass._pipelineLayout pipelineData) VK_SHADER_STAGE_ALL 0 (bSizeOf pushConstantData) (castPtr pushConstantDataPtr)
+        uploadPushConstantData rendererData commandBuffer pipelineData pushConstantData
 
         drawElements rendererData commandBuffer geometryBufferData
     endRenderPass rendererData commandBuffer
