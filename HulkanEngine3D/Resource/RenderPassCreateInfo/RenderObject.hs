@@ -8,6 +8,7 @@ import qualified Data.Text as Text
 
 import Graphics.Vulkan.Core_1_0
 
+import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTargetDeclaration
 import HulkanEngine3D.Render.UniformBufferDatas (UniformBufferType (..))
@@ -18,8 +19,12 @@ import HulkanEngine3D.Vulkan.Texture
 import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Utilities.System (toText)
 
-getFrameBufferDataCreateInfo :: RendererData -> Text.Text -> IO FrameBufferDataCreateInfo
-getFrameBufferDataCreateInfo rendererData renderPassName = do
+getRenderPassName :: Constants.RenderObjectType -> Text.Text
+getRenderPassName Constants.RenderObject_Static = "render_pass_static_opaque"
+getRenderPassName Constants.RenderObject_Skeletal = "render_pass_skeletal_opaque"
+
+getFrameBufferDataCreateInfo :: RendererData -> Text.Text -> Constants.RenderObjectType -> IO FrameBufferDataCreateInfo
+getFrameBufferDataCreateInfo rendererData renderPassName renderObjectType = do
     textureSceneAlbedo <- getRenderTarget rendererData RenderTarget_SceneAlbedo
     textureSceneMaterial <- getRenderTarget rendererData RenderTarget_SceneMaterial
     textureSceneNormal <- getRenderTarget rendererData RenderTarget_SceneNormal
@@ -39,18 +44,20 @@ getFrameBufferDataCreateInfo rendererData renderPassName = do
         , _frameBufferDepthAttachmentFormats = [_imageFormat textureSceneDepth]
         , _frameBufferImageViewLists = swapChainIndexMapSingleton $ (map _imageView textures) ++ [_imageView textureSceneDepth]
         , _frameBufferClearValues =
-            [ getColorClearValue [0.0, 0.0, 0.0]
-            , getColorClearValue [0.0, 0.0, 0.0]
-            , getColorClearValue [0.5, 0.5, 1.0]
-            , getColorClearValue [0.0, 0.0]
-            , getDepthStencilClearValue 1.0 0
-            ]
+            case renderObjectType of
+                Constants.RenderObject_Static -> [ getColorClearValue [0.0, 0.0, 0.0]
+                                                 , getColorClearValue [0.0, 0.0, 0.0]
+                                                 , getColorClearValue [0.5, 0.5, 1.0]
+                                                 , getColorClearValue [0.0, 0.0]
+                                                 , getDepthStencilClearValue 1.0 0
+                                                 ]
+                otherwise -> []
         }
 
-getRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
-getRenderPassDataCreateInfo rendererData = do
-    let renderPassName = "render_object"
-    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
+getRenderPassDataCreateInfo :: RendererData -> Constants.RenderObjectType -> IO RenderPassDataCreateInfo
+getRenderPassDataCreateInfo rendererData renderObjectType = do
+    let renderPassName = getRenderPassName renderObjectType
+    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName renderObjectType
     let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
         colorAttachmentDescriptions =
             [ defaultAttachmentDescription
@@ -92,7 +99,7 @@ getRenderPassDataCreateInfo rendererData = do
             ]
         pipelineDataCreateInfos =
             [ PipelineDataCreateInfo
-                { _pipelineDataCreateInfoName = "render_solid"
+                { _pipelineDataCreateInfoName = "render_object"
                 , _pipelineVertexShaderFile = "render_object.vert"
                 , _pipelineFragmentShaderFile = "render_object.frag"
                 , _pipelineShaderDefines = []

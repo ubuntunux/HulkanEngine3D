@@ -682,7 +682,7 @@ renderSolid :: RendererData
             -> [RenderElement.RenderElementData]
             -> IO ()
 renderSolid rendererData commandBuffer swapChainIndex renderElements = do
-    let renderPassPipelineDataName = ("render_object", "render_solid")
+    let renderPassPipelineDataName = ("render_pass_static_opaque", "render_object")
     forM_ (zip [(0::Int)..] renderElements) $ \(index, renderElement) -> do
         let renderObject = RenderElement._renderObject renderElement
             geometryBufferData = RenderElement._geometryData renderElement
@@ -711,8 +711,8 @@ renderShadow :: RendererData
              -> [RenderElement.RenderElementData]
              -> IO ()
 renderShadow rendererData commandBuffer swapChainIndex renderElements = do
-    materialInstance <- getMaterialInstanceData (_resources rendererData) "render_shadow"
-    let pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstance ("render_shadow", "render_shadow")
+    materialInstance <- getMaterialInstanceData (_resources rendererData) "render_pass_static_shadow"
+    let pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstance ("render_pass_static_shadow", "render_object")
         renderPassData = MaterialInstance._renderPassData pipelineBindingData
         pipelineData = MaterialInstance._pipelineData pipelineBindingData
     beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassData pipelineData

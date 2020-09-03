@@ -1,9 +1,13 @@
 #ifndef _SCENE_CONSTANTS_
 #define _SCENE_CONSTANTS_
 
-// NOTE : sync with Constants.hs, data RenderMode
-#define RenderMode_Common 0
-#define RenderMode_Shadow 1
+// Constants.hs, data RenderMode
+#define RenderMode_Common   0
+#define RenderMode_Shadow   1
+
+// Constants.hs, data RenderObjectType
+#define RenderObject_Static     0
+#define RenderObject_Skeletal   1
 
 const int BLEND = 0;
 const int ADDITIVE = 1;

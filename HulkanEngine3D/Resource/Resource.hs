@@ -106,13 +106,13 @@ defaultTextureName :: Text.Text
 defaultTextureName = "common/default"
 
 defaultMaterialName :: Text.Text
-defaultMaterialName = "render_object"
+defaultMaterialName = "render_pass_static_opaque"
 
 defaultMaterialInstanceName :: Text.Text
 defaultMaterialInstanceName = "default"
 
 defaultRenderPassName :: Text.Text
-defaultRenderPassName = "render_object"
+defaultRenderPassName = "render_pass_static_opaque"
 
 
 type ResourceDataMap a = HashTable.BasicHashTable Text.Text a

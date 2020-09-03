@@ -20,11 +20,12 @@ import HulkanEngine3D.Vulkan.Vulkan
 import HulkanEngine3D.Utilities.System (toText)
 
 
-renderPassName :: Text.Text
-renderPassName = "render_shadow"
+getRenderPassName :: Constants.RenderObjectType -> Text.Text
+getRenderPassName Constants.RenderObject_Static = "render_pass_static_shadow"
+getRenderPassName Constants.RenderObject_Skeletal = "render_pass_skeletal_shadow"
 
-getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
-getFrameBufferDataCreateInfo rendererData = do
+getFrameBufferDataCreateInfo :: RendererData -> Text.Text -> Constants.RenderObjectType -> IO FrameBufferDataCreateInfo
+getFrameBufferDataCreateInfo rendererData renderPassName renderObjectType = do
     textureDepth <- getRenderTarget rendererData RenderTarget_Shadow
     let (width, height, depth) = (_imageWidth textureDepth, _imageHeight textureDepth, _imageDepth textureDepth)
     return defaultFrameBufferDataCreateInfo
@@ -38,19 +39,26 @@ getFrameBufferDataCreateInfo rendererData = do
         , _frameBufferColorAttachmentFormats = []
         , _frameBufferDepthAttachmentFormats = [_imageFormat textureDepth]
         , _frameBufferImageViewLists = swapChainIndexMapSingleton [ _imageView textureDepth ]
-        , _frameBufferClearValues = [ getDepthStencilClearValue 1.0 0 ]
+        , _frameBufferClearValues =
+            case renderObjectType of
+                Constants.RenderObject_Static -> [ getDepthStencilClearValue 1.0 0 ]
+                otherwise -> []
         }
 
-getRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
-getRenderPassDataCreateInfo rendererData = do
-    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData
+getRenderPassDataCreateInfo :: RendererData -> Constants.RenderObjectType -> IO RenderPassDataCreateInfo
+getRenderPassDataCreateInfo rendererData renderObjectType = do
+    let renderPassName = getRenderPassName renderObjectType
+    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName renderObjectType
     let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
         colorAttachmentDescriptions = []
         depthAttachmentDescriptions =
             [ defaultAttachmentDescription
                 { _attachmentImageFormat = format
                 , _attachmentImageSamples = sampleCount
-                , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
+                , _attachmentLoadOperation =
+                    case renderObjectType of
+                        Constants.RenderObject_Static -> VK_ATTACHMENT_LOAD_OP_CLEAR
+                        otherwise -> VK_ATTACHMENT_LOAD_OP_LOAD
                 , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
                 , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
@@ -76,7 +84,7 @@ getRenderPassDataCreateInfo rendererData = do
             ]
         pipelineDataCreateInfos =
             [ PipelineDataCreateInfo
-                { _pipelineDataCreateInfoName = "render_shadow"
+                { _pipelineDataCreateInfoName = "render_object"
                 , _pipelineVertexShaderFile = "render_object.vert"
                 , _pipelineFragmentShaderFile = "shadowmap.frag"
                 , _pipelineShaderDefines = [Text.append "RenderMode=" (Text.pack . show . fromEnum $ Constants.RenderMode_Shadow)]
@@ -118,7 +126,7 @@ getRenderPassDataCreateInfo rendererData = do
                 }
             ]
     return RenderPassDataCreateInfo
-        { _renderPassCreateInfoName = renderPassName
+        { _renderPassCreateInfoName = getRenderPassName renderObjectType
         , _renderPassFrameBufferCreateInfo = frameBufferDataCreateInfo
         , _colorAttachmentDescriptions = colorAttachmentDescriptions
         , _depthAttachmentDescriptions = depthAttachmentDescriptions
