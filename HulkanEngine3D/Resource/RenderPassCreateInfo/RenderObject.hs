@@ -59,11 +59,14 @@ getRenderPassDataCreateInfo rendererData renderObjectType = do
     let renderPassName = getRenderPassName renderObjectType
     frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName renderObjectType
     let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
+        attachmentLoadOperation = case renderObjectType of
+            Constants.RenderObject_Static -> VK_ATTACHMENT_LOAD_OP_CLEAR
+            otherwise -> VK_ATTACHMENT_LOAD_OP_LOAD
         colorAttachmentDescriptions =
             [ defaultAttachmentDescription
                 { _attachmentImageFormat = format
                 , _attachmentImageSamples = sampleCount
-                , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
+                , _attachmentLoadOperation = attachmentLoadOperation
                 , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
                 , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
@@ -73,7 +76,7 @@ getRenderPassDataCreateInfo rendererData renderObjectType = do
             [ defaultAttachmentDescription
                 { _attachmentImageFormat = format
                 , _attachmentImageSamples = sampleCount
-                , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_CLEAR
+                , _attachmentLoadOperation = attachmentLoadOperation
                 , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
                 , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL

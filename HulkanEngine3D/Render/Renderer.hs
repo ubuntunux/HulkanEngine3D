@@ -639,8 +639,10 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
             -- Render
             staticRenderElements <- SceneManager.getStaticObjectRenderElements sceneManagerData
             skeletalRenderElements <- SceneManager.getSkeletalObjectRenderElements sceneManagerData
-            renderShadow rendererData commandBuffer swapChainIndex staticRenderElements
-            renderSolid rendererData commandBuffer swapChainIndex staticRenderElements
+            renderShadow rendererData commandBuffer swapChainIndex Constants.RenderObject_Static staticRenderElements
+            renderShadow rendererData commandBuffer swapChainIndex Constants.RenderObject_Skeletal skeletalRenderElements
+            renderSolid rendererData commandBuffer swapChainIndex Constants.RenderObject_Static staticRenderElements
+            renderSolid rendererData commandBuffer swapChainIndex Constants.RenderObject_Skeletal skeletalRenderElements
             renderPostProcess rendererData commandBuffer swapChainIndex quadGeometryData
 
             -- Render Final
@@ -679,10 +681,13 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
 renderSolid :: RendererData
             -> VkCommandBuffer
             -> Int
+            -> Constants.RenderObjectType
             -> [RenderElement.RenderElementData]
             -> IO ()
-renderSolid rendererData commandBuffer swapChainIndex renderElements = do
-    let renderPassPipelineDataName = ("render_pass_static_opaque", "render_object")
+renderSolid rendererData commandBuffer swapChainIndex renderObjectType renderElements = do
+    let renderPassPipelineDataName = case renderObjectType of
+            Constants.RenderObject_Static -> ("render_pass_static_opaque", "render_object")
+            Constants.RenderObject_Skeletal -> ("render_pass_skeletal_opaque", "render_object")
     forM_ (zip [(0::Int)..] renderElements) $ \(index, renderElement) -> do
         let renderObject = RenderElement._renderObject renderElement
             geometryBufferData = RenderElement._geometryData renderElement
@@ -708,11 +713,15 @@ renderSolid rendererData commandBuffer swapChainIndex renderElements = do
 renderShadow :: RendererData
              -> VkCommandBuffer
              -> Int
+             -> Constants.RenderObjectType
              -> [RenderElement.RenderElementData]
              -> IO ()
-renderShadow rendererData commandBuffer swapChainIndex renderElements = do
-    materialInstance <- getMaterialInstanceData (_resources rendererData) "render_pass_static_shadow"
-    let pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstance ("render_pass_static_shadow", "render_object")
+renderShadow rendererData commandBuffer swapChainIndex renderObjectType renderElements = do
+    let (renderPassPipelineDataName, materialInstanceName) = case renderObjectType of
+            Constants.RenderObject_Static -> (("render_pass_static_shadow", "render_object"), "render_static_shadow")
+            Constants.RenderObject_Skeletal -> (("render_pass_skeletal_shadow", "render_object"), "render_skeletal_shadow")
+    materialInstance <- getMaterialInstanceData (_resources rendererData) materialInstanceName
+    let pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstance renderPassPipelineDataName
         renderPassData = MaterialInstance._renderPassData pipelineBindingData
         pipelineData = MaterialInstance._pipelineData pipelineBindingData
     beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassData pipelineData
