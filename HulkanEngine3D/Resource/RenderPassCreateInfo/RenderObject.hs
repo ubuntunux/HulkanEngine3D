@@ -59,15 +59,16 @@ getRenderPassDataCreateInfo rendererData renderObjectType = do
     let renderPassName = getRenderPassName renderObjectType
     frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName renderObjectType
     let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
-        attachmentLoadOperation = case renderObjectType of
-            Constants.RenderObject_Static -> VK_ATTACHMENT_LOAD_OP_CLEAR
-            otherwise -> VK_ATTACHMENT_LOAD_OP_LOAD
+        (attachmentLoadOperation, attachmentInitialLayout) = case renderObjectType of
+            Constants.RenderObject_Static -> (VK_ATTACHMENT_LOAD_OP_CLEAR, VK_IMAGE_LAYOUT_UNDEFINED)
+            otherwise -> (VK_ATTACHMENT_LOAD_OP_LOAD, VK_IMAGE_LAYOUT_GENERAL)
         colorAttachmentDescriptions =
             [ defaultAttachmentDescription
                 { _attachmentImageFormat = format
                 , _attachmentImageSamples = sampleCount
                 , _attachmentLoadOperation = attachmentLoadOperation
                 , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
+                , _attachmentInitialLayout = attachmentInitialLayout
                 , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 } | format <- _frameBufferColorAttachmentFormats frameBufferDataCreateInfo
@@ -78,6 +79,7 @@ getRenderPassDataCreateInfo rendererData renderObjectType = do
                 , _attachmentImageSamples = sampleCount
                 , _attachmentLoadOperation = attachmentLoadOperation
                 , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
+                , _attachmentInitialLayout = attachmentInitialLayout
                 , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
                 } | format <- _frameBufferDepthAttachmentFormats frameBufferDataCreateInfo
