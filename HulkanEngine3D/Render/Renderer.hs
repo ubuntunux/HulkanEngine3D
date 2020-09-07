@@ -81,7 +81,6 @@ data RendererData = RendererData
     , _swapChainIndexPtr :: Ptr Word32
     , _vertexOffsetPtr :: Ptr VkDeviceSize
     , _needRecreateSwapChainRef :: IORef Bool
-    , _isFirstRender :: IORef Bool
     , _imageAvailableSemaphores :: FrameIndexMap VkSemaphore
     , _renderFinishedSemaphores :: FrameIndexMap VkSemaphore
     , _vkInstance :: VkInstance
@@ -314,7 +313,6 @@ defaultRendererData resources = do
     vertexOffsetPtr <- new (0 :: VkDeviceSize)
     frameIndexRef <- newIORef (0::Int)
     needRecreateSwapChainRef <- newIORef False
-    isFirstRender <- newIORef True
     imageSamplers <- newIORef defaultImageSamplers
     renderPassDataListRef <- newIORef (DList.fromList [])
     swapChainDataRef <- newIORef defaultSwapChainData
@@ -328,7 +326,6 @@ defaultRendererData resources = do
         , _swapChainIndexPtr = swapChainIndexPtr
         , _vertexOffsetPtr = vertexOffsetPtr
         , _needRecreateSwapChainRef = needRecreateSwapChainRef
-        , _isFirstRender = isFirstRender
         , _imageAvailableSemaphores = FrameIndexMapEmpty
         , _renderFinishedSemaphores = FrameIndexMapEmpty
         , _vkInstance = VK_NULL
@@ -566,8 +563,6 @@ renderScene rendererData@RendererData {..} sceneManagerData elapsedTime deltaTim
 
     result <- case acquireNextImageResult of
         VK_SUCCESS -> do
-            isFirstRender <- readIORef _isFirstRender
-
             mainCamera <- SceneManager.getMainCamera sceneManagerData
             cameraPosition <- Camera.getCameraPosition mainCamera
             cameraPositionPrev <- Camera.getCameraPositionPrev mainCamera

@@ -384,20 +384,21 @@ runApplication commandToEditor commandToApp = do
 
     -- Main Loop
     updateLoop applicationData commandToEditor commandToApp $ \applicationData recvCommand -> do
+        elapsedTime <- getElapsedTime applicationData
         updateTimeData $ _timeData applicationData
         deltaTime <- realToFrac <$> getDeltaTime applicationData
-        elapsedTime <- getElapsedTime applicationData
 
         let rendererData = _rendererData applicationData
             resources = _resources applicationData
             sceneManagerData = _sceneManagerData applicationData
+            isFirstUpdate = (0.0 == elapsedTime)
 
         -- resize window
         needRecreateSwapChain <- readIORef (Renderer._needRecreateSwapChainRef rendererData)
         windowSizeChanged <- readIORef (_windowSizeChanged applicationData)
         when (windowSizeChanged || needRecreateSwapChain || Command_Resize_Window == recvCommand) $ do
-            writeIORef (Renderer._isFirstRender rendererData) True
-            Renderer.resizeWindow (_window applicationData) rendererData
+            when (not isFirstUpdate) $
+                Renderer.resizeWindow (_window applicationData) rendererData
             writeIORef (_windowSizeChanged applicationData) False
             writeIORef (Renderer._needRecreateSwapChainRef rendererData) False
             (width, height) <- readIORef (_windowSize applicationData)
