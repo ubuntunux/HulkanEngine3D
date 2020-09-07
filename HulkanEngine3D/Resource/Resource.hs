@@ -22,6 +22,7 @@ import qualified Data.Binary as Binary
 import qualified Data.Maybe as Maybe
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Data.Char as Char
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Storable as SVector
 import Foreign
@@ -41,7 +42,8 @@ import qualified HulkanEngine3D.Render.Model as Model
 import qualified HulkanEngine3D.Render.Material as Material
 import qualified HulkanEngine3D.Render.MaterialInstance as MaterialInstance
 import HulkanEngine3D.Render.Renderer
-import HulkanEngine3D.Resource.ObjLoader
+import qualified HulkanEngine3D.Resource.ObjLoader as ObjLoader
+import qualified HulkanEngine3D.Resource.ColladaLoader as ColladaLoader
 import qualified HulkanEngine3D.Resource.RenderPassCreateInfo as RenderPassCreateInfo
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
@@ -72,8 +74,14 @@ meshSourceFilePath = "Resource/Externals/Meshes"
 meshFilePath :: FilePath
 meshFilePath = "Resource/Meshes"
 
+ext_obj :: String
+ext_obj = ".obj"
+
+ext_collada :: String
+ext_collada = ".dae"
+
 meshSourceExts :: [String]
-meshSourceExts = [".obj"]
+meshSourceExts = [ext_obj, ext_collada]
 
 jsonExt :: String
 jsonExt = ".json"
@@ -335,6 +343,7 @@ instance ResourceInterface Resources where
         forM_ meshSourceFiles $ \meshSourceFile -> do
             meshName <- getUniqueResourceName (_meshDataMap resources) meshSourceFilePath meshSourceFile
             let resourceName = Text.unpack meshName
+                file_ext = map Char.toLower (takeExtension meshSourceFile)
             geometryCreateInfos <- case Map.lookup meshName meshFileMap of
                 Just meshFile ->
                     -- Load mesh
@@ -353,7 +362,13 @@ instance ResourceInterface Resources where
                                 }
                 otherwise -> do
                     -- Convert to mesh from source
-                    geometryCreateInfos <- loadMesh meshSourceFile
+                    geometryCreateInfos <-
+                        if ext_obj == file_ext then
+                            ObjLoader.loadMesh meshSourceFile
+                        else if ext_collada == file_ext then
+                            ColladaLoader.loadCollada meshSourceFile
+                        else
+                            return []
                     -- Save mesh
                     createDirectoryIfMissing True (takeDirectory $ combine meshFilePath resourceName)
                     if useJsonForMesh then

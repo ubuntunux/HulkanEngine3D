@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass         #-}
+{-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE InstanceSigs           #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE NegativeLiterals       #-}
@@ -5,6 +7,18 @@
 
 
 module HulkanEngine3D.Render.Animation where
+
+import GHC.Generics (Generic)
+import Data.Aeson
+
+
+data BoneData = BoneData
+    {
+    } deriving (Eq, Read, Show, Generic, ToJSON, FromJSON)
+
+data SkeletonData = SkeletonData
+    {
+    } deriving (Eq, Read, Show, Generic, ToJSON, FromJSON)
 
 --class Bone:
 --    def __init__(self, name, index, depth, inv_bind_matrix):

@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE MagicHash              #-}
 {-# LANGUAGE BangPatterns           #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DeriveAnyClass         #-}
