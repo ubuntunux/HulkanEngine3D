@@ -89,11 +89,13 @@ executable main
                       , filepath
                       , hashable
                       , hashtables
+                      , hxt
                       , JuicyPixels
                       , monad-logger
                       , mtl
                       , primitive
                       , process
+                      , regex-posix
                       , template-haskell
                       , text
                       , time

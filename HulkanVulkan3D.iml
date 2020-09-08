@@ -119,5 +119,9 @@
     <orderEntry type="library" name="call-stack-0.1.0" level="project" />
     <orderEntry type="library" name="regex-base-0.93.2" level="project" />
     <orderEntry type="library" name="parsec-3.1.13.0" level="project" />
+    <orderEntry type="library" name="hxt-9.3.1.16" level="project" />
+    <orderEntry type="library" name="hxt-charproperties-9.2.0.1" level="project" />
+    <orderEntry type="library" name="hxt-unicode-9.0.2.4" level="project" />
+    <orderEntry type="library" name="hxt-regex-xmlschema-9.2.0.3" level="project" />
   </component>
 </module>

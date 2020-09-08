@@ -5,8 +5,12 @@
 
 module HulkanEngine3D.Resource.ColladaLoader where
 
---import qualified HulkanEngine3D.Render.Animation as Animation
+import Text.XML.HXT.Core
+
 import qualified HulkanEngine3D.Vulkan.GeometryBuffer as GeometryBuffer
+
+runFirst :: IOSArrow XmlTree a -> IO a
+runFirst context = (!! 0) <$> runX context
 
 --convert_list :: data, data_type=float, stride=1
 --    if data:
@@ -415,26 +419,24 @@ import qualified HulkanEngine3D.Vulkan.GeometryBuffer as GeometryBuffer
 --                    self.texcoords.append(sources[source_id][vertIndices[offset]])
 --        self.valid = True
 --
+
 loadCollada :: FilePath -> IO [GeometryBuffer.GeometryCreateInfo]
-loadCollada filepath = return []
---class Collada:
---    def __init__(self, filepath):
---        try:
---            xml_root = load_xml(filepath)
---        except:
---            logger.error(traceback.format_exc())
---            return
---
---        self.name = os.path.splitext(os.path.split(filepath)[1])[0]
---        self.collada_version = get_xml_attrib(xml_root, 'version')
---        self.author = get_xml_text(xml_root.find("asset/contributor/author"))
---        self.authoring_tool = get_xml_text(xml_root.find("asset/contributor/authoring_tool"))
---        self.created = get_xml_text(xml_root.find("asset/created"))
---        self.modified = get_xml_text(xml_root.find("asset/modified"))
---        self.unit_name = get_xml_attrib(xml_root.find("asset/unit"), 'name', 'meter')
---        self.unit_meter = convert_float(get_xml_attrib(xml_root.find("asset/unit"), 'meter'))
---        self.up_axis = get_xml_text(xml_root.find("asset/up_axis"))
---
+loadCollada filepath = do
+    contents <- readFile filepath
+    let xml_root = readString [withParseHTML yes, withWarnings no] contents
+        xml_collada = xml_root //> hasName "collada"
+    collada_version <- runFirst $ xml_collada >>> getAttrValue "version"
+    author <- runFirst $ xml_collada /> hasName "asset" /> hasName "contributor" /> hasName "author" /> getText
+    authoring_tool <- runFirst $ xml_collada /> hasName "asset" /> hasName "contributor" /> hasName "authoring_tool" /> getText
+    created <- runFirst $ xml_collada /> hasName "asset" /> hasName "created" /> getText
+    modified <- runFirst $ xml_collada /> hasName "asset" /> hasName "modified" /> getText
+    unit_name <- runFirst $ xml_collada /> hasName "asset" /> hasName "unit" >>> getAttrValue "name"
+    unit_scale <- (read::String -> Float) <$> (runFirst $ xml_collada /> hasName "asset" /> hasName "unit" >>> getAttrValue unit_name)
+    up_axis <- runFirst $ xml_collada /> hasName "asset" /> hasName "up_axis" /> getText
+
+    print (collada_version, author, authoring_tool, created, modified, unit_name, unit_scale, up_axis)
+    return []
+
 --        self.nodes = []
 --        self.node_name_map = {}  # { target: name }
 --        self.geometries = []

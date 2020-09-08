@@ -365,8 +365,9 @@ instance ResourceInterface Resources where
                     geometryCreateInfos <-
                         if ext_obj == file_ext then
                             ObjLoader.loadMesh meshSourceFile
-                        else if ext_collada == file_ext then
+                        else if ext_collada == file_ext then do
                             ColladaLoader.loadCollada meshSourceFile
+                            error "error"
                         else
                             return []
                     -- Save mesh
