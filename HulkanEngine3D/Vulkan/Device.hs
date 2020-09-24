@@ -117,10 +117,10 @@ createVulkanInstance progName engineName layers extensions = do
             $ set @"sType" VK_STRUCTURE_TYPE_APPLICATION_INFO
             &* set @"pNext" VK_NULL
             &* setStrRef @"pApplicationName" progName
-            &* set @"applicationVersion" (_VK_MAKE_VERSION 1 0 0)
+            &* set @"applicationVersion" Constants.engineVersion
             &* setStrRef @"pEngineName" engineName
-            &* set @"engineVersion" (_VK_MAKE_VERSION 1 0 0)
-            &* set @"apiVersion" (_VK_MAKE_VERSION 1 0 0)
+            &* set @"engineVersion" Constants.engineVersion
+            &* set @"apiVersion" Constants.vulkanAPIVersion
         instanceCreateInfo = createVk @VkInstanceCreateInfo
             $ set @"sType" VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
             &* set @"pNext" VK_NULL

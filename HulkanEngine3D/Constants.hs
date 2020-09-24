@@ -3,6 +3,12 @@ module HulkanEngine3D.Constants where
 import Graphics.Vulkan
 import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
+engineVersion :: Word32
+engineVersion = _VK_MAKE_VERSION 1 0 0
+
+vulkanAPIVersion :: Word32
+vulkanAPIVersion = _VK_MAKE_VERSION 1 0 0
+
 engineName :: String
 engineName = "HulkanEngine3D"
 
