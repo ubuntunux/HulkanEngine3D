@@ -36,6 +36,7 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Utilities.System
 import HulkanEngine3D.Utilities.Logger
 import HulkanEngine3D.Vulkan.SwapChain
+import HulkanEngine3D.Vulkan.Vulkan
 
 
 getExtensionNames :: (Traversable t1, VulkanMarshal t) => [Char] -> t1 t -> IO (t1 String)
@@ -186,8 +187,8 @@ selectPhysicalDevice vkInstance maybeVkSurface = do
                 selectFirstSuitable physicalDeviceArray
 
 
-createDevice :: VkPhysicalDevice -> [Word32] -> IO VkDevice
-createDevice physicalDevice queueFamilyList = do
+createDevice :: VkPhysicalDevice -> RenderFeatures -> [Word32] -> IO VkDevice
+createDevice physicalDevice renderFeatures queueFamilyList = do
     queuePrioritiesPtr <- new 1.0
     queueCreateInfoList <- forM queueFamilyList $ \queueFamilyIndex ->
         newVkData @VkDeviceQueueCreateInfo $ \queueCreateInfoPtr -> do
@@ -200,7 +201,7 @@ createDevice physicalDevice queueFamilyList = do
     physicalDeviceFeatures <- newVkData @VkPhysicalDeviceFeatures $
         \physicalDeviceFeaturesPtr -> do
             clearStorable physicalDeviceFeaturesPtr
-            writeField @"samplerAnisotropy" physicalDeviceFeaturesPtr VK_TRUE
+            writeField @"samplerAnisotropy" physicalDeviceFeaturesPtr (_anisotropyEnable renderFeatures)
     queueCreateInfoArrayPtr <- newArray queueCreateInfoList
     requireDeviceExtensionsPtr <- newArray Constants.requireDeviceExtensions
     deviceCreateInfo <- withCStringList Constants.vulkanLayers $ \layerCount layerNames -> do

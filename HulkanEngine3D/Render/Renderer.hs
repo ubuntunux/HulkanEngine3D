@@ -392,7 +392,7 @@ createRenderer window progName engineName enableValidationLayer isConcurrentMode
     let graphicsQueueIndex = _graphicsQueueIndex queueFamilyIndices
         presentQueueIndex = _presentQueueIndex queueFamilyIndices
         queueFamilyIndexList = Set.toList $ Set.fromList [graphicsQueueIndex, presentQueueIndex]
-    device <- createDevice physicalDevice queueFamilyIndexList
+    device <- createDevice physicalDevice renderFeatures queueFamilyIndexList
     queueMap <- createQueues device queueFamilyIndexList
     let defaultQueue = (Map.elems queueMap) !! 0
         queueFamilyDatas = QueueFamilyDatas
