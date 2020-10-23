@@ -179,7 +179,7 @@ generateUniqueName objectMap objectName = do
         Nothing -> return objectName
         otherwise -> generator objectMap objectName (0::Int)
     where
-        generator sceneManagerData objectName index = do
+        generator objectMap objectName index = do
             let newObjectName = Text.append objectName $ Text.append (Text.pack "_") (Text.pack . show $ index)
             objectData <- HashTable.lookup objectMap newObjectName
             case objectData of
