@@ -37,6 +37,14 @@ executable main
                       HulkanEngine3D.Render.Model
                       HulkanEngine3D.Render.PostProcess
                       HulkanEngine3D.Render.PushConstant
+                      HulkanEngine3D.Render.RenderPassCreateInfo
+                      HulkanEngine3D.Render.RenderPassCreateInfo.CompositeGBuffer
+                      HulkanEngine3D.Render.RenderPassCreateInfo.RenderObject
+                      HulkanEngine3D.Render.RenderPassCreateInfo.RenderDebug
+                      HulkanEngine3D.Render.RenderPassCreateInfo.RenderFinal
+                      HulkanEngine3D.Render.RenderPassCreateInfo.RenderMotionBlur
+                      HulkanEngine3D.Render.RenderPassCreateInfo.RenderSSAO
+                      HulkanEngine3D.Render.RenderPassCreateInfo.RenderShadow
                       HulkanEngine3D.Render.RenderTarget
                       HulkanEngine3D.Render.RenderTargetDeclaration
                       HulkanEngine3D.Render.Renderer
@@ -49,14 +57,6 @@ executable main
                       HulkanEngine3D.Resource.ObjLoader
                       HulkanEngine3D.Resource.Resource
                       HulkanEngine3D.Resource.ResourceData
-                      HulkanEngine3D.Resource.RenderPassCreateInfo
-                      HulkanEngine3D.Resource.RenderPassCreateInfo.CompositeGBuffer
-                      HulkanEngine3D.Resource.RenderPassCreateInfo.RenderObject
-                      HulkanEngine3D.Resource.RenderPassCreateInfo.RenderDebug
-                      HulkanEngine3D.Resource.RenderPassCreateInfo.RenderFinal
-                      HulkanEngine3D.Resource.RenderPassCreateInfo.RenderMotionBlur
-                      HulkanEngine3D.Resource.RenderPassCreateInfo.RenderSSAO
-                      HulkanEngine3D.Resource.RenderPassCreateInfo.RenderShadow
                       HulkanEngine3D.Resource.TextureGenerator
                       HulkanEngine3D.Utilities.BoundingBox
                       HulkanEngine3D.Utilities.Logger

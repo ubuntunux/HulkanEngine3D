@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 
-module HulkanEngine3D.Resource.RenderPassCreateInfo where
+module HulkanEngine3D.Render.RenderPassCreateInfo where
 
 import HulkanEngine3D.Render.Renderer
 import qualified HulkanEngine3D.Constants as Constants
-import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.CompositeGBuffer as CompositeGBuffer
-import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderDebug as RenderDebug
-import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderObject as RenderObject
-import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderFinal as RenderFinal
-import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderMotionBlur as RenderMotionBlur
-import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderSSAO as RenderSSAO
-import qualified HulkanEngine3D.Resource.RenderPassCreateInfo.RenderShadow as RenderShadow
+import qualified HulkanEngine3D.Render.RenderPassCreateInfo.CompositeGBuffer as CompositeGBuffer
+import qualified HulkanEngine3D.Render.RenderPassCreateInfo.RenderDebug as RenderDebug
+import qualified HulkanEngine3D.Render.RenderPassCreateInfo.RenderObject as RenderObject
+import qualified HulkanEngine3D.Render.RenderPassCreateInfo.RenderFinal as RenderFinal
+import qualified HulkanEngine3D.Render.RenderPassCreateInfo.RenderMotionBlur as RenderMotionBlur
+import qualified HulkanEngine3D.Render.RenderPassCreateInfo.RenderSSAO as RenderSSAO
+import qualified HulkanEngine3D.Render.RenderPassCreateInfo.RenderShadow as RenderShadow
 import HulkanEngine3D.Vulkan.RenderPass
 
 

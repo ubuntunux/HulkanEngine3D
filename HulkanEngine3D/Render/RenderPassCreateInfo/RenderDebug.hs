@@ -1,46 +1,46 @@
+{-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeApplications   #-}
 
-module HulkanEngine3D.Resource.RenderPassCreateInfo.RenderMotionBlur where
+module HulkanEngine3D.Render.RenderPassCreateInfo.RenderDebug where
 
 import Data.Bits
 import qualified Data.Text as Text
+import Data.IORef
 
 import Graphics.Vulkan.Core_1_0
+import Graphics.Vulkan.Ext.VK_KHR_swapchain
 
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTargetDeclaration
-import HulkanEngine3D.Render.UniformBufferDatas (UniformBufferType (..))
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.RenderPass
-import HulkanEngine3D.Vulkan.Texture
+import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Vulkan
-import HulkanEngine3D.Utilities.System (toText)
+import HulkanEngine3D.Utilities.System
 
-renderPassName :: Text.Text
-renderPassName = "render_motion_blur"
-
-getFrameBufferDataCreateInfo :: RendererData -> IO FrameBufferDataCreateInfo
-getFrameBufferDataCreateInfo rendererData = do
-    textureSceneColor <- getRenderTarget rendererData RenderTarget_SceneColorCopy
-    let (width, height, depth) = (_imageWidth textureSceneColor, _imageHeight textureSceneColor, _imageDepth textureSceneColor)
-        textures = [textureSceneColor]
+getFrameBufferDataCreateInfo :: RendererData -> Text.Text -> IO FrameBufferDataCreateInfo
+getFrameBufferDataCreateInfo rendererData renderPassName = do
+    swapChainData <- readIORef (_swapChainDataRef rendererData)
+    let imageSize = _swapChainExtent swapChainData
+        width = getField @"width" imageSize
+        height = getField @"height" imageSize
     return defaultFrameBufferDataCreateInfo
         { _frameBufferName = renderPassName
         , _frameBufferWidth = width
         , _frameBufferHeight = height
-        , _frameBufferDepth = depth
-        , _frameBufferSampleCount = _imageSampleCount textureSceneColor
         , _frameBufferViewPort = createViewport 0 0 width height 0 1
         , _frameBufferScissorRect = createScissorRect 0 0 width height
-        , _frameBufferColorAttachmentFormats = map _imageFormat textures
-        , _frameBufferImageViewLists = swapChainIndexMapSingleton (map _imageView textures)
+        , _frameBufferColorAttachmentFormats = [_swapChainImageFormat swapChainData]
+        , _frameBufferImageViewLists = applySwapChainIndex (\swapChainImageView -> [swapChainImageView]) (_swapChainImageViews swapChainData)
         }
 
 getRenderPassDataCreateInfo :: RendererData -> IO RenderPassDataCreateInfo
 getRenderPassDataCreateInfo rendererData = do
-    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData
+    let renderPassName = "render_debug"
+    frameBufferDataCreateInfo <- getFrameBufferDataCreateInfo rendererData renderPassName
     let sampleCount = _frameBufferSampleCount frameBufferDataCreateInfo
         colorAttachmentDescriptions =
             [ defaultAttachmentDescription
@@ -48,7 +48,7 @@ getRenderPassDataCreateInfo rendererData = do
                 , _attachmentImageSamples = sampleCount
                 , _attachmentLoadOperation = VK_ATTACHMENT_LOAD_OP_DONT_CARE
                 , _attachmentStoreOperation = VK_ATTACHMENT_STORE_OP_STORE
-                , _attachmentFinalLayout = VK_IMAGE_LAYOUT_GENERAL
+                , _attachmentFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
                 , _attachmentReferenceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 } | format <- _frameBufferColorAttachmentFormats frameBufferDataCreateInfo
             ]
@@ -64,9 +64,9 @@ getRenderPassDataCreateInfo rendererData = do
             ]
         pipelineDataCreateInfos =
             [ PipelineDataCreateInfo
-                { _pipelineDataCreateInfoName = "render_motion_blur"
+                { _pipelineDataCreateInfoName = "render_debug"
                 , _pipelineVertexShaderFile = "render_quad.vert"
-                , _pipelineFragmentShaderFile = "render_motion_blur.frag"
+                , _pipelineFragmentShaderFile = "render_debug.frag"
                 , _pipelineShaderDefines = []
                 , _pipelineDynamicStateList = [VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR]
                 , _pipelineSampleCount = sampleCount
@@ -75,31 +75,13 @@ getRenderPassDataCreateInfo rendererData = do
                 , _pipelineFrontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE
                 , _pipelineViewport = _frameBufferViewPort frameBufferDataCreateInfo
                 , _pipelineScissorRect = _frameBufferScissorRect frameBufferDataCreateInfo
-                , _pipelineColorBlendModes = replicate (length colorAttachmentDescriptions) $ getColorBlendMode BlendMode_None
-                , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo { _depthWriteEnable = VK_FALSE }
+                , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
+                , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo  { _depthWriteEnable = VK_FALSE }
                 , _pushConstantRanges = []
                 , _descriptorDataCreateInfoList =
                     [ DescriptorDataCreateInfo
                         0
-                        (toText UniformBuffer_SceneConstants)
-                        DescriptorResourceType_UniformBuffer
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                    , DescriptorDataCreateInfo
-                        1
-                        (toText UniformBuffer_ViewConstants)
-                        DescriptorResourceType_UniformBuffer
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-                        (VK_SHADER_STAGE_VERTEX_BIT .|. VK_SHADER_STAGE_FRAGMENT_BIT)
-                    , DescriptorDataCreateInfo
-                        2
-                        (toText RenderTarget_SceneColor)
-                        DescriptorResourceType_RenderTarget
-                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-                        VK_SHADER_STAGE_FRAGMENT_BIT
-                    , DescriptorDataCreateInfo
-                        3
-                        (toText RenderTarget_SceneVelocity)
+                        (toText RenderTarget_BackBuffer)
                         DescriptorResourceType_RenderTarget
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                         VK_SHADER_STAGE_FRAGMENT_BIT

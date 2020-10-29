@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 
-module HulkanEngine3D.Resource.RenderPassCreateInfo.RenderObject where
+module HulkanEngine3D.Render.RenderPassCreateInfo.RenderObject where
 
 import Data.Bits
 import qualified Data.Text as Text

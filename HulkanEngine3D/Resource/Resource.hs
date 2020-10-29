@@ -41,10 +41,10 @@ import HulkanEngine3D.Render.Mesh
 import qualified HulkanEngine3D.Render.Model as Model
 import qualified HulkanEngine3D.Render.Material as Material
 import qualified HulkanEngine3D.Render.MaterialInstance as MaterialInstance
+import qualified HulkanEngine3D.Render.RenderPassCreateInfo as RenderPassCreateInfo
 import HulkanEngine3D.Render.Renderer
 import qualified HulkanEngine3D.Resource.ObjLoader as ObjLoader
 import qualified HulkanEngine3D.Resource.ColladaLoader as ColladaLoader
-import qualified HulkanEngine3D.Resource.RenderPassCreateInfo as RenderPassCreateInfo
 import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import qualified HulkanEngine3D.Vulkan.GeometryBuffer as GeometryBuffer
