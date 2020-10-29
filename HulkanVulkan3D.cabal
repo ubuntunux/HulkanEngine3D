@@ -36,6 +36,7 @@ executable main
                       HulkanEngine3D.Render.Mesh
                       HulkanEngine3D.Render.Model
                       HulkanEngine3D.Render.PostProcess
+                      HulkanEngine3D.Render.PushConstant
                       HulkanEngine3D.Render.RenderTarget
                       HulkanEngine3D.Render.RenderTargetDeclaration
                       HulkanEngine3D.Render.Renderer
@@ -70,7 +71,6 @@ executable main
                       HulkanEngine3D.Vulkan.Device
                       HulkanEngine3D.Vulkan.FrameBuffer
                       HulkanEngine3D.Vulkan.GeometryBuffer
-                      HulkanEngine3D.Vulkan.PushConstant
                       HulkanEngine3D.Vulkan.RenderPass
                       HulkanEngine3D.Vulkan.Queue
                       HulkanEngine3D.Vulkan.UniformBuffer

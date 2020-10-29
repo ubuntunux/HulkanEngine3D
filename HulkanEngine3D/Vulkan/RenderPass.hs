@@ -26,10 +26,8 @@ import qualified HulkanEngine3D.Constants as Constants
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.Descriptor
 import HulkanEngine3D.Vulkan.GeometryBuffer
-import HulkanEngine3D.Vulkan.PushConstant
 import HulkanEngine3D.Vulkan.Shader
 import HulkanEngine3D.Utilities.Logger
-import HulkanEngine3D.Utilities.Math
 import HulkanEngine3D.Utilities.System
 
 
@@ -59,6 +57,7 @@ data PipelineDataCreateInfo = PipelineDataCreateInfo
     , _pipelineScissorRect :: VkRect2D
     , _pipelineColorBlendModes :: [VkPipelineColorBlendAttachmentState]
     , _depthStencilStateCreateInfo :: DepthStencilStateCreateInfo
+    , _pushConstantRanges :: [VkPushConstantRange]
     , _descriptorDataCreateInfoList :: [DescriptorDataCreateInfo]
     }  deriving (Eq, Show)
 
@@ -320,13 +319,11 @@ createGraphicsPipelineData device renderPass pipelineDataCreateInfo@PipelineData
     fragmentShaderCreateInfo <- createShaderStageCreateInfo device _pipelineFragmentShaderFile _pipelineShaderDefines VK_SHADER_STAGE_FRAGMENT_BIT
 
     let depthStencilStateCreateInfo@DepthStencilStateCreateInfo {..} = _depthStencilStateCreateInfo
-        pushConstantData = PushConstantData { modelMatrix = matrix4x4_indentity }
-        pushConstantRange = getPushConstantRange pushConstantData VK_SHADER_STAGE_ALL
         shaderStageInfos = [vertexShaderCreateInfo, fragmentShaderCreateInfo]
         shaderStageInfoCount = length shaderStageInfos
         descriptorSetCount = Constants.swapChainImageCount
 
-    pipelineLayout <- createPipelineLayout device [pushConstantRange] [_descriptorSetLayout descriptorData]
+    pipelineLayout <- createPipelineLayout device _pushConstantRanges [_descriptorSetLayout descriptorData]
 
     let vertexInputInfo = createVk @VkPipelineVertexInputStateCreateInfo
             $  set @"sType" VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO

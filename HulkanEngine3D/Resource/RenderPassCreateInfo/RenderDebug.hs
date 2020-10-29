@@ -77,6 +77,7 @@ getRenderPassDataCreateInfo rendererData = do
                 , _pipelineScissorRect = _frameBufferScissorRect frameBufferDataCreateInfo
                 , _pipelineColorBlendModes = [getColorBlendMode BlendMode_None]
                 , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo  { _depthWriteEnable = VK_FALSE }
+                , _pushConstantRanges = []
                 , _descriptorDataCreateInfoList =
                     [ DescriptorDataCreateInfo
                         0

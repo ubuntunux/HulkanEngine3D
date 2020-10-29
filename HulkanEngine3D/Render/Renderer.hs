@@ -49,6 +49,7 @@ import qualified HulkanEngine3D.Render.Light as Light
 import {-# SOURCE #-} HulkanEngine3D.Render.RenderTarget
 import HulkanEngine3D.Render.RenderTargetDeclaration
 import HulkanEngine3D.Render.ImageSampler
+import HulkanEngine3D.Render.PushConstant
 import qualified HulkanEngine3D.Render.MaterialInstance as MaterialInstance
 import qualified HulkanEngine3D.Render.RenderElement as RenderElement
 import qualified HulkanEngine3D.Render.RenderObject as RenderObject
@@ -68,7 +69,6 @@ import qualified HulkanEngine3D.Vulkan.Descriptor as Descriptor
 import HulkanEngine3D.Vulkan.FrameBuffer
 import HulkanEngine3D.Vulkan.GeometryBuffer
 import HulkanEngine3D.Vulkan.Queue
-import HulkanEngine3D.Vulkan.PushConstant
 import qualified HulkanEngine3D.Vulkan.RenderPass as RenderPass
 import HulkanEngine3D.Vulkan.SwapChain
 import HulkanEngine3D.Vulkan.Sync
@@ -133,7 +133,7 @@ class RendererInterface a where
     bindDescriptorSets :: a -> VkCommandBuffer -> Int -> MaterialInstance.PipelineBindingData -> IO ()
     updateDescriptorSet :: a -> Int -> MaterialInstance.PipelineBindingData -> Int -> Descriptor.DescriptorResourceInfo -> IO ()
     updateDescriptorSets :: a -> Int -> MaterialInstance.PipelineBindingData -> [(Int, Descriptor.DescriptorResourceInfo)] -> IO ()
-    uploadPushConstantData :: a -> VkCommandBuffer -> RenderPass.PipelineData -> PushConstantData -> IO ()
+    uploadPushConstantData :: (Storable s) => a -> VkCommandBuffer -> RenderPass.PipelineData -> s -> IO ()
     drawElements :: a -> VkCommandBuffer -> GeometryData -> IO ()
     endRenderPass :: a -> VkCommandBuffer -> IO ()
     deviceWaitIdle :: a -> IO ()
@@ -261,10 +261,10 @@ instance RendererInterface RendererData where
             Descriptor.updateWriteDescriptorSet writeDescriptorSetPtr descriptorOffset descriptorResourceInfo
         vkUpdateDescriptorSets (_device rendererData) (fromIntegral descriptorWriteCount) writeDescriptorSetPtr 0 VK_NULL
 
-    uploadPushConstantData :: RendererData -> VkCommandBuffer -> RenderPass.PipelineData -> PushConstantData -> IO ()
+    uploadPushConstantData :: (Storable s) => RendererData -> VkCommandBuffer -> RenderPass.PipelineData -> s -> IO ()
     uploadPushConstantData rendererData commandBuffer pipelineData pushConstantData =
         with pushConstantData $ \pushConstantDataPtr ->
-            vkCmdPushConstants commandBuffer (RenderPass._pipelineLayout pipelineData) VK_SHADER_STAGE_ALL 0 (bSizeOf pushConstantData) (castPtr pushConstantDataPtr)
+            vkCmdPushConstants commandBuffer (RenderPass._pipelineLayout pipelineData) VK_SHADER_STAGE_ALL 0 (fromIntegral $ sizeOf pushConstantData) (castPtr pushConstantDataPtr)
 
     drawElements rendererData commandBuffer geometryData = do
         vkCmdBindVertexBuffers commandBuffer 0 1 (_vertexBufferPtr geometryData) (_vertexOffsetPtr rendererData)
@@ -698,7 +698,7 @@ renderSolid rendererData commandBuffer swapChainIndex renderObjectType renderEle
         bindDescriptorSets rendererData commandBuffer swapChainIndex pipelineBindingData
 
         modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
-        let pushConstantData = PushConstantData { modelMatrix = modelMatrix }
+        let pushConstantData = PushConstants_StaticRenderObject { modelMatrix = modelMatrix }
         uploadPushConstantData rendererData commandBuffer pipelineData pushConstantData
 
         drawElements rendererData commandBuffer geometryBufferData
@@ -727,7 +727,7 @@ renderShadow rendererData commandBuffer swapChainIndex renderObjectType renderEl
             geometryBufferData = RenderElement._geometryData renderElement
 
         modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
-        let pushConstantData = PushConstantData { modelMatrix = modelMatrix }
+        let pushConstantData = PushConstants_StaticRenderObject { modelMatrix = modelMatrix }
         uploadPushConstantData rendererData commandBuffer pipelineData pushConstantData
 
         drawElements rendererData commandBuffer geometryBufferData

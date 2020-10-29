@@ -9,6 +9,7 @@ import qualified Data.Text as Text
 import Graphics.Vulkan.Core_1_0
 
 import qualified HulkanEngine3D.Constants as Constants
+import HulkanEngine3D.Render.PushConstant
 import HulkanEngine3D.Render.Renderer
 import HulkanEngine3D.Render.RenderTargetDeclaration
 import HulkanEngine3D.Render.UniformBufferDatas (UniformBufferType (..))
@@ -98,6 +99,7 @@ getRenderPassDataCreateInfo rendererData renderObjectType = do
                 , _pipelineScissorRect = _frameBufferScissorRect frameBufferDataCreateInfo
                 , _pipelineColorBlendModes = replicate (length colorAttachmentDescriptions) $ getColorBlendMode BlendMode_None
                 , _depthStencilStateCreateInfo = defaultDepthStencilStateCreateInfo
+                , _pushConstantRanges = [getPushConstantRange (undefined :: PushConstants_StaticRenderObject) VK_SHADER_STAGE_ALL]
                 , _descriptorDataCreateInfoList =
                     [ DescriptorDataCreateInfo
                         0
