@@ -1,2 +1,2 @@
-{"pipelines": [{"renderPass": "render_final", "pipleline": "render_final"}]
+{"pipelines": [{"renderPass": "render_final", "pipeline": "render_final"}]
 }
