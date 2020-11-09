@@ -679,30 +679,31 @@ renderSolid :: RendererData
             -> Constants.RenderObjectType
             -> [RenderElement.RenderElementData]
             -> IO ()
-renderSolid rendererData commandBuffer swapChainIndex renderObjectType renderElements = do
-    let renderPassPipelineDataName = case renderObjectType of
-            Constants.RenderObject_Static -> ("render_pass_static_opaque", "render_object")
-            Constants.RenderObject_Skeletal -> ("render_pass_skeletal_opaque", "render_object")
-    forM_ (zip [(0::Int)..] renderElements) $ \(index, renderElement) -> do
-        let renderObject = RenderElement._renderObject renderElement
-            geometryBufferData = RenderElement._geometryData renderElement
-            materialInstanceData = RenderElement._materialInstanceData renderElement
-            pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstanceData renderPassPipelineDataName
-            renderPassData = MaterialInstance._renderPassData pipelineBindingData
-            pipelineData = MaterialInstance._pipelineData pipelineBindingData
-            pipelineLayout = RenderPass._pipelineLayout pipelineData
+renderSolid rendererData commandBuffer swapChainIndex renderObjectType renderElements =
+    when (0 < length renderElements) $ do
+        let renderPassPipelineDataName = case renderObjectType of
+                Constants.RenderObject_Static -> ("render_pass_static_opaque", "render_object")
+                Constants.RenderObject_Skeletal -> ("render_pass_skeletal_opaque", "render_object")
+        forM_ (zip [(0::Int)..] renderElements) $ \(index, renderElement) -> do
+            let renderObject = RenderElement._renderObject renderElement
+                geometryBufferData = RenderElement._geometryData renderElement
+                materialInstanceData = RenderElement._materialInstanceData renderElement
+                pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstanceData renderPassPipelineDataName
+                renderPassData = MaterialInstance._renderPassData pipelineBindingData
+                pipelineData = MaterialInstance._pipelineData pipelineBindingData
+                pipelineLayout = RenderPass._pipelineLayout pipelineData
 
-        when (0 == index) $ do
-            beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassData pipelineData
+            when (0 == index) $ do
+                beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassData pipelineData
 
-        bindDescriptorSets rendererData commandBuffer swapChainIndex pipelineBindingData
+            bindDescriptorSets rendererData commandBuffer swapChainIndex pipelineBindingData
 
-        modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
-        let pushConstantData = PushConstants_StaticRenderObject { modelMatrix = modelMatrix }
-        uploadPushConstantData rendererData commandBuffer pipelineData pushConstantData
+            modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
+            let pushConstantData = PushConstants_StaticRenderObject { modelMatrix = modelMatrix }
+            uploadPushConstantData rendererData commandBuffer pipelineData pushConstantData
 
-        drawElements rendererData commandBuffer geometryBufferData
-    endRenderPass rendererData commandBuffer
+            drawElements rendererData commandBuffer geometryBufferData
+        endRenderPass rendererData commandBuffer
 
 
 renderShadow :: RendererData
@@ -711,27 +712,28 @@ renderShadow :: RendererData
              -> Constants.RenderObjectType
              -> [RenderElement.RenderElementData]
              -> IO ()
-renderShadow rendererData commandBuffer swapChainIndex renderObjectType renderElements = do
-    let (renderPassPipelineDataName, materialInstanceName) = case renderObjectType of
-            Constants.RenderObject_Static -> (("render_pass_static_shadow", "render_object"), "render_static_shadow")
-            Constants.RenderObject_Skeletal -> (("render_pass_skeletal_shadow", "render_object"), "render_skeletal_shadow")
-    materialInstance <- getMaterialInstanceData (_resources rendererData) materialInstanceName
-    let pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstance renderPassPipelineDataName
-        renderPassData = MaterialInstance._renderPassData pipelineBindingData
-        pipelineData = MaterialInstance._pipelineData pipelineBindingData
-    beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassData pipelineData
-    bindDescriptorSets rendererData commandBuffer swapChainIndex pipelineBindingData
+renderShadow rendererData commandBuffer swapChainIndex renderObjectType renderElements =
+    when (0 < length renderElements) $ do
+        let (renderPassPipelineDataName, materialInstanceName) = case renderObjectType of
+                Constants.RenderObject_Static -> (("render_pass_static_shadow", "render_object"), "render_static_shadow")
+                Constants.RenderObject_Skeletal -> (("render_pass_skeletal_shadow", "render_object"), "render_skeletal_shadow")
+        materialInstance <- getMaterialInstanceData (_resources rendererData) materialInstanceName
+        let pipelineBindingData = MaterialInstance.getPipelineBindingData materialInstance renderPassPipelineDataName
+            renderPassData = MaterialInstance._renderPassData pipelineBindingData
+            pipelineData = MaterialInstance._pipelineData pipelineBindingData
+        beginRenderPassPipeline rendererData commandBuffer swapChainIndex renderPassData pipelineData
+        bindDescriptorSets rendererData commandBuffer swapChainIndex pipelineBindingData
 
-    forM_ (zip [(0::Int)..] renderElements) $ \(index, renderElement) -> do
-        let renderObject = RenderElement._renderObject renderElement
-            geometryBufferData = RenderElement._geometryData renderElement
+        forM_ (zip [(0::Int)..] renderElements) $ \(index, renderElement) -> do
+            let renderObject = RenderElement._renderObject renderElement
+                geometryBufferData = RenderElement._geometryData renderElement
 
-        modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
-        let pushConstantData = PushConstants_StaticRenderObject { modelMatrix = modelMatrix }
-        uploadPushConstantData rendererData commandBuffer pipelineData pushConstantData
+            modelMatrix <- TransformObject.getMatrix (RenderObject._transformObject renderObject)
+            let pushConstantData = PushConstants_StaticRenderObject { modelMatrix = modelMatrix }
+            uploadPushConstantData rendererData commandBuffer pipelineData pushConstantData
 
-        drawElements rendererData commandBuffer geometryBufferData
-    endRenderPass rendererData commandBuffer
+            drawElements rendererData commandBuffer geometryBufferData
+        endRenderPass rendererData commandBuffer
 
 
 renderPostProcess :: RendererData
