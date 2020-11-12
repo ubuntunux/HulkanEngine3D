@@ -6,7 +6,7 @@
 
 module HulkanEngine3D.Render.Camera where
 
---import Control.Monad
+import Control.Monad
 import Data.IORef
 import qualified Data.Text as Text
 
@@ -150,23 +150,25 @@ instance CameraObjectInterface CameraObjectData where
 
     updateCameraObjectData :: CameraObjectData -> IO ()
     updateCameraObjectData cameraObjectData@CameraObjectData {..} = do
-        updated <- updateTransformObject _transformObject
-        projectionMatrix <- readIORef _projectionMatrix
-        invProjectionMatrix <- readIORef _invProjectionMatrix
-        viewMatrix <- getInverseMatrix _transformObject
-        invViewMatrix <- getMatrix _transformObject
-        writeIORef _viewMatrix viewMatrix
-        writeIORef _invViewMatrix invViewMatrix
-        writeIORef _viewProjectionMatrix (contract viewMatrix projectionMatrix)
-        writeIORef _invViewProjectionMatrix (contract invProjectionMatrix invViewMatrix)
-        let viewOriginMatrix = DF4 (viewMatrix .! Idx 0) (viewMatrix .! Idx 1) (viewMatrix .! Idx 2) (vec4 0 0 0 1)
-            invViewOriginMatrix = (transpose viewOriginMatrix)
-        writeIORef _viewOriginMatrix viewOriginMatrix
-        writeIORef _invViewOriginMatrix invViewOriginMatrix
         viewOriginProjectionMatrixPrev <- readIORef _viewOriginProjectionMatrix
         writeIORef _viewOriginProjectionMatrixPrev viewOriginProjectionMatrixPrev
-        writeIORef _viewOriginProjectionMatrix (contract viewOriginMatrix projectionMatrix)
-        writeIORef _invViewOriginProjectionMatrix (contract invProjectionMatrix invViewOriginMatrix)
+
+        updated <- updateTransformObject _transformObject
+        when updated $ do
+            projectionMatrix <- readIORef _projectionMatrix
+            invProjectionMatrix <- readIORef _invProjectionMatrix
+            viewMatrix <- getInverseMatrix _transformObject
+            invViewMatrix <- getMatrix _transformObject
+            writeIORef _viewMatrix viewMatrix
+            writeIORef _invViewMatrix invViewMatrix
+            writeIORef _viewProjectionMatrix (contract viewMatrix projectionMatrix)
+            writeIORef _invViewProjectionMatrix (contract invProjectionMatrix invViewMatrix)
+            let viewOriginMatrix = DF4 (viewMatrix .! Idx 0) (viewMatrix .! Idx 1) (viewMatrix .! Idx 2) (vec4 0 0 0 1)
+                invViewOriginMatrix = (transpose viewOriginMatrix)
+            writeIORef _viewOriginMatrix viewOriginMatrix
+            writeIORef _invViewOriginMatrix invViewOriginMatrix
+            writeIORef _viewOriginProjectionMatrix (contract viewOriginMatrix projectionMatrix)
+            writeIORef _invViewOriginProjectionMatrix (contract invProjectionMatrix invViewOriginMatrix)
 
     updateProjectionMatrix :: CameraObjectData -> IO ()
     updateProjectionMatrix cameraObjectData@CameraObjectData {..} = do
