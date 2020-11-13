@@ -32,6 +32,7 @@ data KeyboardInputData = KeyboardInputData
     , _keyboardPressed :: Bool
     , _keyboardUp :: Bool
     , _keyPressedMap :: KeyMap
+    , _keyHoldMap :: KeyMap
     , _keyReleasedMap :: KeyMap
     , _modifierKeys :: GLFW.ModifierKeys
     } deriving (Show)
@@ -56,21 +57,32 @@ data MouseInputData = MouseInputData
 
 class KeyboardInputInterface a where
     getKeyPressed :: a -> GLFW.Key -> IO Bool
+    getKeyHold :: a -> GLFW.Key -> IO Bool
     getKeyReleased :: a -> GLFW.Key -> IO Bool
+    clearKeyboardEvents :: a -> IO ()
 
 instance KeyboardInputInterface KeyboardInputData where
     getKeyPressed keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyPressedMap keyboardInputData) key
+    getKeyHold keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyHoldMap keyboardInputData) key
     getKeyReleased keyboardInputData key = fromMaybe False <$> HashTable.lookup (_keyReleasedMap keyboardInputData) key
+    clearKeyboardEvents keyboardInputData = do
+        keyPressed <- HashTable.toList (_keyPressedMap keyboardInputData)
+        mapM_ (\(k, v) -> HashTable.delete (_keyPressedMap keyboardInputData) k) keyPressed
+
+        keyReleased <- HashTable.toList (_keyReleasedMap keyboardInputData)
+        mapM_ (\(k, v) -> HashTable.delete (_keyReleasedMap keyboardInputData) k) keyPressed
 
 newKeyboardInputData :: IO KeyboardInputData
 newKeyboardInputData = do
     keyPressed <- HashTable.new
+    keyHold <- HashTable.new
     keyReleased <- HashTable.new
     return KeyboardInputData
             { _keyboardDown = False
             , _keyboardPressed = False
             , _keyboardUp = False
             , _keyPressedMap = keyPressed
+            , _keyHoldMap = keyHold
             , _keyReleasedMap = keyReleased
             , _modifierKeys = GLFW.ModifierKeys
                 { GLFW.modifierKeysShift = False

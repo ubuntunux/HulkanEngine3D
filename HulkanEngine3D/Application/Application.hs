@@ -114,9 +114,16 @@ keyCallBack keyboardInputDataRef window key scanCode keyState modifierKeys = do
     let keyboardPressed = GLFW.KeyState'Pressed == keyState || GLFW.KeyState'Repeating == keyState
         keyboardReleased = GLFW.KeyState'Released == keyState
         keyPressedMap = _keyPressedMap keyboardInputData
+        keyHoldMap = _keyHoldMap keyboardInputData
         keyReleasedMap = _keyReleasedMap keyboardInputData
-    HashTable.insert keyPressedMap key keyboardPressed
-    HashTable.insert keyReleasedMap key (not keyboardPressed)
+    if keyboardPressed then do
+        keyHold <- getKeyHold keyboardInputData key
+        when (False == keyHold) $
+            HashTable.insert keyPressedMap key keyboardPressed
+        HashTable.insert keyHoldMap key True
+    else do
+        HashTable.insert keyReleasedMap key True
+        HashTable.insert keyHoldMap key False
     writeIORef keyboardInputDataRef $ keyboardInputData
         { _keyboardPressed = keyboardPressed
         , _keyboardDown = keyboardPressed
@@ -172,14 +179,14 @@ updateEvent applicationData@ApplicationData {..} = do
     keyboardInputData <- readIORef _keyboardInputData
     mouseInputData <- readIORef _mouseInputData
     mouseMoveData <- readIORef _mouseMoveData
-    pressed_key_A <- getKeyPressed keyboardInputData GLFW.Key'A
-    pressed_key_D <- getKeyPressed keyboardInputData GLFW.Key'D
-    pressed_key_W <- getKeyPressed keyboardInputData GLFW.Key'W
-    pressed_key_S <- getKeyPressed keyboardInputData GLFW.Key'S
-    pressed_key_Q <- getKeyPressed keyboardInputData GLFW.Key'Q
-    pressed_key_E <- getKeyPressed keyboardInputData GLFW.Key'E
-    pressed_key_Z <- getKeyPressed keyboardInputData GLFW.Key'Z
-    pressed_key_C <- getKeyPressed keyboardInputData GLFW.Key'C
+    pressed_key_A <- getKeyHold keyboardInputData GLFW.Key'A
+    pressed_key_D <- getKeyHold keyboardInputData GLFW.Key'D
+    pressed_key_W <- getKeyHold keyboardInputData GLFW.Key'W
+    pressed_key_S <- getKeyHold keyboardInputData GLFW.Key'S
+    pressed_key_Q <- getKeyHold keyboardInputData GLFW.Key'Q
+    pressed_key_E <- getKeyHold keyboardInputData GLFW.Key'E
+    pressed_key_Z <- getKeyHold keyboardInputData GLFW.Key'Z
+    pressed_key_C <- getKeyHold keyboardInputData GLFW.Key'C
     released_key_LeftBracket <- getKeyReleased keyboardInputData GLFW.Key'LeftBracket
     released_key_RightBracket <- getKeyReleased keyboardInputData GLFW.Key'RightBracket
     mainCamera <- readIORef (SceneManager._mainCamera $ _sceneManagerData)
@@ -328,7 +335,7 @@ updateLoop applicationData commandToEditor commandToApp loopAction = do
             , _mousePosDelta = vec2 0 0
             , _mousePosPrev = _mousePos moveMoveData
             }
-        clearHashTable (_keyReleasedMap keyboardInputData) (\_ -> return ())
+        clearKeyboardEvents keyboardInputData
 
         -- receive events
         GLFW.pollEvents
