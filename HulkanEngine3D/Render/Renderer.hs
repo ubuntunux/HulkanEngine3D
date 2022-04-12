@@ -741,7 +741,7 @@ renderPostProcess :: RendererData
                   -> Int
                   -> GeometryData
                   -> IO ()
-renderPostProcess rendererData@RendererData {..} commandBuffer swapChainIndex quadGeometryData = do
+renderPostProcess rendererData@RendererData {} commandBuffer swapChainIndex quadGeometryData = do
     renderPipeline1 rendererData commandBuffer swapChainIndex "render_ssao" quadGeometryData
     renderPipeline1 rendererData commandBuffer swapChainIndex "composite_gbuffer" quadGeometryData
     renderPipeline1 rendererData commandBuffer swapChainIndex "render_motion_blur" quadGeometryData

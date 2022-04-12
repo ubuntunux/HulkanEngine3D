@@ -89,6 +89,8 @@ newKeyboardInputData = do
                 , GLFW.modifierKeysControl = False
                 , GLFW.modifierKeysAlt = False
                 , GLFW.modifierKeysSuper = False
+                , GLFW.modifierKeysCapsLock = False
+                , GLFW.modifierKeysNumLock = False
                 }
             }
 

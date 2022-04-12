@@ -78,14 +78,14 @@ executable main
                       HulkanEngine3D.Vulkan.SwapChain
                       HulkanEngine3D.Vulkan.Sync
                       HulkanEngine3D.Vulkan.Texture
-    build-depends:    base >= 4.11 && < 5
+    build-depends:    base
                       , aeson
                       , array
                       , binary
                       , bytestring
                       , containers
                       , directory
-                      , dlist >= 0.7  && < 0.9
+                      , dlist
                       , filepath
                       , hashable
                       , hashtables
@@ -105,7 +105,7 @@ executable main
                       , random
                       , wavefront
                       , vulkan-api >= 1.3.0.0
-                      , GLFW-b >= 3.2.1
+                      , GLFW-b
                       , easytensor >=2.1 && < 3
                       , easytensor-vulkan >=2.0.2 && < 3
                       , dimensions >=2.1 && < 3
