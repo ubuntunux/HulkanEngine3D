@@ -29,8 +29,8 @@ import Foreign
 import System.Directory
 import System.FilePath.Posix
 import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HashMap
---import qualified Data.Map as Map
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Key as AesonKey
 
 import Graphics.Vulkan.Core_1_0
 import qualified Codec.Picture as Image
@@ -311,9 +311,9 @@ instance ResourceInterface Resources where
         where
             registModelData modelDataMap modelName contents = do
                 let Just (Aeson.Object modelCreateInfoMap) = Aeson.decodeStrict contents
-                    Just (Aeson.Array materialInstanceNames) = HashMap.lookup "material_instances" modelCreateInfoMap
+                    Just (Aeson.Array materialInstanceNames) = KeyMap.lookup "material_instances" modelCreateInfoMap
                     materialInstanceCount = Vector.length materialInstanceNames
-                    Just (Aeson.String meshName) = HashMap.lookup "mesh" modelCreateInfoMap
+                    Just (Aeson.String meshName) = KeyMap.lookup "mesh" modelCreateInfoMap
                 meshData <- getMeshData resources meshName
                 geometryDataCount <- getGeometryDataCount meshData
                 let materialInstanceNameList = (Vector.take geometryDataCount materialInstanceNames) Vector.++ (Vector.replicate (max 0 (geometryDataCount - materialInstanceCount)) (Aeson.String defaultMaterialInstanceName))
@@ -550,11 +550,13 @@ instance ResourceInterface Resources where
         where
             registMaterialData rendererData materialDataMap materialName contents = do
                 let Just (Aeson.Object materialCreateInfo) = Aeson.decodeStrict contents
-                    Just (Aeson.Array pipelineCreateInfoArray) = HashMap.lookup "pipelines" materialCreateInfo
-                    Aeson.Object materialParameterMap = HashMap.lookupDefault (Aeson.Object HashMap.empty) "material_parameters" materialCreateInfo
+                    Just (Aeson.Array pipelineCreateInfoArray) = KeyMap.lookup "pipelines" materialCreateInfo
+                    Aeson.Object materialParameterMap = case (KeyMap.lookup "material_parameters" materialCreateInfo) of
+                        Just v -> v
+                        _ -> (Aeson.Object KeyMap.empty)
                 renderPassPipelineDataList <- forM pipelineCreateInfoArray $ \(Aeson.Object pipelineCreateInfo) -> do
-                    let Just (Aeson.String renderPassDataName) = HashMap.lookup "renderPass" pipelineCreateInfo
-                        Just (Aeson.String pipelineDataName) = HashMap.lookup "pipeline" pipelineCreateInfo
+                    let Just (Aeson.String renderPassDataName) = KeyMap.lookup "renderPass" pipelineCreateInfo
+                        Just (Aeson.String pipelineDataName) = KeyMap.lookup "pipeline" pipelineCreateInfo
                     getRenderPassPipelineData resources (renderPassDataName, pipelineDataName)
                 material <- Material.createMaterial materialName (Vector.toList renderPassPipelineDataList) materialParameterMap
                 HashTable.insert (_materialDataMap resources) materialName material
@@ -578,8 +580,8 @@ instance ResourceInterface Resources where
         where
             registMaterialInstanceData rendererData materialInstanceDataMap materialInstanceName contents = do
                 let Just (Aeson.Object materialInstanceCreateInfoMap) = Aeson.decodeStrict contents
-                    Just (Aeson.String materialDataName) = HashMap.lookup "material_name" materialInstanceCreateInfoMap
-                    Just (Aeson.Object materialParameterMap) = HashMap.lookup "material_parameters" materialInstanceCreateInfoMap
+                    Just (Aeson.String materialDataName) = KeyMap.lookup "material_name" materialInstanceCreateInfoMap
+                    Just (Aeson.Object materialParameterMap) = KeyMap.lookup "material_parameters" materialInstanceCreateInfoMap
 
                 materialData <- getMaterialData resources materialDataName
                 let defaultMaterialParameterMap = Material._materialParameterMap materialData
@@ -590,7 +592,9 @@ instance ResourceInterface Resources where
                             let materialParameterName = Descriptor._descriptorName' descriptorDataCreateInfo
                                 materialParameterType = Descriptor._descriptorType' descriptorDataCreateInfo
                                 materialParameterResourceType = Descriptor._descriptorResourceType' descriptorDataCreateInfo
-                                maybeMaterialParameter = lookupWithDefaultMap materialParameterName materialParameterMap defaultMaterialParameterMap
+                                maybeMaterialParameter = case (KeyMap.lookup (AesonKey.fromText materialParameterName) materialParameterMap) of
+                                    Nothing -> KeyMap.lookup (AesonKey.fromText materialParameterName) defaultMaterialParameterMap
+                                    some -> some
                             case (materialParameterType, materialParameterResourceType) of
                                 (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, Descriptor.DescriptorResourceType_UniformBuffer) -> do
                                     uniformBufferData <- getUniformBufferData rendererData (fromText materialParameterName)

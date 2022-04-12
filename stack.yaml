@@ -9,7 +9,6 @@ ghc-options:
 allow-newer: true
 
 extra-deps:
-  - aeson-1.5.6.0
   - bindings-GLFW-3.3.2.0
   - GLFW-b-3.3.0.0
   - constraints-deriving-1.1.1.2
