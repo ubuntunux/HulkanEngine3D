@@ -5,7 +5,9 @@ ghc-options:
   vulkan-api:    -O2
   GLFW-b:        -O2
   bindings-GLFW: -O2
-    
+  entropy: -Wno-unsupported-calling-conventions
+  monad-logger: -Wno-deprecations -Wno-missing-methods
+
 allow-newer: true
 
 extra-deps:
@@ -17,9 +19,6 @@ extra-deps:
   - easytensor-vulkan-2.0.2.1
   - wavefront-0.7.1.3
   - vulkan-api-1.4.0.0
-  - threepenny-gui-0.9.1.0
-  - snap-server-1.1.2.0
-  - websockets-snap-0.10.3.1
   - io-streams-haproxy-1.0.1.0
   
 packages:
