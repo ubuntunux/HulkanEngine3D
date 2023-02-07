@@ -13,7 +13,7 @@ engineName :: String
 engineName = "HulkanEngine3D"
 
 vulkanLayers :: [String]
-vulkanLayers = ["VK_LAYER_LUNARG_standard_validation"]
+vulkanLayers = ["VK_LAYER_KHRONOS_validation"]
 
 requireDeviceExtensions :: [CString]
 requireDeviceExtensions = [VK_KHR_SWAPCHAIN_EXTENSION_NAME]
